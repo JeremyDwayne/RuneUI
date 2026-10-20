@@ -60,7 +60,7 @@ local function readMarkers(saved)
   local markers = {}
   for name, default in pairs(DEFAULT_MARKERS) do
     local value = type(saved) == "table" and saved[name] or nil
-    markers[name] = type(value) == "number" and value or default
+    markers[name] = type(value) == "number" and whole(value) or default
   end
   return markers
 end
