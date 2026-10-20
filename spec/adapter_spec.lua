@@ -137,29 +137,29 @@ describe("adapter.auraReads", function()
   end)
 end)
 
--- Interface 284 with a static root, a filled slot :19 and an empty slot :20, as the client builds them.
--- fill() replaces :19's children with new shown, opaque ones, as the client does when a buff fills the slot.
+-- Interface 284 with a static root and a buff in slot :19, as the client builds it. fill(staticID) gives a
+-- slot new shown, opaque children holding a buff, as the client does when a buff fills it.
 local function loadBuffBar()
-  local function children()
-    local list = {}
-    for dynamic = 0, 3 do list[dynamic] = { alpha = 1, hidden = false, categoryID = 0, dynamicID = dynamic } end
-    return list
+  local bar = { root = { alpha = 1 }, slots = {} }
+  local statics = { [0] = bar.root }
+  function bar.fill(staticID)
+    local children = {}
+    for dynamic = 0, 3 do children[dynamic] = { alpha = 1, hidden = false, categoryID = 0, dynamicID = dynamic } end
+    children[0].spriteID, children[1].content = 30093, "6m"
+    bar.slots[staticID] = children
+    statics[staticID] = statics[staticID] or { alpha = 1, IterateDynamicComponents = function(_, fn)
+      for dynamic = 0, 3 do fn(bar.slots[staticID][dynamic]) end
+    end }
+    return children
   end
-  local bar = { root = { alpha = 1 }, slot = children() }
-  local statics = {
-    [0] = bar.root,
-    [19] = { alpha = 1, IterateDynamicComponents = function(_, fn)
-      for dynamic = 0, 3 do fn(bar.slot[dynamic]) end
-    end },
-  }
+  bar.fill(19)
   bar.interfaces = { lookups = 0, GetComponent = function(self, interfaceID, staticID, _, dynamicID)
     self.lookups = self.lookups + 1
     if interfaceID ~= 284 then return nil end
     if dynamicID == nil then return statics[staticID] end
-    return staticID == 19 and bar.slot[dynamicID] or nil
+    return bar.slots[staticID] and bar.slots[staticID][dynamicID]
   end }
   _G.ui = { Interfaces = bar.interfaces }
-  function bar.fill() bar.slot = children() end
   return bar
 end
 
@@ -167,7 +167,7 @@ describe("adapter.hideBuffBars", function()
   it("hides slot icons, makes the rest transparent, and restores both when turned off", function()
     local bar = loadBuffBar()
     adapter.hideBuffBars(true)
-    local slot = bar.slot
+    local slot = bar.slots[19]
     assert.are.same({ 0, true, false, 0, true, 0 },
       { bar.root.alpha, slot[0].hidden, slot[1].hidden, slot[1].alpha, slot[2].hidden, slot[3].alpha })
     adapter.hideBuffBars(false)
@@ -179,10 +179,20 @@ describe("adapter.hideBuffBars", function()
     local bar = loadBuffBar()
     adapter.hideBuffBars(true)
     adapter.hideBuffBars(true)
-    bar.fill()
+    local slot = bar.fill(19)
     adapter.keepBuffBarsHidden()
-    assert.are.same({ true, 0, true, 0 }, { bar.slot[0].hidden, bar.slot[1].alpha, bar.slot[2].hidden,
-      bar.slot[3].alpha })
+    assert.are.same({ true, 0, true, 0 }, { slot[0].hidden, slot[1].alpha, slot[2].hidden, slot[3].alpha })
+    adapter.hideBuffBars(false)
+  end)
+
+  it("hides a slot a potion fills several slots past the last buff", function()
+    local bar = loadBuffBar()
+    adapter.hideBuffBars(true)
+    adapter.auraReads()
+    adapter.hideBuffBars(true)
+    local slot = bar.fill(26)
+    adapter.keepBuffBarsHidden()
+    assert.is_true(slot[0].hidden)
     adapter.hideBuffBars(false)
   end)
 

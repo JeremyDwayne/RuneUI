@@ -18,7 +18,7 @@ local TARGET_BACKGROUND = 25
 -- The buff bar and debuff bar share a layout: slot :<n>:0:0 holds the icon sprite, :<n>:0:1 the label,
 -- :<n>:0:2 and :<n>:0:3 its frame. An icon showing an item reads sprite -1, and a slot the player's buff
 -- settings hide reads its label not visibleGlobal. lastStatic is each bar's highest static ID, and watchLast
--- the last slot auraReads looked at.
+-- the last slot a buff can fill next, as auraReads last saw the bar.
 local BUFF_BARS = {
   buffs = { id = 284, first = 19, last = 68, lastStatic = 80 },
   debuffs = { id = 291, first = 2, last = 51, lastStatic = 60 },
@@ -27,6 +27,8 @@ local BUFF_BARS = {
 local EMPTY_RUN = 4
 -- Rendered frames after each server tick in which a buff bar can fill a slot.
 local FILL_FRAMES = 8
+-- Slots past the last filled one that a buff can fill at once, such as a potion's several effects.
+local FILL_AHEAD = 8
 -- config.Inv.WORN, the worn-equipment inventory.
 local WORN_INV = 94
 -- Ability struct params read into justUsed()'s result.
@@ -96,8 +98,7 @@ end
 
 -- { sprite, label } for each shown icon on bar, a BUFF_BARS entry, stopping after EMPTY_RUN empty slots.
 local function barReads(bar)
-  local list, empty = {}, 0
-  bar.watchLast = bar.last
+  local list, empty, filled = {}, 0, bar.first - 1
   for staticID = bar.first, bar.last do
     local icon = ui.Interfaces:GetComponent(bar.id, staticID, 0, 0)
     local sprite = icon and read(icon, "spriteID")
@@ -106,17 +107,15 @@ local function barReads(bar)
     if type(text) ~= "string" or text == "" then text = nil end
     if (sprite == nil or sprite == -1) and text == nil then
       empty = empty + 1
-      if empty >= EMPTY_RUN then
-        bar.watchLast = staticID
-        return list
-      end
+      if empty >= EMPTY_RUN then break end
     else
-      empty = 0
+      empty, filled = 0, staticID
       if sprite ~= nil and sprite ~= -1 and read(label, "visibleGlobal") ~= false then
         list[#list + 1] = { sprite = sprite, label = text }
       end
     end
   end
+  bar.watchLast = math.min(bar.last, filled + FILL_AHEAD)
   return list
 end
 
@@ -334,7 +333,7 @@ local function eachBarComponent(fn)
 end
 
 -- Runs on every rendered frame while the buff bars are hidden. For a few frames after each server tick it
--- reads the icon of each slot auraReads looked at, and hides a slot again once the client fills it, which
+-- reads the icon of each slot up to watchLast, and hides a slot again once the client fills it, which
 -- shows its icon and makes its label and frame opaque. No reads otherwise.
 function adapter.keepBuffBarsHidden()
   if barAlpha == nil or framesSinceTick >= FILL_FRAMES then return end
