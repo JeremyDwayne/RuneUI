@@ -25,13 +25,17 @@ function icons.spriteLabel(configName)
   return #words > 0 and table.concat(words, " ") or nil
 end
 
+-- What info returns for an icon with no name and no sprite label once the scan gives up.
+local NO_NAME = {}
+
 local function isDebuff(configName)
   return configName:sub(1, 16) == "COMBATV2_DEBUFF_"
 end
 
 -- saved: { [tostring(sprite)] = { name, info } or { unmatched = true } } from settings. spriteName(sprite)
 -- returns the sprite's config name or nil. count overrides STRUCT_COUNT for specs. info(sprite) returns
--- { name, info }, its sprite label as { name }, or nil, and wants the icon when unknown. step(lookup, budget)
+-- { name, info }, its sprite label as { name }, {} once no struct matches an icon with no label, or nil while
+-- one is looked up, and wants the icon when unknown. step(lookup, budget)
 -- scans budget struct ids, where lookup(id) returns { configName, icon, name, info } or nil, and returns
 -- what it settled for saving: { sprite, name, info } for a named icon, { sprite } for one no struct matches.
 function icons.index(saved, spriteName, count)
@@ -58,7 +62,7 @@ function icons.index(saved, spriteName, count)
       labels[sprite] = label ~= nil and { name = label } or false
       if not unmatched[sprite] then wanted[sprite] = { left = count } end
     end
-    return labels[sprite] or nil
+    return labels[sprite] or (unmatched[sprite] and NO_NAME) or nil
   end
 
   local function name(sprite, struct)

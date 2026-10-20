@@ -74,4 +74,11 @@ describe("icons.index", function()
     index.step(lookup, 5)
     assert.are.equal(0, looked)
   end)
+
+  it("stops reporting a lookup for an unmatched icon with no sprite label", function()
+    local index = icons.index({}, noName, 10)
+    assert.is_nil(index.info(14766))
+    for _ = 1, 4 do index.step(lookup, 3) end
+    assert.are.same({}, index.info(14766))
+  end)
 end)
