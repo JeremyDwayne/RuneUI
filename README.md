@@ -1,6 +1,6 @@
 # RuneUI
 
-A clean combat HUD for RuneScape 3. RuneUI draws compact unit frames, a resource bar and two rows of ability cooldowns above the bottom centre of the screen, so the numbers you check mid-fight sit close together.
+A clean combat HUD for RuneScape 3. RuneUI draws compact unit frames, a resource bar and two rows of ability cooldowns above the bottom centre of the screen, so the numbers you check mid-fight sit close together. Game windows such as the bank draw over it.
 
 ## What it shows
 
@@ -23,10 +23,10 @@ RuneUI runs on the RuneScape beta while plugins are in testing.
 
 Open the plugin ribbon and press **Open RuneUI options**. Press Esc or **Done** to close the window.
 
-- The Cooldown manager page shows both ability rows. Drag an icon to reorder it or move it to the other row, press **+** to add an ability you have used, and click an icon for a Remove option.
+- The Cooldown manager page shows both ability rows. Drag an icon to reorder it or move it to the other row, press **+** to add an ability you have used, and click an icon for a Remove option. The **+** list opens on your current combat style, with tabs for the other styles and a search box for ability names.
 - The Resource bar page sets the threshold and ultimate marker percents.
 - The Appearance page picks a flat bar fill or a vertical or horizontal gradient. It can also hide the game's own target panel, since RuneUI's target frame replaces it.
-- Edit mode, turned on from the window's footer, lets you drag any HUD element to move it. **Reset positions** puts everything back. Press Esc to finish, or **Done** to return to the window.
+- Edit mode, turned on from the window's footer, lets you drag any HUD element to move it. **Reset positions** asks first, then puts everything back. Press Esc to finish, or **Done** to return to the window.
 
 RuneUI saves your layout, rows, markers and appearance and keeps them between sessions.
 
