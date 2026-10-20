@@ -28,8 +28,23 @@ end
 -- What info returns for an icon with no name and no sprite label once the scan gives up.
 local NO_NAME = {}
 
-local function isDebuff(configName)
-  return configName:sub(1, 16) == "COMBATV2_DEBUFF_"
+-- Lowercase words of a sprite config name, as a set: DEBUFF_ICON_POISONED gives debuff, icon and poisoned.
+local function spriteWords(configName)
+  local words = {}
+  for word in configName:lower():gmatch("[^_]+") do words[word] = true end
+  return words
+end
+
+-- How well struct fits a sprite with words, lower is better: 1 when every word of its name is a sprite word,
+-- as "Poisoned" for DEBUFF_ICON_POISONED, 2 for a debuff struct, 3 for any other.
+local function rank(struct, words)
+  local any, all = false, true
+  for word in tostring(struct.name):lower():gmatch("%a+") do
+    any = true
+    if not words[word] then all = false end
+  end
+  if any and all then return 1 end
+  return struct.configName:sub(1, 16) == "COMBATV2_DEBUFF_" and 2 or 3
 end
 
 -- saved: { [tostring(sprite)] = { name, info } or { unmatched = true } } from settings. spriteName(sprite)
@@ -46,7 +61,8 @@ function icons.index(saved, spriteName, count)
   for sprite, entry in pairs(saved) do
     if entry.unmatched then unmatched[tonumber(sprite)] = true else known[tonumber(sprite)] = entry end
   end
-  -- Unnamed icons being scanned for: ids left to scan and the lowest-id non-debuff match so far.
+  -- Unnamed icons being scanned for: ids left to scan, the sprite's words, and the best match so far with its
+  -- rank and id.
   local wanted = {}
   -- Every unnamed icon asked for, to its sprite label as { name }, or false when it has none.
   local labels = {}
@@ -58,9 +74,10 @@ function icons.index(saved, spriteName, count)
     local entry = known[sprite]
     if entry ~= nil then return entry end
     if labels[sprite] == nil then
-      local label = icons.spriteLabel(spriteName(sprite) or "")
+      local configName = spriteName(sprite) or ""
+      local label = icons.spriteLabel(configName)
       labels[sprite] = label ~= nil and { name = label } or false
-      if not unmatched[sprite] then wanted[sprite] = { left = count } end
+      if not unmatched[sprite] then wanted[sprite] = { left = count, words = spriteWords(configName) } end
     end
     return labels[sprite] or (unmatched[sprite] and NO_NAME) or nil
   end
@@ -80,17 +97,18 @@ function icons.index(saved, spriteName, count)
       local struct = lookup(id)
       local want = struct and wanted[struct.icon]
       if want ~= nil then
-        if isDebuff(struct.configName) then
+        local r = rank(struct, want.words)
+        if r == 1 then
           found[#found + 1] = name(struct.icon, struct)
-        elseif want.fallback == nil or want.fallbackID > id then
-          want.fallback, want.fallbackID = struct, id
+        elseif want.best == nil or r < want.bestRank or (r == want.bestRank and id < want.bestID) then
+          want.best, want.bestRank, want.bestID = struct, r, id
         end
       end
       for sprite, w in pairs(wanted) do
         w.left = w.left - 1
         if w.left <= 0 then
-          if w.fallback ~= nil then
-            found[#found + 1] = name(sprite, w.fallback)
+          if w.best ~= nil then
+            found[#found + 1] = name(sprite, w.best)
           else
             unmatched[sprite], wanted[sprite] = true, nil
             found[#found + 1] = { sprite = sprite }

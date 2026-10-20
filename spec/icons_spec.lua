@@ -2,8 +2,11 @@ local icons = require("src/icons")
 
 -- A struct table like the client's, keyed by id; lookup returns what the adapter reads from each.
 local STRUCTS = {
+  [1] = { configName = "COMBATV2_BOSS_BUFF_SLISKE_DELIRIUM", icon = 30097, name = "Delirium - Poison grows." },
+  [2] = { configName = "COMBATV2_BUFF_MAGIC_ASPHYXIATE_CRITICAL_DAMAGE", icon = 17606, name = "Channelled Might" },
   [3] = { configName = "COMBATV2_STUN_IMMUNE_DUMMY_ABILITY", icon = 26104, name = "Stun Immune" },
   [5] = { configName = "COMBATV2_ABILITY_NECROMANCY_BLOAT", icon = 30098, name = "Bloat" },
+  [6] = { configName = "COMBATV2_POISONED_DUMMY_ABILITY", icon = 30097, name = "Poisoned" },
   [8] = { configName = "COMBATV2_DEBUFF_NECROMANCY_BLOATED", icon = 30098, name = "Bloated", info = "Swollen." },
 }
 local looked = 0
@@ -14,6 +17,7 @@ end
 
 local SPRITES = {
   [30098] = "BUFF_ICON_NECROMANCY_BLOATED", [26104] = "COMBAT_ICON_BUFF_11", [14766] = "BUFF_ICON_INCITE_FEAR",
+  [30097] = "DEBUFF_ICON_POISONED", [17606] = "BUFF_ICON_MAGIC_ASPHYXIATE",
 }
 local function spriteName(sprite) return SPRITES[sprite] end
 local function noName() return nil end
@@ -80,5 +84,13 @@ describe("icons.index", function()
     assert.is_nil(index.info(14766))
     for _ = 1, 4 do index.step(lookup, 3) end
     assert.are.same({}, index.info(14766))
+  end)
+
+  it("prefers a struct named for the sprite, and otherwise keeps the lowest id", function()
+    local index = icons.index({}, spriteName, 10)
+    index.info(30097)
+    index.info(17606)
+    for _ = 1, 4 do index.step(lookup, 3) end
+    assert.are.same({ "Poisoned", "Channelled Might" }, { index.info(30097).name, index.info(17606).name })
   end)
 end)
