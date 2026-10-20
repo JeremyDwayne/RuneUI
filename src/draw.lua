@@ -84,6 +84,14 @@ function draw.width(obj, width)
   fields.SetWidth = width
 end
 
+-- SetSize with the same unchanged-value skip as draw.pos.
+function draw.size(obj, width, height)
+  local fields = writtenFor(obj)
+  if fields["SetSize.w"] == width and fields["SetSize.h"] == height then return end
+  obj:SetSize(width, height)
+  fields["SetSize.w"], fields["SetSize.h"] = width, height
+end
+
 function draw.rect(parent, rgb, x, y, width, height)
   local r = ui.Rectangle.new(parent)
   draw.set(r, "fill", true)
@@ -126,14 +134,14 @@ end
 -- Places an outline around the box at x, y sized w by h, its thickness drawn outside.
 function draw.placeOutline(box, x, y, w, h)
   local t = box.thickness
-  box[1]:SetPos(x - t, y - t)
-  box[1]:SetSize(w + 2 * t, t)
-  box[2]:SetPos(x - t, y + h)
-  box[2]:SetSize(w + 2 * t, t)
-  box[3]:SetPos(x - t, y)
-  box[3]:SetSize(t, h)
-  box[4]:SetPos(x + w, y)
-  box[4]:SetSize(t, h)
+  draw.pos(box[1], x - t, y - t)
+  draw.size(box[1], w + 2 * t, t)
+  draw.pos(box[2], x - t, y + h)
+  draw.size(box[2], w + 2 * t, t)
+  draw.pos(box[3], x - t, y)
+  draw.size(box[3], t, h)
+  draw.pos(box[4], x + w, y)
+  draw.size(box[4], t, h)
 end
 
 -- Gradient ends as fractions toward white and black.

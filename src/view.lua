@@ -419,9 +419,12 @@ function view.cooldownGroup(root, style, tooltip)
     end
     for i, parts in ipairs(tiles) do
       local model = models[i]
-      parts.setHidden(model == nil)
-      if model ~= nil then
+      if model == nil then
+        parts.setHidden(true)
+      else
         parts.place(offset + (i - 1) * step)
+        set(parts.edge, "hidden", false)
+        set(parts.background, "hidden", false)
         set(parts.icon, "hidden", model.icon == nil)
         if model.icon ~= nil then set(parts.icon, "sprite", model.icon) end
         set(parts.initials, "hidden", model.icon ~= nil)
