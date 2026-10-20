@@ -251,15 +251,20 @@ local DASH, DASH_GAP = 6, 4
 -- Redraws canvas as a w by h box outline of dashes thickness wide, inside its edges. rgba is 0xRRGGBBAA.
 function draw.dashedBox(canvas, w, h, thickness, rgba)
   canvas:Clear()
+  draw.dashedBoxAt(canvas, 0, 0, w, h, thickness, rgba)
+end
+
+-- Adds a dashed box at x, y to canvas without clearing it, so one canvas can hold several.
+function draw.dashedBoxAt(canvas, x0, y0, w, h, thickness, rgba)
   for x = 0, w - 1, DASH + DASH_GAP do
     local length = math.min(DASH, w - x)
-    canvas:AddRectangle(x, 0, length, thickness, rgba)
-    canvas:AddRectangle(x, h - thickness, length, thickness, rgba)
+    canvas:AddRectangle(x0 + x, y0, length, thickness, rgba)
+    canvas:AddRectangle(x0 + x, y0 + h - thickness, length, thickness, rgba)
   end
   for y = 0, h - 1, DASH + DASH_GAP do
     local length = math.min(DASH, h - y)
-    canvas:AddRectangle(0, y, thickness, length, rgba)
-    canvas:AddRectangle(w - thickness, y, thickness, length, rgba)
+    canvas:AddRectangle(x0, y0 + y, thickness, length, rgba)
+    canvas:AddRectangle(x0 + w - thickness, y0 + y, thickness, length, rgba)
   end
 end
 

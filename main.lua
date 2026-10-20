@@ -74,10 +74,11 @@ local function refresh()
   end
   -- Anchored elements follow a row whose shown tiles changed.
   if moved then optionsWindow.placeAll() end
+  optionsWindow.redrawBuffs()
 end
 
 optionsWindow = options.create(top, {
-  saved = saved, tracker = tracker, elements = elements, view = view, refresh = refresh,
+  saved = saved, tracker = tracker, elements = elements, view = view, auraInfo = auraNames.info, refresh = refresh,
 })
 
 Event.ServerLogic.Subscribe("refresh", function()

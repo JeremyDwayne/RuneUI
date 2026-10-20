@@ -30,8 +30,10 @@ RuneUI runs on the RuneScape beta while plugins are in testing.
 Open the plugin ribbon and press **Open RuneUI options**. Press Esc or **Done** to close the window.
 
 - The Cooldown manager page shows both ability rows. Drag an icon to reorder it or move it to the other row, press **+** to add an ability you have used, and click an icon for a Remove option. The **+** list opens on your current combat style, with tabs for the other styles and a search box for ability names.
+- The Buffs page lists every buff and debuff RuneUI has seen, in tabs. Buffs sit in Combat buffs, Upkeep buffs or Hidden, and each debuff tab splits the target's or your debuffs into Tracked and Not tracked; only tracked debuffs show on the HUD. Drag an icon to another group to move it, or click it for a menu of the same moves. Hover an icon for its name. An upkeep buff's menu also has **Keep up**: while a Keep up buff is missing and you have a target, its icon stays in the upkeep row, dim inside a dashed white outline with no time, so a dropped overload shows. Kept up buffs carry a white K on the page.
+- The Buffs page's Display tab holds **Game buff bars**, which hides the game's own buff and debuff bars since RuneUI's aura rows replace them, and **Aura icons**, which picks plain icons or icons with a draining bar under each. With bars, an icon in its last 10% gets a dashed white outline and a striped bar instead of the ring and plate.
 - The Resource bar page sets the threshold and ultimate marker percents.
-- The Appearance page picks a flat bar fill or a vertical or horizontal gradient. It can also hide the game's own target panel, since RuneUI's target frame replaces it. **Game buff bars** hides the game's own buff and debuff bars, since RuneUI's aura rows replace them. **Aura icons** picks plain icons or icons with a draining bar under each. With bars, an icon in that window gets a dashed white outline and a striped bar instead of the ring and plate.
+- The Appearance page picks a flat bar fill or a vertical or horizontal gradient. It can also hide the game's own target panel, since RuneUI's target frame replaces it.
 - Edit mode, turned on from the window's footer, lets you drag any HUD element to move it. Everything anchored to that element moves with it. Press Esc to finish, or **Done** to return to the window.
 - To anchor an element, press its **Anchor** button in edit mode, click another element, then choose a side and alignment from the menu. The element sits flush against that side and keeps its gap when the other element grows or shrinks, such as when an ability row gains a tile. Its button then names the anchor, such as "Rotation, left, bottom", and pressing it removes the anchor. The frames and bars start anchored to the rotation row, so dragging the row moves the whole HUD.
 - While you drag, an element snaps to the edges and centers of other elements and of the game window, or to a 16 px grid, and a line marks each snap. Hold Shift to move freely. **Snap on** in the toolbar turns snapping and the grid off. **Reset positions** asks first, then puts every element and anchor back.
@@ -40,7 +42,7 @@ RuneUI saves your layout, rows, markers and appearance and keeps them between se
 
 ## What RuneUI reads and does
 
-RuneUI only displays information the game already shows you. It reads your lifepoints, prayer, adrenaline, stacks and cooldowns from the game, along with the icons and keybinds on your action bars and whether each one is dimmed, the icons and time labels on the game's buff and debuff bars, the game's own target panel and your worn equipment. Ability, buff and debuff names come from the game's own data, the same names its tooltips show. Until RuneUI has looked up an icon's name, or when the game data has no name for it, it shows one built from the icon's name in the game data. RuneUI saves which row each buff joined.
+RuneUI only displays information the game already shows you. It reads your lifepoints, prayer, adrenaline, stacks and cooldowns from the game, along with the icons and keybinds on your action bars and whether each one is dimmed, the icons and time labels on the game's buff and debuff bars, the game's own target panel and your worn equipment. Ability, buff and debuff names come from the game's own data, the same names its tooltips show. Until RuneUI has looked up an icon's name, or when the game data has no name for it, it shows one built from the icon's name in the game data. RuneUI saves which row each buff joined, which debuffs you track and which buffs you keep up.
 
 It never clicks, casts or sends anything to the game on your behalf. It needs no permissions and sends no data off your computer.
 
@@ -58,7 +60,7 @@ for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; d
 
 After saving a change, run `prl runeui` in the game console to reload the plugin.
 
-`src/adapter.lua` is the only module that reads the game client. `src/frames.lua`, `src/cooldowns.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure Lua with specs. `src/view.lua`, `src/options.lua` and `src/editmode.lua` draw the HUD, the options window and edit mode.
+`src/adapter.lua` is the only module that reads the game client. `src/frames.lua`, `src/cooldowns.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure Lua with specs. `src/view.lua`, `src/options.lua`, `src/buffspage.lua` and `src/editmode.lua` draw the HUD, the options window, its Buffs page and edit mode.
 
 ## Contributing
 

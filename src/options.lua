@@ -1,6 +1,7 @@
 -- The options window and its ribbon button: a sidebar of pages, a cooldown editor that mirrors both rows
--- with a "+" picker, drag to swap or insert and a Remove menu, marker steppers, appearance choices, the
--- reset dialog, and a footer toggle into src/editmode.
+-- with a "+" picker, drag to swap or insert and a Remove menu, the src/buffspage Buffs page, marker
+-- steppers, appearance choices, the reset dialog, and a footer toggle into src/editmode.
+local buffspage = require("src/buffspage")
 local draw = require("src/draw")
 local editmode = require("src/editmode")
 local editor = require("src/editor")
@@ -32,8 +33,9 @@ local PICKER_TAB_LIST = {
 local MARKER_STEP = 5
 
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
--- view = src/view, refresh = function redrawing the HUD }. Returns { placeAll, shutdown }; placeAll places
--- the HUD and edit mode's overlays from the saved positions and anchors.
+-- view = src/view, auraInfo(sprite) naming an aura icon, refresh = function redrawing the HUD }. Returns
+-- { placeAll, redrawBuffs, shutdown }; placeAll places the HUD and edit mode's overlays from the saved
+-- positions and anchors, and redrawBuffs redraws the Buffs page while it is shown.
 function options.create(root, deps)
   local saved, tracker, elements = deps.saved, deps.tracker, deps.elements
 
@@ -58,7 +60,7 @@ function options.create(root, deps)
     return saved.groups()
   end
 
-  local closePopups, rebuildEditor, drop, fillPicker, openPicker
+  local closePopups, rebuildEditor, drop, fillPicker, openPicker, buffsPage
 
   local function changed()
     rebuildEditor()
@@ -70,12 +72,17 @@ function options.create(root, deps)
   local pages, navRows = {}, {}
   local PAGE_LIST = {
     { id = "cooldowns", label = "Cooldown manager" },
+    { id = "buffs", label = "Buffs" },
     { id = "resource", label = "Resource bar" },
     { id = "appearance", label = "Appearance" },
   }
 
+  local currentPage = nil
+
   local function showPage(pageID)
     closePopups()
+    currentPage = pageID
+    if pageID == "buffs" then buffsPage.redraw() end
     for _, entry in ipairs(PAGE_LIST) do
       local active = entry.id == pageID
       set(pages[entry.id], "hidden", not active)
@@ -436,10 +443,21 @@ function options.create(root, deps)
   end
 
   function closePopups()
+    buffsPage.close()
     set(menu, "hidden", true)
     set(picker, "hidden", true)
     pickerFor, menuKey = nil, nil
   end
+
+  -- Buffs page ----------------------------------------------------------------------------------------
+
+  buffsPage = buffspage.create(pages.buffs, PAGE_W, HEIGHT - PAGE_Y - FOOTER - 1, {
+    saved = saved,
+    info = deps.auraInfo,
+    tooltip = deps.view.tooltip(root),
+    toScreen = function(px, py) return window.x + PAGE_X + px, window.y + PAGE_Y + py end,
+    refresh = deps.refresh,
+  })
 
   -- Resource bar page ---------------------------------------------------------------------------------
 
@@ -464,9 +482,10 @@ function options.create(root, deps)
 
   -- Appearance page ----------------------------------------------------------------------------------
 
-  local appearancePage = pages.appearance
   local CHOICE_W = 150
   local choiceRows = {}
+  -- Choice rows built so far on each parent, which sets the next row's position.
+  local rowCounts = {}
 
   -- The chosen option takes the accent fill and dark text; the others are plain buttons.
   local function showChoices()
@@ -480,19 +499,21 @@ function options.create(root, deps)
     end
   end
 
-  -- A labelled row of right-aligned option buttons. choices: { { value, label } }; current() returns the
-  -- chosen value and choose(value) saves one.
-  local function choiceRow(label, choices, current, choose)
-    local ry = 18 + #choiceRows * 50
-    rect(appearancePage, #choiceRows % 2 == 0 and COLOURS.sidebar or COLOURS.panel, 24, ry, PAGE_W - 48, 50)
-    local rowLabel = text(appearancePage, FONTS.body, ui.AlignMode.TOPLEFT, 40, ry, 200, 50)
+  -- A labelled row of right-aligned option buttons on parent, below its earlier rows. choices:
+  -- { { value, label } }; current() returns the chosen value and choose(value) saves one.
+  local function choiceRow(parent, label, choices, current, choose)
+    local n = rowCounts[parent] or 0
+    rowCounts[parent] = n + 1
+    local ry = 18 + n * 50
+    rect(parent, n % 2 == 0 and COLOURS.sidebar or COLOURS.panel, 24, ry, PAGE_W - 48, 50)
+    local rowLabel = text(parent, FONTS.body, ui.AlignMode.TOPLEFT, 40, ry, 200, 50)
     set(rowLabel, "content", label)
     local row = { choices = {}, current = current }
     choiceRows[#choiceRows + 1] = row
     for i, option in ipairs(choices) do
       local x = PAGE_W - 40 - (#choices - i + 1) * (CHOICE_W + 4) + 4
-      local bg = hitArea(rect(appearancePage, COLOURS.button, x, ry + 11, CHOICE_W, 28))
-      local optionLabel = text(appearancePage, FONTS.body, ui.AlignMode.CENTRE, x, ry + 11, CHOICE_W, 28)
+      local bg = hitArea(rect(parent, COLOURS.button, x, ry + 11, CHOICE_W, 28))
+      local optionLabel = text(parent, FONTS.body, ui.AlignMode.CENTRE, x, ry + 11, CHOICE_W, 28)
       set(optionLabel, "content", option.label)
       row.choices[option.value] = { bg = bg, label = optionLabel }
       on(bg, "ONMOUSEOVER", function()
@@ -510,13 +531,12 @@ function options.create(root, deps)
   local TEXTURE_LABELS = { flat = "Flat", vertical = "Vertical gradient", horizontal = "Horizontal gradient" }
   local textures = {}
   for i, texture in ipairs(settings.TEXTURES) do textures[i] = { value = texture, label = TEXTURE_LABELS[texture] } end
-  choiceRow("Bar texture", textures, saved.texture, saved.setTexture)
-  choiceRow("Default target panel", { { value = false, label = "Show" }, { value = true, label = "Hide" } },
-    saved.hideTargetPanel, saved.setHideTargetPanel)
-  choiceRow("Game buff bars", { { value = false, label = "Show" }, { value = true, label = "Hide" } },
-    saved.hideBuffBars, saved.setHideBuffBars)
-  choiceRow("Aura icons", { { value = false, label = "Plain" }, { value = true, label = "With bars" } },
-    saved.auraBars, saved.setAuraBars)
+  local showHide = { { value = false, label = "Show" }, { value = true, label = "Hide" } }
+  choiceRow(pages.appearance, "Bar texture", textures, saved.texture, saved.setTexture)
+  choiceRow(pages.appearance, "Default target panel", showHide, saved.hideTargetPanel, saved.setHideTargetPanel)
+  choiceRow(buffsPage.display, "Game buff bars", showHide, saved.hideBuffBars, saved.setHideBuffBars)
+  local auraIcons = { { value = false, label = "Plain" }, { value = true, label = "With bars" } }
+  choiceRow(buffsPage.display, "Aura icons", auraIcons, saved.auraBars, saved.setAuraBars)
 
   -- Edit mode ----------------------------------------------------------------------------------------
 
@@ -610,6 +630,7 @@ function options.create(root, deps)
   -- drag is under way, and before drawing unless the cursor moved.
   local lastX, lastY = nil, nil
   local function followCursor()
+    buffsPage.follow()
     if drag == nil then return end
     local mx, my = cursor()
     if mx == nil or (mx == lastX and my == lastY) then return end
@@ -647,7 +668,11 @@ function options.create(root, deps)
 
   return {
     placeAll = editMode.placeAll,
+    redrawBuffs = function()
+      if windowOpen and currentPage == "buffs" then buffsPage.redraw() end
+    end,
     shutdown = function()
+      buffsPage.destroy()
       window:Destroy()
       editMode.shutdown()
       dialog:Destroy()

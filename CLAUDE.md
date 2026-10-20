@@ -26,7 +26,7 @@ When goals conflict, settle them in this order:
 
 - `src/adapter.lua` is the only module that calls the client. Every read goes through `pcall` and comes back as a plain table, and a read can always be nil: interfaces unload, and vars are nil before login.
 - `src/frames.lua`, `src/cooldowns.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure. Keep client globals out of them.
-- `src/view.lua`, `src/options.lua` and `src/editmode.lua` draw through `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values.
+- `src/view.lua`, `src/options.lua`, `src/buffspage.lua` and `src/editmode.lua` draw through `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values.
 - `main.lua` wires events: `VarTransmit` feeds the cooldown tracker, `ServerLogic` reads the adapter and redraws, and `PluginShutdown` destroys every component.
 
 ## Hot path
