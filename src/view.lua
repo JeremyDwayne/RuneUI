@@ -107,7 +107,6 @@ function view.targetFrame(root)
 end
 
 local BAR_WIDTH = 278
-local MAX_BLOCKS = 12
 local SPENDER_ROW = 8
 -- Spender rows stack upward from just above the bar, one per spender with stacks.
 local BAR_Y = 2 * (SPENDER_ROW + 2)
@@ -135,10 +134,12 @@ function view.resourceBar(root)
   local layer = ui.Layer.new(root)
   layer:SetSize(BAR_WIDTH, height)
 
+  -- One canvas per spender row, redrawn only when its spender, count or max changes.
   local rows = {}
   for r = 1, #frames.SPENDERS do
-    rows[r] = {}
-    for i = 1, MAX_BLOCKS do rows[r][i] = rect(layer, COLOURS.emptyBlock, 0, 0, 0, SPENDER_ROW) end
+    local canvas = ui.Canvas.new(layer)
+    canvas:SetSize(BAR_WIDTH, SPENDER_ROW)
+    rows[r] = { canvas = canvas }
   end
 
   rect(layer, COLOURS.border, 0, BAR_Y, BAR_WIDTH, BAR_HEIGHT)
@@ -154,18 +155,26 @@ function view.resourceBar(root)
   end
   local percent = text(layer, FONTS.body, ui.AlignMode.CENTRE, 0, BAR_Y + 1, BAR_WIDTH, BAR_HEIGHT - 2)
 
+  -- Black-edged blocks, filled up to the spender's count.
+  local function drawBlocks(canvas, spender)
+    canvas:Clear()
+    local edge = draw.opaque(COLOURS.border)
+    for i, span in ipairs(blockSpans(spender.max, BAR_WIDTH)) do
+      local rgb = i <= spender.count and SPENDER_COLOURS[spender.key] or COLOURS.emptyBlock
+      canvas:AddRectangle(span.x, 0, span.w, SPENDER_ROW, edge)
+      canvas:AddRectangle(span.x + 1, 1, span.w - 2, SPENDER_ROW - 2, draw.opaque(rgb))
+    end
+  end
+
   local function updateSpenders(spenders)
-    for r, blocks in ipairs(rows) do
+    for r, row in ipairs(rows) do
       local spender = spenders[r]
-      local count = spender and spender.max or 0
-      local spans = blockSpans(count, BAR_WIDTH)
-      local y = BAR_Y - (#spenders - r + 1) * (SPENDER_ROW + 2)
-      for i, block in ipairs(blocks) do
-        set(block, "hidden", i > count)
-        if i <= count then
-          pos(block, spans[i].x, y)
-          draw.width(block, spans[i].w)
-          set(block, "rgb", i <= spender.count and SPENDER_COLOURS[spender.key] or COLOURS.emptyBlock)
+      set(row.canvas, "hidden", spender == nil)
+      if spender ~= nil then
+        pos(row.canvas, 0, BAR_Y - (#spenders - r + 1) * (SPENDER_ROW + 2))
+        if row.key ~= spender.key or row.count ~= spender.count or row.max ~= spender.max then
+          row.key, row.count, row.max = spender.key, spender.count, spender.max
+          drawBlocks(row.canvas, spender)
         end
       end
     end
@@ -199,8 +208,8 @@ view.TILE_STYLES = {
 }
 -- Accent colours by cooldowns tracker style.
 view.STYLE_COLOURS = { necromancy = 0x6f4ad8, magic = 0x2f7fd6, melee = 0xb8352f, ranged = 0x3c9a4a }
--- A 2px accent line and the 2px gap between it and the tiles.
-local ACCENT, ACCENT_SPACE = 2, 4
+-- A 2px accent line inside a 1px black edge, and the space it takes with a 1px gap to the tiles.
+local ACCENT, ACCENT_SPACE = 2, 5
 local MAX_TILES = 10
 local COOLING_DIM = 0.62
 
@@ -247,19 +256,25 @@ function view.cooldownGroup(root, style)
   local layer = ui.Layer.new(root)
   layer:SetSize(width, height)
   local top = style.accent == "top" and ACCENT_SPACE or 0
-  local accentY = style.accent == "top" and 0 or style.size + ACCENT_SPACE - ACCENT
-  local accent = rect(layer, COLOURS.border, 0, accentY, width, ACCENT)
+  local accentY = style.accent == "top" and 0 or style.size + 1
+  local accentEdge = rect(layer, COLOURS.border, 0, accentY, width, ACCENT + 2)
+  local accent = rect(layer, COLOURS.border, 1, accentY + 1, width - 2, ACCENT)
   local tiles = {}
   for i = 1, MAX_TILES do tiles[i] = tile(layer, style, top) end
 
   local function update(models, accentRgb)
     local count = math.min(#models, MAX_TILES)
     local offset = math.floor((width - (count * step - style.gap)) / 2)
-    set(accent, "hidden", accentRgb == nil or count == 0)
-    if accentRgb ~= nil and count > 0 then
+    local accentShown = accentRgb ~= nil and count > 0
+    set(accentEdge, "hidden", not accentShown)
+    set(accent, "hidden", not accentShown)
+    if accentShown then
+      local rowWidth = count * step - style.gap
       set(accent, "rgb", accentRgb)
-      pos(accent, offset, accentY)
-      draw.width(accent, count * step - style.gap)
+      pos(accentEdge, offset, accentY)
+      draw.width(accentEdge, rowWidth)
+      pos(accent, offset + 1, accentY + 1)
+      draw.width(accent, rowWidth - 2)
     end
     for i, parts in ipairs(tiles) do
       local model = models[i]

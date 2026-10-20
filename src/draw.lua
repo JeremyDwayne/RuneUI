@@ -129,7 +129,7 @@ local function mix(rgb, target, amount)
 end
 
 -- Canvas colours are 0xRRGGBBAA.
-local function opaque(rgb)
+function draw.opaque(rgb)
   return (rgb << 8) | 0xFF
 end
 
@@ -187,7 +187,7 @@ function draw.bar(parent, rgb, trackRgb, x, y, width, height)
     if value == texture then return end
     texture = value
     if canvas ~= nil and texture ~= "flat" then
-      local light, dark = opaque(mix(rgb, 0xffffff, LIGHTEN)), opaque(mix(rgb, 0x000000, DARKEN))
+      local light, dark = draw.opaque(mix(rgb, 0xffffff, LIGHTEN)), draw.opaque(mix(rgb, 0x000000, DARKEN))
       local drawn, err = pcall(function()
         canvas:Clear()
         if texture == "vertical" then

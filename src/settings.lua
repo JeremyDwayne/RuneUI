@@ -10,7 +10,7 @@ settings.DEFAULT_POSITIONS = {
   target = { x = 227, y = -432, anchorX = 0.5, anchorY = 1 },
   resource = { x = -139, y = -496, anchorX = 0.5, anchorY = 1 },
   rotation = { x = -219, y = -396, anchorX = 0.5, anchorY = 1 },
-  cooldowns = { x = -189, y = -538, anchorX = 0.5, anchorY = 1 },
+  cooldowns = { x = -189, y = -539, anchorX = 0.5, anchorY = 1 },
 }
 local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 -- Bar fills: one flat colour, or a gradient from top to bottom or across the bar.
