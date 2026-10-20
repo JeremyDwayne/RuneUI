@@ -2,7 +2,8 @@
 -- GameKey, id and log globals and returns the fake: writes counts property writes and Set, Add, Clear and
 -- MoveToFront calls; component() builds a root; fire(name, payload) runs Event handlers; hook(c, name)
 -- runs a component's hook; find(predicate) returns the first created component that is shown and matches;
--- reset() forgets every component and handler, for a before_each.
+-- press(label) clicks the hit area under a shown label; reset() forgets every component and handler, for a
+-- before_each.
 local fake = { writes = 0, mouse = { x = 0, y = 0 }, created = {}, handlers = {} }
 
 local dataOf = setmetatable({}, { __mode = "k" })
@@ -65,6 +66,21 @@ end
 
 function fake.hook(c, name, x, y)
   dataOf[c].hooks[name](c, x or 0, y or 0)
+end
+
+-- Clicks the last shown ONCLICK component under the shown text reading label, as the client passes a click
+-- through the label to the hit area below it.
+function fake.press(label)
+  local text = fake.find(function(_, d) return d.content == label end)
+  assert(text, "no shown label " .. label)
+  local t, hit = dataOf[text], nil
+  for _, c in ipairs(fake.created) do
+    local d = dataOf[c]
+    if c ~= text and d.parent == t.parent and d.hooks.ONCLICK and fake.shown(c) and d.width
+      and t.x >= d.x and t.x < d.x + d.width and t.y >= d.y and t.y < d.y + d.height then hit = c end
+  end
+  assert(hit, "nothing to click under " .. label)
+  fake.hook(hit, "ONCLICK")
 end
 
 function fake.hasHook(c, name)

@@ -21,8 +21,11 @@ local MAX_TILES = 10
 local GAP = 2
 local PICKER_WIDTH, PICKER_ROW = 230, 26
 local MARKER_STEP = 5
-local ELEMENT_LABELS = {
-  player = "Player", target = "Target", resource = "Resource bar", rotation = "Rotation", cooldowns = "Cooldowns",
+-- HUD elements in edit mode stacking order, later ones on top.
+local ELEMENTS = {
+  { name = "player", label = "Player" }, { name = "target", label = "Target" },
+  { name = "resource", label = "Resource bar" }, { name = "rotation", label = "Rotation" },
+  { name = "cooldowns", label = "Cooldowns" },
 }
 
 -- Makes c take clicks and stop them, like a button: plain components start enabled = false and
@@ -251,21 +254,19 @@ function options.create(root, deps)
 
   local function showDragFeedback(t, wx, wy)
     local half = math.floor(t.row.size / 2)
-    ghost:SetSize(half, half)
-    ghost:SetPos(wx - PAGE_X + 8, wy - PAGE_Y + 8)
-    ghostInitials:SetPos(wx - PAGE_X + 8, wy - PAGE_Y + 8)
-    hideAll(swapBox, true)
-    set(insertLine, "hidden", true)
+    draw.size(ghost, half, half)
+    draw.pos(ghost, wx - PAGE_X + 8, wy - PAGE_Y + 8)
+    draw.pos(ghostInitials, wx - PAGE_X + 8, wy - PAGE_Y + 8)
     local row, target = targetAt(wx, wy)
     drag.row, drag.target = row, target
-    if target == nil then return end
-    if target.kind == "swap" then
+    local swap = target ~= nil and target.kind == "swap"
+    hideAll(swapBox, not swap)
+    set(insertLine, "hidden", target == nil or swap)
+    if swap then
       placeOutline(swapBox, row.x + (target.index - 1) * (row.size + GAP), row.y, row.size, row.size)
-      hideAll(swapBox, false)
-    else
-      insertLine:SetPos(row.x + (target.index - 1) * (row.size + GAP) - GAP, row.y - 4)
-      insertLine:SetSize(2, row.size + 8)
-      set(insertLine, "hidden", false)
+    elseif target ~= nil then
+      draw.pos(insertLine, row.x + (target.index - 1) * (row.size + GAP) - GAP, row.y - 4)
+      draw.size(insertLine, 2, row.size + 8)
     end
   end
 
@@ -295,11 +296,17 @@ function options.create(root, deps)
     set(menu, "hidden", false)
   end
 
-  function drop()
-    local d = drag
+  -- Ends a drag without dropping: the feedback hides and the source tile returns to full alpha.
+  local function cancelDrag()
+    if drag == nil then return end
+    drag.tile.group.set("alpha", 1)
     drag = nil
     hideDragFeedback()
-    d.tile.group.set("alpha", 1)
+  end
+
+  function drop()
+    local d = drag
+    cancelDrag()
     if not d.moved then
       openMenu(d.tile)
       return
@@ -484,7 +491,7 @@ function options.create(root, deps)
   local overlays = {}
   local move = nil
 
-  for name, element in pairs(elements) do
+  local function overlay(name, label, element)
     local layer = ui.Layer.new(root)
     layer:SetSize(element.width, element.height)
     local tint = hitArea(rect(layer, COLOURS.accent, 0, 0, element.width, element.height))
@@ -492,7 +499,7 @@ function options.create(root, deps)
     placeOutline(outline(layer, COLOURS.accent, 2), 2, 2, element.width - 4, element.height - 4)
     rect(layer, COLOURS.accent, 2, 2, 96, 16)
     local tagText = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 6, 2, 92, 16)
-    set(tagText, "content", ELEMENT_LABELS[name])
+    set(tagText, "content", label)
     set(tagText, "rgb", COLOURS.accentText)
     set(tagText, "isShadowed", false)
     on(tint, "ONCLICK", function()
@@ -505,7 +512,20 @@ function options.create(root, deps)
       end
     end)
     set(layer, "hidden", true)
-    overlays[name] = layer
+    return layer
+  end
+
+  for _, entry in ipairs(ELEMENTS) do
+    local element = elements[entry.name]
+    if element ~= nil then overlays[entry.name] = overlay(entry.name, entry.label, element) end
+  end
+
+  -- Ends a move without saving, putting the element back where it was.
+  local function cancelMove()
+    if move == nil then return end
+    deps.view.place(elements[move.name].layer, move.from)
+    deps.view.place(overlays[move.name], move.from)
+    move = nil
   end
 
   local function placeAll()
@@ -531,6 +551,7 @@ function options.create(root, deps)
   local windowOpen = false
 
   local function closeWindow()
+    cancelDrag()
     closePopups()
     windowOpen = false
     set(window, "hidden", true)
@@ -539,6 +560,7 @@ function options.create(root, deps)
   -- Edit mode hides the window, which covers the HUD, and shows a toolbar whose Done returns to it.
   local function setEditing(enabled)
     editing = enabled
+    if not enabled then cancelMove() end
     for _, layer in pairs(overlays) do set(layer, "hidden", not enabled) end
     set(toolbar, "hidden", not enabled)
     if enabled then closeWindow() end
@@ -578,11 +600,14 @@ function options.create(root, deps)
 
   -- Ticks ---------------------------------------------------------------------------------------------
 
-  -- Runs 50 times a second, so it returns before reading the mouse unless a drag or move is under way.
+  -- Runs 50 times a second, so it returns before reading the mouse unless a drag or move is under way, and
+  -- before drawing unless the cursor moved.
+  local lastX, lastY = nil, nil
   Event.Logic.Subscribe("runeuiOptions", function()
     if drag == nil and move == nil then return end
     local mx, my = Mouse.GetX(), Mouse.GetY()
-    if mx == nil or my == nil then return end
+    if mx == nil or my == nil or (mx == lastX and my == lastY) then return end
+    lastX, lastY = mx, my
     if drag ~= nil then
       if not drag.moved and math.abs(mx - drag.startX) + math.abs(my - drag.startY) > DRAG_START then
         startDrag(drag.tile)
