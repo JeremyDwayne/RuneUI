@@ -60,7 +60,10 @@ function adapter.playerReads()
   }
 end
 
+-- With no target, returns { target } alone and skips the panel's components.
 function adapter.targetReads()
+  local target = varValue("VarPlayer", "NPCTARGET")
+  if target == nil or target == -1 then return { target = target } end
   local debuffs = {}
   for staticID = DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP do
     local c = ui.Interfaces:GetComponent(TARGET_PANEL, staticID)
@@ -68,7 +71,7 @@ function adapter.targetReads()
     if sprite ~= nil and sprite ~= -1 then debuffs[#debuffs + 1] = sprite end
   end
   return {
-    target = varValue("VarPlayer", "NPCTARGET"),
+    target = target,
     name = labelText(TARGET_PANEL, TARGET_NAME),
     lifepointsLabel = labelText(TARGET_PANEL, 34),
     healthPercent = varValue("VarClient", "COMBATV2_TARGET_SIDE_PANEL_HEALTH"),
