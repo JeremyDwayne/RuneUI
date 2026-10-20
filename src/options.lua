@@ -63,14 +63,21 @@ local function cursor()
   return mx / scale, my / scale
 end
 
--- A flat button with a centred label that lightens on hover. accent uses the accent fill and dark text.
-local function button(parent, label, x, y, w, h, accent, onClick)
-  local normal = accent and COLOURS.accent or COLOURS.button
-  local hover = accent and COLOURS.accentHover or COLOURS.buttonHover
+-- Button fills: normal and hover colours, and dark text for the bright ones.
+local FILLS = {
+  plain = { COLOURS.button, COLOURS.buttonHover },
+  accent = { COLOURS.accent, COLOURS.accentHover, dark = true },
+  light = { COLOURS.highlight, COLOURS.dimText, dark = true },
+}
+
+-- A flat button with a centred label that lightens on hover. fill names a FILLS entry, plain when nil.
+local function button(parent, label, x, y, w, h, fill, onClick)
+  local colours = FILLS[fill or "plain"]
+  local normal, hover = colours[1], colours[2]
   local bg = hitArea(rect(parent, normal, x, y, w, h))
   local t = text(parent, FONTS.body, ui.AlignMode.CENTRE, x, y, w, h)
   set(t, "content", label)
-  if accent then
+  if colours.dark then
     set(t, "rgb", COLOURS.accentText)
     set(t, "isShadowed", false)
   end
@@ -620,12 +627,47 @@ function options.create(root, deps)
   set(toolbarTitle, "content", "Edit mode")
   set(toolbar, "hidden", true)
 
+  -- Reset dialog: confirms Reset positions over the window, which it dims when open. Built after the window
+  -- and toolbar so it draws above them.
+  local DIALOG_W, DIALOG_H = 320, 150
+  local dialog = ui.Layer.new(root)
+  dialog:SetSize(WIDTH, HEIGHT)
+  dialog:SetPos(-WIDTH // 2, -HEIGHT // 2, 0.5, 0.5)
+  local dim = hitArea(rect(dialog, COLOURS.border, 0, 0, WIDTH, HEIGHT))
+  set(dim, "alpha", 0.6)
+  local dialogX, dialogY = (WIDTH - DIALOG_W) // 2, (HEIGHT - DIALOG_H) // 2
+  rect(dialog, COLOURS.border, dialogX, dialogY, DIALOG_W, DIALOG_H)
+  hitArea(rect(dialog, COLOURS.popup, dialogX + 1, dialogY + 1, DIALOG_W - 2, DIALOG_H - 2))
+  local dialogTitle = text(dialog, FONTS.body, ui.AlignMode.TOPLEFT, dialogX + 16, dialogY + 12, DIALOG_W - 32, 20)
+  set(dialogTitle, "content", "Reset positions")
+  local dialogBody = text(dialog, FONTS.small, ui.AlignMode.TOPLEFT, dialogX + 16, dialogY + 40, DIALOG_W - 32, 44)
+  set(dialogBody, "content",
+    "Every frame, bar and ability row goes back to its default spot. Your rows and settings stay.")
+  set(dialogBody, "rgb", COLOURS.dimText)
+  rect(dialog, COLOURS.line, dialogX + 1, dialogY + DIALOG_H - 56, DIALOG_W - 2, 1)
+  local dialogOpen = false
+
+  local function closeDialog()
+    dialogOpen = false
+    set(dialog, "hidden", true)
+  end
+  closeDialog()
+
+  local buttonsY = dialogY + DIALOG_H - 44
+  button(dialog, "Cancel", dialogX + DIALOG_W - 264, buttonsY, 90, 32, nil, closeDialog)
+  button(dialog, "Reset positions", dialogX + DIALOG_W - 166, buttonsY, 150, 32, "light", function()
+    closeDialog()
+    saved.resetPositions()
+    placeAll()
+  end)
+
   local editing = false
   local openWindow
 
   local windowOpen = false
 
   local function closeWindow()
+    closeDialog()
     cancelDrag()
     closePopups()
     windowOpen = false
@@ -642,12 +684,13 @@ function options.create(root, deps)
   end
 
   local function resetPositions()
-    saved.resetPositions()
-    placeAll()
+    dialogOpen = true
+    set(dim, "hidden", not windowOpen)
+    set(dialog, "hidden", false)
   end
 
   button(toolbar, "Reset positions", 160, 7, 140, 30, false, resetPositions)
-  button(toolbar, "Done", 308, 7, 84, 30, true, function()
+  button(toolbar, "Done", 308, 7, 84, 30, "accent", function()
     setEditing(false)
     openWindow()
   end)
@@ -662,7 +705,7 @@ function options.create(root, deps)
   set(toggleLabel, "content", "Edit mode off")
   on(toggleHit, "ONCLICK", function() setEditing(true) end)
   button(window, "Reset positions", PAGE_X + 200, footerY + 12, 140, 32, false, resetPositions)
-  button(window, "Done", WIDTH - 24 - 90, footerY + 12, 90, 32, true, closeWindow)
+  button(window, "Done", WIDTH - 24 - 90, footerY + 12, 90, 32, "accent", closeWindow)
 
   function openWindow()
     for id_, value in pairs(markerValues) do set(value, "content", saved.markers()[id_] .. "%") end
@@ -708,7 +751,9 @@ function options.create(root, deps)
 
   Event.KeyDown.Subscribe("runeuiOptions", function(e)
     if e.gameKey ~= GameKey.ESCAPE then return end
-    if editing then
+    if dialogOpen then
+      closeDialog()
+    elseif editing then
       setEditing(false)
     elseif windowOpen then
       closeWindow()
@@ -716,7 +761,7 @@ function options.create(root, deps)
   end)
 
   Event.ContentLayerReady.Subscribe("runeuiRibbon", function(e)
-    button(e.component, "Open RuneUI options", 10, 10, 180, 32, true, openWindow)
+    button(e.component, "Open RuneUI options", 10, 10, 180, 32, "accent", openWindow)
   end)
 
   placeAll()
@@ -726,6 +771,7 @@ function options.create(root, deps)
     shutdown = function()
       window:Destroy()
       toolbar:Destroy()
+      dialog:Destroy()
       for _, layer in pairs(overlays) do layer:Destroy() end
     end,
   }

@@ -72,10 +72,14 @@ function fake.hook(c, name, x, y)
   dataOf[c].hooks[name](c, x or 0, y or 0)
 end
 
--- Clicks the last shown ONCLICK component under the shown text reading label, as the client passes a click
--- through the label to the hit area below it.
-function fake.press(label)
-  local text = fake.find(function(_, d) return d.content == label end)
+-- Clicks the last shown ONCLICK component under the nth shown text reading label, default the first, as the
+-- client passes a click through the label to the hit area below it.
+function fake.press(label, nth)
+  local seen = 0
+  local text = fake.find(function(_, d)
+    if d.content == label then seen = seen + 1 end
+    return d.content == label and seen == (nth or 1)
+  end)
   assert(text, "no shown label " .. label)
   local t, hit = dataOf[text], nil
   for _, c in ipairs(fake.created) do

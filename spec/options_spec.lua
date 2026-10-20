@@ -49,6 +49,7 @@ local function grabPlayer(elements)
   end)
   fake.mouse.x, fake.mouse.y = 300, 300
   fake.hook(tint, "ONCLICK")
+  return tint
 end
 
 describe("options", function()
@@ -105,6 +106,24 @@ describe("options", function()
     assert.are.same({ false, true }, { listed("Wild Magic"), listed("Soul Sap") })
     fake.hook(search, "ONCONTENTCHANGED", 0, "")
     assert.are.same({ true, true }, { listed("Wild Magic"), listed("Soul Sap") })
+  end)
+
+  it("resets positions only once the dialog is confirmed", function()
+    local elements = openWindow()
+    local layer = elements.player.layer
+    local x = layer.x
+    local tint = grabPlayer(elements)
+    fake.mouse.x = 350
+    logicTick()
+    fake.hook(tint, "ONRELEASE")
+
+    fake.press("Reset positions")
+    fake.press("Cancel")
+    assert.are.equal(x + 50, layer.x)
+    fake.press("Reset positions")
+    fake.press("Reset positions", 2)
+    assert.are.equal(x, layer.x)
+    assert.is_nil(fake.find(function(_, d) return d.content == "Cancel" end))
   end)
 
   it("puts a moved element back on Esc in edit mode", function()
