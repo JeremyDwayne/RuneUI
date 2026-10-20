@@ -294,9 +294,11 @@ local barAlpha, barHidden = nil, nil
 local framesSinceTick = FILL_FRAMES
 
 -- Hides c: a slot's icon :0:0 and :0:2 take hidden, which the client undoes only when it fills the slot.
--- Everything else takes alpha 0, which the client resets every few frames on an icon but not on these.
+-- An icon already hidden is left alone, so restoring never shows one the client hid. Everything else takes
+-- alpha 0, which the client resets every few frames on an icon but not on these.
 local function hideBarComponent(key, c, icon)
   if icon then
+    if read(c, "hidden") ~= false then return end
     barHidden[key] = true
     pcall(function() c.hidden = true end)
     return

@@ -175,6 +175,15 @@ describe("adapter.hideBuffBars", function()
       slot[3].alpha })
   end)
 
+  it("leaves an icon the client hid hidden when restoring", function()
+    local bar = loadBuffBar()
+    local slot = bar.fill(20)
+    slot[0].hidden, slot[2].hidden = true, true
+    adapter.hideBuffBars(true)
+    adapter.hideBuffBars(false)
+    assert.are.same({ true, true, false }, { slot[0].hidden, slot[2].hidden, bar.slots[19][0].hidden })
+  end)
+
   it("hides a slot again in the frames after a tick once the client fills it", function()
     local bar = loadBuffBar()
     adapter.hideBuffBars(true)
