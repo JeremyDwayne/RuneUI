@@ -28,6 +28,7 @@ Event.InventoryAdded.Subscribe("lantern", adapter.inventoryChanged)
 Event.InventoryUpdated.Subscribe("lantern", adapter.inventoryChanged)
 
 local function refresh()
+  adapter.hideTargetPanel(saved.hideTargetPanel())
   for _, element in pairs(elements) do
     if element.setTexture ~= nil then element.setTexture(saved.texture()) end
   end
@@ -54,6 +55,7 @@ end)
 refresh()
 
 function PluginShutdown()
+  adapter.hideTargetPanel(false)
   optionsWindow.shutdown()
   for _, element in pairs(elements) do element.layer:Destroy() end
 end

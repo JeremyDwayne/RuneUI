@@ -1,5 +1,5 @@
--- Saved settings: element positions, cooldown groups, marker percents, bar texture and learned ability
--- names and icons.
+-- Saved settings: element positions, cooldown groups, marker percents, appearance (bar texture and whether
+-- the default target panel is hidden) and learned ability names and icons.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local settings = {}
 
@@ -65,12 +65,13 @@ local function readMarkers(saved)
   return markers
 end
 
-local function readTexture(saved)
-  local texture = type(saved) == "table" and saved.texture or nil
+local function readAppearance(saved)
+  saved = type(saved) == "table" and saved or {}
+  local appearance = { texture = "flat", hideTargetPanel = saved.hideTargetPanel == true }
   for _, known in ipairs(settings.TEXTURES) do
-    if texture == known then return texture end
+    if saved.texture == known then appearance.texture = known end
   end
-  return "flat"
+  return appearance
 end
 
 local function readKnown(saved)
@@ -100,7 +101,7 @@ function settings.load(store)
   local groups = readGroups(store.get("groups"))
   local markers = readMarkers(store.get("markers"))
   local known = readKnown(store.get("known"))
-  local texture = readTexture(store.get("appearance"))
+  local appearance = readAppearance(store.get("appearance"))
 
   local function saveGroups() store.set("groups", groups) end
 
@@ -173,13 +174,22 @@ function settings.load(store)
   end
 
   function s.texture()
-    return texture
+    return appearance.texture
   end
 
   -- texture is one of settings.TEXTURES.
   function s.setTexture(value)
-    texture = value
-    store.set("appearance", { texture = texture })
+    appearance.texture = value
+    store.set("appearance", appearance)
+  end
+
+  function s.hideTargetPanel()
+    return appearance.hideTargetPanel
+  end
+
+  function s.setHideTargetPanel(hidden)
+    appearance.hideTargetPanel = hidden
+    store.set("appearance", appearance)
   end
 
   -- { [key] = { name, icon } } for every ability whose struct has been seen.

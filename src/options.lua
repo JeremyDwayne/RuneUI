@@ -1,6 +1,6 @@
 -- The options window, its ribbon button and edit mode: a sidebar of pages, a cooldown
 -- editor that mirrors both rows with a "+" picker, drag to swap or insert and a Remove menu, marker
--- steppers, the bar texture choice, and edit mode outlines for dragging HUD elements.
+-- steppers, appearance choices, and edit mode outlines for dragging HUD elements.
 local draw = require("src/draw")
 local editor = require("src/editor")
 local settings = require("src/settings")
@@ -468,39 +468,54 @@ function options.create(root, deps)
   -- Appearance page ----------------------------------------------------------------------------------
 
   local appearancePage = pages.appearance
-  rect(appearancePage, COLOURS.sidebar, 24, 18, PAGE_W - 48, 50)
-  local textureLabel = text(appearancePage, FONTS.body, ui.AlignMode.TOPLEFT, 40, 18, 160, 50)
-  set(textureLabel, "content", "Bar texture")
-  local TEXTURE_LABELS = { flat = "Flat", vertical = "Vertical gradient", horizontal = "Horizontal gradient" }
   local CHOICE_W = 150
-  local choices = {}
+  local choiceRows = {}
 
-  -- The chosen texture takes the accent fill and dark text; the others are plain buttons.
-  local function showTexture()
-    for texture, choice in pairs(choices) do
-      local chosen = texture == saved.texture()
-      set(choice.bg, "rgb", chosen and COLOURS.accent or COLOURS.button)
-      set(choice.label, "rgb", chosen and COLOURS.accentText or COLOURS.text)
-      set(choice.label, "isShadowed", not chosen)
+  -- The chosen option takes the accent fill and dark text; the others are plain buttons.
+  local function showChoices()
+    for _, row in ipairs(choiceRows) do
+      for value, choice in pairs(row.choices) do
+        local chosen = value == row.current()
+        set(choice.bg, "rgb", chosen and COLOURS.accent or COLOURS.button)
+        set(choice.label, "rgb", chosen and COLOURS.accentText or COLOURS.text)
+        set(choice.label, "isShadowed", not chosen)
+      end
     end
   end
 
-  for i, texture in ipairs(settings.TEXTURES) do
-    local x = PAGE_W - 40 - (#settings.TEXTURES - i + 1) * (CHOICE_W + 4) + 4
-    local bg = hitArea(rect(appearancePage, COLOURS.button, x, 29, CHOICE_W, 28))
-    local label = text(appearancePage, FONTS.body, ui.AlignMode.CENTRE, x, 29, CHOICE_W, 28)
-    set(label, "content", TEXTURE_LABELS[texture])
-    choices[texture] = { bg = bg, label = label }
-    on(bg, "ONMOUSEOVER", function()
-      if texture ~= saved.texture() then set(bg, "rgb", COLOURS.buttonHover) end
-    end)
-    on(bg, "ONMOUSELEAVE", showTexture)
-    on(bg, "ONCLICK", function()
-      saved.setTexture(texture)
-      showTexture()
-      deps.refresh()
-    end)
+  -- A labelled row of right-aligned option buttons. choices: { { value, label } }; current() returns the
+  -- chosen value and choose(value) saves one.
+  local function choiceRow(label, choices, current, choose)
+    local ry = 18 + #choiceRows * 50
+    rect(appearancePage, #choiceRows % 2 == 0 and COLOURS.sidebar or COLOURS.panel, 24, ry, PAGE_W - 48, 50)
+    local rowLabel = text(appearancePage, FONTS.body, ui.AlignMode.TOPLEFT, 40, ry, 200, 50)
+    set(rowLabel, "content", label)
+    local row = { choices = {}, current = current }
+    choiceRows[#choiceRows + 1] = row
+    for i, option in ipairs(choices) do
+      local x = PAGE_W - 40 - (#choices - i + 1) * (CHOICE_W + 4) + 4
+      local bg = hitArea(rect(appearancePage, COLOURS.button, x, ry + 11, CHOICE_W, 28))
+      local optionLabel = text(appearancePage, FONTS.body, ui.AlignMode.CENTRE, x, ry + 11, CHOICE_W, 28)
+      set(optionLabel, "content", option.label)
+      row.choices[option.value] = { bg = bg, label = optionLabel }
+      on(bg, "ONMOUSEOVER", function()
+        if option.value ~= current() then set(bg, "rgb", COLOURS.buttonHover) end
+      end)
+      on(bg, "ONMOUSELEAVE", showChoices)
+      on(bg, "ONCLICK", function()
+        choose(option.value)
+        showChoices()
+        deps.refresh()
+      end)
+    end
   end
+
+  local TEXTURE_LABELS = { flat = "Flat", vertical = "Vertical gradient", horizontal = "Horizontal gradient" }
+  local textures = {}
+  for i, texture in ipairs(settings.TEXTURES) do textures[i] = { value = texture, label = TEXTURE_LABELS[texture] } end
+  choiceRow("Bar texture", textures, saved.texture, saved.setTexture)
+  choiceRow("Default target panel", { { value = false, label = "Show" }, { value = true, label = "Hide" } },
+    saved.hideTargetPanel, saved.setHideTargetPanel)
 
   -- Edit mode ----------------------------------------------------------------------------------------
 
@@ -592,7 +607,7 @@ function options.create(root, deps)
 
   function openWindow()
     for id_, value in pairs(markerValues) do set(value, "content", saved.markers()[id_] .. "%") end
-    showTexture()
+    showChoices()
     rebuildEditor()
     showPage("cooldowns")
     windowOpen = true

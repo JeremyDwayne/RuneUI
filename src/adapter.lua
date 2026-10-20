@@ -9,6 +9,9 @@ local DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP = 38, 71, 3
 -- sprite at +2 and the keybind label at +9.
 local BAR_FIRST_SLOTS = { [1430] = 64, [1670] = 19, [1671] = 17, [1672] = 14, [1673] = 14 }
 local SLOTS_PER_BAR, SLOT_STRIDE, SLOT_ICON, SLOT_KEYBIND = 14, 13, 2, 9
+-- The target panel's static IDs run to :71; dynamic children of some hold its border and background.
+local TARGET_LAST_STATIC = 80
+local TARGET_NAME = 21
 -- config.Inv.WORN, the worn-equipment inventory.
 local WORN_INV = 94
 -- Ability struct params read into justUsed()'s result.
@@ -142,6 +145,49 @@ local lantern = nil
 function adapter.inventoryChanged(e)
   local id = read(e.inv, "id")
   if id == nil or id == WORN_INV then lantern = nil end
+end
+
+-- Original alpha of each target panel component while RuneUI holds it transparent, keyed "static" or
+-- "static:category:dynamic".
+local panelAlpha = nil
+
+-- Calls fn(key, component) for every target panel component, dynamic children included, since a
+-- component's alpha does not reach its children.
+local function eachPanelComponent(fn)
+  for staticID = 0, TARGET_LAST_STATIC do
+    local c = ui.Interfaces:GetComponent(TARGET_PANEL, staticID)
+    if c ~= nil then
+      fn(tostring(staticID), c)
+      pcall(function()
+        c:IterateDynamicComponents(function(child)
+          fn(staticID .. ":" .. tostring(read(child, "categoryID")) .. ":" .. tostring(read(child, "dynamicID")), child)
+          return false
+        end)
+      end)
+    end
+  end
+end
+
+local function setPanelAlpha(transparent)
+  eachPanelComponent(function(key, c)
+    if transparent and panelAlpha[key] == nil then panelAlpha[key] = read(c, "alpha") or 1 end
+    local alpha = transparent and 0 or panelAlpha[key] or 1
+    pcall(function() c.alpha = alpha end)
+  end)
+end
+
+-- Runs each tick with whether the native target panel should be hidden. Hiding sets alpha 0, because
+-- hidden stops the panel filling its debuff slots, which targetReads relies on. A visible name label
+-- means the panel reloaded, so it is made transparent again; false restores the original alphas.
+function adapter.hideTargetPanel(hidden)
+  if hidden then
+    panelAlpha = panelAlpha or {}
+    local alpha = read(ui.Interfaces:GetComponent(TARGET_PANEL, TARGET_NAME), "alpha")
+    if alpha ~= nil and alpha > 0 then setPanelAlpha(true) end
+  elseif panelAlpha ~= nil then
+    setPanelAlpha(false)
+    panelAlpha = nil
+  end
 end
 
 -- spenders: the frames.SPENDERS list; each is read by its var name.

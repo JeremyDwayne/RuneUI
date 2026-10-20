@@ -22,3 +22,32 @@ describe("adapter.resourceReads", function()
     assert.is_false(adapter.resourceReads({}).lantern)
   end)
 end)
+
+-- Interface 1490 as the client builds it: static components, one holding a dynamic border sprite.
+local function loadTargetPanel()
+  local border = { alpha = 1, categoryID = 0, dynamicID = 0 }
+  local panel = {
+    [0] = { alpha = 1 },
+    [21] = { alpha = 1 },
+    [26] = { alpha = 0.5, IterateDynamicComponents = function(_, fn) fn(border) end },
+  }
+  _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID)
+    if interfaceID == 1490 then return panel[staticID] end
+  end } }
+  return panel, border
+end
+
+describe("adapter.hideTargetPanel", function()
+  it("makes every panel component transparent, again after a reload, and restores original alphas", function()
+    local panel, border = loadTargetPanel()
+    adapter.hideTargetPanel(true)
+    assert.are.same({ 0, 0, 0, 0 }, { panel[0].alpha, panel[21].alpha, panel[26].alpha, border.alpha })
+
+    panel = loadTargetPanel()
+    adapter.hideTargetPanel(true)
+    assert.are.equal(0, panel[21].alpha)
+
+    adapter.hideTargetPanel(false)
+    assert.are.same({ 1, 1, 0.5 }, { panel[0].alpha, panel[21].alpha, panel[26].alpha })
+  end)
+end)

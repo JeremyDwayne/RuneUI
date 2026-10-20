@@ -102,6 +102,17 @@ describe("settings", function()
     assert.are.equal("flat", settings.load(fakeStore({ appearance = { texture = "plaid" } })).texture())
   end)
 
+  it("shows the default target panel until hiding is chosen, keeping the texture beside it", function()
+    local store = fakeStore()
+    assert.is_false(settings.load(store).hideTargetPanel())
+    local s = settings.load(store)
+    s.setTexture("horizontal")
+    s.setHideTargetPanel(true)
+    local reloaded = settings.load(store)
+    assert.is_true(reloaded.hideTargetPanel())
+    assert.are.equal("horizontal", reloaded.texture())
+  end)
+
   it("restores whole numbers that PersistentDB returns as floats as integers", function()
     local s = settings.load(fakeStore({
       layout = { player = { x = -427.0, y = -429.0, anchorX = 0.5, anchorY = 1.0 } },
