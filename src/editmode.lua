@@ -15,7 +15,9 @@ local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 local ELEMENTS = {
   { name = "player", label = "Player" }, { name = "target", label = "Target" },
   { name = "resource", label = "Resource bar" }, { name = "rotation", label = "Rotation" },
-  { name = "cooldowns", label = "Cooldowns" },
+  { name = "cooldowns", label = "Cooldowns" }, { name = "targetDebuffs", label = "Target debuffs" },
+  { name = "playerDebuffs", label = "Player debuffs" }, { name = "upkeepBuffs", label = "Upkeep buffs" },
+  { name = "combatBuffs", label = "Combat buffs" },
 }
 local LABELS = {}
 for _, entry in ipairs(ELEMENTS) do LABELS[entry.name] = entry.label end
