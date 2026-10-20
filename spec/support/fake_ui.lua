@@ -1,0 +1,89 @@
+-- Client stand-ins for specs that drive src/view and src/options. require() sets the ui, Event, Mouse,
+-- GameKey, id and log globals and returns the fake: writes counts property writes and Set, Add, Clear and
+-- MoveToFront calls; component() builds a root; fire(name, payload) runs Event handlers; hook(c, name)
+-- runs a component's hook; find(predicate) returns the first created component that is shown and matches.
+local fake = { writes = 0, mouse = { x = 0, y = 0 }, created = {}, handlers = {} }
+
+local dataOf = setmetatable({}, { __mode = "k" })
+
+local function call(method)
+  return function(c, a, b)
+    if method:match("^Set") or method:match("^Add") or method == "Clear" or method == "MoveToFront" then
+      fake.writes = fake.writes + 1
+    end
+    local data = dataOf[c]
+    if method == "SetPos" then data.x, data.y = a, b end
+    if method == "SetSize" then data.width, data.height = a, b end
+    if method == "SetWidth" then data.width = a end
+    if method == "SetHeight" then data.height = a end
+  end
+end
+
+local function subscribe(c, hook, fn)
+  dataOf[c].hooks[hook] = fn
+end
+
+function fake.component(parent)
+  local data = { hooks = {}, parent = parent }
+  local c = setmetatable({}, {
+    __index = function(_, key)
+      if key == "Subscribe" then return subscribe end
+      if data[key] ~= nil then return data[key] end
+      if type(key) == "string" and key:match("^%u") then return call(key) end
+      return nil
+    end,
+    __newindex = function(_, key, value)
+      fake.writes = fake.writes + 1
+      data[key] = value
+    end,
+  })
+  dataOf[c] = data
+  fake.created[#fake.created + 1] = c
+  return c
+end
+
+-- Whether c and every parent it has are shown.
+function fake.shown(c)
+  while c ~= nil do
+    if dataOf[c].hidden then return false end
+    c = dataOf[c].parent
+  end
+  return true
+end
+
+function fake.find(predicate)
+  for _, c in ipairs(fake.created) do
+    if fake.shown(c) and predicate(c, dataOf[c]) then return c end
+  end
+end
+
+function fake.hook(c, name, x, y)
+  dataOf[c].hooks[name](c, x or 0, y or 0)
+end
+
+function fake.hasHook(c, name)
+  return dataOf[c].hooks[name] ~= nil
+end
+
+function fake.fire(name, payload)
+  for _, fn in pairs(fake.handlers[name] or {}) do fn(payload) end
+end
+
+local constructor = { new = fake.component }
+_G.ui = {
+  Layer = constructor, Rectangle = constructor, Text = constructor, Sprite = constructor, Canvas = constructor,
+  Hook = setmetatable({}, { __index = function(_, name) return name end }),
+  AlignMode = { TOPLEFT = 0, CENTRE = 1, BOTTOMRIGHT = 2 },
+}
+_G.Event = setmetatable({}, { __index = function(_, name)
+  return { Subscribe = function(ref, fn)
+    fake.handlers[name] = fake.handlers[name] or {}
+    fake.handlers[name][ref] = fn
+  end }
+end })
+_G.Mouse = { GetX = function() return fake.mouse.x end, GetY = function() return fake.mouse.y end }
+_G.GameKey = { ESCAPE = 13 }
+_G.id = { Font = {} }
+_G.log = function() end
+
+return fake
