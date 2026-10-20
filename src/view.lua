@@ -424,6 +424,8 @@ local AURA_GAP = 2
 local AURA_MARGIN = 3
 -- With bars on, each tile has a 4px bar 1px below it.
 local AURA_BAR, AURA_BAR_SPACE = 4, 5
+-- The swipe darkens the icon only faintly, so the icon stays recognisable under it.
+local SWIPE_ALPHA = 0.1
 -- Bar stripes in the refresh window: white and black runs across the bar.
 local STRIPE, STRIPE_GAP = 3, 2
 
@@ -458,6 +460,7 @@ local function auraTile(layer, style)
   }
   parts.icon:SetSize(inner, inner)
   set(parts.swipe, "stylesheetID", id.StyleSheet.RADIAL_SQUARE)
+  set(parts.swipe, "alpha", SWIPE_ALPHA)
   parts.swipe:SetSize(inner, inner)
   parts.stripes:SetSize(inner, AURA_BAR - 2)
   for x = 0, inner - 1, STRIPE + STRIPE_GAP do
