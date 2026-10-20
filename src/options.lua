@@ -513,6 +513,8 @@ function options.create(root, deps)
   choiceRow("Bar texture", textures, saved.texture, saved.setTexture)
   choiceRow("Default target panel", { { value = false, label = "Show" }, { value = true, label = "Hide" } },
     saved.hideTargetPanel, saved.setHideTargetPanel)
+  choiceRow("Game buff bars", { { value = false, label = "Show" }, { value = true, label = "Hide" } },
+    saved.hideBuffBars, saved.setHideBuffBars)
   choiceRow("Aura icons", { { value = false, label = "Plain" }, { value = true, label = "With bars" } },
     saved.auraBars, saved.setAuraBars)
 

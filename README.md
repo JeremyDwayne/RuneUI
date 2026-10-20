@@ -31,7 +31,7 @@ Open the plugin ribbon and press **Open RuneUI options**. Press Esc or **Done** 
 
 - The Cooldown manager page shows both ability rows. Drag an icon to reorder it or move it to the other row, press **+** to add an ability you have used, and click an icon for a Remove option. The **+** list opens on your current combat style, with tabs for the other styles and a search box for ability names.
 - The Resource bar page sets the threshold and ultimate marker percents.
-- The Appearance page picks a flat bar fill or a vertical or horizontal gradient. It can also hide the game's own target panel, since RuneUI's target frame replaces it. **Aura icons** picks plain icons or icons with a draining bar under each. With bars, an icon in its last 10% gets a dashed white outline and a striped bar instead of the ring and plate.
+- The Appearance page picks a flat bar fill or a vertical or horizontal gradient. It can also hide the game's own target panel, since RuneUI's target frame replaces it. **Game buff bars** hides the game's own buff and debuff bars, since RuneUI's aura rows replace them. **Aura icons** picks plain icons or icons with a draining bar under each. With bars, an icon in its last 10% gets a dashed white outline and a striped bar instead of the ring and plate.
 - Edit mode, turned on from the window's footer, lets you drag any HUD element to move it. Everything anchored to that element moves with it. Press Esc to finish, or **Done** to return to the window.
 - To anchor an element, press its **Anchor** button in edit mode, click another element, then choose a side and alignment from the menu. The element sits flush against that side and keeps its gap when the other element grows or shrinks, such as when an ability row gains a tile. Its button then names the anchor, such as "Rotation, left, bottom", and pressing it removes the anchor. The frames and bars start anchored to the rotation row, so dragging the row moves the whole HUD.
 - While you drag, an element snaps to the edges and centers of other elements and of the game window, or to a 16 px grid, and a line marks each snap. Hold Shift to move freely. **Snap on** in the toolbar turns snapping and the grid off. **Reset positions** asks first, then puts every element and anchor back.
@@ -44,7 +44,7 @@ RuneUI only displays information the game already shows you. It reads your lifep
 
 It never clicks, casts or sends anything to the game on your behalf. It needs no permissions and sends no data off your computer.
 
-Hiding the game's target panel makes it fully transparent rather than closing it, because RuneUI reads the target's name and debuffs from it. Turning the option back off, or turning RuneUI off, restores the panel.
+Hiding the game's target panel makes it fully transparent rather than closing it, because RuneUI reads the target's name and debuffs from it. Hiding the game's buff bars hides each icon and makes the rest of the bars fully transparent, because RuneUI reads the time labels from them. Turning either option back off, reloading RuneUI or turning it off restores the game's interfaces.
 
 ## Development
 

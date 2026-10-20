@@ -36,11 +36,13 @@ Event.VarTransmit.Subscribe("cooldowns", function(e)
   tracker.onVar(adapter.varChange(e))
 end)
 Event.Draw.Subscribe("targetPanel", adapter.keepTargetPanelHidden)
+Event.Draw.Subscribe("buffBars", adapter.keepBuffBarsHidden)
 Event.InventoryAdded.Subscribe("lantern", adapter.inventoryChanged)
 Event.InventoryUpdated.Subscribe("lantern", adapter.inventoryChanged)
 
 local function refresh()
   adapter.hideTargetPanel(saved.hideTargetPanel())
+  adapter.hideBuffBars(saved.hideBuffBars())
   for _, element in pairs(elements) do
     if element.setTexture ~= nil then element.setTexture(saved.texture()) end
   end
@@ -81,6 +83,7 @@ refresh()
 
 function PluginShutdown()
   adapter.hideTargetPanel(false)
+  adapter.hideBuffBars(false)
   optionsWindow.shutdown()
   for _, element in pairs(elements) do element.layer:Destroy() end
   tooltip.destroy()
