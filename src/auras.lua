@@ -7,18 +7,21 @@ local COMBAT_SECONDS = 60
 local MAX_ICONS = 10
 -- Time is kept in tenths of a second, so a 0.6 s server tick is a whole number.
 local TICK = 6
-local UNITS = { [""] = 1, m = 60, h = 3600 }
+local UNITS = { m = 60, h = 3600 }
+-- An icon is highlighted in the last 10% of its full length, and never later than its last 3 seconds.
+local HIGHLIGHT_SECONDS = 3
 
--- A slot label such as "20<br>(5)", "20(5)", "6m" or "47%" as { seconds, unit, text, stacks }. seconds is the
--- top of what the label shows, so "6m" reads 360, and unit is the step the label counts in. A label with no
--- timer, such as a percent, a count or an empty one, reads {}, with stacks when it shows them.
+-- A slot label such as "20<br>(5)", "20(5)", "6m" or "47%" as { seconds, low, text, stacks }: the most and
+-- least time left the label can mean. The bars show seconds up to 60 and whole minutes above, so "6m" means
+-- 360 to 419 seconds. A label with no timer, such as a percent, a count or an empty one, reads {}.
 function auras.parse(label)
   if type(label) ~= "string" then return {} end
   local n, unit, rest = label:match("^(%d+)([mh]?)(.*)$")
   local stacks = rest and (rest:match("^<br>%((%d+)%)$") or rest:match("^%((%d+)%)$"))
   if n == nil or (rest ~= "" and stacks == nil) then return {} end
   local size = UNITS[unit]
-  return { seconds = tonumber(n) * size, unit = size, text = n .. unit, stacks = stacks }
+  if size == nil then return { seconds = tonumber(n), low = tonumber(n) - 1, text = n, stacks = stacks } end
+  return { seconds = tonumber(n) * size + size - 1, low = tonumber(n) * size, text = n .. unit, stacks = stacks }
 end
 
 -- The row a buff joins when first seen: "combat", "upkeep", or "hidden" when it has no timer.
@@ -39,10 +42,10 @@ function auras.tracker()
   local bars = { buffs = { states = {}, order = {} }, debuffs = { states = {}, order = {} } }
 
   -- Moves state to what label shows: a time above the label's last starts the swipe again, a lower one
-  -- resyncs it, and an unchanged one counts down a tick, no further than the bottom of the label's step.
+  -- resyncs it, and an unchanged one counts down a tick, no further than the least time the label can mean.
   local function follow(state, label)
     if label == state.label then
-      if state.left ~= nil then state.left = math.max(state.left - TICK, (state.seconds - state.unit) * 10) end
+      if state.left ~= nil then state.left = math.max(state.left - TICK, state.low * 10) end
       return
     end
     local parsed = auras.parse(label)
@@ -55,7 +58,7 @@ function auras.tracker()
     if state.left == nil or parsed.seconds > state.seconds then
       state.full, state.started = math.max(state.full or 0, left), tick
     end
-    state.seconds, state.unit, state.left = parsed.seconds, parsed.unit, left
+    state.seconds, state.low, state.left = parsed.seconds, parsed.low, left
   end
 
   local function update(bar, reads, appeared)
@@ -96,7 +99,7 @@ function auras.tracker()
     if state.left ~= nil then
       m.left, m.full, m.started = state.left / 10, state.full / 10, state.started
       m.fill = state.full > 0 and state.left / state.full or 0
-      m.highlight = state.left * 10 <= state.full
+      m.highlight = state.left * 10 <= state.full or state.left <= HIGHLIGHT_SECONDS * 10
     end
     return m
   end
