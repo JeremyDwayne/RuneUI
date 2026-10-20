@@ -32,8 +32,8 @@ local optionsWindow
 tracker.seed(saved.known())
 -- What the aura rows show: tracked debuffs, and Keep up tiles while the player has a target.
 local auraFilters = {
-  tracked = function(kind, sprite) return auralists.tracked(kind, {}, sprite) end,
-  keepUp = {},
+  tracked = function(kind, sprite) return auralists.tracked(kind, saved.tracked(kind), sprite) end,
+  keepUp = saved.keepUp(),
   hasTarget = false,
 }
 -- Struct ids scanned per tick while an aura icon is unnamed, about 48 seconds for a full scan.
@@ -65,6 +65,8 @@ local function refresh()
   local moved = elements.cooldowns.update(tracker.tiles(groups.cooldowns, slots), accent) or rotationMoved
   local bars = saved.auraBars()
   auraFilters.hasTarget = not target.hidden
+  -- Listing each debuff seen puts it on the Buffs page; seeDebuff saves only a new one.
+  for _, sprite in ipairs(target.debuffs or {}) do saved.seeDebuff("target", sprite) end
   for name, models in pairs(auraTracker.rows(saved.auras(), target.debuffs or {}, auraFilters)) do
     -- Asking for each aura's name queues unnamed icons for the background scan.
     for _, model in ipairs(models) do auraNames.info(model.sprite) end
@@ -81,7 +83,9 @@ optionsWindow = options.create(top, {
 Event.ServerLogic.Subscribe("refresh", function()
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then saved.learn(learned.key, learned.name, learned.icon) end
-  for _, found in ipairs(auraTracker.onTick(adapter.auraReads())) do saved.learnAura(found.sprite, found.category) end
+  local auraReads = adapter.auraReads()
+  for _, found in ipairs(auraTracker.onTick(auraReads)) do saved.learnAura(found.sprite, found.category) end
+  for _, read in ipairs(auraReads.debuffs) do saved.seeDebuff("player", read.sprite) end
   for _, found in ipairs(auraNames.step(adapter.iconStruct, ICON_SCAN_BUDGET)) do
     saved.learnDebuff(found.sprite, found.name, found.info)
   end

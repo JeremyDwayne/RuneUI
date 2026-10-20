@@ -1,6 +1,7 @@
 -- Saved settings: element positions and anchors, cooldown groups, marker percents, appearance (bar texture,
 -- aura bars, and whether the default target panel and buff bars are hidden), edit mode snapping, learned
--- ability names and icons, aura names by icon, and the aura row each buff icon belongs to.
+-- ability names and icons, aura names by icon, the aura row each buff icon belongs to, which debuffs each
+-- debuff row tracks, and the upkeep buffs kept up.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local layout = require("src/layout")
 
@@ -41,6 +42,10 @@ settings.TEXTURES = { "flat", "vertical", "horizontal" }
 local GROUP_NAMES = { "rotation", "cooldowns" }
 -- Aura rows a buff icon can be sorted into.
 local AURA_CATEGORIES = { combat = true, upkeep = true, hidden = true }
+-- Saved keys of each debuff row's tracked choices, by kind.
+local TRACKED_KEYS = { target = "trackedTarget", player = "trackedPlayer" }
+-- The rule src/icons names auras by; saved names from an older rule are dropped once on load.
+local NAMES_VERSION = 2
 local POSITION_FIELDS = { "x", "y", "anchorX", "anchorY" }
 
 -- PersistentDB hands numbers back as floats, so -427 returns as -427.0; whole numbers become integers again.
@@ -163,6 +168,25 @@ local function readDebuffs(saved)
   return debuffs
 end
 
+-- A debuff kind's choices, { [tostring(sprite)] = true | false | "seen" }.
+local function readTracked(saved)
+  local out = {}
+  if type(saved) ~= "table" then return out end
+  for sprite, choice in pairs(saved) do
+    if type(choice) == "boolean" or choice == "seen" then out[tostring(sprite)] = choice end
+  end
+  return out
+end
+
+local function readKeepUp(saved)
+  local out = {}
+  if type(saved) ~= "table" then return out end
+  for sprite, on in pairs(saved) do
+    if on == true then out[tostring(sprite)] = true end
+  end
+  return out
+end
+
 local function readAuras(saved)
   local out = {}
   if type(saved) ~= "table" then return out end
@@ -218,7 +242,16 @@ function settings.load(store, windowHeight)
   local known = readKnown(store.get("known"))
   local appearance = readAppearance(store.get("appearance"))
   local debuffs = readDebuffs(store.get("debuffs"))
+  local namesVersion = store.get("namesVersion")
+  if type(namesVersion) ~= "table" or namesVersion.version ~= NAMES_VERSION then
+    debuffs = {}
+    store.set("debuffs", debuffs)
+    store.set("namesVersion", { version = NAMES_VERSION })
+  end
   local auras = readAuras(store.get("auras"))
+  local tracked = {}
+  for kind, key in pairs(TRACKED_KEYS) do tracked[kind] = readTracked(store.get(key)) end
+  local keepUp = readKeepUp(store.get("keepUp"))
 
   local function saveGroups() store.set("groups", groups) end
 
@@ -368,6 +401,40 @@ function settings.load(store, windowHeight)
     if auras[key] ~= nil then return end
     auras[key] = category
     store.set("auras", auras)
+  end
+
+  -- Moves a buff icon to another aura row.
+  function s.setAuraCategory(sprite, category)
+    auras[tostring(sprite)] = category
+    store.set("auras", auras)
+  end
+
+  -- { [tostring(sprite)] = true | false | "seen" }: the debuffs of kind, "target" or "player", seen or chosen.
+  function s.tracked(kind)
+    return tracked[kind]
+  end
+
+  -- Lists a debuff of kind seen for the first time, with no choice. No-op once listed.
+  function s.seeDebuff(kind, sprite)
+    local key = tostring(sprite)
+    if tracked[kind][key] ~= nil then return end
+    tracked[kind][key] = "seen"
+    store.set(TRACKED_KEYS[kind], tracked[kind])
+  end
+
+  function s.setTracked(kind, sprite, on)
+    tracked[kind][tostring(sprite)] = on
+    store.set(TRACKED_KEYS[kind], tracked[kind])
+  end
+
+  -- { [tostring(sprite)] = true } for each upkeep buff that keeps a tile while missing.
+  function s.keepUp()
+    return keepUp
+  end
+
+  function s.setKeepUp(sprite, on)
+    keepUp[tostring(sprite)] = on or nil
+    store.set("keepUp", keepUp)
   end
 
   -- { [tostring(sprite)] = { name, info } } for every aura icon src/icons has named, and
