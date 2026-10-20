@@ -8,6 +8,7 @@ local settings = require("src/settings")
 local options = {}
 
 local set, rect, text, outline, placeOutline = draw.set, draw.rect, draw.text, draw.outline, draw.placeOutline
+local hideAll = draw.hideAll
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
 local WIDTH, HEIGHT = 900, 620
@@ -37,10 +38,6 @@ local function on(c, hook, fn)
   c:Subscribe(ui.Hook[hook], fn)
 end
 
-local function hideAll(components, hidden)
-  for _, c in ipairs(components) do set(c, "hidden", hidden) end
-end
-
 -- A flat button with a centred label that lightens on hover. accent uses the accent fill and dark text.
 local function button(parent, label, x, y, w, h, accent, onClick)
   local normal = accent and COLOURS.accent or COLOURS.button
@@ -57,7 +54,6 @@ local function button(parent, label, x, y, w, h, accent, onClick)
   on(bg, "ONCLICK", function() onClick() end)
   return { bg = bg, label = t }
 end
-
 
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
 -- view = src/view, refresh = function redrawing the HUD }. Returns { shutdown }.
@@ -160,52 +156,46 @@ function options.create(root, deps)
   local origin = { x = 0, y = 0 }
   local drag = nil
 
-  -- An editor tile. Its edge is the hit area; the parts are offsets from the tile's top-left.
-  local function tile(row, i)
+  -- An editor tile as a draw.group. Its edge is the hit area.
+  local function tile(row)
     local size = row.size
+    local group = draw.group()
     local t = {
-      row = row, index = i,
-      edge = hitArea(rect(page, COLOURS.border, 0, 0, size, size)),
-      bg = rect(page, COLOURS.editorTile, 0, 0, size - 2, size - 2),
-      icon = ui.Sprite.new(page),
-      initials = text(page, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, size - 6, 12),
+      row = row, group = group,
+      edge = group.add(hitArea(rect(page, COLOURS.border, 0, 0, size, size)), 0, 0),
+      bg = group.add(rect(page, COLOURS.editorTile, 0, 0, size - 2, size - 2), 1, 1),
+      icon = group.add(ui.Sprite.new(page), 1, 1),
+      initials = group.add(text(page, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, size - 6, 12), 4, size - 15),
     }
     t.icon:SetSize(size - 2, size - 2)
-    t.parts = { { t.edge, 0, 0 }, { t.bg, 1, 1 }, { t.icon, 1, 1 }, { t.initials, 4, size - 15 } }
     on(t.edge, "ONCLICK", function(_, x, py)
       if t.key == nil then return end
       closePopups()
-      origin.x = Mouse.GetX() - (PAGE_X + t.x + x)
-      origin.y = Mouse.GetY() - (PAGE_Y + t.y + py)
+      origin.x = Mouse.GetX() - (PAGE_X + group.x + x)
+      origin.y = Mouse.GetY() - (PAGE_Y + group.y + py)
       drag = { tile = t, startX = Mouse.GetX(), startY = Mouse.GetY(), moved = false }
     end)
     on(t.edge, "ONRELEASE", function() if drag ~= nil and drag.tile == t then drop() end end)
     return t
   end
 
+  -- The "+" tile as a draw.group.
   local function plusTile(row)
     local size = row.size
-    local p = {
-      row = row,
-      edge = hitArea(rect(page, COLOURS.mutedText, 0, 0, size, size)),
-      bg = rect(page, COLOURS.sidebar, 0, 0, size - 2, size - 2),
-      glyph = text(page, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, size, size),
-    }
-    set(p.glyph, "content", "+")
-    set(p.glyph, "rgb", COLOURS.accent)
-    on(p.edge, "ONCLICK", function() openPicker(row, p) end)
-    return p
+    local plus = draw.group()
+    local edge = plus.add(hitArea(rect(page, COLOURS.mutedText, 0, 0, size, size)), 0, 0)
+    plus.add(rect(page, COLOURS.sidebar, 0, 0, size - 2, size - 2), 1, 1)
+    local glyph = plus.add(text(page, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, size, size), 0, 0)
+    set(glyph, "content", "+")
+    set(glyph, "rgb", COLOURS.accent)
+    on(edge, "ONCLICK", function() openPicker(row, plus) end)
+    return plus
   end
 
   for _, row in ipairs(ROWS) do
     row.tiles = {}
-    for i = 1, MAX_TILES do row.tiles[i] = tile(row, i) end
+    for i = 1, MAX_TILES do row.tiles[i] = tile(row) end
     row.plus = plusTile(row)
-  end
-
-  local function placeTile(t, x, ty)
-    t.x, t.y = x, ty
-    for _, part in ipairs(t.parts) do part[1]:SetPos(x + part[2], ty + part[3]) end
   end
 
   local function knownTiles(keys)
@@ -220,22 +210,17 @@ function options.create(root, deps)
       for i, t in ipairs(row.tiles) do
         local model = models[i]
         t.key = model and model.key
-        hideAll({ t.edge, t.bg, t.icon, t.initials }, model == nil)
-        if model ~= nil then
-          placeTile(t, row.x + (i - 1) * (row.size + GAP), row.y)
-          set(t.icon, "hidden", model.icon == nil)
-          if model.icon ~= nil then set(t.icon, "sprite", model.icon) end
-          set(t.initials, "hidden", model.icon ~= nil)
-          set(t.initials, "content", model.initials)
+        if model == nil then
+          t.group.set("hidden", true)
+        else
+          t.group.place(row.x + (i - 1) * (row.size + GAP), row.y)
+          hideAll({ t.edge, t.bg }, false)
+          draw.iconOrInitials(t.icon, t.initials, model)
         end
       end
       local count = math.min(#models, MAX_TILES)
-      local plusX = row.x + count * (row.size + GAP)
-      row.plus.x = plusX
-      row.plus.edge:SetPos(plusX, row.y)
-      row.plus.bg:SetPos(plusX + 1, row.y + 1)
-      row.plus.glyph:SetPos(plusX, row.y)
-      hideAll({ row.plus.edge, row.plus.bg, row.plus.glyph }, count >= MAX_TILES)
+      row.plus.place(row.x + count * (row.size + GAP), row.y)
+      row.plus.set("hidden", count >= MAX_TILES)
       row.count = count
     end
   end
@@ -286,12 +271,8 @@ function options.create(root, deps)
 
   local function startDrag(t)
     drag.moved = true
-    for _, c in ipairs({ t.edge, t.bg, t.icon, t.initials }) do set(c, "alpha", 0.3) end
-    local model = knownTiles({ t.key })[1]
-    set(ghost, "hidden", model.icon == nil)
-    if model.icon ~= nil then set(ghost, "sprite", model.icon) end
-    set(ghostInitials, "hidden", model.icon ~= nil)
-    set(ghostInitials, "content", model.initials)
+    t.group.set("alpha", 0.3)
+    draw.iconOrInitials(ghost, ghostInitials, knownTiles({ t.key })[1])
   end
 
   -- Tile menu: one Remove row under the clicked tile.
@@ -310,7 +291,7 @@ function options.create(root, deps)
 
   local function openMenu(t)
     menuKey = t.key
-    menu:SetPos(t.x, t.y + t.row.size + 4)
+    menu:SetPos(t.group.x, t.group.y + t.row.size + 4)
     set(menu, "hidden", false)
   end
 
@@ -318,7 +299,7 @@ function options.create(root, deps)
     local d = drag
     drag = nil
     hideDragFeedback()
-    for _, c in ipairs({ d.tile.edge, d.tile.bg, d.tile.icon, d.tile.initials }) do set(c, "alpha", 1) end
+    d.tile.group.set("alpha", 1)
     if not d.moved then
       openMenu(d.tile)
       return
@@ -375,24 +356,22 @@ function options.create(root, deps)
     for key in pairs(saved.known()) do
       if not seen[key] then keys[#keys + 1], seen[key] = key, true end
     end
-    local names = {}
-    for _, t in ipairs(knownTiles(keys)) do names[t.key] = t.name end
-    table.sort(keys, function(a, b) return names[a] < names[b] end)
-    return keys, names
+    local models = {}
+    for _, t in ipairs(knownTiles(keys)) do models[t.key] = t end
+    table.sort(keys, function(a, b) return models[a].name < models[b].name end)
+    return keys, models
   end
 
   function fillPicker()
-    local keys, names = allKnownKeys()
+    local keys, models = allKnownKeys()
     local entries = {}
     for _, section in ipairs(editor.pickerSections(pickerFor.name, saved.groups() or tracker.defaultGroups(), keys)) do
       if #section.keys > 0 then
         entries[#entries + 1] = { title = section.title }
-        for _, key in ipairs(section.keys) do entries[#entries + 1] = { key = key, name = names[key] } end
+        for _, key in ipairs(section.keys) do entries[#entries + 1] = { key = key, name = models[key].name } end
       end
     end
     if #entries == 0 then entries[1] = { title = "Use an ability to add it here" } end
-    local models = {}
-    for _, t in ipairs(knownTiles(keys)) do models[t.key] = t end
     for i, r in ipairs(pickerRows) do
       local entry = entries[i]
       r.key = entry and entry.key
@@ -417,7 +396,7 @@ function options.create(root, deps)
     if wasOpen then return end
     pickerFor = row
     fillPicker()
-    picker:SetPos(plus.x, row.y + row.size + 4)
+    picker:SetPos(plus.x, plus.y + row.size + 4)
     set(picker, "hidden", false)
   end
 

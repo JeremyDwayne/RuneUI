@@ -96,12 +96,12 @@ function cooldowns.tracker()
     return learned
   end
 
-  -- Restores saved names and icons, { [key] = { name, icon } }, without adding to known().
   -- The combat style of the latest started cooldown that has one, as a STYLES value, or nil before any.
   function tracker.style()
     return style
   end
 
+  -- Restores saved names and icons, { [key] = { name, icon } }, without adding to known().
   function tracker.seed(saved)
     for key, info in pairs(saved) do
       abilities[key] = abilities[key] or {}

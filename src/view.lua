@@ -23,7 +23,7 @@ local TOOLTIP_LINE_CHARS = 34
 -- One tooltip for every HUD icon: a dark panel above the hovered icon, below it when
 -- there is no room, with a white outline on the icon. show(content, x, y, size) takes the icon's screen
 -- position and { title, left, right, line }, where line may wrap to two lines; hide() clears it, raise()
--- keeps it on top and destroy() removes it.
+-- keeps it on top and destroy() removes it. hover(items, show) wires each item's edge to the tooltip.
 function view.tooltip(root)
   local layer = ui.Layer.new(root)
   local edge = rect(layer, COLOURS.border, 0, 0, TOOLTIP_WIDTH, 0)
@@ -42,7 +42,7 @@ function view.tooltip(root)
 
   local function setHidden(hidden)
     set(layer, "hidden", hidden)
-    for _, side in ipairs(highlight) do set(side, "hidden", hidden) end
+    draw.hideAll(highlight, hidden)
   end
   setHidden(true)
 
@@ -74,6 +74,25 @@ function view.tooltip(root)
   function tooltip.destroy()
     layer:Destroy()
     for _, side in ipairs(highlight) do side:Destroy() end
+  end
+
+  -- Entering item i's edge calls show(i) and leaving the hovered edge hides the tooltip. Returns a table
+  -- whose index is the hovered item's, or nil, so an update can redraw the tooltip it shows.
+  function tooltip.hover(items, show)
+    local hover = {}
+    for i, item in ipairs(items) do
+      item.edge:Subscribe(ui.Hook.ONMOUSEOVER, function()
+        hover.index = i
+        show(i)
+      end)
+      item.edge:Subscribe(ui.Hook.ONMOUSELEAVE, function()
+        if hover.index == i then
+          hover.index = nil
+          tooltip.hide()
+        end
+      end)
+    end
+    return hover
   end
 
   -- Keeps the tooltip above every HUD element built before this call.
@@ -157,11 +176,11 @@ function view.targetFrame(root, tooltip, debuffInfo)
     debuffs[i] = { edge = edge, icon = icon }
   end
 
-  local current, hovered = nil, nil
+  local current = nil
 
-  local function showTooltip()
-    local slot = debuffs[hovered]
-    local sprite = current and not current.hidden and current.debuffs[hovered]
+  local function showTooltip(i)
+    local slot = debuffs[i]
+    local sprite = current and not current.hidden and current.debuffs[i]
     if sprite == nil then
       tooltip.hide()
       return
@@ -174,18 +193,7 @@ function view.targetFrame(root, tooltip, debuffInfo)
     }, x, y, DEBUFF_SIZE)
   end
 
-  for i, slot in ipairs(debuffs) do
-    slot.edge:Subscribe(ui.Hook.ONMOUSEOVER, function()
-      hovered = i
-      showTooltip()
-    end)
-    slot.edge:Subscribe(ui.Hook.ONMOUSELEAVE, function()
-      if hovered == i then
-        hovered = nil
-        tooltip.hide()
-      end
-    end)
-  end
+  local hover = tooltip.hover(debuffs, showTooltip)
 
   local function update(model)
     current = model
@@ -206,7 +214,7 @@ function view.targetFrame(root, tooltip, debuffInfo)
         end
       end
     end
-    if hovered ~= nil then showTooltip() end
+    if hover.index ~= nil then showTooltip(hover.index) end
   end
 
   return {
@@ -322,37 +330,23 @@ local ACCENT, ACCENT_SPACE = 2, 5
 local MAX_TILES = 10
 local COOLING_DIM = 0.62
 
--- Builds one tile's components in a row starting top pixels down; place(x) moves them all, keeping each
--- part's offset in the tile.
-local function tile(layer, style, top)
+-- Builds one tile's components as a draw.group, so group.place moves them all.
+local function tile(layer, style)
   local size = style.size
-  local offsets = {}
-  local function at(component, dx, dy)
-    offsets[#offsets + 1] = { component = component, dx = dx, dy = top + dy }
-    return component
-  end
+  local group = draw.group()
   local parts = {
-    edge = at(rect(layer, COLOURS.border, 0, 0, size, size), 0, 0),
-    background = at(rect(layer, COLOURS.tile, 0, 0, size - 2, size - 2), 1, 1),
-    icon = at(ui.Sprite.new(layer), 1, 1),
+    group = group,
+    edge = group.add(rect(layer, COLOURS.border, 0, 0, size, size), 0, 0),
+    background = group.add(rect(layer, COLOURS.tile, 0, 0, size - 2, size - 2), 1, 1),
+    icon = group.add(ui.Sprite.new(layer), 1, 1),
+    initials = group.add(text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, size - 8, 12), 4, size - 15),
+    dim = group.add(rect(layer, COLOURS.border, 0, 0, size - 2, size - 2), 1, 1),
+    keybind = group.add(text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 24, 2),
+    seconds = group.add(text(layer, style.secondsFont, ui.AlignMode.CENTRE, 0, 0, size, size), 0, 0),
   }
   parts.icon:SetSize(size - 2, size - 2)
   set(parts.background, "alpha", TILE_ALPHA)
-  parts.initials = at(text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, size - 8, 12), 4, size - 15)
-  parts.dim = at(rect(layer, COLOURS.border, 0, 0, size - 2, size - 2), 1, 1)
   set(parts.dim, "alpha", COOLING_DIM)
-  parts.keybind = at(text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 24, 2)
-  parts.seconds = at(text(layer, style.secondsFont, ui.AlignMode.CENTRE, 0, 0, size, size), 0, 0)
-
-  function parts.place(x)
-    parts.x = x
-    for _, o in ipairs(offsets) do pos(o.component, x + o.dx, o.dy) end
-  end
-
-  function parts.setHidden(hidden)
-    for _, o in ipairs(offsets) do set(o.component, "hidden", hidden) end
-  end
-
   return parts
 end
 
@@ -370,17 +364,17 @@ function view.cooldownGroup(root, style, tooltip)
   local accentEdge = rect(layer, COLOURS.border, 0, accentY, width, ACCENT + 2)
   local accent = rect(layer, COLOURS.border, 1, accentY + 1, width - 2, ACCENT)
   local tiles = {}
-  for i = 1, MAX_TILES do tiles[i] = tile(layer, style, top) end
+  for i = 1, MAX_TILES do tiles[i] = tile(layer, style) end
 
-  local current, hovered = {}, nil
+  local current = {}
 
-  local function showTooltip()
-    local model = current[hovered]
+  local function showTooltip(i)
+    local model = current[i]
     if model == nil then
       tooltip.hide()
       return
     end
-    local x, y = screenPos(layer, tiles[hovered].x, top)
+    local x, y = screenPos(layer, tiles[i].group.x, top)
     tooltip.show({
       title = model.name,
       left = model.cooldown and ("Cooldown " .. model.cooldown .. "s") or nil,
@@ -389,18 +383,7 @@ function view.cooldownGroup(root, style, tooltip)
     }, x, y, style.size)
   end
 
-  for i, parts in ipairs(tiles) do
-    parts.edge:Subscribe(ui.Hook.ONMOUSEOVER, function()
-      hovered = i
-      showTooltip()
-    end)
-    parts.edge:Subscribe(ui.Hook.ONMOUSELEAVE, function()
-      if hovered == i then
-        hovered = nil
-        tooltip.hide()
-      end
-    end)
-  end
+  local hover = tooltip.hover(tiles, showTooltip)
 
   local function update(models, accentRgb)
     current = models
@@ -420,15 +403,12 @@ function view.cooldownGroup(root, style, tooltip)
     for i, parts in ipairs(tiles) do
       local model = models[i]
       if model == nil then
-        parts.setHidden(true)
+        parts.group.set("hidden", true)
       else
-        parts.place(offset + (i - 1) * step)
+        parts.group.place(offset + (i - 1) * step, top)
         set(parts.edge, "hidden", false)
         set(parts.background, "hidden", false)
-        set(parts.icon, "hidden", model.icon == nil)
-        if model.icon ~= nil then set(parts.icon, "sprite", model.icon) end
-        set(parts.initials, "hidden", model.icon ~= nil)
-        set(parts.initials, "content", model.initials)
+        draw.iconOrInitials(parts.icon, parts.initials, model)
         set(parts.dim, "hidden", model.ready)
         set(parts.keybind, "hidden", model.keybind == nil)
         set(parts.keybind, "content", model.keybind or "")
@@ -439,7 +419,7 @@ function view.cooldownGroup(root, style, tooltip)
         set(parts.keybind, "rgb", labelColour)
       end
     end
-    if hovered ~= nil then showTooltip() end
+    if hover.index ~= nil then showTooltip(hover.index) end
   end
 
   return { layer = layer, update = update, width = width, height = height }

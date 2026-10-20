@@ -125,6 +125,41 @@ function draw.text(parent, font, horizontal, x, y, width, height)
   return t
 end
 
+function draw.hideAll(components, hidden)
+  for _, c in ipairs(components) do draw.set(c, "hidden", hidden) end
+end
+
+-- Components that move together, each at a fixed offset from the group's top-left. add(c, dx, dy) returns
+-- c; place(x, y) moves them all and keeps x and y on the group; set(field, value) writes it on each.
+function draw.group()
+  local members = {}
+  local group = {}
+
+  function group.add(c, dx, dy)
+    members[#members + 1] = { c = c, dx = dx, dy = dy }
+    return c
+  end
+
+  function group.place(x, y)
+    group.x, group.y = x, y
+    for _, m in ipairs(members) do draw.pos(m.c, x + m.dx, y + m.dy) end
+  end
+
+  function group.set(field, value)
+    for _, m in ipairs(members) do draw.set(m.c, field, value) end
+  end
+
+  return group
+end
+
+-- Shows a src/cooldowns tile's icon on sprite, or its initials on label when it has no icon.
+function draw.iconOrInitials(sprite, label, tile)
+  draw.set(sprite, "hidden", tile.icon == nil)
+  if tile.icon ~= nil then draw.set(sprite, "sprite", tile.icon) end
+  draw.set(label, "hidden", tile.icon ~= nil)
+  draw.set(label, "content", tile.initials)
+end
+
 -- Four thin rects forming a box outline; returns them for moving and hiding.
 function draw.outline(parent, rgb, thickness)
   return { draw.rect(parent, rgb, 0, 0, 0, 0), draw.rect(parent, rgb, 0, 0, 0, 0), draw.rect(parent, rgb, 0, 0, 0, 0),
