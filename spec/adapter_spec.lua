@@ -117,8 +117,9 @@ describe("adapter.spriteName", function()
 end)
 
 describe("adapter.auraReads", function()
-  it("reads shown icons with their labels, skipping item icons, hidden icons and slots past an empty run", function()
-    -- { sprite, label, visibleGlobal } per 284 slot from :19.
+  it("reads shown icons with their labels, skipping item icons, hidden slots and slots past an empty run", function()
+    -- { sprite, label, label visibleGlobal } per 284 slot from :19. Visibility comes from the label, since
+    -- RuneUI hides the icons themselves.
     local slots = {
       [19] = { 30093, "6m", true }, [20] = { -1, "5m", true }, [21] = { 18857, "", false },
       [22] = { 14766, "20<br>(5)", true }, [27] = { 27432, "9", true },
@@ -126,12 +127,74 @@ describe("adapter.auraReads", function()
     _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID, _, dynamicID)
       local slot = interfaceID == 284 and slots[staticID]
       if not slot then return nil end
-      if dynamicID == 0 then return { spriteID = slot[1], visibleGlobal = slot[3] } end
-      return { content = slot[2] }
+      if dynamicID == 0 then return { spriteID = slot[1], visibleGlobal = false } end
+      return { content = slot[2], visibleGlobal = slot[3] }
     end } }
     assert.are.same({
       buffs = { { sprite = 30093, label = "6m" }, { sprite = 14766, label = "20<br>(5)" } },
       debuffs = {},
     }, adapter.auraReads())
+  end)
+end)
+
+-- Interface 284 with a static root, a filled slot :19 and an empty slot :20, as the client builds them.
+-- fill() replaces :19's children with new shown, opaque ones, as the client does when a buff fills the slot.
+local function loadBuffBar()
+  local function children()
+    local list = {}
+    for dynamic = 0, 3 do list[dynamic] = { alpha = 1, hidden = false, categoryID = 0, dynamicID = dynamic } end
+    return list
+  end
+  local bar = { root = { alpha = 1 }, slot = children() }
+  local statics = {
+    [0] = bar.root,
+    [19] = { alpha = 1, IterateDynamicComponents = function(_, fn)
+      for dynamic = 0, 3 do fn(bar.slot[dynamic]) end
+    end },
+  }
+  bar.interfaces = { lookups = 0, GetComponent = function(self, interfaceID, staticID, _, dynamicID)
+    self.lookups = self.lookups + 1
+    if interfaceID ~= 284 then return nil end
+    if dynamicID == nil then return statics[staticID] end
+    return staticID == 19 and bar.slot[dynamicID] or nil
+  end }
+  _G.ui = { Interfaces = bar.interfaces }
+  function bar.fill() bar.slot = children() end
+  return bar
+end
+
+describe("adapter.hideBuffBars", function()
+  it("hides slot icons, makes the rest transparent, and restores both when turned off", function()
+    local bar = loadBuffBar()
+    adapter.hideBuffBars(true)
+    local slot = bar.slot
+    assert.are.same({ 0, true, false, 0, true, 0 },
+      { bar.root.alpha, slot[0].hidden, slot[1].hidden, slot[1].alpha, slot[2].hidden, slot[3].alpha })
+    adapter.hideBuffBars(false)
+    assert.are.same({ 1, false, 1, false, 1 }, { bar.root.alpha, slot[0].hidden, slot[1].alpha, slot[2].hidden,
+      slot[3].alpha })
+  end)
+
+  it("hides a slot again in the frames after a tick once the client fills it", function()
+    local bar = loadBuffBar()
+    adapter.hideBuffBars(true)
+    adapter.hideBuffBars(true)
+    bar.fill()
+    adapter.keepBuffBarsHidden()
+    assert.are.same({ true, 0, true, 0 }, { bar.slot[0].hidden, bar.slot[1].alpha, bar.slot[2].hidden,
+      bar.slot[3].alpha })
+    adapter.hideBuffBars(false)
+  end)
+
+  it("makes no client reads on a frame while the bars are shown or long after a tick", function()
+    local bar = loadBuffBar()
+    adapter.keepBuffBarsHidden()
+    assert.are.equal(0, bar.interfaces.lookups)
+    adapter.hideBuffBars(true)
+    for _ = 1, 20 do adapter.keepBuffBarsHidden() end
+    bar.interfaces.lookups = 0
+    adapter.keepBuffBarsHidden()
+    assert.are.equal(0, bar.interfaces.lookups)
+    adapter.hideBuffBars(false)
   end)
 end)

@@ -15,12 +15,18 @@ local TARGET_LAST_STATIC = 80
 local TARGET_NAME = 21
 -- The panel's background sprite, dynamic child :25:0:0, which the client can rebuild opaque on its own.
 local TARGET_BACKGROUND = 25
--- The buff bar and debuff bar share a layout: slot :<n>:0:0 holds the icon sprite and :<n>:0:1 the label.
--- An icon showing an item reads sprite -1, and one the player's buff settings hide reads not visibleGlobal.
-local BUFF_BAR, DEBUFF_BAR = 284, 291
-local BUFF_FIRST, BUFF_LAST, DEBUFF_BAR_FIRST, DEBUFF_BAR_LAST = 19, 68, 2, 51
+-- The buff bar and debuff bar share a layout: slot :<n>:0:0 holds the icon sprite, :<n>:0:1 the label,
+-- :<n>:0:2 and :<n>:0:3 its frame. An icon showing an item reads sprite -1, and a slot the player's buff
+-- settings hide reads its label not visibleGlobal. lastStatic is each bar's highest static ID, and watchLast
+-- the last slot auraReads looked at.
+local BUFF_BARS = {
+  buffs = { id = 284, first = 19, last = 68, lastStatic = 80 },
+  debuffs = { id = 291, first = 2, last = 51, lastStatic = 60 },
+}
 -- Empty slots in a row after which a bar holds no more icons.
 local EMPTY_RUN = 4
+-- Rendered frames after each server tick in which a buff bar can fill a slot.
+local FILL_FRAMES = 8
 -- config.Inv.WORN, the worn-equipment inventory.
 local WORN_INV = 94
 -- Ability struct params read into justUsed()'s result.
@@ -88,20 +94,26 @@ function adapter.targetReads()
   }
 end
 
--- Appends { sprite, label } for each shown icon in slots first to last of interfaceID to list.
-local function barReads(interfaceID, first, last, list)
-  local empty = 0
-  for staticID = first, last do
-    local icon = ui.Interfaces:GetComponent(interfaceID, staticID, 0, 0)
+-- { sprite, label } for each shown icon on bar, a BUFF_BARS entry, stopping after EMPTY_RUN empty slots.
+local function barReads(bar)
+  local list, empty = {}, 0
+  bar.watchLast = bar.last
+  for staticID = bar.first, bar.last do
+    local icon = ui.Interfaces:GetComponent(bar.id, staticID, 0, 0)
     local sprite = icon and read(icon, "spriteID")
-    local label = labelText(interfaceID, staticID, 0, 1)
-    if (sprite == nil or sprite == -1) and label == nil then
+    local label = ui.Interfaces:GetComponent(bar.id, staticID, 0, 1)
+    local text = label and read(label, "content")
+    if type(text) ~= "string" or text == "" then text = nil end
+    if (sprite == nil or sprite == -1) and text == nil then
       empty = empty + 1
-      if empty >= EMPTY_RUN then return list end
+      if empty >= EMPTY_RUN then
+        bar.watchLast = staticID
+        return list
+      end
     else
       empty = 0
-      if sprite ~= nil and sprite ~= -1 and read(icon, "visibleGlobal") ~= false then
-        list[#list + 1] = { sprite = sprite, label = label }
+      if sprite ~= nil and sprite ~= -1 and read(label, "visibleGlobal") ~= false then
+        list[#list + 1] = { sprite = sprite, label = text }
       end
     end
   end
@@ -110,10 +122,7 @@ end
 
 -- The native buff and debuff bars as src/auras reads: { buffs, debuffs }, each a list of { sprite, label }.
 function adapter.auraReads()
-  return {
-    buffs = barReads(BUFF_BAR, BUFF_FIRST, BUFF_LAST, {}),
-    debuffs = barReads(DEBUFF_BAR, DEBUFF_BAR_FIRST, DEBUFF_BAR_LAST, {}),
-  }
+  return { buffs = barReads(BUFF_BARS.buffs), debuffs = barReads(BUFF_BARS.debuffs) }
 end
 
 -- Name, old value and new value of an Event.VarTransmit payload.
@@ -278,6 +287,95 @@ adapter.keepTargetPanelHidden = targetPanel.keep
 -- Runs each server tick with whether the native target panel should be hidden. Hiding sets alpha 0,
 -- because hidden stops the panel filling its debuff slots, which targetReads relies on.
 adapter.hideTargetPanel = targetPanel.hide
+
+-- Original alpha of each buff bar component while RuneUI hides the bars, keyed "bar:static" or
+-- "bar:static:category:dynamic", and the keys of the icons it set hidden.
+local barAlpha, barHidden = nil, nil
+-- Rendered frames since the last server tick, counted up to FILL_FRAMES.
+local framesSinceTick = FILL_FRAMES
+
+-- Hides c: a slot's icon :0:0 and :0:2 take hidden, which the client undoes only when it fills the slot.
+-- Everything else takes alpha 0, which the client resets every few frames on an icon but not on these.
+local function hideBarComponent(key, c, icon)
+  if icon then
+    barHidden[key] = true
+    pcall(function() c.hidden = true end)
+    return
+  end
+  if barAlpha[key] == nil then barAlpha[key] = read(c, "alpha") or 1 end
+  pcall(function() c.alpha = 0 end)
+end
+
+-- Calls fn(key, child, icon) for each dynamic child of bar's static staticID.
+local function eachSlotChild(bar, staticID, c, fn)
+  local slot = staticID >= bar.first and staticID <= bar.last
+  pcall(function()
+    c:IterateDynamicComponents(function(child)
+      local category, dynamic = read(child, "categoryID"), read(child, "dynamicID")
+      fn(bar.id .. ":" .. staticID .. ":" .. tostring(category) .. ":" .. tostring(dynamic), child,
+        slot and category == 0 and (dynamic == 0 or dynamic == 2))
+      return false
+    end)
+  end)
+end
+
+-- Calls fn(key, component, icon) for every component of both buff bars, dynamic children included, since
+-- a component's alpha does not reach its children.
+local function eachBarComponent(fn)
+  for _, bar in pairs(BUFF_BARS) do
+    for staticID = 0, bar.lastStatic do
+      local c = ui.Interfaces:GetComponent(bar.id, staticID)
+      if c ~= nil then
+        fn(bar.id .. ":" .. staticID, c, false)
+        eachSlotChild(bar, staticID, c, fn)
+      end
+    end
+  end
+end
+
+-- Runs on every rendered frame while the buff bars are hidden. For a few frames after each server tick it
+-- reads the icon of each slot auraReads looked at, and hides a slot again once the client fills it, which
+-- shows its icon and makes its label and frame opaque. No reads otherwise.
+function adapter.keepBuffBarsHidden()
+  if barAlpha == nil or framesSinceTick >= FILL_FRAMES then return end
+  framesSinceTick = framesSinceTick + 1
+  for _, bar in pairs(BUFF_BARS) do
+    for staticID = bar.first, bar.watchLast or bar.last do
+      if read(ui.Interfaces:GetComponent(bar.id, staticID, 0, 0), "hidden") == false then
+        eachSlotChild(bar, staticID, ui.Interfaces:GetComponent(bar.id, staticID), hideBarComponent)
+      end
+    end
+  end
+end
+
+-- Runs each server tick with whether the native buff and debuff bars should be hidden. Their labels keep
+-- counting and their slots keep filling while hidden, which auraReads relies on. A bar whose first static
+-- reads opaque reloaded, so it is hidden again whole. false restores what RuneUI changed.
+function adapter.hideBuffBars(hidden)
+  if hidden then
+    framesSinceTick = 0
+    if barAlpha == nil then
+      barAlpha, barHidden = {}, {}
+      eachBarComponent(hideBarComponent)
+      return
+    end
+    for _, bar in pairs(BUFF_BARS) do
+      local root = ui.Interfaces:GetComponent(bar.id, 0)
+      local alpha = root and read(root, "alpha")
+      if alpha ~= nil and alpha > 0 then
+        eachBarComponent(hideBarComponent)
+        return
+      end
+    end
+  elseif barAlpha ~= nil then
+    eachBarComponent(function(key, c)
+      if barHidden[key] then pcall(function() c.hidden = false end) end
+      local alpha = barAlpha[key]
+      if alpha ~= nil then pcall(function() c.alpha = alpha end) end
+    end)
+    barAlpha, barHidden = nil, nil
+  end
+end
 
 local iconParams = nil
 
