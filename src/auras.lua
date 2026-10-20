@@ -37,12 +37,11 @@ local ROWS = { combat = "combatBuffs", upkeep = "upkeepBuffs" }
 -- per server tick, and returns the buffs it saw appear as { sprite, category }. rows builds the display
 -- models.
 function auras.tracker()
-  local tick = 0
   -- Per bar, { [sprite] = state } for every aura on it last tick, and the sprites in bar order.
   local bars = { buffs = { states = {}, order = {} }, debuffs = { states = {}, order = {} } }
 
-  -- Moves state to what label shows: a time above the label's last starts the swipe again, a lower one
-  -- resyncs it, and an unchanged one counts down a tick, no further than the least time the label can mean.
+  -- Moves state to what label shows: a new time replaces the count, raising full when it is the longest seen,
+  -- and an unchanged label counts down a tick, no further than the least time the label can mean.
   local function follow(state, label)
     if label == state.label then
       if state.left ~= nil then state.left = math.max(state.left - TICK, state.low * 10) end
@@ -55,9 +54,7 @@ function auras.tracker()
       return
     end
     local left = parsed.seconds * 10
-    if state.left == nil or parsed.seconds > state.seconds then
-      state.full, state.started = math.max(state.full or 0, left), tick
-    end
+    state.full = math.max(state.full or 0, left)
     state.seconds, state.low, state.left = parsed.seconds, parsed.low, left
   end
 
@@ -85,19 +82,18 @@ function auras.tracker()
   local tracker = {}
 
   function tracker.onTick(reads)
-    tick = tick + 1
     local appeared = {}
     update(bars.buffs, reads.buffs, appeared)
     update(bars.debuffs, reads.debuffs)
     return appeared
   end
 
-  -- { sprite, text, stacks, left, full, started, fill, highlight } for state. left and full are seconds, and
-  -- started changes only when its swipe restarts. A buff with no timer has only sprite, text and stacks.
+  -- { sprite, text, stacks, left, full, fill, highlight } for state. left and full are seconds, full the
+  -- longest time left seen since the aura appeared. A buff with no timer has only sprite, text and stacks.
   local function model(state)
     local m = { sprite = state.sprite, text = state.text, stacks = state.stacks, highlight = false }
     if state.left ~= nil then
-      m.left, m.full, m.started = state.left / 10, state.full / 10, state.started
+      m.left, m.full = state.left / 10, state.full / 10
       m.fill = state.full > 0 and state.left / state.full or 0
       m.highlight = state.left * 10 <= state.full or state.left <= HIGHLIGHT_SECONDS * 10
     end

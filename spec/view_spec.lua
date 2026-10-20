@@ -62,42 +62,31 @@ describe("view", function()
     assert.are.same({ 30098 }, looked)
   end)
 
-  -- A combat buffs row, and the src/auras model of a 20 s buff with left seconds left whose swipe started on
-  -- tick started.
+  -- A combat buffs row, and the src/auras model of a 20 s buff with left seconds left.
   local function auraRow()
     return view.auraRow(fake.component(), view.AURA_STYLES.combatBuffs, view.tooltip(fake.component()),
       function() end)
   end
-  local function incite(left, started)
-    return { { sprite = 14766, text = tostring(left), stacks = "5", left = left, full = 20, started = started,
-      fill = left / 20, highlight = left <= 2 } }
+  local function incite(left)
+    return { { sprite = 14766, text = tostring(left), stacks = "5", left = left, full = 20, fill = left / 20,
+      highlight = left <= 2 } }
   end
 
   it("makes no client writes when an aura row redraws unchanged icons, with or without bars", function()
     for _, bars in ipairs({ false, true }) do
       local row = auraRow()
-      row.update(incite(12, 1), bars)
+      row.update(incite(12), bars)
       fake.writes = 0
-      row.update(incite(12, 1), bars)
+      row.update(incite(12), bars)
       assert.are.equal(0, fake.writes)
     end
-  end)
-
-  it("starts an icon's swipe when it appears or refreshes, not while its time falls", function()
-    local row = auraRow()
-    row.update(incite(20, 1), true)
-    row.update(incite(14, 1), true)
-    row.update(incite(2, 1), true)
-    assert.are.equal(1, fake.calls.Start)
-    row.update(incite(20, 9), true)
-    assert.are.equal(2, fake.calls.Start)
   end)
 
   it("bounds an aura row by its shown icons and at least one, reporting when they change", function()
     local row = auraRow()
     assert.are.same({ x = 174, y = 3, w = 36, h = 36 }, row.bounds)
-    assert.is_false(row.update(incite(12, 1), false))
-    local two = incite(12, 1)
+    assert.is_false(row.update(incite(12), false))
+    local two = incite(12)
     two[2] = { sprite = 30093, text = "6m" }
     assert.is_true(row.update(two, false))
     assert.are.same({ x = 155, y = 3, w = 74, h = 36 }, row.bounds)

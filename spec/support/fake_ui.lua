@@ -1,19 +1,17 @@
 -- Client stand-ins for specs that drive src/view, src/options and src/editmode. require() sets the ui, Event,
--- Mouse, GameKey, id and log globals and returns the fake: writes counts property writes and Set, Add, Clear,
--- Start and MoveToFront calls, and calls counts every method call by name; component() builds a root;
--- fire(name, payload) runs Event handlers; hook(c, name) runs a component's hook; find(predicate) returns the
--- first created component that is shown and matches; press(label) clicks the hit area under a shown label;
--- reset() forgets every component and handler, for a before_each. MoveToFront marks a shown component fronted
--- and a hidden one undrawn, as the client stops drawing a component moved to the front while hidden.
-local fake = { writes = 0, calls = {}, mouse = { x = 0, y = 0 }, created = {}, handlers = {} }
+-- Mouse, GameKey, id and log globals and returns the fake: writes counts property writes and Set, Add, Clear
+-- and MoveToFront calls; component() builds a root; fire(name, payload) runs Event handlers; hook(c, name)
+-- runs a component's hook; find(predicate) returns the first created component that is shown and matches;
+-- press(label) clicks the hit area under a shown label; reset() forgets every component and handler, for a
+-- before_each. MoveToFront marks a shown component fronted and a hidden one undrawn, as the client stops
+-- drawing a component moved to the front while hidden.
+local fake = { writes = 0, mouse = { x = 0, y = 0 }, created = {}, handlers = {} }
 
 local dataOf = setmetatable({}, { __mode = "k" })
 
 local function call(method)
   return function(c, a, b)
-    fake.calls[method] = (fake.calls[method] or 0) + 1
-    if method:match("^Set") or method:match("^Add") or method == "Clear" or method == "Start"
-      or method == "MoveToFront" then
+    if method:match("^Set") or method:match("^Add") or method == "Clear" or method == "MoveToFront" then
       fake.writes = fake.writes + 1
     end
     local data = dataOf[c]
@@ -51,7 +49,7 @@ function fake.component(parent)
 end
 
 function fake.reset()
-  fake.writes, fake.calls, fake.created, fake.handlers = 0, {}, {}, {}
+  fake.writes, fake.created, fake.handlers = 0, {}, {}
   fake.mouse.x, fake.mouse.y = 0, 0
 end
 
@@ -104,8 +102,7 @@ end
 local constructor = { new = fake.component }
 _G.ui = {
   Layer = constructor, Rectangle = constructor, Text = constructor, Sprite = constructor, Canvas = constructor,
-  InputField = constructor, RadialProgressOverlay = constructor,
-  RadialProgressOverlayFlag = { AUTOMATIC = 1, REVERSE = 2 },
+  InputField = constructor,
   TextContentVisibilityMode = { VISIBLE = 0 },
   InputFieldFilterMode = { NONE = 0 },
   Hook = setmetatable({}, { __index = function(_, name) return name end }),

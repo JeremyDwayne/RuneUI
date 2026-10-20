@@ -59,18 +59,16 @@ describe("auras.tracker", function()
     assert.is_nil(shown(tracker, "combatBuffs", INCITE))
   end)
 
-  it("keeps the swipe running while time falls and restarts it when a refresh raises the time left", function()
+  it("keeps the full length while time falls and raises it when a refresh raises the time left", function()
     local tracker = auras.tracker()
     tracker.onTick(buffs(INCITE, "20"))
-    local started = shown(tracker, "combatBuffs", INCITE).started
     tracker.onTick(buffs(INCITE, "19"))
     tracker.onTick(buffs(INCITE, "12"))
     local falling = shown(tracker, "combatBuffs", INCITE)
-    assert.are.same({ started, 20, 12 }, { falling.started, falling.full, falling.left })
+    assert.are.same({ 20, 12 }, { falling.full, falling.left })
 
     tracker.onTick(buffs(INCITE, "30"))
     local refreshed = shown(tracker, "combatBuffs", INCITE)
-    assert.are_not.equal(started, refreshed.started)
     assert.are.same({ 30, 30 }, { refreshed.full, refreshed.left })
   end)
 

@@ -424,8 +424,6 @@ local AURA_GAP = 2
 local AURA_MARGIN = 3
 -- With bars on, each tile has a 4px bar 1px below it.
 local AURA_BAR, AURA_BAR_SPACE = 4, 5
--- The swipe darkens the icon only faintly, so the icon stays recognisable under it.
-local SWIPE_ALPHA = 0.1
 -- Bar stripes in the refresh window: white and black runs across the bar.
 local STRIPE, STRIPE_GAP = 3, 2
 
@@ -447,7 +445,6 @@ local function auraTile(layer, style)
     },
     edge = group.add(rect(layer, style.debuff and COLOURS.debuff or COLOURS.border, 0, 0, size, size), 0, 0),
     icon = group.add(ui.Sprite.new(layer), 1, 1),
-    swipe = group.add(ui.RadialProgressOverlay.new(layer), 1, 1),
     plate = group.add(rect(layer, white, 0, 0, size - 8, style.timeHeight + 2), 4, timeY),
     time = group.add(text(layer, style.timeFont, ui.AlignMode.CENTRE, 0, 0, size, style.timeHeight + 2), 0, timeY),
     stacks = group.add(text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 23, 1),
@@ -459,9 +456,6 @@ local function auraTile(layer, style)
     dashed = group.add(ui.Canvas.new(layer), -3, -3),
   }
   parts.icon:SetSize(inner, inner)
-  set(parts.swipe, "stylesheetID", id.StyleSheet.RADIAL_SQUARE)
-  set(parts.swipe, "alpha", SWIPE_ALPHA)
-  parts.swipe:SetSize(inner, inner)
   parts.stripes:SetSize(inner, AURA_BAR - 2)
   for x = 0, inner - 1, STRIPE + STRIPE_GAP do
     parts.stripes:AddRectangle(x, 0, math.min(STRIPE, inner - x), AURA_BAR - 2, draw.opaque(white))
@@ -471,8 +465,7 @@ local function auraTile(layer, style)
   return parts
 end
 
--- Shows a src/auras model on parts at x, y. bars draws the bar and the bars-mode highlight. Starts the
--- swipe only when the tile shows a different aura or the aura's swipe restarted.
+-- Shows a src/auras model on parts at x, y. bars draws the bar and the bars-mode highlight.
 local function showAura(parts, model, x, y, size, bars)
   parts.group.place(x, y)
   local timed = model.left ~= nil
@@ -482,14 +475,6 @@ local function showAura(parts, model, x, y, size, bars)
   set(parts.edge, "hidden", false)
   set(parts.icon, "hidden", false)
   set(parts.icon, "sprite", model.sprite)
-  set(parts.swipe, "hidden", not timed)
-  if timed and (parts.sprite ~= model.sprite or parts.started ~= model.started) then
-    -- Start runs a full swipe from its initial value, so one seen partway starts at 0 and moves curValue on.
-    local flags = ui.RadialProgressOverlayFlag
-    parts.swipe:Start(0, model.full, flags.AUTOMATIC + flags.REVERSE)
-    if model.left < model.full then parts.swipe.curValue = model.full - model.left end
-  end
-  parts.sprite, parts.started = model.sprite, model.started
   set(parts.plate, "hidden", not ring)
   set(parts.time, "hidden", model.text == nil)
   set(parts.time, "content", model.text or "")
@@ -512,9 +497,9 @@ local function showAura(parts, model, x, y, size, bars)
   end
 end
 
--- A row of up to 10 aura icons gathered at style.align's end. Each icon shows its time left and stacks, a
--- swipe the client animates, and in its refresh window a highlight: a white ring and the time on a white
--- plate, or with bars on a dashed outline and a striped bar. update takes src/auras models and whether bars
+-- A row of up to 10 aura icons gathered at style.align's end. Each icon shows its time left and stacks, and
+-- in its refresh window a highlight: a white ring and the time on a white plate, or with bars on a dashed
+-- outline and a striped bar. update takes src/auras models and whether bars
 -- are on, and returns whether bounds changed. bounds spans the shown tiles, at least one, so an empty row
 -- can still be dragged in edit mode. Hovering an icon shows the name and info from info(sprite), which
 -- returns { name, info } or nil.
@@ -568,7 +553,6 @@ function view.auraRow(root, style, tooltip, info)
       if i > count then
         parts.group.set("hidden", true)
         set(parts.cover, "hidden", true)
-        parts.sprite = nil
       else
         showAura(parts, model, first + (i - 1) * step, AURA_MARGIN, size, bars)
       end
