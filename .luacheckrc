@@ -10,4 +10,5 @@ read_globals = {
 globals = { "PluginShutdown" }
 
 files["spec"] = { std = "+busted" }
-exclude_files = { ".scratch" }
+-- .lua and .luarocks hold the toolchain CI installs into the checkout.
+exclude_files = { ".scratch", ".lua", ".luarocks" }
