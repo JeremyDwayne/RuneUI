@@ -392,7 +392,9 @@ local function readIconStruct(structID)
   local struct = config.Struct.FromID(structID)
   if struct == nil then return nil end
   local configName = struct.configName
-  if type(configName) ~= "string" or configName:sub(1, 9) ~= "COMBATV2_" then return nil end
+  if type(configName) ~= "string" or not (configName:sub(1, 9) == "COMBATV2_" or configName:sub(1, 6) == "MAGIC_") then
+    return nil
+  end
   if not struct:HasParam(iconParams.icon) or not struct:HasParam(iconParams.name) then return nil end
   return {
     configName = configName,
@@ -402,8 +404,9 @@ local function readIconStruct(structID)
   }
 end
 
--- src/icons lookup: the COMBATV2_ struct at structID as { configName, icon, name, info }, or nil. Reads only
--- these params, since reading some others logs a conversion error to the console.
+-- src/icons lookup: the combat or spell struct at structID, named COMBATV2_ or MAGIC_ such as
+-- MAGIC_VULNERABILITY, as { configName, icon, name, info }, or nil. Reads only these params, since reading
+-- some others logs a conversion error to the console.
 function adapter.iconStruct(structID)
   local ok, struct = pcall(readIconStruct, structID)
   return ok and struct or nil

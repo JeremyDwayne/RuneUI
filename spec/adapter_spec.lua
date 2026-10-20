@@ -231,3 +231,27 @@ describe("adapter.barSlots", function()
     assert.are.same({ [13309] = { keybind = "Q", usable = true }, [14385] = { usable = false } }, adapter.barSlots())
   end)
 end)
+
+describe("adapter.iconStruct", function()
+  it("reads combat and spell structs with an icon and a name, and skips other structs", function()
+    local params = {
+      COMBATV2_ABILITY_ICON = { id = 1 }, COMBATV2_ABILITY_NAME = { id = 2 }, COMBATV2_ABILITY_INFO = { id = 3 },
+    }
+    local function struct(configName, values)
+      return {
+        configName = configName,
+        HasParam = function(_, p) return values[p.id] ~= nil end,
+        GetParamValue = function(_, p) return values[p.id] end,
+      }
+    end
+    local structs = {
+      [1] = struct("MAGIC_VULNERABILITY", { 14371, "Vulnerability" }),
+      [2] = struct("COMBATV2_STUNNED_DUMMY_ABILITY", { 26103, "Stunned" }),
+      [3] = struct("QUEST_REWARD", { 99, "Lamp" }),
+    }
+    _G.config = { Param = params, Struct = { FromID = function(structID) return structs[structID] end } }
+    assert.are.same({ configName = "MAGIC_VULNERABILITY", icon = 14371, name = "Vulnerability" }, adapter.iconStruct(1))
+    assert.are.equal("Stunned", adapter.iconStruct(2).name)
+    assert.is_nil(adapter.iconStruct(3))
+  end)
+end)
