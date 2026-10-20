@@ -1,5 +1,5 @@
 -- Saved settings: element positions, cooldown groups, marker percents, appearance (bar texture and whether
--- the default target panel is hidden) and learned ability names and icons.
+-- the default target panel is hidden), learned ability names and icons, and debuff names by icon.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local settings = {}
 
@@ -74,6 +74,17 @@ local function readAppearance(saved)
   return appearance
 end
 
+local function readDebuffs(saved)
+  local debuffs = {}
+  if type(saved) ~= "table" then return debuffs end
+  for sprite, entry in pairs(saved) do
+    if type(entry) == "table" and type(entry.name) == "string" then
+      debuffs[tostring(sprite)] = { name = entry.name, info = type(entry.info) == "string" and entry.info or nil }
+    end
+  end
+  return debuffs
+end
+
 local function readKnown(saved)
   local known = {}
   if type(saved) ~= "table" then return known end
@@ -102,6 +113,7 @@ function settings.load(store)
   local markers = readMarkers(store.get("markers"))
   local known = readKnown(store.get("known"))
   local appearance = readAppearance(store.get("appearance"))
+  local debuffs = readDebuffs(store.get("debuffs"))
 
   local function saveGroups() store.set("groups", groups) end
 
@@ -190,6 +202,16 @@ function settings.load(store)
   function s.setHideTargetPanel(hidden)
     appearance.hideTargetPanel = hidden
     store.set("appearance", appearance)
+  end
+
+  -- { [tostring(sprite)] = { name, info } } for every debuff icon src/icons has named.
+  function s.debuffs()
+    return debuffs
+  end
+
+  function s.learnDebuff(sprite, name, info)
+    debuffs[tostring(sprite)] = { name = name, info = info }
+    store.set("debuffs", debuffs)
   end
 
   -- { [key] = { name, icon } } for every ability whose struct has been seen.

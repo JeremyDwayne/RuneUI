@@ -78,6 +78,13 @@ describe("settings", function()
     assert.are.same({ "X", "A" }, s.groups().cooldowns)
   end)
 
+  it("keeps debuff names by icon across loads, dropping malformed entries", function()
+    local store = fakeStore({ debuffs = { ["1"] = "broken" } })
+    settings.load(store).learnDebuff(30098, "Bloated", "Swollen from the inside.")
+    assert.are.same({ ["30098"] = { name = "Bloated", info = "Swollen from the inside." } },
+      settings.load(store).debuffs())
+  end)
+
   it("saves a learned ability only when its name or icon changed", function()
     local store = fakeStore()
     local s = settings.load(store)

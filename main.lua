@@ -4,6 +4,7 @@
 local adapter = require("src/adapter")
 local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
+local icons = require("src/icons")
 local options = require("src/options")
 local settings = require("src/settings")
 local view = require("src/view")
@@ -20,6 +21,9 @@ local elements = {
 }
 local tracker = cooldowns.tracker()
 tracker.seed(saved.known())
+local debuffNames = icons.index(saved.debuffs())
+-- Struct ids scanned per tick while a debuff icon is unnamed, about 48 seconds for a full scan.
+local ICON_SCAN_BUDGET = 1000
 
 Event.VarTransmit.Subscribe("cooldowns", function(e)
   tracker.onVar(adapter.varChange(e))
@@ -33,7 +37,10 @@ local function refresh()
     if element.setTexture ~= nil then element.setTexture(saved.texture()) end
   end
   elements.player.update(frames.player(adapter.playerReads()))
-  elements.target.update(frames.target(adapter.targetReads()))
+  local target = frames.target(adapter.targetReads())
+  -- Asking for each debuff's name queues unnamed icons for the background scan.
+  for _, sprite in ipairs(target.debuffs or {}) do debuffNames.info(sprite) end
+  elements.target.update(target)
   elements.resource.update(frames.resource(adapter.resourceReads(frames.SPENDERS), saved.markers()))
   -- Until the first edit in the options window, groups fill by cooldown length as abilities fire.
   local groups = saved.groups() or tracker.defaultGroups()
@@ -50,6 +57,9 @@ local optionsWindow = options.create(root, {
 Event.ServerLogic.Subscribe("refresh", function()
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then saved.learn(learned.key, learned.name, learned.icon) end
+  for _, found in ipairs(debuffNames.step(adapter.iconStruct, ICON_SCAN_BUDGET)) do
+    saved.learnDebuff(found.sprite, found.name, found.info)
+  end
   refresh()
 end)
 refresh()

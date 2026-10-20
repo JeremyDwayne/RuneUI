@@ -192,6 +192,34 @@ function adapter.hideTargetPanel(hidden)
   end
 end
 
+local iconParams = nil
+
+local function readIconStruct(structID)
+  iconParams = iconParams or {
+    icon = config.Param.COMBATV2_ABILITY_ICON,
+    name = config.Param.COMBATV2_ABILITY_NAME,
+    info = config.Param.COMBATV2_ABILITY_INFO,
+  }
+  local struct = config.Struct.FromID(structID)
+  if struct == nil then return nil end
+  local configName = struct.configName
+  if type(configName) ~= "string" or configName:sub(1, 9) ~= "COMBATV2_" then return nil end
+  if not struct:HasParam(iconParams.icon) or not struct:HasParam(iconParams.name) then return nil end
+  return {
+    configName = configName,
+    icon = struct:GetParamValue(iconParams.icon),
+    name = struct:GetParamValue(iconParams.name),
+    info = iconParams.info ~= nil and struct:HasParam(iconParams.info) and struct:GetParamValue(iconParams.info) or nil,
+  }
+end
+
+-- src/icons lookup: the COMBATV2_ struct at structID as { configName, icon, name, info }, or nil. Reads only
+-- these params, since reading some others logs a conversion error to the console.
+function adapter.iconStruct(structID)
+  local ok, struct = pcall(readIconStruct, structID)
+  return ok and struct or nil
+end
+
 -- spenders: the frames.SPENDERS list; each is read by its var name.
 function adapter.resourceReads(spenders)
   local counts = {}
