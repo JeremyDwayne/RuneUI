@@ -134,13 +134,24 @@ local function lanternEquipped()
   return ok and result
 end
 
+-- Cached lanternEquipped() result; nil until the next read rescans.
+local lantern = nil
+
+-- Takes InventoryAdded and InventoryUpdated payloads; a worn gear change makes the next read rescan.
+-- An inventory without a readable id also rescans, so a misread never leaves the cache stale.
+function adapter.inventoryChanged(e)
+  local id = read(e.inv, "id")
+  if id == nil or id == WORN_INV then lantern = nil end
+end
+
 -- spenders: the frames.SPENDERS list; each is read by its var name.
 function adapter.resourceReads(spenders)
   local counts = {}
   for _, spender in ipairs(spenders) do
     counts[spender.var] = varValue("VarPlayer", spender.var)
   end
-  return { adrenaline = varValue("VarPlayer", "SA_ENERGY"), spenders = counts, lantern = lanternEquipped() }
+  if lantern == nil then lantern = lanternEquipped() end
+  return { adrenaline = varValue("VarPlayer", "SA_ENERGY"), spenders = counts, lantern = lantern }
 end
 
 return adapter

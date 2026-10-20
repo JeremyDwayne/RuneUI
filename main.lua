@@ -24,6 +24,8 @@ tracker.seed(saved.known())
 Event.VarTransmit.Subscribe("cooldowns", function(e)
   tracker.onVar(adapter.varChange(e))
 end)
+Event.InventoryAdded.Subscribe("lantern", adapter.inventoryChanged)
+Event.InventoryUpdated.Subscribe("lantern", adapter.inventoryChanged)
 
 local function refresh()
   for _, element in pairs(elements) do
