@@ -22,8 +22,9 @@ local TOOLTIP_LINE_CHARS = 34
 
 -- One tooltip for every HUD icon: a dark panel above the hovered icon, below it when there is no room, kept
 -- inside the side edges, with a white outline on the icon. show(content, x, y, size) takes the icon's screen
--- position and { title, left, right, line }, where line may wrap to two lines; hide() clears it, raise()
--- keeps it on top and destroy() removes it. hover(items, show) wires each item's edge to the tooltip.
+-- position and { title, left, right, line }, where line may wrap to two lines; hide() clears it and
+-- destroy() removes it. It draws above the HUD from its first show. hover(items, show) wires each item's
+-- edge to the tooltip.
 function view.tooltip(root)
   local layer = ui.Layer.new(root)
   local edge = rect(layer, COLOURS.border, 0, 0, TOOLTIP_WIDTH, 0)
@@ -38,6 +39,7 @@ function view.tooltip(root)
   set(right, "rgb", COLOURS.dimText)
   local highlight = draw.outline(root, COLOURS.highlight, 2)
   local height = nil
+  local raised = false
   local tooltip = {}
 
   local function setHidden(hidden)
@@ -70,6 +72,12 @@ function view.tooltip(root)
     pos(layer, panelX, top)
     draw.placeOutline(highlight, x + 2, y + 2, size - 4, size - 4)
     setHidden(false)
+    -- The client stops drawing a component moved to the front while hidden, so this waits for the first show.
+    if not raised then
+      raised = true
+      layer:MoveToFront()
+      for _, side in ipairs(highlight) do side:MoveToFront() end
+    end
   end
 
   function tooltip.hide()
@@ -98,12 +106,6 @@ function view.tooltip(root)
       end)
     end
     return hover
-  end
-
-  -- Keeps the tooltip above every HUD element built before this call.
-  function tooltip.raise()
-    layer:MoveToFront()
-    for _, side in ipairs(highlight) do side:MoveToFront() end
   end
 
   return tooltip

@@ -24,7 +24,6 @@ local elements = {
   rotation = view.cooldownGroup(hud, view.TILE_STYLES.rotation, tooltip),
   cooldowns = view.cooldownGroup(hud, view.TILE_STYLES.cooldowns, tooltip),
 }
-tooltip.raise()
 local tracker = cooldowns.tracker()
 tracker.seed(saved.known())
 -- Struct ids scanned per tick while a debuff icon is unnamed, about 48 seconds for a full scan.

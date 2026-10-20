@@ -3,7 +3,8 @@
 -- MoveToFront calls; component() builds a root; fire(name, payload) runs Event handlers; hook(c, name)
 -- runs a component's hook; find(predicate) returns the first created component that is shown and matches;
 -- press(label) clicks the hit area under a shown label; reset() forgets every component and handler, for a
--- before_each.
+-- before_each. MoveToFront marks a shown component fronted and a hidden one undrawn, as the client stops
+-- drawing a component moved to the front while hidden.
 local fake = { writes = 0, mouse = { x = 0, y = 0 }, created = {}, handlers = {} }
 
 local dataOf = setmetatable({}, { __mode = "k" })
@@ -18,6 +19,9 @@ local function call(method)
     if method == "SetSize" then data.width, data.height = a, b end
     if method == "SetWidth" then data.width = a end
     if method == "SetHeight" then data.height = a end
+    if method == "MoveToFront" then
+      if fake.shown(c) then data.fronted = true else data.undrawn = true end
+    end
   end
 end
 

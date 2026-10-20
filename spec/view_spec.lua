@@ -41,6 +41,13 @@ describe("view", function()
     assert.are.same({ 30098 }, looked)
   end)
 
+  it("moves the tooltip to the front once shown, never while hidden", function()
+    local tooltip = view.tooltip(fake.component())
+    tooltip.show({ title = "Sunshine" }, 100, 300, 42)
+    assert.is_nil(fake.find(function(_, d) return d.undrawn end))
+    assert.is_not_nil(fake.find(function(_, d) return d.fronted and d.width == 200 end))
+  end)
+
   it("keeps the tooltip inside the screen's side edges", function()
     local root = fake.component()
     root:SetSize(1000, 800)
