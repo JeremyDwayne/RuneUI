@@ -35,8 +35,9 @@ local function refresh()
   -- Until the first edit in the options window, groups fill by cooldown length as abilities fire.
   local groups = saved.groups() or tracker.defaultGroups()
   local keybinds = adapter.slotKeybinds()
-  elements.rotation.update(tracker.tiles(groups.rotation, keybinds))
-  elements.cooldowns.update(tracker.tiles(groups.cooldowns, keybinds))
+  local accent = view.STYLE_COLOURS[tracker.style()]
+  elements.rotation.update(tracker.tiles(groups.rotation, keybinds), accent)
+  elements.cooldowns.update(tracker.tiles(groups.cooldowns, keybinds), accent)
 end
 
 local optionsWindow = options.create(root, {

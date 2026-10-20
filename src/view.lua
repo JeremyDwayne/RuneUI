@@ -191,20 +191,26 @@ function view.resourceBar(root)
   return { layer = layer, update = update, setTexture = fill.setTexture, width = BAR_WIDTH, height = height }
 end
 
--- Tile sizes: 42px tiles for the rotation and 36px for cooldowns, 2px apart.
+-- Tile sizes: 42px tiles for the rotation and 36px for cooldowns, 2px apart. Each row's
+-- combat style accent sits on its outer edge, away from the resource bar between them.
 view.TILE_STYLES = {
-  rotation = { size = 42, gap = 2, secondsFont = FONTS.seconds },
-  cooldowns = { size = 36, gap = 2, secondsFont = FONTS.smallSeconds },
+  rotation = { size = 42, gap = 2, secondsFont = FONTS.seconds, accent = "bottom" },
+  cooldowns = { size = 36, gap = 2, secondsFont = FONTS.smallSeconds, accent = "top" },
 }
+-- Accent colours by cooldowns tracker style.
+view.STYLE_COLOURS = { necromancy = 0x6f4ad8, magic = 0x2f7fd6, melee = 0xb8352f, ranged = 0x3c9a4a }
+-- A 2px accent line and the 2px gap between it and the tiles.
+local ACCENT, ACCENT_SPACE = 2, 4
 local MAX_TILES = 10
 local COOLING_DIM = 0.62
 
--- Builds one tile's components; place(x) moves them all, keeping each part's offset in the tile.
-local function tile(layer, style)
+-- Builds one tile's components in a row starting top pixels down; place(x) moves them all, keeping each
+-- part's offset in the tile.
+local function tile(layer, style, top)
   local size = style.size
   local offsets = {}
   local function at(component, dx, dy)
-    offsets[#offsets + 1] = { component = component, dx = dx, dy = dy }
+    offsets[#offsets + 1] = { component = component, dx = dx, dy = top + dy }
     return component
   end
   local parts = {
@@ -231,19 +237,30 @@ local function tile(layer, style)
   return parts
 end
 
--- A centred row of up to 10 ability tiles; update takes src/cooldowns tiles. Ready tiles are bright with
--- their keybind; cooling tiles are dimmed with whole seconds left.
+-- A centred row of up to 10 ability tiles with an accent line as wide as the shown tiles. update takes
+-- src/cooldowns tiles and the accent colour, or nil to hide the line. Ready tiles are bright with their
+-- keybind; cooling tiles are dimmed with whole seconds left.
 function view.cooldownGroup(root, style)
   local step = style.size + style.gap
   local width = MAX_TILES * step - style.gap
+  local height = style.size + ACCENT_SPACE
   local layer = ui.Layer.new(root)
-  layer:SetSize(width, style.size)
+  layer:SetSize(width, height)
+  local top = style.accent == "top" and ACCENT_SPACE or 0
+  local accentY = style.accent == "top" and 0 or style.size + ACCENT_SPACE - ACCENT
+  local accent = rect(layer, COLOURS.border, 0, accentY, width, ACCENT)
   local tiles = {}
-  for i = 1, MAX_TILES do tiles[i] = tile(layer, style) end
+  for i = 1, MAX_TILES do tiles[i] = tile(layer, style, top) end
 
-  local function update(models)
+  local function update(models, accentRgb)
     local count = math.min(#models, MAX_TILES)
     local offset = math.floor((width - (count * step - style.gap)) / 2)
+    set(accent, "hidden", accentRgb == nil or count == 0)
+    if accentRgb ~= nil and count > 0 then
+      set(accent, "rgb", accentRgb)
+      pos(accent, offset, accentY)
+      draw.width(accent, count * step - style.gap)
+    end
     for i, parts in ipairs(tiles) do
       local model = models[i]
       parts.setHidden(model == nil)
@@ -265,7 +282,7 @@ function view.cooldownGroup(root, style)
     end
   end
 
-  return { layer = layer, update = update, width = width, height = style.size }
+  return { layer = layer, update = update, width = width, height = height }
 end
 
 return view
