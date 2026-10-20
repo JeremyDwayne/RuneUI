@@ -40,4 +40,17 @@ describe("view", function()
     assert.is_nil(fake.find(function(_, d) return d.content == "Bloated" or d.content == "Unknown debuff" end))
     assert.are.same({ 30098 }, looked)
   end)
+
+  it("keeps the tooltip inside the screen's side edges", function()
+    local root = fake.component()
+    root:SetSize(1000, 800)
+    local tooltip = view.tooltip(root)
+    local function layerX()
+      return fake.find(function(_, d) return d.parent == root and d.width == 200 end).x
+    end
+    tooltip.show({ title = "Sunshine" }, 950, 300, 42)
+    assert.are.equal(800, layerX())
+    tooltip.show({ title = "Sunshine" }, -20, 300, 42)
+    assert.are.equal(0, layerX())
+  end)
 end)

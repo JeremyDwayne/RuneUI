@@ -20,8 +20,8 @@ local TOOLTIP_WIDTH, TOOLTIP_PAD, TOOLTIP_GAP = 200, 8, 6
 -- Characters of info that fit one tooltip line in the small font.
 local TOOLTIP_LINE_CHARS = 34
 
--- One tooltip for every HUD icon: a dark panel above the hovered icon, below it when
--- there is no room, with a white outline on the icon. show(content, x, y, size) takes the icon's screen
+-- One tooltip for every HUD icon: a dark panel above the hovered icon, below it when there is no room, kept
+-- inside the side edges, with a white outline on the icon. show(content, x, y, size) takes the icon's screen
 -- position and { title, left, right, line }, where line may wrap to two lines; hide() clears it, raise()
 -- keeps it on top and destroy() removes it. hover(items, show) wires each item's edge to the tooltip.
 function view.tooltip(root)
@@ -62,7 +62,12 @@ function view.tooltip(root)
     end
     local top = y - h - TOOLTIP_GAP
     if top < 0 then top = y + size + TOOLTIP_GAP end
-    pos(layer, x, top)
+    local screenWidth = tonumber(root.width)
+    local panelX = x
+    if screenWidth ~= nil and screenWidth > TOOLTIP_WIDTH then
+      panelX = math.max(0, math.min(x, screenWidth - TOOLTIP_WIDTH))
+    end
+    pos(layer, panelX, top)
     draw.placeOutline(highlight, x + 2, y + 2, size - 4, size - 4)
     setHidden(false)
   end
