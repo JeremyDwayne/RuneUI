@@ -23,8 +23,9 @@ local function withCommas(n)
   return (reversed:reverse():gsub("^,", ""))
 end
 
-local function percentText(fraction)
-  return math.floor(fraction * 100) .. "%"
+-- Multiplies before dividing so 290 of 1000 reads 29%, not the 28% that 0.29 * 100 floors to.
+local function percentText(part, whole)
+  return math.floor(math.max(0, math.min(part, whole)) * 100 / whole) .. "%"
 end
 
 -- The max from a native "current/max" label such as "13,362/16,845", or nil.
@@ -48,7 +49,7 @@ function frames.player(reads)
   local max = labelMax(reads.lifepointsLabel)
   if max ~= nil and max > 0 then
     model.fill = clamp01(reads.lifepoints / max)
-    model.valueText = amount .. " | " .. percentText(model.fill)
+    model.valueText = amount .. " | " .. percentText(reads.lifepoints, max)
   else
     model.valueText = amount
   end
@@ -62,6 +63,22 @@ function frames.player(reads)
   return model
 end
 
+-- reads: { target = NPCTARGET, name, lifepointsLabel = "6,800", healthPercent = 0..100, debuffs = { spriteID } }
+-- The name and lifepoints come from the native target panel, which can be unloaded while a target is set.
+function frames.target(reads)
+  if reads.target == nil or reads.target == -1 or reads.lifepointsLabel == "N/A" then return { hidden = true } end
+  local model = { hidden = false, name = reads.name or "", debuffs = reads.debuffs }
+  local parts = {}
+  local lifepoints = reads.lifepointsLabel and tonumber((reads.lifepointsLabel:gsub(",", "")))
+  if lifepoints ~= nil then parts[#parts + 1] = frames.formatAmount(lifepoints) end
+  if reads.healthPercent ~= nil then
+    model.fill = clamp01(reads.healthPercent / 100)
+    parts[#parts + 1] = percentText(reads.healthPercent, 100)
+  end
+  model.valueText = table.concat(parts, " | ")
+  return model
+end
+
 -- reads: { adrenaline = SA_ENERGY in tenths of a percent, spenders = { [varName] = count } }
 -- markers: { threshold = percent, ultimate = percent }
 function frames.resource(reads, markers)
@@ -70,7 +87,7 @@ function frames.resource(reads, markers)
   local model = {
     hidden = false,
     fill = fill,
-    text = percentText(fill),
+    text = percentText(reads.adrenaline, 1000),
     markers = {
       { at = clamp01(markers.threshold / 100), label = "Threshold" },
       { at = clamp01(markers.ultimate / 100), label = "Ultimate" },

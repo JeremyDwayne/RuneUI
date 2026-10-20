@@ -52,6 +52,10 @@ describe("frames.resource", function()
     assert.is_near(0.8, model.fill, 1e-9)
   end)
 
+  it("rounds the percent down without float error", function()
+    assert.are.equal("29%", frames.resource({ adrenaline = 290, spenders = {} }, MARKERS).text)
+  end)
+
   it("places markers at the configured threshold and ultimate costs", function()
     local model = frames.resource({ adrenaline = 0, spenders = {} }, { threshold = 60, ultimate = 100 })
     assert.is_near(0.6, model.markers[1].at, 1e-9)
@@ -65,5 +69,34 @@ describe("frames.resource", function()
     assert.are.same({ label = "Souls", count = 3, max = 5 }, shown.spender)
     local empty = frames.resource({ adrenaline = 0, spenders = { [souls] = 0 } }, MARKERS)
     assert.is_nil(empty.spender)
+  end)
+end)
+
+describe("frames.target", function()
+  local reads = {
+    target = 25128,
+    name = "Aviansie",
+    lifepointsLabel = "6,800",
+    healthPercent = 58,
+    debuffs = { 26104, 17255 },
+  }
+
+  it("shows name, exact lifepoints, percent, fill and debuff icons", function()
+    local model = frames.target(reads)
+    assert.are.equal("Aviansie", model.name)
+    assert.are.equal("6,800 | 58%", model.valueText)
+    assert.is_near(0.58, model.fill, 1e-9)
+    assert.are.same({ 26104, 17255 }, model.debuffs)
+  end)
+
+  it("hides with no target or when the panel reads N/A", function()
+    assert.is_true(frames.target({ target = -1, healthPercent = 0, debuffs = {} }).hidden)
+    assert.is_true(frames.target({ target = 25128, lifepointsLabel = "N/A", debuffs = {} }).hidden)
+  end)
+
+  it("shows the percent alone when the native panel is unloaded", function()
+    local model = frames.target({ target = 25128, healthPercent = 95, debuffs = {} })
+    assert.are.equal("", model.name)
+    assert.are.equal("95%", model.valueText)
   end)
 end)

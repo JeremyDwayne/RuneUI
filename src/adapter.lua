@@ -2,6 +2,9 @@
 local adapter = {}
 
 local MAIN_BAR = 1430
+local TARGET_PANEL = 1490
+-- Target debuff icon sprites sit every 3 static IDs from :38 to :71; -1 marks an empty slot.
+local DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP = 38, 71, 3
 
 -- Reads a field from a game proxy, returning nil when the proxy does not expose it.
 local function read(obj, field)
@@ -36,6 +39,22 @@ function adapter.playerReads()
     lifepointsLabel = labelText(MAIN_BAR, 9, 0, 8),
     prayerValue = varValue("VarPlayer", "PRAYER_POINTS_VAR"),
     prayerLabel = labelText(MAIN_BAR, 16, 0, 8),
+  }
+end
+
+function adapter.targetReads()
+  local debuffs = {}
+  for staticID = DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP do
+    local c = ui.Interfaces:GetComponent(TARGET_PANEL, staticID)
+    local sprite = c and read(c, "spriteID")
+    if sprite ~= nil and sprite ~= -1 then debuffs[#debuffs + 1] = sprite end
+  end
+  return {
+    target = varValue("VarPlayer", "NPCTARGET"),
+    name = labelText(TARGET_PANEL, 21),
+    lifepointsLabel = labelText(TARGET_PANEL, 34),
+    healthPercent = varValue("VarClient", "COMBATV2_TARGET_SIDE_PANEL_HEALTH"),
+    debuffs = debuffs,
   }
 end
 

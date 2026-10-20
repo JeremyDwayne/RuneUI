@@ -9,26 +9,29 @@ local MARKERS = { threshold = 50, ultimate = 100 }
 -- Default positions, offset from the bottom centre of the game window.
 local POSITIONS = {
   player = { x = -558, y = -74, anchorX = 0.5, anchorY = 1 },
+  target = { x = 258, y = -104, anchorX = 0.5, anchorY = 1 },
   resource = { x = -139, y = -176, anchorX = 0.5, anchorY = 1 },
 }
 
 local root = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
-local player = view.playerFrame(root)
-local resource = view.resourceBar(root)
-view.place(player.layer, POSITIONS.player)
-view.place(resource.layer, POSITIONS.resource)
+local elements = {
+  player = view.playerFrame(root),
+  target = view.targetFrame(root),
+  resource = view.resourceBar(root),
+}
+for name, element in pairs(elements) do view.place(element.layer, POSITIONS[name]) end
 
 local function refresh()
-  player.update(frames.player(adapter.playerReads()))
-  resource.update(frames.resource(adapter.resourceReads(frames.SPENDERS), MARKERS))
+  elements.player.update(frames.player(adapter.playerReads()))
+  elements.target.update(frames.target(adapter.targetReads()))
+  elements.resource.update(frames.resource(adapter.resourceReads(frames.SPENDERS), MARKERS))
 end
 
 Event.ServerLogic.Subscribe("refresh", refresh)
 refresh()
 
 function PluginShutdown()
-  player.layer:Destroy()
-  resource.layer:Destroy()
+  for _, element in pairs(elements) do element.layer:Destroy() end
 end
 
 log("loaded")
