@@ -17,10 +17,12 @@ local WORN_INV = 94
 -- Ability struct params read into justUsed()'s result.
 local STRUCT_FIELDS = { COMBATV2_ABILITY_NAME = "name", COMBATV2_ABILITY_ICON = "icon" }
 
--- Reads a field from a game proxy, returning nil when the proxy does not expose it.
+-- Reads a field from a game proxy, returning nil when the proxy does not expose it. Always one value, so
+-- it is safe as a tostring argument.
 local function read(obj, field)
   local ok, value = pcall(function() return obj[field] end)
   if ok then return value end
+  return nil
 end
 
 local function varValue(domain, name)
