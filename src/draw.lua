@@ -1,5 +1,5 @@
 -- Drawing primitives shared by src/view and src/options: fonts, colours, and component builders that
--- log a refused property write once instead of erroring.
+-- skip unchanged writes and log a refused property write once instead of erroring.
 local draw = {}
 
 -- Closest client fonts to 13px values, 10px labels and seconds sized to each tile.
@@ -41,14 +41,45 @@ draw.COLOURS = {
 }
 
 local warned = {}
+-- Last value written per component and field, so per-tick redraws only touch what changed.
+local written = setmetatable({}, { __mode = "k" })
 
--- Writes a component property, logging the first failure per property instead of erroring.
+local function writtenFor(obj)
+  local fields = written[obj]
+  if fields == nil then
+    fields = {}
+    written[obj] = fields
+  end
+  return fields
+end
+
+-- Writes a component property unless it already holds value, logging the first failure per property.
 function draw.set(obj, field, value)
+  local fields = writtenFor(obj)
+  if fields[field] == value then return end
   local ok, err = pcall(function() obj[field] = value end)
-  if not ok and not warned[field] then
+  if ok then
+    fields[field] = value
+  elseif not warned[field] then
     warned[field] = true
     log("cannot set " .. field .. ":", err)
   end
+end
+
+-- SetPos for components moved on every redraw; skips the call when the position is unchanged.
+function draw.pos(obj, x, y)
+  local fields = writtenFor(obj)
+  if fields["SetPos.x"] == x and fields["SetPos.y"] == y then return end
+  obj:SetPos(x, y)
+  fields["SetPos.x"], fields["SetPos.y"] = x, y
+end
+
+-- SetWidth with the same unchanged-value skip as draw.pos.
+function draw.width(obj, width)
+  local fields = writtenFor(obj)
+  if fields.SetWidth == width then return end
+  obj:SetWidth(width)
+  fields.SetWidth = width
 end
 
 function draw.rect(parent, rgb, x, y, width, height)
@@ -87,7 +118,7 @@ end
 -- Sets a bar's width from a 0..1 fill, hiding it when the fill is unknown.
 function draw.setFill(bar, fill, fullWidth)
   draw.set(bar, "hidden", fill == nil)
-  if fill ~= nil then bar:SetWidth(math.floor(fullWidth * fill)) end
+  if fill ~= nil then draw.width(bar, math.floor(fullWidth * fill)) end
 end
 
 return draw

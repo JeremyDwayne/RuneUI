@@ -4,15 +4,15 @@ local view = {}
 
 local draw = require("src/draw")
 local frames = require("src/frames")
-local set, rect, text, setFill = draw.set, draw.rect, draw.text, draw.setFill
+local set, pos, rect, text, setFill = draw.set, draw.pos, draw.rect, draw.text, draw.setFill
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
 -- Tile backgrounds are translucent so the game shows through empty tiles.
 local TILE_ALPHA = 0.6
 
--- pos: { x, y, anchorX, anchorY }, with anchors as fractions of the game window.
-function view.place(layer, pos)
-  layer:SetPos(pos.x, pos.y, pos.anchorX, pos.anchorY)
+-- at: { x, y, anchorX, anchorY }, with anchors as fractions of the game window.
+function view.place(layer, at)
+  layer:SetPos(at.x, at.y, at.anchorX, at.anchorY)
 end
 
 local FRAME_WIDTH = 250
@@ -85,8 +85,8 @@ function view.targetFrame(root)
       set(slot.icon, "hidden", not shown)
       if shown then
         local x = FRAME_WIDTH - (count - i + 1) * (DEBUFF_SIZE + 2) + 2
-        slot.edge:SetPos(x, 0)
-        slot.icon:SetPos(x + 1, 1)
+        pos(slot.edge, x, 0)
+        pos(slot.icon, x + 1, 1)
         set(slot.icon, "sprite", model.debuffs[i])
       end
     end
@@ -152,8 +152,8 @@ function view.resourceBar(root)
       for i, block in ipairs(blocks) do
         set(block, "hidden", i > count)
         if i <= count then
-          block:SetPos(spans[i].x, y)
-          block:SetWidth(spans[i].w)
+          pos(block, spans[i].x, y)
+          draw.width(block, spans[i].w)
           set(block, "rgb", i <= spender.count and SPENDER_COLOURS[spender.key] or COLOURS.emptyBlock)
         end
       end
@@ -171,8 +171,8 @@ function view.resourceBar(root)
     set(percent, "isShadowed", not onFill)
     for i, marker in ipairs(model.markers) do
       local x = math.min(math.floor(marker.at * (BAR_WIDTH - 2)), BAR_WIDTH - 3)
-      markers[i].edge:SetPos(x - 1, BAR_Y + BAR_HEIGHT)
-      markers[i].line:SetPos(x, BAR_Y + BAR_HEIGHT)
+      pos(markers[i].edge, x - 1, BAR_Y + BAR_HEIGHT)
+      pos(markers[i].line, x, BAR_Y + BAR_HEIGHT)
     end
     updateSpenders(model.spenders)
   end
@@ -210,7 +210,7 @@ local function tile(layer, style)
   parts.seconds = at(text(layer, style.secondsFont, ui.AlignMode.CENTRE, 0, 0, size, size), 0, 0)
 
   function parts.place(x)
-    for _, o in ipairs(offsets) do o.component:SetPos(x + o.dx, o.dy) end
+    for _, o in ipairs(offsets) do pos(o.component, x + o.dx, o.dy) end
   end
 
   function parts.setHidden(hidden)
