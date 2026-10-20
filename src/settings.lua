@@ -162,7 +162,8 @@ end
 function settings.load(store)
   local positions = readLayout(store.get("layout"))
   local anchors = readAnchors(store.get("anchors"))
-  local editMode = { snap = (store.get("editMode") or {}).snap ~= false }
+  local savedEditMode = store.get("editMode")
+  local editMode = { snap = type(savedEditMode) ~= "table" or savedEditMode.snap ~= false }
   local groups = readGroups(store.get("groups"))
   local markers = readMarkers(store.get("markers"))
   local known = readKnown(store.get("known"))

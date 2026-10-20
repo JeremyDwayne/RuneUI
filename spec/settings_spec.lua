@@ -190,6 +190,7 @@ describe("settings", function()
       groups = { rotation = { "A", 7 }, cooldowns = "nope", extra = { "Z" } },
       markers = { threshold = "high", ultimate = 90 },
       known = { A = { name = "Alpha", icon = 1 }, B = "broken" },
+      editMode = 5,
     }))
     assert.are.same(settings.DEFAULT_POSITIONS.player, s.positions().player)
     assert.are.equal(5, s.positions().target.x)
@@ -197,5 +198,6 @@ describe("settings", function()
     assert.are.same({ rotation = { "A" }, cooldowns = {} }, s.groups())
     assert.are.same({ threshold = 50, ultimate = 90 }, s.markers())
     assert.are.same({ A = { name = "Alpha", icon = 1 } }, s.known())
+    assert.is_true(s.snap())
   end)
 end)
