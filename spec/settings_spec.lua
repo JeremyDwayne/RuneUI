@@ -49,6 +49,58 @@ describe("settings", function()
     assert.are.same({ "A", "B", "C" }, s.groups().rotation)
   end)
 
+  it("round-trips anchors through the store, restoring floats as integers", function()
+    local store = fakeStore()
+    local s = settings.load(store)
+    s.setAnchor("player", { target = "target", side = "top", align = "left", gap = 4, offset = -3 })
+    local saved = store.data.anchors.player
+    saved.gap, saved.offset = 4.0, -3.0
+    local anchor = settings.load(store).anchors().player
+    assert.are.same({ target = "target", side = "top", align = "left", gap = 4, offset = -3 }, anchor)
+    assert.are.equal("integer", math.type(anchor.gap))
+  end)
+
+  it("removes an anchor, keeping it removed across loads", function()
+    local store = fakeStore()
+    settings.load(store).removeAnchor("player")
+    assert.is_nil(settings.load(store).anchors().player)
+    assert.is_not_nil(settings.load(store).anchors().target)
+  end)
+
+  it("drops saved anchors with unknown elements, sides or alignments, and cycles", function()
+    local s = settings.load(fakeStore({ anchors = {
+      player = { target = "rotation", side = "left", align = "left", gap = 0, offset = 0 },
+      rotation = { target = "player", side = "under", align = "top", gap = 0, offset = 0 },
+      target = { target = "target", side = "left", align = "top", gap = 0, offset = 0 },
+      resource = { target = "nowhere", side = "top", align = "center", gap = 0, offset = 0 },
+      cooldowns = { target = "resource", side = "top", align = "center", gap = 2.0, offset = 0 },
+      bogus = { target = "player", side = "left", align = "top", gap = 0, offset = 0 },
+    } }))
+    assert.are.same({ cooldowns = { target = "resource", side = "top", align = "center", gap = 2, offset = 0 } },
+      s.anchors())
+  end)
+
+  it("resets anchors to the defaults along with positions", function()
+    local s = settings.load(fakeStore())
+    assert.are.same({
+      player = { target = "rotation", side = "left", align = "bottom", gap = 8, offset = -5 },
+      target = { target = "rotation", side = "right", align = "bottom", gap = 8, offset = -5 },
+      resource = { target = "rotation", side = "top", align = "center", gap = 53, offset = 0 },
+      cooldowns = { target = "resource", side = "top", align = "center", gap = 2, offset = 0 },
+    }, s.anchors())
+    s.removeAnchor("player")
+    s.setAnchor("target", { target = "player", side = "left", align = "top", gap = 0, offset = 0 })
+    s.resetPositions()
+    assert.are.same(settings.DEFAULT_ANCHORS, s.anchors())
+  end)
+
+  it("snaps by default and saves turning it off", function()
+    local store = fakeStore()
+    assert.is_true(settings.load(store).snap())
+    settings.load(store).setSnap(false)
+    assert.is_false(settings.load(store).snap())
+  end)
+
   it("adds to the end of a group, taking the ability out of the other group", function()
     local s = edited()
     s.add("rotation", "X")

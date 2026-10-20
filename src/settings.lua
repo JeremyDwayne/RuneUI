@@ -1,6 +1,9 @@
--- Saved settings: element positions, cooldown groups, marker percents, appearance (bar texture and whether
--- the default target panel is hidden), learned ability names and icons, and debuff names by icon.
+-- Saved settings: element positions and anchors, cooldown groups, marker percents, appearance (bar texture
+-- and whether the default target panel is hidden), edit mode snapping, learned ability names and icons, and
+-- debuff names by icon.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
+local layout = require("src/layout")
+
 local settings = {}
 
 -- Offsets from the bottom centre of the game window, clear of the native bottom panel. The frames sit
@@ -11,6 +14,14 @@ settings.DEFAULT_POSITIONS = {
   resource = { x = -139, y = -496, anchorX = 0.5, anchorY = 1 },
   rotation = { x = -219, y = -396, anchorX = 0.5, anchorY = 1 },
   cooldowns = { x = -189, y = -539, anchorX = 0.5, anchorY = 1 },
+}
+-- src/layout anchors that keep the frames beside the rotation row and the bars stacked above it, matching
+-- DEFAULT_POSITIONS with a full row. Dragging the rotation row moves them all.
+settings.DEFAULT_ANCHORS = {
+  player = { target = "rotation", side = "left", align = "bottom", gap = 8, offset = -5 },
+  target = { target = "rotation", side = "right", align = "bottom", gap = 8, offset = -5 },
+  resource = { target = "rotation", side = "top", align = "center", gap = 53, offset = 0 },
+  cooldowns = { target = "resource", side = "top", align = "center", gap = 2, offset = 0 },
 }
 local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 -- Bar fills: one flat colour, or a gradient from top to bottom or across the bar.
@@ -33,6 +44,47 @@ local function copyPosition(pos)
   return copy
 end
 
+local function copyAnchor(anchor)
+  if type(anchor) ~= "table" or settings.DEFAULT_POSITIONS[anchor.target] == nil then return nil end
+  local aligns = layout.ALIGNS[anchor.side]
+  if aligns == nil or type(anchor.gap) ~= "number" or type(anchor.offset) ~= "number" then return nil end
+  for _, align in ipairs(aligns) do
+    if anchor.align == align then
+      return { target = anchor.target, side = anchor.side, align = align, gap = whole(anchor.gap),
+        offset = whole(anchor.offset) }
+    end
+  end
+end
+
+local function copyAnchors(saved)
+  local anchors = {}
+  for name in pairs(settings.DEFAULT_POSITIONS) do anchors[name] = copyAnchor(saved[name]) end
+  return anchors
+end
+
+-- Whether following targets from name leads back to name.
+local function cyclic(anchors, name)
+  local seen, at = {}, anchors[name]
+  while at ~= nil and not seen[at.target] do
+    if at.target == name then return true end
+    seen[at.target] = true
+    at = anchors[at.target]
+  end
+  return false
+end
+
+-- Saved anchors without malformed entries or cycles, or the defaults when none were ever saved.
+local function readAnchors(saved)
+  if type(saved) ~= "table" then return copyAnchors(settings.DEFAULT_ANCHORS) end
+  local anchors = copyAnchors(saved)
+  local looped = {}
+  for name in pairs(anchors) do looped[name] = cyclic(anchors, name) end
+  for name, dropped in pairs(looped) do
+    if dropped then anchors[name] = nil end
+  end
+  return anchors
+end
+
 local function stringsOnly(list)
   local out = {}
   if type(list) ~= "table" then return out end
@@ -43,10 +95,10 @@ local function stringsOnly(list)
 end
 
 local function readLayout(saved)
-  local layout = {}
-  if type(saved) ~= "table" then return layout end
-  for name in pairs(settings.DEFAULT_POSITIONS) do layout[name] = copyPosition(saved[name]) end
-  return layout
+  local positions = {}
+  if type(saved) ~= "table" then return positions end
+  for name in pairs(settings.DEFAULT_POSITIONS) do positions[name] = copyPosition(saved[name]) end
+  return positions
 end
 
 local function readGroups(saved)
@@ -108,7 +160,9 @@ end
 
 -- Loads saved settings from store, dropping unknown keys and malformed values.
 function settings.load(store)
-  local layout = readLayout(store.get("layout"))
+  local positions = readLayout(store.get("layout"))
+  local anchors = readAnchors(store.get("anchors"))
+  local editMode = { snap = (store.get("editMode") or {}).snap ~= false }
   local groups = readGroups(store.get("groups"))
   local markers = readMarkers(store.get("markers"))
   local known = readKnown(store.get("known"))
@@ -121,19 +175,48 @@ function settings.load(store)
 
   -- Every element's position, saved or default.
   function s.positions()
-    local positions = {}
-    for name, default in pairs(settings.DEFAULT_POSITIONS) do positions[name] = layout[name] or default end
-    return positions
+    local out = {}
+    for name, default in pairs(settings.DEFAULT_POSITIONS) do out[name] = positions[name] or default end
+    return out
   end
 
   function s.setPosition(name, pos)
-    layout[name] = copyPosition(pos)
-    store.set("layout", layout)
+    positions[name] = copyPosition(pos)
+    store.set("layout", positions)
   end
 
+  -- Restores the default positions and anchors.
   function s.resetPositions()
-    layout = {}
-    store.set("layout", layout)
+    positions = {}
+    anchors = copyAnchors(settings.DEFAULT_ANCHORS)
+    store.set("layout", positions)
+    store.set("anchors", anchors)
+  end
+
+  -- { [name] = src/layout anchor } for every anchored element.
+  function s.anchors()
+    return anchors
+  end
+
+  -- Anchors name by a src/layout anchor. The caller checks layout.canAnchor first.
+  function s.setAnchor(name, anchor)
+    anchors[name] = copyAnchor(anchor)
+    store.set("anchors", anchors)
+  end
+
+  function s.removeAnchor(name)
+    anchors[name] = nil
+    store.set("anchors", anchors)
+  end
+
+  -- Whether edit mode snaps drags and draws its grid.
+  function s.snap()
+    return editMode.snap
+  end
+
+  function s.setSnap(on)
+    editMode.snap = on
+    store.set("editMode", editMode)
   end
 
   -- { rotation = { key }, cooldowns = { key } }, or nil while groups fill automatically.
