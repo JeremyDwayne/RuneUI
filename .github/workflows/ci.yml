@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.4"
+      - uses: leafo/gh-actions-luarocks@v4
+      - name: Install busted and luacheck
+        run: |
+          luarocks install busted
+          luarocks install luacheck
+      - name: Specs
+        run: busted
+      - name: Lint
+        run: luacheck .
+      - name: Syntax
+        run: for f in main.lua src/*.lua spec/*.lua; do luac -p "$f"; done
