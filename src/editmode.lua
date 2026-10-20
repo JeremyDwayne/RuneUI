@@ -69,7 +69,7 @@ function editmode.create(root, deps)
   local overlays = {}
   -- move: the element being dragged; pick: { name, hover, target } while choosing what name anchors to.
   local move, pick = nil, nil
-  local refreshOverlays, pressOverlay, releaseOverlay, pressButton, hoverOverlay
+  local refreshOverlays, pressOverlay, releaseOverlay, pressButton, hoverOverlay, dragTo
   -- The window's size in UI units, read on entering edit mode.
   local screenW, screenH = 0, 0
 
@@ -181,11 +181,12 @@ function editmode.create(root, deps)
 
   local mode = {}
 
-  -- Places every element and its overlay from the saved positions and anchors. main.lua calls it on a tick
-  -- where a cooldown row's bounds changed.
+  -- Places every element and its overlay from the saved positions and anchors, keeping a drag under way at the
+  -- cursor. main.lua calls it on a tick where a cooldown row's bounds changed.
   function mode.placeAll()
     resolved = deps.view.arrange(elements, saved.positions(), saved.anchors())
     for name, o in pairs(overlays) do placeOverlay(o, resolved[name]) end
+    if move ~= nil and move.to ~= nil then dragTo(move.cursorX, move.cursorY) end
     if pick ~= nil then
       local r = rectOf(pick.name)
       dashedAt(pickOutline, r.x, r.y, r.w, r.h)
@@ -465,11 +466,6 @@ function editmode.create(root, deps)
     if pick ~= nil then cancelPick() else setEditing(false) end
   end
 
-  -- Moves the dragged element and its chain with the cursor, snapping unless snapping is off or Shift is held.
-  -- It runs every frame through Event.Draw so a move keeps up with the mouse, and on Event.Logic as well in
-  -- case Draw does not fire. It returns before reading the mouse unless a move is under way, and before
-  -- drawing unless the cursor moved.
-  local lastX, lastY = nil, nil
   -- Shift as its key events report it; Keyboard.IsShiftDown reads false inside Event.Logic.
   local shiftHeld = false
   Event.KeyDown.Subscribe("runeuiEditModeShift", function(e)
@@ -479,13 +475,13 @@ function editmode.create(root, deps)
     if e.gameKey == GameKey.SHIFT then shiftHeld = false end
   end)
 
-  local function followCursor()
-    if move == nil then return end
-    local mx, my = cursor()
-    if mx == nil or (mx == lastX and my == lastY) then return end
-    lastX, lastY = mx, my
+  -- Places the dragged element for the cursor at mx, my in whole UI units with its chain, snapping unless
+  -- snapping is off or Shift is held.
+  function dragTo(mx, my)
+    move.cursorX, move.cursorY = mx, my
     local from = move.from
-    local x, y = from.x + mx - move.startX, from.y + my - move.startY
+    local x = math.floor(from.x + mx - move.startX + 0.5)
+    local y = math.floor(from.y + my - move.startY + 0.5)
     local lineX, lineY = nil, nil
     if saved.snap() and not shiftHeld then
       local b = move.bounds[move.name]
@@ -496,6 +492,18 @@ function editmode.create(root, deps)
     move.to = { x = x, y = y, anchorX = from.anchorX, anchorY = from.anchorY }
     move.positions[move.name] = move.to
     placeAt(layout.resolve(move.positions, move.free, move.bounds))
+  end
+
+  -- Moves the drag with the cursor. It runs every frame through Event.Draw so a move keeps up with the mouse,
+  -- and on Event.Logic as well in case Draw does not fire. It returns before reading the mouse unless a move is
+  -- under way, and before drawing unless the cursor moved.
+  local lastX, lastY = nil, nil
+  local function followCursor()
+    if move == nil then return end
+    local mx, my = cursor()
+    if mx == nil or (mx == lastX and my == lastY) then return end
+    lastX, lastY = mx, my
+    dragTo(mx, my)
   end
   Event.Draw.Subscribe("runeuiEditMode", followCursor)
   Event.Logic.Subscribe("runeuiEditMode", followCursor)

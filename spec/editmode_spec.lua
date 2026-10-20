@@ -10,7 +10,7 @@ local function fakeStore()
 end
 
 -- Edit mode over every HUD element with default settings, entered from the options window. Returns the
--- elements by name and the settings.
+-- elements by name, the settings and the options window.
 local function enterEditMode()
   local root = fake.component()
   local tooltip = view.tooltip(root)
@@ -22,13 +22,13 @@ local function enterEditMode()
     cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns, tooltip),
   }
   local saved = settings.load(fakeStore())
-  options.create(root, {
+  local window = options.create(root, {
     saved = saved, tracker = cooldowns.tracker(), elements = elements, view = view, refresh = function() end,
   })
   fake.fire("ContentLayerReady", { component = fake.component() })
   fake.press("Open RuneUI options")
   fake.press("Edit mode off")
-  return elements, saved
+  return elements, saved, window
 end
 
 -- Presses or releases Shift.
@@ -220,5 +220,30 @@ describe("edit mode", function()
       local bottom = saved.positions().player.y + elements.player.height
       assert.are.equal(held and -358 or -354, bottom)
     end
+  end)
+
+  it("keeps a dragged element under the cursor when a row's tiles change mid-drag", function()
+    local elements, _, window = enterEditMode()
+    grab(elements.rotation)
+    fake.mouse.x = 350
+    logicTick()
+    local x = elements.rotation.layer.x
+    elements.rotation.update({ { key = "A", name = "A", initials = "A", ready = true } })
+    window.placeAll()
+    assert.are.equal(x, elements.rotation.layer.x)
+  end)
+
+  it("saves whole-unit positions when the cursor scale is fractional", function()
+    local elements, saved = enterEditMode()
+    fake.press("Rotation, left, bottom")
+    local tint = overlayOf(elements.player)
+    tint.xyGlobal = { x = 149, y = 150 }
+    fake.mouse.x, fake.mouse.y = 300, 300
+    shift(true)
+    fake.hook(tint, "ONCLICK")
+    fake.mouse.x = 401
+    logicTick()
+    fake.hook(tint, "ONRELEASE")
+    assert.are.equal("integer", math.type(saved.positions().player.x))
   end)
 end)
