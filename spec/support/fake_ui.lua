@@ -1,6 +1,6 @@
--- Client stand-ins for specs that drive src/view and src/options. require() sets the ui, Event, Mouse,
--- GameKey, id and log globals and returns the fake: writes counts property writes and Set, Add, Clear and
--- MoveToFront calls; component() builds a root; fire(name, payload) runs Event handlers; hook(c, name)
+-- Client stand-ins for specs that drive src/view, src/options and src/editmode. require() sets the ui, Event,
+-- Mouse, GameKey, id and log globals and returns the fake: writes counts property writes and Set, Add, Clear
+-- and MoveToFront calls; component() builds a root; fire(name, payload) runs Event handlers; hook(c, name)
 -- runs a component's hook; find(predicate) returns the first created component that is shown and matches;
 -- press(label) clicks the hit area under a shown label; reset() forgets every component and handler, for a
 -- before_each. MoveToFront marks a shown component fronted and a hidden one undrawn, as the client stops
@@ -115,7 +115,7 @@ _G.Event = setmetatable({}, { __index = function(_, name)
   end }
 end })
 _G.Mouse = { GetX = function() return fake.mouse.x end, GetY = function() return fake.mouse.y end }
-_G.GameKey = { ESCAPE = 13 }
+_G.GameKey = { ESCAPE = 13, SHIFT = 81 }
 _G.id = { Font = {}, StyleSheet = {} }
 _G.log = function() end
 

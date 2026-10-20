@@ -9,12 +9,11 @@ local options = require("src/options")
 local settings = require("src/settings")
 local view = require("src/view")
 
-local saved = settings.load(adapter.store())
-
 -- Game interfaces such as the bank draw over the game area, so the HUD sits under them. The options window
 -- goes on the plugin layer above them. Both span the whole window.
 local hud = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
 local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
+local saved = settings.load(adapter.store(), tonumber(hud.height))
 local debuffNames = icons.index(saved.debuffs())
 local tooltip = view.tooltip(hud)
 local elements = {
@@ -25,6 +24,7 @@ local elements = {
   cooldowns = view.cooldownGroup(hud, view.TILE_STYLES.cooldowns, tooltip),
 }
 local tracker = cooldowns.tracker()
+local optionsWindow
 tracker.seed(saved.known())
 -- Struct ids scanned per tick while a debuff icon is unnamed, about 48 seconds for a full scan.
 local ICON_SCAN_BUDGET = 1000
@@ -32,6 +32,7 @@ local ICON_SCAN_BUDGET = 1000
 Event.VarTransmit.Subscribe("cooldowns", function(e)
   tracker.onVar(adapter.varChange(e))
 end)
+Event.Draw.Subscribe("targetPanel", adapter.keepTargetPanelHidden)
 Event.InventoryAdded.Subscribe("lantern", adapter.inventoryChanged)
 Event.InventoryUpdated.Subscribe("lantern", adapter.inventoryChanged)
 
@@ -50,11 +51,13 @@ local function refresh()
   local groups = saved.groups() or tracker.defaultGroups()
   local keybinds = adapter.slotKeybinds()
   local accent = view.STYLE_COLOURS[tracker.style()]
-  elements.rotation.update(tracker.tiles(groups.rotation, keybinds), accent)
-  elements.cooldowns.update(tracker.tiles(groups.cooldowns, keybinds), accent)
+  local rotationMoved = elements.rotation.update(tracker.tiles(groups.rotation, keybinds), accent)
+  local cooldownsMoved = elements.cooldowns.update(tracker.tiles(groups.cooldowns, keybinds), accent)
+  -- Anchored elements follow a row whose shown tiles changed.
+  if rotationMoved or cooldownsMoved then optionsWindow.placeAll() end
 end
 
-local optionsWindow = options.create(top, {
+optionsWindow = options.create(top, {
   saved = saved, tracker = tracker, elements = elements, view = view, refresh = refresh,
 })
 

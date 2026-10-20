@@ -3,7 +3,8 @@ local adapter = {}
 
 local MAIN_BAR = 1430
 local TARGET_PANEL = 1490
--- Target debuff icon sprites sit every 3 static IDs from :38 to :71; -1 marks an empty slot.
+-- Target debuff icon sprites sit every 3 static IDs from :38 to :71. A slot is empty when its sprite is -1
+-- or it reads not visibleGlobal: an expired or switched-away debuff keeps its sprite while invisible.
 local DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP = 38, 71, 3
 -- Native action bars: first slot background ID per interface. Slots are 13 IDs apart, with the icon
 -- sprite at +2 and the keybind label at +9.
@@ -12,6 +13,8 @@ local SLOTS_PER_BAR, SLOT_STRIDE, SLOT_ICON, SLOT_KEYBIND = 14, 13, 2, 9
 -- The target panel's static IDs run to :71; dynamic children of some hold its border and background.
 local TARGET_LAST_STATIC = 80
 local TARGET_NAME = 21
+-- The panel's background sprite, dynamic child :25:0:0, which the client can rebuild opaque on its own.
+local TARGET_BACKGROUND = 25
 -- config.Inv.WORN, the worn-equipment inventory.
 local WORN_INV = 94
 -- Ability struct params read into justUsed()'s result.
@@ -68,7 +71,7 @@ function adapter.targetReads()
   for staticID = DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP do
     local c = ui.Interfaces:GetComponent(TARGET_PANEL, staticID)
     local sprite = c and read(c, "spriteID")
-    if sprite ~= nil and sprite ~= -1 then debuffs[#debuffs + 1] = sprite end
+    if sprite ~= nil and sprite ~= -1 and read(c, "visibleGlobal") ~= false then debuffs[#debuffs + 1] = sprite end
   end
   return {
     target = target,
@@ -188,14 +191,31 @@ local function setPanelAlpha(transparent)
   end)
 end
 
--- Runs each tick with whether the native target panel should be hidden. Hiding sets alpha 0, because
--- hidden stops the panel filling its debuff slots, which targetReads relies on. A visible name label
--- means the panel reloaded, so it is made transparent again; false restores the original alphas.
+-- Whether c reads an alpha above 0.
+local function opaque(c)
+  local alpha = read(c, "alpha")
+  return alpha ~= nil and alpha > 0
+end
+
+-- Runs on every rendered frame while the target panel is hidden, since the client rebuilds the panel's frame
+-- sprites opaque between server ticks. A visible name label means the panel reloaded, and a visible
+-- background means its frame was rebuilt, so either makes it transparent again. Two reads when nothing
+-- changed, and none while the panel is shown.
+function adapter.keepTargetPanelHidden()
+  if panelAlpha == nil then return end
+  if opaque(ui.Interfaces:GetComponent(TARGET_PANEL, TARGET_NAME))
+    or opaque(ui.Interfaces:GetComponent(TARGET_PANEL, TARGET_BACKGROUND, 0, 0)) then
+    setPanelAlpha(true)
+  end
+end
+
+-- Runs each server tick with whether the native target panel should be hidden. Hiding sets alpha 0,
+-- because hidden stops the panel filling its debuff slots, which targetReads relies on. false restores the
+-- original alphas.
 function adapter.hideTargetPanel(hidden)
   if hidden then
     panelAlpha = panelAlpha or {}
-    local alpha = read(ui.Interfaces:GetComponent(TARGET_PANEL, TARGET_NAME), "alpha")
-    if alpha ~= nil and alpha > 0 then setPanelAlpha(true) end
+    adapter.keepTargetPanelHidden()
   elseif panelAlpha ~= nil then
     setPanelAlpha(false)
     panelAlpha = nil

@@ -10,7 +10,7 @@ local function fakeStore()
 end
 
 -- The options window over a player frame, a cooldowns row holding Sunshine, and a rotation row holding Soul
--- Sap and then Wild Magic, so magic is the current style. Opened from the ribbon. Returns the HUD elements.
+-- Sap and then Wild Magic, so magic is the current style. Opened from the ribbon.
 local function openWindow()
   local root = fake.component()
   local tracker = cooldowns.tracker()
@@ -29,7 +29,6 @@ local function openWindow()
   })
   fake.fire("ContentLayerReady", { component = fake.component() })
   fake.press("Open RuneUI options")
-  return elements
 end
 
 local function logicTick()
@@ -38,18 +37,6 @@ end
 
 local function editorTile()
   return fake.find(function(c) return fake.hasHook(c, "ONRELEASE") end)
-end
-
--- Starts moving the player frame in edit mode with the cursor at 300, 300.
-local function grabPlayer(elements)
-  fake.press("Edit mode off")
-  local frame = elements.player
-  local tint = fake.find(function(c, d)
-    return fake.hasHook(c, "ONRELEASE") and d.width == frame.width and d.height == frame.height
-  end)
-  fake.mouse.x, fake.mouse.y = 300, 300
-  fake.hook(tint, "ONCLICK")
-  return tint
 end
 
 describe("options", function()
@@ -108,24 +95,6 @@ describe("options", function()
     assert.are.same({ true, true }, { listed("Wild Magic"), listed("Soul Sap") })
   end)
 
-  it("resets positions only once the dialog is confirmed", function()
-    local elements = openWindow()
-    local layer = elements.player.layer
-    local x = layer.x
-    local tint = grabPlayer(elements)
-    fake.mouse.x = 350
-    logicTick()
-    fake.hook(tint, "ONRELEASE")
-
-    fake.press("Reset positions")
-    fake.press("Cancel")
-    assert.are.equal(x + 50, layer.x)
-    fake.press("Reset positions")
-    fake.press("Reset positions", 2)
-    assert.are.equal(x, layer.x)
-    assert.is_nil(fake.find(function(_, d) return d.content == "Cancel" end))
-  end)
-
   it("says when no ability matches the picker search", function()
     openWindow()
     fake.press("+")
@@ -150,53 +119,11 @@ describe("options", function()
     assert.has_no.errors(function() fake.hook(search, "ONCONTENTCHANGED", 4, "soul") end)
   end)
 
-  it("puts a moved element back on Esc in edit mode", function()
-    local elements = openWindow()
-    local layer = elements.player.layer
-    local x, y = layer.x, layer.y
-    grabPlayer(elements)
-    fake.mouse.x = 350
-    logicTick()
-    assert.are.equal(x + 50, layer.x)
-
-    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
-    assert.are.same({ x, y }, { layer.x, layer.y })
-    fake.writes = 0
-    fake.mouse.x = 400
-    logicTick()
-    assert.are.equal(0, fake.writes)
-  end)
-
-  it("moves an element by the cursor's UI distance when the mouse reports physical pixels", function()
-    local elements = openWindow()
-    local layer = elements.player.layer
-    local x = layer.x
-    fake.press("Edit mode off")
-    local tint = fake.find(function(c, d)
-      return fake.hasHook(c, "ONRELEASE") and d.width == elements.player.width
-    end)
-    tint.xyGlobal = { x = 150, y = 150 }
-    fake.mouse.x, fake.mouse.y = 300, 300
-    fake.hook(tint, "ONCLICK")
-    fake.mouse.x = 400
-    logicTick()
-    assert.are.equal(x + 50, layer.x)
-  end)
-
-  it("makes no client writes while a drag or a move is held still", function()
-    local elements = openWindow()
+  it("makes no client writes while a tile drag is held still", function()
+    openWindow()
     fake.mouse.x, fake.mouse.y = 500, 300
     fake.hook(editorTile(), "ONCLICK", 5, 5)
     fake.mouse.x = 540
-    logicTick()
-    fake.writes = 0
-    logicTick()
-    assert.are.equal(0, fake.writes)
-
-    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
-    fake.press("Open RuneUI options")
-    grabPlayer(elements)
-    fake.mouse.x = 350
     logicTick()
     fake.writes = 0
     logicTick()

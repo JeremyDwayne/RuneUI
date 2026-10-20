@@ -1,5 +1,5 @@
--- Drawing primitives shared by src/view and src/options: fonts, colours, and component builders that
--- skip unchanged writes and log a refused property write once instead of erroring.
+-- Drawing primitives shared by src/view, src/options and src/editmode: fonts, colours, component builders that
+-- skip unchanged writes and log a refused property write once instead of erroring, buttons, and the cursor.
 local draw = {}
 
 -- Closest client fonts to 13px values, 10px labels and seconds sized to each tile.
@@ -40,6 +40,9 @@ draw.COLOURS = {
   accentText = 0x0b0a08,
   mutedText = 0x9c9b99,
   editorTile = 0x2a2620,
+  -- Edit mode: anchored buttons and the hovered anchor spot, and the other spots' edges.
+  chip = 0xdfe4ea,
+  spotEdge = 0x6b645c,
 }
 
 local warned = {}
@@ -74,6 +77,15 @@ function draw.pos(obj, x, y)
   if fields["SetPos.x"] == x and fields["SetPos.y"] == y then return end
   obj:SetPos(x, y)
   fields["SetPos.x"], fields["SetPos.y"] = x, y
+end
+
+-- SetPos with anchors as fractions of the parent, with the same unchanged-value skip as draw.pos.
+function draw.place(obj, x, y, anchorX, anchorY)
+  local fields = writtenFor(obj)
+  if fields["place.x"] == x and fields["place.y"] == y and fields["place.anchorX"] == anchorX
+    and fields["place.anchorY"] == anchorY then return end
+  obj:SetPos(x, y, anchorX, anchorY)
+  fields["place.x"], fields["place.y"], fields["place.anchorX"], fields["place.anchorY"] = x, y, anchorX, anchorY
 end
 
 -- SetWidth with the same unchanged-value skip as draw.pos.
@@ -124,6 +136,59 @@ function draw.text(parent, font, horizontal, x, y, width, height)
   t:SetPos(x, y)
   t:SetSize(width, height)
   return t
+end
+
+-- Makes c take clicks and stop them, like a button: plain components start enabled = false and
+-- clickthrough = true, so a click reaches everything beneath and the game world. Each clickable thing has
+-- one hit area at the bottom; components drawn over it keep the defaults and pass clicks down to it.
+function draw.hitArea(c)
+  draw.set(c, "enabled", true)
+  draw.set(c, "clickthrough", false)
+  return c
+end
+
+function draw.on(c, hook, fn)
+  c:Subscribe(ui.Hook[hook], fn)
+end
+
+-- Mouse reports physical pixels, a multiple of UI units on a high-DPI display. pressAt sets the multiple
+-- from a press at local x on c, and cursor returns the mouse in UI units, or nil when there is none.
+local scale = 1
+
+function draw.pressAt(c, x)
+  local g, mx = c.xyGlobal, Mouse.GetX()
+  scale = g ~= nil and mx ~= nil and g.x + x > 0 and mx / (g.x + x) or 1
+end
+
+function draw.cursor()
+  local mx, my = Mouse.GetX(), Mouse.GetY()
+  if mx == nil or my == nil then return nil end
+  return mx / scale, my / scale
+end
+
+-- Button fills: normal and hover colours, and dark text for the bright ones.
+local FILLS = {
+  plain = { draw.COLOURS.button, draw.COLOURS.buttonHover },
+  accent = { draw.COLOURS.accent, draw.COLOURS.accentHover, dark = true },
+  light = { draw.COLOURS.highlight, draw.COLOURS.dimText, dark = true },
+}
+
+-- A flat button with a centred label that lightens on hover. fill names a FILLS entry, plain when nil.
+-- Returns { bg, label }.
+function draw.button(parent, label, x, y, w, h, fill, onClick)
+  local colours = FILLS[fill or "plain"]
+  local normal, hover = colours[1], colours[2]
+  local bg = draw.hitArea(draw.rect(parent, normal, x, y, w, h))
+  local t = draw.text(parent, draw.FONTS.body, ui.AlignMode.CENTRE, x, y, w, h)
+  draw.set(t, "content", label)
+  if colours.dark then
+    draw.set(t, "rgb", draw.COLOURS.accentText)
+    draw.set(t, "isShadowed", false)
+  end
+  draw.on(bg, "ONMOUSEOVER", function() draw.set(bg, "rgb", hover) end)
+  draw.on(bg, "ONMOUSELEAVE", function() draw.set(bg, "rgb", normal) end)
+  draw.on(bg, "ONCLICK", function() onClick() end)
+  return { bg = bg, label = t }
 end
 
 function draw.hideAll(components, hidden)
@@ -178,6 +243,23 @@ function draw.placeOutline(box, x, y, w, h)
   draw.size(box[3], t, h)
   draw.pos(box[4], x + w, y)
   draw.size(box[4], t, h)
+end
+
+local DASH, DASH_GAP = 6, 4
+
+-- Redraws canvas as a w by h box outline of dashes thickness wide, inside its edges. rgba is 0xRRGGBBAA.
+function draw.dashedBox(canvas, w, h, thickness, rgba)
+  canvas:Clear()
+  for x = 0, w - 1, DASH + DASH_GAP do
+    local length = math.min(DASH, w - x)
+    canvas:AddRectangle(x, 0, length, thickness, rgba)
+    canvas:AddRectangle(x, h - thickness, length, thickness, rgba)
+  end
+  for y = 0, h - 1, DASH + DASH_GAP do
+    local length = math.min(DASH, h - y)
+    canvas:AddRectangle(0, y, thickness, length, rgba)
+    canvas:AddRectangle(w - thickness, y, thickness, length, rgba)
+  end
 end
 
 -- Gradient ends as fractions toward white and black.
