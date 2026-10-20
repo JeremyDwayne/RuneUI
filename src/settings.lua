@@ -156,6 +156,8 @@ local function readDebuffs(saved)
   for sprite, entry in pairs(saved) do
     if type(entry) == "table" and type(entry.name) == "string" then
       debuffs[tostring(sprite)] = { name = entry.name, info = type(entry.info) == "string" and entry.info or nil }
+    elseif type(entry) == "table" and entry.unmatched == true then
+      debuffs[tostring(sprite)] = { unmatched = true }
     end
   end
   return debuffs
@@ -368,13 +370,15 @@ function settings.load(store, windowHeight)
     store.set("auras", auras)
   end
 
-  -- { [tostring(sprite)] = { name, info } } for every aura icon src/icons has named.
+  -- { [tostring(sprite)] = { name, info } } for every aura icon src/icons has named, and
+  -- { unmatched = true } for each one it found no struct for.
   function s.debuffs()
     return debuffs
   end
 
+  -- Saves an aura icon's name and info, or with no name, that no struct matches it.
   function s.learnDebuff(sprite, name, info)
-    debuffs[tostring(sprite)] = { name = name, info = info }
+    debuffs[tostring(sprite)] = name and { name = name, info = info } or { unmatched = true }
     store.set("debuffs", debuffs)
   end
 

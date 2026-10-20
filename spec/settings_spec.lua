@@ -148,11 +148,15 @@ describe("settings", function()
     assert.are.same({ "X", "A" }, s.groups().cooldowns)
   end)
 
-  it("keeps debuff names by icon across loads, dropping malformed entries", function()
+  it("keeps aura names and unmatched icons by icon across loads, dropping malformed entries", function()
     local store = fakeStore({ debuffs = { ["1"] = "broken" } })
-    settings.load(store).learnDebuff(30098, "Bloated", "Swollen from the inside.")
-    assert.are.same({ ["30098"] = { name = "Bloated", info = "Swollen from the inside." } },
-      settings.load(store).debuffs())
+    local saved = settings.load(store)
+    saved.learnDebuff(30098, "Bloated", "Swollen from the inside.")
+    saved.learnDebuff(14766)
+    assert.are.same({
+      ["30098"] = { name = "Bloated", info = "Swollen from the inside." },
+      ["14766"] = { unmatched = true },
+    }, settings.load(store).debuffs())
   end)
 
   it("saves a learned ability only when its name or icon changed", function()

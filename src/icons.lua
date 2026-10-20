@@ -1,6 +1,7 @@
--- Names debuff icons by scanning the client's structs in the background, a slice per tick, only while an
--- unnamed icon is wanted. Until the scan names an icon, a label made from its sprite name stands in. Pure:
--- src/adapter supplies spriteName(sprite) and lookup(id), and settings keeps what the scan finds.
+-- Names buff and debuff icons by scanning the client's structs in the background, a slice per tick, only
+-- while an unnamed icon is wanted. Until the scan names an icon, or when no struct matches it, a label made
+-- from its sprite name stands in. Pure: src/adapter supplies spriteName(sprite) and lookup(id), and settings
+-- keeps what the scan finds.
 local icons = {}
 
 -- Struct ids run below this; 35711 of 0 to 80000 exist.
@@ -28,15 +29,19 @@ local function isDebuff(configName)
   return configName:sub(1, 16) == "COMBATV2_DEBUFF_"
 end
 
--- saved: { [tostring(sprite)] = { name, info } } from settings. spriteName(sprite) returns the sprite's
--- config name or nil. count overrides STRUCT_COUNT for specs. info(sprite) returns { name, info }, its
--- sprite label as { name }, or nil, and wants the icon when unknown. step(lookup, budget) scans budget
--- struct ids, where lookup(id) returns { configName, icon, name, info } or nil, and returns the icons it
--- named as { sprite, name, info } for saving.
+-- saved: { [tostring(sprite)] = { name, info } or { unmatched = true } } from settings. spriteName(sprite)
+-- returns the sprite's config name or nil. count overrides STRUCT_COUNT for specs. info(sprite) returns
+-- { name, info }, its sprite label as { name }, or nil, and wants the icon when unknown. step(lookup, budget)
+-- scans budget struct ids, where lookup(id) returns { configName, icon, name, info } or nil, and returns
+-- what it settled for saving: { sprite, name, info } for a named icon, { sprite } for one no struct matches.
 function icons.index(saved, spriteName, count)
   count = count or icons.STRUCT_COUNT
   local known = {}
-  for sprite, entry in pairs(saved) do known[tonumber(sprite)] = entry end
+  -- Icons a full scan found no struct for, which are never scanned for again.
+  local unmatched = {}
+  for sprite, entry in pairs(saved) do
+    if entry.unmatched then unmatched[tonumber(sprite)] = true else known[tonumber(sprite)] = entry end
+  end
   -- Unnamed icons being scanned for: ids left to scan and the lowest-id non-debuff match so far.
   local wanted = {}
   -- Every unnamed icon asked for, to its sprite label as { name }, or false when it has none.
@@ -51,7 +56,7 @@ function icons.index(saved, spriteName, count)
     if labels[sprite] == nil then
       local label = icons.spriteLabel(spriteName(sprite) or "")
       labels[sprite] = label ~= nil and { name = label } or false
-      wanted[sprite] = { left = count }
+      if not unmatched[sprite] then wanted[sprite] = { left = count } end
     end
     return labels[sprite] or nil
   end
@@ -83,7 +88,8 @@ function icons.index(saved, spriteName, count)
           if w.fallback ~= nil then
             found[#found + 1] = name(sprite, w.fallback)
           else
-            wanted[sprite] = nil
+            unmatched[sprite], wanted[sprite] = true, nil
+            found[#found + 1] = { sprite = sprite }
           end
         end
       end

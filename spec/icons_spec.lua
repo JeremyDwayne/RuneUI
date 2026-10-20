@@ -12,7 +12,9 @@ local function lookup(id)
   return STRUCTS[id]
 end
 
-local SPRITES = { [30098] = "BUFF_ICON_NECROMANCY_BLOATED", [26104] = "COMBAT_ICON_BUFF_11" }
+local SPRITES = {
+  [30098] = "BUFF_ICON_NECROMANCY_BLOATED", [26104] = "COMBAT_ICON_BUFF_11", [14766] = "BUFF_ICON_INCITE_FEAR",
+}
 local function spriteName(sprite) return SPRITES[sprite] end
 local function noName() return nil end
 
@@ -55,5 +57,21 @@ describe("icons.index", function()
     assert.are.same({ name = "Buff 11" }, index.info(26104))
     for _ = 1, 4 do index.step(lookup, 3) end
     assert.are.same({ name = "Stun Immune" }, index.info(26104))
+  end)
+
+  it("reports an icon no struct matches, and never scans for it again once saved", function()
+    local index = icons.index({}, spriteName, 10)
+    index.info(14766)
+    local found = {}
+    for _ = 1, 4 do
+      for _, f in ipairs(index.step(lookup, 3)) do found[#found + 1] = f end
+    end
+    assert.are.same({ { sprite = 14766 } }, found)
+
+    index = icons.index({ ["14766"] = { unmatched = true } }, spriteName, 10)
+    looked = 0
+    assert.are.same({ name = "Incite Fear" }, index.info(14766))
+    index.step(lookup, 5)
+    assert.are.equal(0, looked)
   end)
 end)
