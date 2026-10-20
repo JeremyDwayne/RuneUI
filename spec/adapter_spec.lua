@@ -103,3 +103,15 @@ describe("adapter.targetReads", function()
     assert.are.same({ 30097, 30098 }, adapter.targetReads().debuffs)
   end)
 end)
+
+describe("adapter.spriteName", function()
+  it("names a sprite by id, and reads nil when the client has no name or raises", function()
+    _G.id = { Sprite = { FromID = function(sprite)
+      if sprite == 30212 then return "DEBUFF_ICON_NECROMANCY_HAUNTED" end
+      if sprite == -2 then error("bad id") end
+    end } }
+    assert.are.equal("DEBUFF_ICON_NECROMANCY_HAUNTED", adapter.spriteName(30212))
+    assert.is_nil(adapter.spriteName(30098))
+    assert.is_nil(adapter.spriteName(-2))
+  end)
+end)
