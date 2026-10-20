@@ -31,6 +31,11 @@ local function enterEditMode()
   return elements, saved
 end
 
+-- Presses or releases Shift.
+local function shift(down)
+  fake.fire(down and "KeyDown" or "KeyUp", { gameKey = GameKey.SHIFT })
+end
+
 local function logicTick()
   fake.fire("Logic", { logicTick = 1 })
 end
@@ -61,7 +66,7 @@ end
 local function grab(element)
   local tint = overlayOf(element)
   fake.mouse.x, fake.mouse.y = 300, 300
-  fake.shift = true
+  shift(true)
   fake.hook(tint, "ONCLICK")
   return tint
 end
@@ -111,7 +116,7 @@ describe("edit mode", function()
     local tint = overlayOf(elements.player)
     tint.xyGlobal = { x = 150, y = 150 }
     fake.mouse.x, fake.mouse.y = 300, 300
-    fake.shift = true
+    shift(true)
     fake.hook(tint, "ONCLICK")
     fake.mouse.x = 400
     logicTick()
@@ -203,17 +208,17 @@ describe("edit mode", function()
   end)
 
   it("snaps a drop 4 px from the target frame's bottom flush with it, unless Shift is held", function()
-    for _, shift in ipairs({ false, true }) do
+    for _, held in ipairs({ false, true }) do
       fake.reset()
       local elements, saved = enterEditMode()
       fake.press("Rotation, left, bottom")
       local tint = grab(elements.player)
-      fake.shift = shift
+      shift(held)
       fake.mouse.y = 296
       logicTick()
       fake.hook(tint, "ONRELEASE")
       local bottom = saved.positions().player.y + elements.player.height
-      assert.are.equal(shift and -358 or -354, bottom)
+      assert.are.equal(held and -358 or -354, bottom)
     end
   end)
 end)

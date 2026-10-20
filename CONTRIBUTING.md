@@ -40,8 +40,8 @@ A bug fix starts with a spec that fails without the fix.
 ## How the code is laid out
 
 - `src/adapter.lua` is the only module that reads the game client. It returns plain tables, so everything else can be tested without the game.
-- `src/frames.lua`, `src/cooldowns.lua`, `src/settings.lua`, `src/editor.lua` and `src/icons.lua` are pure Lua, each with a spec in `spec/`.
-- `src/view.lua` draws the HUD, `src/options.lua` draws the options window, and both build on the helpers in `src/draw.lua`.
+- `src/frames.lua`, `src/cooldowns.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure Lua, each with a spec in `spec/`.
+- `src/view.lua` draws the HUD, `src/options.lua` draws the options window, `src/editmode.lua` draws edit mode, and all three build on the helpers in `src/draw.lua`.
 
 ## Performance
 
@@ -49,7 +49,7 @@ RuneUI runs inside the game's frame, so its cost comes out of the player's frame
 
 - Redraw on the server tick, not every frame.
 - Build components once at load and hide the ones not in use.
-- Write component properties through `draw.set`, `draw.pos`, `draw.width` and `draw.size`, which skip unchanged values. A tick where nothing changed should make no writes, and `spec/view_spec.lua` shows how to test that.
+- Write component properties through `draw.set`, `draw.pos`, `draw.place`, `draw.width` and `draw.size`, which skip unchanged values. A tick where nothing changed should make no writes, and `spec/view_spec.lua` shows how to test that.
 - Leave out looping animations, pulses and fades.
 
 ## Accessibility

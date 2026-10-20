@@ -470,6 +470,15 @@ function editmode.create(root, deps)
   -- case Draw does not fire. It returns before reading the mouse unless a move is under way, and before
   -- drawing unless the cursor moved.
   local lastX, lastY = nil, nil
+  -- Shift as its key events report it; Keyboard.IsShiftDown reads false inside Event.Logic.
+  local shiftHeld = false
+  Event.KeyDown.Subscribe("runeuiEditModeShift", function(e)
+    if e.gameKey == GameKey.SHIFT then shiftHeld = true end
+  end)
+  Event.KeyUp.Subscribe("runeuiEditModeShift", function(e)
+    if e.gameKey == GameKey.SHIFT then shiftHeld = false end
+  end)
+
   local function followCursor()
     if move == nil then return end
     local mx, my = cursor()
@@ -478,7 +487,7 @@ function editmode.create(root, deps)
     local from = move.from
     local x, y = from.x + mx - move.startX, from.y + my - move.startY
     local lineX, lineY = nil, nil
-    if saved.snap() and not Keyboard.IsShiftDown() then
+    if saved.snap() and not shiftHeld then
       local b = move.bounds[move.name]
       local snapped = layout.snap({ x = x + b.x, y = y + b.y, w = b.w, h = b.h }, move.targets, SNAP_RANGE, GRID)
       x, y, lineX, lineY = snapped.x - b.x, snapped.y - b.y, snapped.guideX, snapped.guideY
