@@ -48,6 +48,27 @@ describe("cooldowns.tracker", function()
     assert.are.equal(15, tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1].cooldown)
   end)
 
+  it("tracks weapon special cooldowns, whose vars carry their own prefix", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, "COMBATV2_ABILITY_WEAPON_COOLDOWN_INSTABILITY", 1000, 100)
+    tracker.onTick(noAbility)
+    local tile = tracker.tiles({ "WEAPON_INSTABILITY" }, {})[1]
+    assert.are.same({ "Instability", 60, 60 }, { tile.name, tile.seconds, tile.cooldown })
+    assert.are.same({ "WEAPON_INSTABILITY" }, tracker.known())
+  end)
+
+  it("gives a weapon special the shared special attack icon and keeps its own name", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, "COMBATV2_ABILITY_WEAPON_COOLDOWN_INSTABILITY", 1000, 100)
+    justUsedChanged(tracker)
+    local learned = tracker.onTick(function()
+      return { key = "CONSTITUTION_SPECIAL_ATTACK", name = "Weapon Special Attack", icon = 26105 }
+    end)
+    assert.are.same({ key = "WEAPON_INSTABILITY", icon = 26105 }, learned)
+    local tile = tracker.tiles({ "WEAPON_INSTABILITY" }, {})[1]
+    assert.are.same({ "Instability", 26105 }, { tile.name, tile.icon })
+  end)
+
   it("ignores unchanged values and the global cooldown", function()
     local tracker = cooldowns.tracker()
     tracker.onVar(CB .. "_START", 1000, 1000)
@@ -129,7 +150,18 @@ describe("cooldowns.tracker", function()
     fire(tracker, CB, 1000, 9)
     justUsedChanged(tracker)
     tracker.onTick(blast)
-    assert.are.equal("Q", tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, { [13309] = "Q" })[1].keybind)
+    local slots = { [13309] = { keybind = "Q", usable = true } }
+    assert.are.equal("Q", tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, slots)[1].keybind)
+  end)
+
+  it("marks a tile not usable while its bar slot shows the ability can't be cast", function()
+    local tracker = cooldowns.tracker()
+    tracker.seed({
+      MAGIC_CONCENTRATED_BLAST = { name = "Concentrated Blast", icon = 13309 },
+      MAGIC_DRAGON_BREATH = { name = "Dragon Breath", icon = 13310 },
+    })
+    local tiles = tracker.tiles({ "MAGIC_CONCENTRATED_BLAST", "MAGIC_DRAGON_BREATH" }, { [13309] = { usable = false } })
+    assert.are.same({ false, true }, { tiles[1].usable, tiles[2].usable })
   end)
 
   it("builds tiles in the given order", function()

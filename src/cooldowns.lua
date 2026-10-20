@@ -9,6 +9,10 @@ local LONG_COOLDOWN_TICKS = 50
 -- STRENGTH_DESTROY; DEFENCE and CONSTITUTION abilities belong to no style.
 local STYLES = { MAGIC = "magic", NECROMANCY = "necromancy", RANGED = "ranged", ATTACK = "melee", STRENGTH = "melee" }
 
+-- Just-used struct keys shared by many abilities, which lend their icon but not their name: every weapon
+-- special reports the special attack, whose icon its action bar slot shows.
+local GENERIC_STRUCTS = { CONSTITUTION_SPECIAL_ATTACK = true }
+
 -- "MAGIC_SUNSHINE" -> "magic": the combat style a cooldown key belongs to, or nil for a style-free one.
 function cooldowns.styleOf(key)
   return STYLES[key:match("^(%u+)_")]
@@ -57,7 +61,9 @@ function cooldowns.tracker()
 
   local tracker = {}
 
-  -- A _START var holds the server tick its ability fired, which also keeps the clock in step.
+  -- A _START var holds the server tick its ability fired, which also keeps the clock in step. Weapon
+  -- specials such as Instability use COMBATV2_ABILITY_WEAPON_COOLDOWN_<NAME> vars and take the key
+  -- WEAPON_<NAME>.
   function tracker.onVar(name, old, new)
     if old == new then return end
     if name == "COMBATV2_JUST_USED_ABILITY" then
@@ -65,6 +71,10 @@ function cooldowns.tracker()
       return
     end
     local key, edge = name:match("^COMBATV2_COOLDOWN_(.+)_(%u+)$")
+    if key == nil then
+      key, edge = name:match("^COMBATV2_ABILITY_WEAPON_COOLDOWN_(.+)_(%u+)$")
+      key = key and "WEAPON_" .. key
+    end
     if edge == "START" then
       ability(key).start = new
       now = new
@@ -92,8 +102,10 @@ function cooldowns.tracker()
     local key = info and startedBy(info)
     local learned = nil
     if key ~= nil then
-      abilities[key].name, abilities[key].icon = info.name, info.icon
-      learned = { key = key, name = info.name, icon = info.icon }
+      local a = abilities[key]
+      if not GENERIC_STRUCTS[info.key] then a.name = info.name end
+      a.icon = info.icon
+      learned = { key = key, name = a.name, icon = a.icon }
     end
     startedThisTick = {}
     justUsedChanged = false
@@ -129,19 +141,22 @@ function cooldowns.tracker()
     return groups
   end
 
-  -- keys: ability keys in display order. keybinds: { [iconSpriteID] = "Q" } from the native bars.
-  function tracker.tiles(keys, keybinds)
+  -- keys: ability keys in display order. slots: { [iconSpriteID] = { keybind, usable } } from the native
+  -- bars. A tile with no matching slot counts as usable.
+  function tracker.tiles(keys, slots)
     local tiles = {}
     for _, key in ipairs(keys) do
       local a = abilities[key] or {}
       local name = a.name or nameFromKey(key)
       local left = (now ~= nil and a.finish ~= nil) and a.finish - now or 0
+      local slot = a.icon and slots[a.icon]
       tiles[#tiles + 1] = {
         key = key,
         name = name,
         initials = initials(name),
         icon = a.icon,
-        keybind = a.icon and keybinds[a.icon],
+        keybind = slot and slot.keybind,
+        usable = not slot or slot.usable,
         ready = left <= 0,
         seconds = left > 0 and secondsLeft(left) or nil,
         cooldown = (a.start ~= nil and a.finish ~= nil) and secondsLeft(a.finish - a.start) or nil,

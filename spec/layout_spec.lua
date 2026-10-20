@@ -1,14 +1,18 @@
 local layout = require("src/layout")
 local settings = require("src/settings")
 
--- Shown bounds inside each element's layer with a full row of 10 rotation and 10 cooldown tiles.
+-- Shown bounds inside each element's layer with full rows: 10 rotation, cooldown and aura tiles.
 local function fullBounds()
   return {
     player = { x = 0, y = 0, w = 250, h = 55 },
-    target = { x = 0, y = 0, w = 250, h = 85 },
+    target = { x = 0, y = 0, w = 250, h = 55 },
     resource = { x = 0, y = 0, w = 278, h = 47 },
     rotation = { x = 0, y = 0, w = 438, h = 47 },
     cooldowns = { x = 0, y = 0, w = 378, h = 41 },
+    targetDebuffs = { x = 3, y = 3, w = 278, h = 26 },
+    playerDebuffs = { x = 3, y = 3, w = 278, h = 26 },
+    upkeepBuffs = { x = 3, y = 3, w = 278, h = 26 },
+    combatBuffs = { x = 3, y = 3, w = 378, h = 36 },
   }
 end
 
@@ -90,8 +94,11 @@ describe("layout", function()
     local anchors = settings.DEFAULT_ANCHORS
     local chain = layout.chain(anchors, "rotation")
     table.sort(chain)
-    assert.are.same({ "cooldowns", "player", "resource", "target" }, chain)
-    assert.are.same({ "cooldowns" }, layout.chain(anchors, "resource"))
+    assert.are.same({ "combatBuffs", "cooldowns", "player", "playerDebuffs", "resource", "target", "targetDebuffs",
+      "upkeepBuffs" }, chain)
+    local resourceChain = layout.chain(anchors, "resource")
+    table.sort(resourceChain)
+    assert.are.same({ "combatBuffs", "cooldowns" }, resourceChain)
     assert.is_false(layout.canAnchor(anchors, "rotation", "rotation"))
     assert.is_false(layout.canAnchor(anchors, "rotation", "cooldowns"))
     assert.is_true(layout.canAnchor(anchors, "cooldowns", "player"))
@@ -127,6 +134,6 @@ describe("layout", function()
     local widths = {}
     for i, r in ipairs(targets) do widths[i] = r.w end
     table.sort(widths)
-    assert.are.same({ 250, 250, 438 }, widths)
+    assert.are.same({ 250, 250, 278, 278, 278, 438 }, widths)
   end)
 end)

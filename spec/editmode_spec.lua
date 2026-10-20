@@ -17,10 +17,11 @@ local function enterEditMode()
   local tooltip = view.tooltip(root)
   local elements = {
     player = view.playerFrame(root),
-    target = view.targetFrame(root, tooltip, function() end),
+    target = view.targetFrame(root),
     resource = view.resourceBar(root),
     rotation = view.cooldownGroup(root, view.TILE_STYLES.rotation, tooltip),
     cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns, tooltip),
+    combatBuffs = view.auraRow(root, view.AURA_STYLES.combatBuffs, tooltip, function() end),
   }
   local saved = settings.load(fakeStore())
   local window = options.create(root, {
@@ -171,6 +172,26 @@ describe("edit mode", function()
     assert.is_true(shows("Cooldowns is anchored to Rotation"))
     assert.is_false(shows("Anchor Rotation to Cooldowns"))
     assert.is_nil(saved.anchors().rotation)
+  end)
+
+  it("shows a small element's tag and Anchor button above it from hovering it until another is hovered", function()
+    local elements, saved = enterEditMode()
+    local combat = fake.find(function(c, d)
+      return fake.hasHook(c, "ONRELEASE") and d.width == 36 and d.height == 36
+    end)
+    assert.is_false(shows("Combat buffs"))
+
+    fake.hook(combat, "ONMOUSEOVER")
+    fake.hook(combat, "ONMOUSELEAVE")
+    local tag = fake.find(function(_, d) return d.content == "Combat buffs" end)
+    assert.is_not_nil(tag)
+    assert.are.equal(tag.parent.y + 18, combat.parent.y)
+    fake.press("Cooldowns, top, center")
+    assert.is_nil(saved.anchors().combatBuffs)
+
+    fake.hook(overlayOf(elements.player), "ONMOUSEOVER")
+    assert.is_false(shows("Combat buffs"))
+    assert.is_true(shows("Player"))
   end)
 
   it("removes an anchor when its button is pressed, leaving the element where it is", function()

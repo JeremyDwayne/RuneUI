@@ -180,73 +180,22 @@ function view.playerFrame(root)
   }
 end
 
-local DEBUFF_SIZE = 26
-local MAX_DEBUFFS = 8
-local DEBUFF_ROW = DEBUFF_SIZE + 4
-
--- 250x85: a right-aligned row of debuff icons above a 53px health bar with name and "6,800 | 58%", the same
--- box height as the player frame.
--- Hovering a debuff shows its name and info from debuffInfo(sprite), which returns { name, info } or nil.
-function view.targetFrame(root, tooltip, debuffInfo)
-  local height = DEBUFF_ROW + FRAME_HEIGHT
+-- 250x55: a 53px health bar with name and "6,800 | 58%", the same box height as the player frame.
+function view.targetFrame(root)
   local layer = ui.Layer.new(root)
-  layer:SetSize(FRAME_WIDTH, height)
-  rect(layer, COLOURS.border, 0, DEBUFF_ROW, FRAME_WIDTH, FRAME_HEIGHT)
-  local updateHealth, health = unitBar(layer, COLOURS.target, DEBUFF_ROW + 1, FRAME_HEIGHT - 2)
-
-  local debuffs = {}
-  for i = 1, MAX_DEBUFFS do
-    local edge = rect(layer, COLOURS.border, 0, 0, DEBUFF_SIZE, DEBUFF_SIZE)
-    local icon = ui.Sprite.new(layer)
-    icon:SetSize(DEBUFF_SIZE - 2, DEBUFF_SIZE - 2)
-    debuffs[i] = { edge = edge, icon = icon }
-  end
-
-  local current = nil
-
-  local function showTooltip(i)
-    local slot = debuffs[i]
-    local sprite = current ~= nil and not current.hidden and current.debuffs[i] or nil
-    if sprite == nil then
-      tooltip.hide()
-      return
-    end
-    local info = debuffInfo(sprite)
-    local x, y = screenPos(layer, slot.x, 0)
-    tooltip.show({
-      title = info and info.name or "Unknown debuff",
-      left = info and info.info or (info == nil and "Looking up name" or nil),
-    }, x, y, DEBUFF_SIZE)
-  end
-
-  local hover = tooltip.hover(debuffs, showTooltip)
+  layer:SetSize(FRAME_WIDTH, FRAME_HEIGHT)
+  rect(layer, COLOURS.border, 0, 0, FRAME_WIDTH, FRAME_HEIGHT)
+  local updateHealth, health = unitBar(layer, COLOURS.target, 1, FRAME_HEIGHT - 2)
 
   local function update(model)
-    current = model
     set(layer, "hidden", model.hidden)
-    if not model.hidden then
-      updateHealth(model)
-      local count = math.min(#model.debuffs, MAX_DEBUFFS)
-      for i, slot in ipairs(debuffs) do
-        local shown = i <= count
-        set(slot.edge, "hidden", not shown)
-        set(slot.icon, "hidden", not shown)
-        if shown then
-          local x = FRAME_WIDTH - (count - i + 1) * (DEBUFF_SIZE + 2) + 2
-          slot.x = x
-          pos(slot.edge, x, 0)
-          pos(slot.icon, x + 1, 1)
-          set(slot.icon, "sprite", model.debuffs[i])
-        end
-      end
-    end
-    if hover.index ~= nil then showTooltip(hover.index) end
+    if not model.hidden then updateHealth(model) end
   end
 
   return {
     layer = layer, update = update, setTexture = health.setTexture,
-    width = FRAME_WIDTH, height = height,
-    bounds = { x = 0, y = 0, w = FRAME_WIDTH, h = height },
+    width = FRAME_WIDTH, height = FRAME_HEIGHT,
+    bounds = { x = 0, y = 0, w = FRAME_WIDTH, h = FRAME_HEIGHT },
   }
 end
 
@@ -359,8 +308,11 @@ view.STYLE_COLOURS = { necromancy = 0x6f4ad8, magic = 0x2f7fd6, melee = 0xb8352f
 local ACCENT, ACCENT_SPACE = 2, 5
 local MAX_TILES = 10
 local COOLING_DIM = 0.62
+-- A tile whose ability can't be cast takes the native action bar's look: a dark icon tint and a faded grey
+-- keybind.
+local UNTINTED, BLOCKED_ICON, BLOCKED_TEXT, BLOCKED_ALPHA = 0xffffff, 0x333333, 0xa5a5a5, 0.6
 
--- Builds one tile's components as a draw.group, so group.place moves them all.
+-- Builds one cooldown tile's components as a draw.group, so group.place moves them all.
 local function tile(layer, style)
   local size = style.size
   local group = draw.group()
@@ -383,7 +335,8 @@ end
 -- A centred row of up to 10 ability tiles with an accent line as wide as the shown tiles. update takes
 -- src/cooldowns tiles and the accent colour, or nil to hide the line, and returns whether bounds changed.
 -- bounds spans the shown tiles; an empty row's edges meet at its center. Ready tiles are bright with their
--- keybind; cooling tiles are dimmed with whole seconds left. Hovering a tile shows its tooltip.
+-- keybind; cooling tiles are dimmed with whole seconds left; tiles whose ability can't be cast are tinted
+-- dark. Hovering a tile shows its tooltip.
 function view.cooldownGroup(root, style, tooltip)
   local step = style.size + style.gap
   local width = MAX_TILES * step - style.gap
@@ -450,9 +403,167 @@ function view.cooldownGroup(root, style, tooltip)
         set(parts.keybind, "content", model.keybind or "")
         set(parts.seconds, "hidden", model.ready)
         set(parts.seconds, "content", model.seconds and tostring(model.seconds) or "")
-        local labelColour = model.ready and COLOURS.text or COLOURS.dimText
+        local usable = model.usable ~= false
+        set(parts.icon, "rgb", usable and UNTINTED or BLOCKED_ICON)
+        local labelColour = not usable and BLOCKED_TEXT or model.ready and COLOURS.text or COLOURS.dimText
+        local labelAlpha = usable and 1 or BLOCKED_ALPHA
         set(parts.initials, "rgb", labelColour)
         set(parts.keybind, "rgb", labelColour)
+        set(parts.initials, "alpha", labelAlpha)
+        set(parts.keybind, "alpha", labelAlpha)
+      end
+    end
+    if hover.index ~= nil then showTooltip(hover.index) end
+    return moved
+  end
+
+  return { layer = layer, update = update, width = width, height = height, bounds = bounds }
+end
+
+-- Aura rows by HUD element: tile size, which end the icons gather at, and whether they are debuffs, which get
+-- an orange edge. timeFont and timeHeight size the time text along a tile's bottom.
+view.AURA_STYLES = {
+  targetDebuffs = { size = 26, align = "right", debuff = true, timeFont = FONTS.small, timeHeight = 11 },
+  playerDebuffs = { size = 26, align = "left", debuff = true, timeFont = FONTS.small, timeHeight = 11 },
+  upkeepBuffs = { size = 26, align = "left", timeFont = FONTS.small, timeHeight = 11 },
+  combatBuffs = { size = 36, align = "centre", timeFont = FONTS.body, timeHeight = 13 },
+}
+local AURA_GAP = 2
+-- Room around the tiles for the highlight, which draws up to 3px outside a tile.
+local AURA_MARGIN = 3
+-- With bars on, each tile has a 4px bar 1px below it.
+local AURA_BAR, AURA_BAR_SPACE = 4, 5
+-- Bar stripes in the refresh window: white and black runs across the bar.
+local STRIPE, STRIPE_GAP = 3, 2
+
+-- Builds one aura tile's components as a draw.group. The bar's cover moves on its own, so it sits outside
+-- the group.
+local function auraTile(layer, style)
+  local size = style.size
+  local inner = size - 2
+  local group = draw.group()
+  local white = COLOURS.highlight
+  local timeY = size - style.timeHeight - 3
+  local parts = {
+    group = group,
+    ring = {
+      group.add(rect(layer, white, 0, 0, size + 4, 2), -2, -2),
+      group.add(rect(layer, white, 0, 0, size + 4, 2), -2, size),
+      group.add(rect(layer, white, 0, 0, 2, size), -2, 0),
+      group.add(rect(layer, white, 0, 0, 2, size), size, 0),
+    },
+    edge = group.add(rect(layer, style.debuff and COLOURS.debuff or COLOURS.border, 0, 0, size, size), 0, 0),
+    icon = group.add(ui.Sprite.new(layer), 1, 1),
+    plate = group.add(rect(layer, white, 0, 0, size - 8, style.timeHeight + 2), 4, timeY),
+    time = group.add(text(layer, style.timeFont, ui.AlignMode.CENTRE, 0, 0, size, style.timeHeight + 2), 0, timeY),
+    stacks = group.add(text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 23, 1),
+    track = group.add(rect(layer, COLOURS.border, 0, 0, size, AURA_BAR), 0, size + 1),
+    fill = group.add(rect(layer, style.debuff and COLOURS.debuff or COLOURS.dimText, 0, 0, inner, AURA_BAR - 2), 1,
+      size + 2),
+    stripes = group.add(ui.Canvas.new(layer), 1, size + 2),
+    cover = rect(layer, COLOURS.border, 0, 0, inner, AURA_BAR - 2),
+    dashed = group.add(ui.Canvas.new(layer), -3, -3),
+  }
+  parts.icon:SetSize(inner, inner)
+  parts.stripes:SetSize(inner, AURA_BAR - 2)
+  for x = 0, inner - 1, STRIPE + STRIPE_GAP do
+    parts.stripes:AddRectangle(x, 0, math.min(STRIPE, inner - x), AURA_BAR - 2, draw.opaque(white))
+  end
+  parts.dashed:SetSize(size + 6, size + 6)
+  draw.dashedBox(parts.dashed, size + 6, size + 6, 2, draw.opaque(white))
+  return parts
+end
+
+-- Shows a src/auras model on parts at x, y. bars draws the bar and the bars-mode highlight.
+local function showAura(parts, model, x, y, size, bars)
+  parts.group.place(x, y)
+  local timed = model.left ~= nil
+  local ring, dashed = model.highlight and not bars, model.highlight and bars
+  draw.hideAll(parts.ring, not ring)
+  set(parts.dashed, "hidden", not dashed)
+  set(parts.edge, "hidden", false)
+  set(parts.icon, "hidden", false)
+  set(parts.icon, "sprite", model.sprite)
+  set(parts.plate, "hidden", not ring)
+  set(parts.time, "hidden", model.text == nil)
+  set(parts.time, "content", model.text or "")
+  set(parts.time, "rgb", ring and COLOURS.darkText or COLOURS.text)
+  set(parts.time, "isShadowed", not ring)
+  set(parts.stacks, "hidden", model.stacks == nil)
+  set(parts.stacks, "content", model.stacks or "")
+
+  local barShown = bars and timed
+  local inner = size - 2
+  local filled = barShown and math.floor(inner * model.fill) or 0
+  set(parts.track, "hidden", not barShown)
+  set(parts.fill, "hidden", not barShown or dashed or filled == 0)
+  set(parts.stripes, "hidden", not barShown or not dashed)
+  set(parts.cover, "hidden", not barShown or not dashed or filled == inner)
+  if barShown then
+    draw.width(parts.fill, math.max(filled, 1))
+    pos(parts.cover, x + 1 + filled, y + size + 2)
+    draw.width(parts.cover, inner - filled)
+  end
+end
+
+-- A row of up to 10 aura icons gathered at style.align's end. Each icon shows its time left and stacks, and
+-- in its refresh window a highlight: a white ring and the time on a white plate, or with bars on a dashed
+-- outline and a striped bar. update takes src/auras models and whether bars
+-- are on, and returns whether bounds changed. bounds spans the shown tiles, at least one, so an empty row
+-- can still be dragged in edit mode. Hovering an icon shows the name and info from info(sprite), which
+-- returns { name, info } or nil.
+function view.auraRow(root, style, tooltip, info)
+  local size = style.size
+  local step = size + AURA_GAP
+  local width = 2 * AURA_MARGIN + MAX_TILES * step - AURA_GAP
+  local height = 2 * AURA_MARGIN + size + AURA_BAR_SPACE
+  local layer = ui.Layer.new(root)
+  layer:SetSize(width, height)
+  local tiles = {}
+  for i = 1, MAX_TILES do tiles[i] = auraTile(layer, style) end
+
+  -- x of the first of count tiles.
+  local function left(count)
+    local spare = (MAX_TILES - count) * step
+    if style.align == "right" then return AURA_MARGIN + spare end
+    if style.align == "centre" then return AURA_MARGIN + spare // 2 end
+    return AURA_MARGIN
+  end
+
+  local current = {}
+  local bounds = { x = left(1), y = AURA_MARGIN, w = size, h = size }
+
+  local function showTooltip(i)
+    local model = current[i]
+    if model == nil then
+      tooltip.hide()
+      return
+    end
+    local found = info(model.sprite)
+    local x, y = screenPos(layer, tiles[i].group.x, AURA_MARGIN)
+    tooltip.show({
+      title = found and found.name or (style.debuff and "Unknown debuff" or "Unknown buff"),
+      left = found and found.info or (found == nil and "Looking up name" or nil),
+    }, x, y, size)
+  end
+
+  local hover = tooltip.hover(tiles, showTooltip)
+
+  local function update(models, bars)
+    current = models
+    local count = math.min(#models, MAX_TILES)
+    local shown = math.max(count, 1)
+    local x, w, h = left(shown), shown * step - AURA_GAP, size + (bars and AURA_BAR_SPACE or 0)
+    local moved = bounds.x ~= x or bounds.w ~= w or bounds.h ~= h
+    bounds.x, bounds.w, bounds.h = x, w, h
+    local first = left(count)
+    for i, parts in ipairs(tiles) do
+      local model = models[i]
+      if i > count then
+        parts.group.set("hidden", true)
+        set(parts.cover, "hidden", true)
+      else
+        showAura(parts, model, first + (i - 1) * step, AURA_MARGIN, size, bars)
       end
     end
     if hover.index ~= nil then showTooltip(hover.index) end

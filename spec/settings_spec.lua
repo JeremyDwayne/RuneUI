@@ -60,9 +60,21 @@ describe("settings", function()
     assert.are.equal("integer", math.type(anchor.gap))
   end)
 
+  it("anchors an element added since anchors were saved by its default, until it is placed", function()
+    local store = fakeStore({
+      anchors = { player = { target = "rotation", side = "left", align = "bottom", gap = 0, offset = 0 } },
+      layout = { target = { x = 5, y = 6, anchorX = 0.5, anchorY = 1 } },
+    })
+    local anchors = settings.load(store).anchors()
+    assert.are.same(settings.DEFAULT_ANCHORS.playerDebuffs, anchors.playerDebuffs)
+    assert.is_nil(anchors.target)
+  end)
+
   it("removes an anchor, keeping it removed across loads", function()
     local store = fakeStore()
-    settings.load(store).removeAnchor("player")
+    local s = settings.load(store)
+    s.setPosition("player", { x = 1, y = 2, anchorX = 0.5, anchorY = 1 })
+    s.removeAnchor("player")
     assert.is_nil(settings.load(store).anchors().player)
     assert.is_not_nil(settings.load(store).anchors().target)
   end)
@@ -76,18 +88,14 @@ describe("settings", function()
       cooldowns = { target = "resource", side = "top", align = "center", gap = 2.0, offset = 0 },
       bogus = { target = "player", side = "left", align = "top", gap = 0, offset = 0 },
     } }))
-    assert.are.same({ cooldowns = { target = "resource", side = "top", align = "center", gap = 2, offset = 0 } },
-      s.anchors())
+    local anchors = s.anchors()
+    assert.are.same({ target = "resource", side = "top", align = "center", gap = 2, offset = 0 }, anchors.cooldowns)
+    assert.is_nil(anchors.player or anchors.rotation or anchors.target or anchors.resource or anchors.bogus)
   end)
 
   it("resets anchors to the defaults along with positions", function()
     local s = settings.load(fakeStore())
-    assert.are.same({
-      player = { target = "rotation", side = "left", align = "bottom", gap = 0, offset = 0 },
-      target = { target = "rotation", side = "right", align = "bottom", gap = 0, offset = 0 },
-      resource = { target = "rotation", side = "top", align = "center", gap = 0, offset = 0 },
-      cooldowns = { target = "resource", side = "top", align = "center", gap = 0, offset = 0 },
-    }, s.anchors())
+    assert.are.same(settings.DEFAULT_ANCHORS, s.anchors())
     s.removeAnchor("player")
     s.setAnchor("target", { target = "player", side = "left", align = "top", gap = 0, offset = 0 })
     s.resetPositions()
@@ -140,11 +148,15 @@ describe("settings", function()
     assert.are.same({ "X", "A" }, s.groups().cooldowns)
   end)
 
-  it("keeps debuff names by icon across loads, dropping malformed entries", function()
+  it("keeps aura names and unmatched icons by icon across loads, dropping malformed entries", function()
     local store = fakeStore({ debuffs = { ["1"] = "broken" } })
-    settings.load(store).learnDebuff(30098, "Bloated", "Swollen from the inside.")
-    assert.are.same({ ["30098"] = { name = "Bloated", info = "Swollen from the inside." } },
-      settings.load(store).debuffs())
+    local saved = settings.load(store)
+    saved.learnDebuff(30098, "Bloated", "Swollen from the inside.")
+    saved.learnDebuff(14766)
+    assert.are.same({
+      ["30098"] = { name = "Bloated", info = "Swollen from the inside." },
+      ["14766"] = { unmatched = true },
+    }, settings.load(store).debuffs())
   end)
 
   it("saves a learned ability only when its name or icon changed", function()
@@ -180,6 +192,25 @@ describe("settings", function()
     local reloaded = settings.load(store)
     assert.is_true(reloaded.hideTargetPanel())
     assert.are.equal("horizontal", reloaded.texture())
+  end)
+
+  it("keeps the first category learned for each buff icon across loads, dropping malformed entries", function()
+    local store = fakeStore({ auras = { ["1"] = "sideways", ["2"] = 5 } })
+    local s = settings.load(store)
+    s.learnAura(30093, "upkeep")
+    s.learnAura(30093, "combat")
+    s.learnAura(26466, "hidden")
+    assert.are.same({ ["30093"] = "upkeep", ["26466"] = "hidden" }, settings.load(store).auras())
+  end)
+
+  it("shows the game's buff bars and plain aura icons until chosen otherwise", function()
+    local store = fakeStore()
+    local s = settings.load(store)
+    assert.are.same({ false, false }, { s.hideBuffBars(), s.auraBars() })
+    s.setHideBuffBars(true)
+    s.setAuraBars(true)
+    local reloaded = settings.load(store)
+    assert.are.same({ true, true }, { reloaded.hideBuffBars(), reloaded.auraBars() })
   end)
 
   it("restores whole numbers that PersistentDB returns as floats as integers", function()

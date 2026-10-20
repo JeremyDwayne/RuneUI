@@ -15,7 +15,9 @@ local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 local ELEMENTS = {
   { name = "player", label = "Player" }, { name = "target", label = "Target" },
   { name = "resource", label = "Resource bar" }, { name = "rotation", label = "Rotation" },
-  { name = "cooldowns", label = "Cooldowns" },
+  { name = "cooldowns", label = "Cooldowns" }, { name = "targetDebuffs", label = "Target debuffs" },
+  { name = "playerDebuffs", label = "Player debuffs" }, { name = "upkeepBuffs", label = "Upkeep buffs" },
+  { name = "combatBuffs", label = "Combat buffs" },
 }
 local LABELS = {}
 for _, entry in ipairs(ELEMENTS) do LABELS[entry.name] = entry.label end
@@ -23,6 +25,9 @@ for _, entry in ipairs(ELEMENTS) do LABELS[entry.name] = entry.label end
 -- Rough width of a small-font character, for sizing tags to their text.
 local CHAR_W = 6
 local TAG_H = 16
+-- Elements shorter than this, or narrower than their tag and button, show both above their outline, and only
+-- from hovering them until another element is hovered.
+local HEADER_INSIDE_H = 40
 local TOOLBAR_W, TOOLBAR_H = 600, 44
 local MENU_W, MENU_H = 220, 166
 -- The target's sketch in the anchor menu, and the 24 by 16 spots around it.
@@ -69,6 +74,8 @@ function editmode.create(root, deps)
   local overlays = {}
   -- move: the element being dragged; pick: { name, hover, target } while choosing what name anchors to.
   local move, pick = nil, nil
+  -- The small element whose tag and button the shared header shows, or nil.
+  local floatOwner = nil
   local refreshOverlays, pressOverlay, releaseOverlay, pressButton, hoverOverlay, dragTo
   -- The window's size in UI units, read on entering edit mode.
   local screenW, screenH = 0, 0
@@ -107,13 +114,17 @@ function editmode.create(root, deps)
     o.tint = hitArea(rect(o.layer, COLOURS.accent, 0, 0, 0, 0))
     o.edge = outline(o.layer, COLOURS.accent, 2)
     local tagW = #entry.label * CHAR_W + 10
-    rect(o.layer, COLOURS.accent, 2, 2, tagW, TAG_H)
+    o.label = entry.label
+    local tagBg = rect(o.layer, COLOURS.accent, 2, 2, tagW, TAG_H)
     local tag = text(o.layer, FONTS.small, ui.AlignMode.TOPLEFT, 7, 2, tagW - 5, TAG_H)
     set(tag, "content", entry.label)
     set(tag, "rgb", COLOURS.accentText)
     set(tag, "isShadowed", false)
     o.button = hitArea(rect(o.layer, COLOURS.panel, 2 + tagW, 2, 0, TAG_H))
     o.buttonText = text(o.layer, FONTS.small, ui.AlignMode.TOPLEFT, 8 + tagW, 2, 200, TAG_H)
+    -- The tag and button, and the header's width with the button's current text.
+    o.header = { tagBg, tag, o.button, o.buttonText }
+    o.tagW, o.buttonW = tagW, #"Anchor" * CHAR_W + 12
     on(o.tint, "ONCLICK", function(_, x) pressOverlay(o, x) end)
     on(o.tint, "ONRELEASE", function() releaseOverlay(o) end)
     on(o.tint, "ONMOUSEOVER", function() hoverOverlay(o, true) end)
@@ -126,6 +137,38 @@ function editmode.create(root, deps)
   for _, entry in ipairs(ELEMENTS) do
     local element = elements[entry.name]
     if element ~= nil then overlays[entry.name] = overlay(entry, element) end
+  end
+
+  -- One header for small elements, built after every overlay so it draws above them all and its button takes
+  -- the click. It sits above the last small element hovered.
+  local float = ui.Layer.new(root)
+  local floatTagBg = rect(float, COLOURS.accent, 0, 0, 0, TAG_H)
+  local floatTag = text(float, FONTS.small, ui.AlignMode.TOPLEFT, 5, 0, 200, TAG_H)
+  set(floatTag, "rgb", COLOURS.accentText)
+  set(floatTag, "isShadowed", false)
+  local floatButton = hitArea(rect(float, COLOURS.panel, 0, 0, 0, TAG_H))
+  local floatButtonText = text(float, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, 200, TAG_H)
+  on(floatButton, "ONCLICK", function() pressButton(floatOwner) end)
+  set(float, "hidden", true)
+
+  -- Shows the shared header above floatOwner when it is small and placed, with its tag and button text.
+  local function placeFloat()
+    local o = floatOwner
+    local shown = o ~= nil and o.small and o.at ~= nil
+    set(float, "hidden", not shown)
+    if not shown then return end
+    local b = o.element.bounds
+    draw.place(float, o.at.x + b.x, o.at.y + b.y - TAG_H - 2, o.at.anchorX, o.at.anchorY)
+    draw.size(float, o.tagW + o.buttonW, TAG_H)
+    draw.size(floatTagBg, o.tagW, TAG_H)
+    set(floatTag, "content", o.label)
+    draw.pos(floatButton, o.tagW, 0)
+    draw.size(floatButton, o.buttonW, TAG_H)
+    set(floatButton, "rgb", o.buttonFill or COLOURS.panel)
+    draw.pos(floatButtonText, o.tagW + 6, 0)
+    set(floatButtonText, "content", o.buttonContent or "Anchor")
+    set(floatButtonText, "rgb", o.buttonFill == COLOURS.chip and COLOURS.accentText or COLOURS.text)
+    set(floatButtonText, "isShadowed", o.buttonFill ~= COLOURS.chip)
   end
 
   -- Dashed outlines over the picking element and where the chosen spot would put it, and a guide line across
@@ -150,13 +193,18 @@ function editmode.create(root, deps)
     end
   end
 
-  -- Places o over its element at pos, sized to the element's shown bounds.
+  -- Places o over its element at pos, sized to the element's shown bounds. The layer clips what it holds, so
+  -- an element too small for its tag and button hides them and uses the shared header above it.
   local function placeOverlay(o, pos)
     local b = o.element.bounds
+    o.at = pos
+    o.small = b.h < HEADER_INSIDE_H or b.w < o.tagW + o.buttonW + 4
     draw.place(o.layer, pos.x + b.x, pos.y + b.y, pos.anchorX, pos.anchorY)
     draw.size(o.layer, b.w, b.h)
     draw.size(o.tint, b.w, b.h)
     placeOutline(o.edge, 2, 2, math.max(0, b.w - 4), math.max(0, b.h - 4))
+    hideAll(o.header, o.small)
+    if o == floatOwner then placeFloat() end
   end
 
   -- Places every element and overlay at r, positions by name.
@@ -333,7 +381,9 @@ function editmode.create(root, deps)
       set(o.buttonText, "rgb", fill == COLOURS.panel and COLOURS.text or COLOURS.accentText)
       set(o.buttonText, "isShadowed", fill == COLOURS.panel)
       set(o.button, "rgb", fill)
-      draw.size(o.button, #content * CHAR_W + 12, TAG_H)
+      o.buttonContent, o.buttonFill, o.buttonW = content, fill, #content * CHAR_W + 12
+      draw.size(o.button, o.buttonW, TAG_H)
+      if resolved[name] ~= nil then placeOverlay(o, resolved[name]) end
     end
   end
 
@@ -382,6 +432,10 @@ function editmode.create(root, deps)
   end
 
   function hoverOverlay(o, hovered)
+    if hovered and floatOwner ~= o then
+      floatOwner = o
+      placeFloat()
+    end
     if pick == nil or pick.name == o.name then return end
     if hovered then
       pick.hover = o.name
@@ -451,6 +505,8 @@ function editmode.create(root, deps)
       cancelMove()
     end
     for _, o in pairs(overlays) do set(o.layer, "hidden", not enabled) end
+    floatOwner = nil
+    placeFloat()
     set(toolbar, "hidden", not enabled)
     if enabled then
       screenW, screenH = tonumber(root.width) or 0, tonumber(root.height) or 0
@@ -521,6 +577,7 @@ function editmode.create(root, deps)
     guideY:Destroy()
     landing:Destroy()
     for _, o in pairs(overlays) do o.layer:Destroy() end
+    float:Destroy()
   end
 
   return mode
