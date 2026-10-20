@@ -96,6 +96,17 @@ describe("options", function()
     assert.are.same({ true, true }, { listed("Wild Magic"), listed("Soul Sap") })
   end)
 
+  it("lists abilities matching the picker search from every style, leaving the All tab chosen", function()
+    openWindow()
+    fake.press("+")
+    local search = fake.find(function(c) return fake.hasHook(c, "ONCONTENTCHANGED") end)
+    local function listed(name) return fake.find(function(_, d) return d.content == name end) ~= nil end
+    fake.hook(search, "ONCONTENTCHANGED", 0, "soul")
+    assert.are.same({ false, true }, { listed("Wild Magic"), listed("Soul Sap") })
+    fake.hook(search, "ONCONTENTCHANGED", 0, "")
+    assert.are.same({ true, true }, { listed("Wild Magic"), listed("Soul Sap") })
+  end)
+
   it("puts a moved element back on Esc in edit mode", function()
     local elements = openWindow()
     local layer = elements.player.layer

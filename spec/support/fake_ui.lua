@@ -98,6 +98,9 @@ end
 local constructor = { new = fake.component }
 _G.ui = {
   Layer = constructor, Rectangle = constructor, Text = constructor, Sprite = constructor, Canvas = constructor,
+  InputField = constructor,
+  TextContentVisibilityMode = { VISIBLE = 0 },
+  InputFieldFilterMode = { NONE = 0 },
   Hook = setmetatable({}, { __index = function(_, name) return name end }),
   AlignMode = { TOPLEFT = 0, CENTRE = 1, BOTTOMRIGHT = 2 },
 }
@@ -109,7 +112,7 @@ _G.Event = setmetatable({}, { __index = function(_, name)
 end })
 _G.Mouse = { GetX = function() return fake.mouse.x end, GetY = function() return fake.mouse.y end }
 _G.GameKey = { ESCAPE = 13 }
-_G.id = { Font = {} }
+_G.id = { Font = {}, StyleSheet = {} }
 _G.log = function() end
 
 return fake

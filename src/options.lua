@@ -19,7 +19,8 @@ local PAGE_W = WIDTH - PAGE_X - 1
 local DRAG_START = 3
 local MAX_TILES = 10
 local GAP = 2
-local PICKER_WIDTH, PICKER_ROW, PICKER_TABS = 340, 26, 34
+local PICKER_WIDTH, PICKER_ROW, PICKER_SEARCH, PICKER_TABS = 340, 26, 36, 34
+local PICKER_HEAD = PICKER_SEARCH + PICKER_TABS
 -- Picker tabs left to right; style nil lists every style.
 local PICKER_TAB_LIST = {
   { label = "All", width = 34 }, { label = "Necromancy", style = "necromancy", width = 100 },
@@ -349,23 +350,34 @@ function options.create(root, deps)
     changed()
   end
 
-  -- Picker: known abilities under a row's "+" tile, in sections, one combat style tab at a time. It opens
-  -- on the current style and stays open for several adds.
+  -- Picker: known abilities under a row's "+" tile, in sections, one combat style tab at a time, narrowed by
+  -- a search box. It opens on the current style and stays open for several adds. A search covers every style.
   local picker = ui.Layer.new(page)
   local pickerRows, pickerTabs = {}, {}
-  local pickerFor, pickerStyle = nil, nil
+  local pickerFor, pickerStyle, query = nil, nil, ""
   local MAX_PICKER_ROWS = 14
-  picker:SetSize(PICKER_WIDTH, PICKER_TABS + MAX_PICKER_ROWS * PICKER_ROW + 2)
+  picker:SetSize(PICKER_WIDTH, PICKER_HEAD + MAX_PICKER_ROWS * PICKER_ROW + 2)
   local pickerEdge = hitArea(rect(picker, COLOURS.border, 0, 0, PICKER_WIDTH, 0))
   local pickerBg = rect(picker, COLOURS.popup, 1, 1, PICKER_WIDTH - 2, 0)
-  rect(picker, COLOURS.line, 1, PICKER_TABS, PICKER_WIDTH - 2, 1)
+  rect(picker, COLOURS.line, 1, PICKER_HEAD, PICKER_WIDTH - 2, 1)
+  local search = ui.InputField.new(picker)
+  search:SetPos(10, 6)
+  search:SetSize(PICKER_WIDTH - 20, 24)
+  search:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, 30)
+  if id.StyleSheet.INPUT_SEARCHBOX_24PX ~= nil then set(search, "stylesheetID", id.StyleSheet.INPUT_SEARCHBOX_24PX) end
+  set(search, "emptyText", "Find an ability")
+  on(search, "ONCONTENTCHANGED", function(_, _, contents)
+    query = (contents or ""):lower()
+    if query ~= "" then pickerStyle = nil end
+    fillPicker()
+  end)
   local tabX = 10
   for _, tab in ipairs(PICKER_TAB_LIST) do
-    local hit = hitArea(rect(picker, COLOURS.popup, tabX, 1, tab.width, PICKER_TABS - 1))
+    local hit = hitArea(rect(picker, COLOURS.popup, tabX, PICKER_SEARCH, tab.width, PICKER_TABS))
     local t = {
       style = tab.style,
-      label = text(picker, FONTS.body, ui.AlignMode.CENTRE, tabX, 1, tab.width, PICKER_TABS - 3),
-      underline = rect(picker, COLOURS.accent, tabX, PICKER_TABS - 2, tab.width, 2),
+      label = text(picker, FONTS.body, ui.AlignMode.CENTRE, tabX, PICKER_SEARCH, tab.width, PICKER_TABS - 2),
+      underline = rect(picker, COLOURS.accent, tabX, PICKER_HEAD - 2, tab.width, 2),
     }
     set(t.label, "content", tab.label)
     on(hit, "ONCLICK", function()
@@ -376,7 +388,7 @@ function options.create(root, deps)
     tabX = tabX + tab.width
   end
   for i = 1, MAX_PICKER_ROWS do
-    local ry = PICKER_TABS + 1 + (i - 1) * PICKER_ROW
+    local ry = PICKER_HEAD + 1 + (i - 1) * PICKER_ROW
     local r = {
       bg = hitArea(rect(picker, COLOURS.popup, 1, ry, PICKER_WIDTH - 2, PICKER_ROW)),
       hover = rect(picker, COLOURS.buttonHover, 1, ry, PICKER_WIDTH - 2, PICKER_ROW),
@@ -419,6 +431,13 @@ function options.create(root, deps)
       set(t.underline, "hidden", t.style ~= pickerStyle)
     end
     local keys, models = allKnownKeys()
+    if query ~= "" then
+      local matching = {}
+      for _, key in ipairs(keys) do
+        if models[key].name:lower():find(query, 1, true) then matching[#matching + 1] = key end
+      end
+      keys = matching
+    end
     local entries = {}
     local groupsNow = saved.groups() or tracker.defaultGroups()
     for _, section in ipairs(editor.pickerSections(pickerFor.name, groupsNow, keys, pickerStyle)) do
@@ -442,8 +461,8 @@ function options.create(root, deps)
       end
     end
     local shown = math.min(#entries, MAX_PICKER_ROWS)
-    pickerEdge:SetSize(PICKER_WIDTH, PICKER_TABS + shown * PICKER_ROW + 2)
-    pickerBg:SetSize(PICKER_WIDTH - 2, PICKER_TABS + shown * PICKER_ROW)
+    pickerEdge:SetSize(PICKER_WIDTH, PICKER_HEAD + shown * PICKER_ROW + 2)
+    pickerBg:SetSize(PICKER_WIDTH - 2, PICKER_HEAD + shown * PICKER_ROW)
   end
 
   function openPicker(row, plus)
@@ -451,6 +470,10 @@ function options.create(root, deps)
     closePopups()
     if wasOpen then return end
     pickerFor, pickerStyle = row, tracker.style()
+    if query ~= "" then
+      query = ""
+      search.content = ""
+    end
     fillPicker()
     picker:SetPos(math.min(plus.x, PAGE_W - PICKER_WIDTH - 8), plus.y + row.size + 4)
     set(picker, "hidden", false)
