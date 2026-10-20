@@ -1,14 +1,16 @@
--- The options window, its ribbon button and edit mode: a sidebar of pages, a cooldown
--- editor that mirrors both rows with a "+" picker, drag to swap or insert and a Remove menu, marker
--- steppers, appearance choices, and edit mode outlines for dragging HUD elements.
+-- The options window and its ribbon button: a sidebar of pages, a cooldown editor that mirrors both rows
+-- with a "+" picker, drag to swap or insert and a Remove menu, marker steppers, appearance choices, the
+-- reset dialog, and a footer toggle into src/editmode.
 local draw = require("src/draw")
+local editmode = require("src/editmode")
 local editor = require("src/editor")
 local settings = require("src/settings")
 
 local options = {}
 
 local set, rect, text, outline, placeOutline = draw.set, draw.rect, draw.text, draw.outline, draw.placeOutline
-local hideAll = draw.hideAll
+local hideAll, hitArea, on, button = draw.hideAll, draw.hitArea, draw.on, draw.button
+local pressAt, cursor = draw.pressAt, draw.cursor
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
 local WIDTH, HEIGHT = 900, 620
@@ -28,64 +30,6 @@ local PICKER_TAB_LIST = {
   { label = "Melee", style = "melee", width = 58 },
 }
 local MARKER_STEP = 5
--- HUD elements in edit mode stacking order, later ones on top.
-local ELEMENTS = {
-  { name = "player", label = "Player" }, { name = "target", label = "Target" },
-  { name = "resource", label = "Resource bar" }, { name = "rotation", label = "Rotation" },
-  { name = "cooldowns", label = "Cooldowns" },
-}
-
--- Makes c take clicks and stop them, like a button: plain components start enabled = false and
--- clickthrough = true, so a click reaches everything beneath and the game world. Each clickable thing has
--- one hit area at the bottom; components drawn over it keep the defaults and pass clicks down to it.
-local function hitArea(c)
-  set(c, "enabled", true)
-  set(c, "clickthrough", false)
-  return c
-end
-
-local function on(c, hook, fn)
-  c:Subscribe(ui.Hook[hook], fn)
-end
-
--- Mouse reports physical pixels, a multiple of UI units on a high-DPI display. pressAt sets the multiple
--- from a press at local x on c, and cursor returns the mouse in UI units, or nil when there is none.
-local scale = 1
-
-local function pressAt(c, x)
-  local g, mx = c.xyGlobal, Mouse.GetX()
-  if g ~= nil and mx ~= nil and g.x + x > 0 then scale = mx / (g.x + x) end
-end
-
-local function cursor()
-  local mx, my = Mouse.GetX(), Mouse.GetY()
-  if mx == nil or my == nil then return nil end
-  return mx / scale, my / scale
-end
-
--- Button fills: normal and hover colours, and dark text for the bright ones.
-local FILLS = {
-  plain = { COLOURS.button, COLOURS.buttonHover },
-  accent = { COLOURS.accent, COLOURS.accentHover, dark = true },
-  light = { COLOURS.highlight, COLOURS.dimText, dark = true },
-}
-
--- A flat button with a centred label that lightens on hover. fill names a FILLS entry, plain when nil.
-local function button(parent, label, x, y, w, h, fill, onClick)
-  local colours = FILLS[fill or "plain"]
-  local normal, hover = colours[1], colours[2]
-  local bg = hitArea(rect(parent, normal, x, y, w, h))
-  local t = text(parent, FONTS.body, ui.AlignMode.CENTRE, x, y, w, h)
-  set(t, "content", label)
-  if colours.dark then
-    set(t, "rgb", COLOURS.accentText)
-    set(t, "isShadowed", false)
-  end
-  on(bg, "ONMOUSEOVER", function() set(bg, "rgb", hover) end)
-  on(bg, "ONMOUSELEAVE", function() set(bg, "rgb", normal) end)
-  on(bg, "ONCLICK", function() onClick() end)
-  return { bg = bg, label = t }
-end
 
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
 -- view = src/view, refresh = function redrawing the HUD }. Returns { shutdown }.
@@ -571,65 +515,15 @@ function options.create(root, deps)
 
   -- Edit mode ----------------------------------------------------------------------------------------
 
-  local overlays = {}
-  local move = nil
-
-  local function overlay(name, label, element)
-    local layer = ui.Layer.new(root)
-    layer:SetSize(element.width, element.height)
-    local tint = hitArea(rect(layer, COLOURS.accent, 0, 0, element.width, element.height))
-    set(tint, "alpha", 0.15)
-    placeOutline(outline(layer, COLOURS.accent, 2), 2, 2, element.width - 4, element.height - 4)
-    rect(layer, COLOURS.accent, 2, 2, 96, 16)
-    local tagText = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 6, 2, 92, 16)
-    set(tagText, "content", label)
-    set(tagText, "rgb", COLOURS.accentText)
-    set(tagText, "isShadowed", false)
-    on(tint, "ONCLICK", function(_, x)
-      pressAt(tint, x)
-      local mx, my = cursor()
-      if mx == nil then return end
-      move = { name = name, startX = mx, startY = my, from = saved.positions()[name] }
-    end)
-    on(tint, "ONRELEASE", function()
-      if move ~= nil and move.name == name then
-        saved.setPosition(name, move.to or move.from)
-        move = nil
-      end
-    end)
-    set(layer, "hidden", true)
-    return layer
-  end
-
-  for _, entry in ipairs(ELEMENTS) do
-    local element = elements[entry.name]
-    if element ~= nil then overlays[entry.name] = overlay(entry.name, entry.label, element) end
-  end
-
-  -- Ends a move without saving, putting the element back where it was.
-  local function cancelMove()
-    if move == nil then return end
-    deps.view.place(elements[move.name].layer, move.from)
-    deps.view.place(overlays[move.name], move.from)
-    move = nil
-  end
-
-  local function placeAll()
-    local positions = deps.view.arrange(elements, saved.positions(), saved.anchors())
-    for name in pairs(elements) do deps.view.place(overlays[name], positions[name]) end
-  end
-
-  local toolbar = ui.Layer.new(root)
-  toolbar:SetSize(400, 44)
-  toolbar:SetPos(-200, 14, 0.5, 0)
-  rect(toolbar, COLOURS.border, 0, 0, 400, 44)
-  hitArea(rect(toolbar, COLOURS.panel, 1, 1, 398, 42))
-  local toolbarTitle = text(toolbar, FONTS.body, ui.AlignMode.TOPLEFT, 14, 1, 120, 42)
-  set(toolbarTitle, "content", "Edit mode")
-  set(toolbar, "hidden", true)
+  local resetPositions, openWindow
+  local editMode = editmode.create(root, {
+    saved = saved, elements = elements, view = deps.view,
+    reset = function() resetPositions() end,
+    done = function() openWindow() end,
+  })
 
   -- Reset dialog: confirms Reset positions over the window, which it dims when open. Built after the window
-  -- and toolbar so it draws above them.
+  -- and edit mode so it draws above them.
   local DIALOG_W, DIALOG_H = 320, 150
   local dialog = ui.Layer.new(root)
   dialog:SetSize(WIDTH, HEIGHT)
@@ -659,11 +553,8 @@ function options.create(root, deps)
   button(dialog, "Reset positions", dialogX + DIALOG_W - 166, buttonsY, 150, 32, "light", function()
     closeDialog()
     saved.resetPositions()
-    placeAll()
+    editMode.placeAll()
   end)
-
-  local editing = false
-  local openWindow
 
   local windowOpen = false
 
@@ -675,27 +566,12 @@ function options.create(root, deps)
     set(window, "hidden", true)
   end
 
-  -- Edit mode hides the window, which covers the HUD, and shows a toolbar whose Done returns to it.
-  local function setEditing(enabled)
-    editing = enabled
-    if not enabled then cancelMove() end
-    for _, layer in pairs(overlays) do set(layer, "hidden", not enabled) end
-    set(toolbar, "hidden", not enabled)
-    if enabled then closeWindow() end
-  end
-
-  local function resetPositions()
+  function resetPositions()
     closePopups()
     dialogOpen = true
     set(dim, "hidden", not windowOpen)
     set(dialog, "hidden", false)
   end
-
-  button(toolbar, "Reset positions", 160, 7, 140, 30, false, resetPositions)
-  button(toolbar, "Done", 308, 7, 84, 30, "accent", function()
-    setEditing(false)
-    openWindow()
-  end)
 
   -- Footer --------------------------------------------------------------------------------------------
 
@@ -705,7 +581,11 @@ function options.create(root, deps)
   rect(window, COLOURS.text, PAGE_X + 26, footerY + 20, 16, 16)
   local toggleLabel = text(window, FONTS.body, ui.AlignMode.TOPLEFT, PAGE_X + 72, footerY, 120, FOOTER)
   set(toggleLabel, "content", "Edit mode off")
-  on(toggleHit, "ONCLICK", function() setEditing(true) end)
+  -- Edit mode hides the window, which covers the HUD; its toolbar's Done returns to the window.
+  on(toggleHit, "ONCLICK", function()
+    closeWindow()
+    editMode.open()
+  end)
   button(window, "Reset positions", PAGE_X + 200, footerY + 12, 140, 32, false, resetPositions)
   button(window, "Done", WIDTH - 24 - 90, footerY + 12, 90, 32, "accent", closeWindow)
 
@@ -720,32 +600,23 @@ function options.create(root, deps)
 
   -- Ticks ---------------------------------------------------------------------------------------------
 
-  -- Moves the drag ghost or the element being placed with the cursor. It runs every frame through Event.Draw
-  -- so a drag keeps up with the mouse, and on Event.Logic as well in case Draw does not fire. It returns
-  -- before reading the mouse unless a drag or move is under way, and before drawing unless the cursor moved.
+  -- Moves the drag ghost with the cursor. It runs every frame through Event.Draw so a drag keeps up with the
+  -- mouse, and on Event.Logic as well in case Draw does not fire. It returns before reading the mouse unless a
+  -- drag is under way, and before drawing unless the cursor moved.
   local lastX, lastY = nil, nil
   local function followCursor()
-    if drag == nil and move == nil then return end
+    if drag == nil then return end
     local mx, my = cursor()
     if mx == nil or (mx == lastX and my == lastY) then return end
     lastX, lastY = mx, my
-    if drag ~= nil then
-      if not drag.moved and math.abs(mx - drag.startX) + math.abs(my - drag.startY) > DRAG_START then
-        startDrag(drag.tile)
-      end
-      if drag.moved then
-        local wx, wy = mx - origin.x, my - origin.y
-        -- The client releases a press once the cursor leaves the pressed component, so the hit area follows.
-        draw.pos(drag.tile.edge, wx - PAGE_X - drag.pressX, wy - PAGE_Y - drag.pressY)
-        showDragFeedback(drag.tile, wx, wy)
-      end
+    if not drag.moved and math.abs(mx - drag.startX) + math.abs(my - drag.startY) > DRAG_START then
+      startDrag(drag.tile)
     end
-    if move ~= nil then
-      local from = move.from
-      move.to = { x = from.x + mx - move.startX, y = from.y + my - move.startY,
-        anchorX = from.anchorX, anchorY = from.anchorY }
-      deps.view.place(elements[move.name].layer, move.to)
-      deps.view.place(overlays[move.name], move.to)
+    if drag.moved then
+      local wx, wy = mx - origin.x, my - origin.y
+      -- The client releases a press once the cursor leaves the pressed component, so the hit area follows.
+      draw.pos(drag.tile.edge, wx - PAGE_X - drag.pressX, wy - PAGE_Y - drag.pressY)
+      showDragFeedback(drag.tile, wx, wy)
     end
   end
   Event.Draw.Subscribe("runeuiOptions", followCursor)
@@ -755,8 +626,8 @@ function options.create(root, deps)
     if e.gameKey ~= GameKey.ESCAPE then return end
     if dialogOpen then
       closeDialog()
-    elseif editing then
-      setEditing(false)
+    elseif editMode.editing() then
+      editMode.escape()
     elseif windowOpen then
       closeWindow()
     end
@@ -766,15 +637,14 @@ function options.create(root, deps)
     button(e.component, "Open RuneUI options", 10, 10, 180, 32, "accent", openWindow)
   end)
 
-  placeAll()
+  editMode.placeAll()
   closePopups()
 
   return {
     shutdown = function()
       window:Destroy()
-      toolbar:Destroy()
+      editMode.shutdown()
       dialog:Destroy()
-      for _, layer in pairs(overlays) do layer:Destroy() end
     end,
   }
 end

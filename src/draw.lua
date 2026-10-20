@@ -1,5 +1,5 @@
--- Drawing primitives shared by src/view and src/options: fonts, colours, and component builders that
--- skip unchanged writes and log a refused property write once instead of erroring.
+-- Drawing primitives shared by src/view, src/options and src/editmode: fonts, colours, component builders that
+-- skip unchanged writes and log a refused property write once instead of erroring, buttons, and the cursor.
 local draw = {}
 
 -- Closest client fonts to 13px values, 10px labels and seconds sized to each tile.
@@ -133,6 +133,59 @@ function draw.text(parent, font, horizontal, x, y, width, height)
   t:SetPos(x, y)
   t:SetSize(width, height)
   return t
+end
+
+-- Makes c take clicks and stop them, like a button: plain components start enabled = false and
+-- clickthrough = true, so a click reaches everything beneath and the game world. Each clickable thing has
+-- one hit area at the bottom; components drawn over it keep the defaults and pass clicks down to it.
+function draw.hitArea(c)
+  draw.set(c, "enabled", true)
+  draw.set(c, "clickthrough", false)
+  return c
+end
+
+function draw.on(c, hook, fn)
+  c:Subscribe(ui.Hook[hook], fn)
+end
+
+-- Mouse reports physical pixels, a multiple of UI units on a high-DPI display. pressAt sets the multiple
+-- from a press at local x on c, and cursor returns the mouse in UI units, or nil when there is none.
+local scale = 1
+
+function draw.pressAt(c, x)
+  local g, mx = c.xyGlobal, Mouse.GetX()
+  if g ~= nil and mx ~= nil and g.x + x > 0 then scale = mx / (g.x + x) end
+end
+
+function draw.cursor()
+  local mx, my = Mouse.GetX(), Mouse.GetY()
+  if mx == nil or my == nil then return nil end
+  return mx / scale, my / scale
+end
+
+-- Button fills: normal and hover colours, and dark text for the bright ones.
+local FILLS = {
+  plain = { draw.COLOURS.button, draw.COLOURS.buttonHover },
+  accent = { draw.COLOURS.accent, draw.COLOURS.accentHover, dark = true },
+  light = { draw.COLOURS.highlight, draw.COLOURS.dimText, dark = true },
+}
+
+-- A flat button with a centred label that lightens on hover. fill names a FILLS entry, plain when nil.
+-- Returns { bg, label }.
+function draw.button(parent, label, x, y, w, h, fill, onClick)
+  local colours = FILLS[fill or "plain"]
+  local normal, hover = colours[1], colours[2]
+  local bg = draw.hitArea(draw.rect(parent, normal, x, y, w, h))
+  local t = draw.text(parent, draw.FONTS.body, ui.AlignMode.CENTRE, x, y, w, h)
+  draw.set(t, "content", label)
+  if colours.dark then
+    draw.set(t, "rgb", draw.COLOURS.accentText)
+    draw.set(t, "isShadowed", false)
+  end
+  draw.on(bg, "ONMOUSEOVER", function() draw.set(bg, "rgb", hover) end)
+  draw.on(bg, "ONMOUSELEAVE", function() draw.set(bg, "rgb", normal) end)
+  draw.on(bg, "ONCLICK", function() onClick() end)
+  return { bg = bg, label = t }
 end
 
 function draw.hideAll(components, hidden)
