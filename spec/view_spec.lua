@@ -15,7 +15,7 @@ local function hud()
   local tooltip = view.tooltip(root)
   return {
     player = view.playerFrame(root),
-    target = view.targetFrame(root, tooltip, function() end),
+    target = view.targetFrame(root),
     resource = view.resourceBar(root),
     rotation = view.cooldownGroup(root, view.TILE_STYLES.rotation, tooltip),
     cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns, tooltip),
@@ -46,20 +46,63 @@ describe("view", function()
     assert.are.equal(0, fake.writes)
   end)
 
-  it("hides a debuff's tooltip when the target frame hides under it", function()
+  it("hides a debuff's tooltip when the target debuffs row empties under it", function()
     local tooltip = view.tooltip(fake.component())
     local looked = {}
-    local frame = view.targetFrame(fake.component(), tooltip, function(sprite)
+    local row = view.auraRow(fake.component(), view.AURA_STYLES.targetDebuffs, tooltip, function(sprite)
       looked[#looked + 1] = sprite
       return { name = "Bloated" }
     end)
-    frame.update({ hidden = false, name = "Aviansie", valueText = "", fill = 1, debuffs = { 30098 } })
+    row.update({ { sprite = 30098 } }, false)
     fake.hook(fake.find(function(c) return fake.hasHook(c, "ONMOUSEOVER") end), "ONMOUSEOVER")
     assert.is_not_nil(fake.find(function(_, d) return d.content == "Bloated" end))
 
-    frame.update({ hidden = true })
+    row.update({}, false)
     assert.is_nil(fake.find(function(_, d) return d.content == "Bloated" or d.content == "Unknown debuff" end))
     assert.are.same({ 30098 }, looked)
+  end)
+
+  -- A combat buffs row, and the src/auras model of a 20 s buff with left seconds left whose swipe started on
+  -- tick started.
+  local function auraRow()
+    return view.auraRow(fake.component(), view.AURA_STYLES.combatBuffs, view.tooltip(fake.component()),
+      function() end)
+  end
+  local function incite(left, started)
+    return { { sprite = 14766, text = tostring(left), stacks = "5", left = left, full = 20, started = started,
+      fill = left / 20, highlight = left <= 2 } }
+  end
+
+  it("makes no client writes when an aura row redraws unchanged icons, with or without bars", function()
+    for _, bars in ipairs({ false, true }) do
+      local row = auraRow()
+      row.update(incite(12, 1), bars)
+      fake.writes = 0
+      row.update(incite(12, 1), bars)
+      assert.are.equal(0, fake.writes)
+    end
+  end)
+
+  it("starts an icon's swipe when it appears or refreshes, not while its time falls", function()
+    local row = auraRow()
+    row.update(incite(20, 1), true)
+    row.update(incite(14, 1), true)
+    row.update(incite(2, 1), true)
+    assert.are.equal(1, fake.calls.Start)
+    row.update(incite(20, 9), true)
+    assert.are.equal(2, fake.calls.Start)
+  end)
+
+  it("bounds an aura row by its shown icons and at least one, reporting when they change", function()
+    local row = auraRow()
+    assert.are.same({ x = 174, y = 3, w = 36, h = 36 }, row.bounds)
+    assert.is_false(row.update(incite(12, 1), false))
+    local two = incite(12, 1)
+    two[2] = { sprite = 30093, text = "6m" }
+    assert.is_true(row.update(two, false))
+    assert.are.same({ x = 155, y = 3, w = 74, h = 36 }, row.bounds)
+    assert.is_true(row.update({}, true))
+    assert.are.same({ x = 174, y = 3, w = 36, h = 41 }, row.bounds)
   end)
 
   it("moves the tooltip to the front once shown, never while hidden", function()
