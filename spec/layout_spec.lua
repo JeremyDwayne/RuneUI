@@ -96,4 +96,37 @@ describe("layout", function()
     assert.is_false(layout.canAnchor(anchors, "rotation", "cooldowns"))
     assert.is_true(layout.canAnchor(anchors, "cooldowns", "player"))
   end)
+
+  it("snaps an edge or center within range onto another element's lines, with a guide on the snapped axis", function()
+    local other = { x = 0, y = 0, w = 100, h = 100 }
+    local cases = {
+      { 3, 500, 0, 500, 0, nil }, { 33, 500, 35, 500, 50, nil }, { 72, 500, 70, 500, 100, nil },
+      { 104, 500, 100, 500, 100, nil }, { 500, -4, 500, 0, nil, 0 }, { 500, 37, 500, 40, nil, 50 },
+      { 500, 83, 500, 80, nil, 100 },
+    }
+    for _, case in ipairs(cases) do
+      local x, y, toX, toY, guideX, guideY = table.unpack(case, 1, 6)
+      local snapped = layout.snap({ x = x, y = y, w = 30, h = 20 }, { other }, 6)
+      assert.are.same({ x = toX, y = toY, guideX = guideX, guideY = guideY }, snapped)
+    end
+  end)
+
+  it("prefers element lines over closer grid lines, and snaps edges to the grid otherwise", function()
+    local snapped = layout.snap({ x = 100, y = 203, w = 30, h = 20 }, { { x = 95, y = 0, w = 100, h = 100 } }, 6, 16)
+    assert.are.same({ x = 95, y = 204, guideX = 95, guideY = 224 }, snapped)
+  end)
+
+  it("leaves a rect beyond range where it is", function()
+    local snapped = layout.snap({ x = 107, y = 500, w = 30, h = 20 }, { { x = 0, y = 0, w = 100, h = 100 } }, 6)
+    assert.are.same({ x = 107, y = 500 }, snapped)
+  end)
+
+  it("offers every element outside the dragged one's chain as a snap target", function()
+    local rects = fullBounds()
+    local targets = layout.snapTargets(rects, settings.DEFAULT_ANCHORS, "resource")
+    local widths = {}
+    for i, r in ipairs(targets) do widths[i] = r.w end
+    table.sort(widths)
+    assert.are.same({ 250, 250, 438 }, widths)
+  end)
 end)

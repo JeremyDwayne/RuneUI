@@ -57,10 +57,11 @@ local function chooseSpot(label)
   error("no spot " .. label)
 end
 
--- Presses element's overlay with the cursor at 300, 300.
+-- Presses element's overlay with the cursor at 300, 300, holding Shift so the move ignores snapping.
 local function grab(element)
   local tint = overlayOf(element)
   fake.mouse.x, fake.mouse.y = 300, 300
+  fake.shift = true
   fake.hook(tint, "ONCLICK")
   return tint
 end
@@ -110,6 +111,7 @@ describe("edit mode", function()
     local tint = overlayOf(elements.player)
     tint.xyGlobal = { x = 150, y = 150 }
     fake.mouse.x, fake.mouse.y = 300, 300
+    fake.shift = true
     fake.hook(tint, "ONCLICK")
     fake.mouse.x = 400
     logicTick()
@@ -198,5 +200,20 @@ describe("edit mode", function()
     fake.hook(tint, "ONRELEASE")
     assert.are.same({ target = "rotation", side = "left", align = "bottom", gap = 28, offset = 5 },
       saved.anchors().player)
+  end)
+
+  it("snaps a drop 4 px from the target frame's bottom flush with it, unless Shift is held", function()
+    for _, shift in ipairs({ false, true }) do
+      fake.reset()
+      local elements, saved = enterEditMode()
+      fake.press("Rotation, left, bottom")
+      local tint = grab(elements.player)
+      fake.shift = shift
+      fake.mouse.y = 296
+      logicTick()
+      fake.hook(tint, "ONRELEASE")
+      local bottom = saved.positions().player.y + elements.player.height
+      assert.are.equal(shift and -358 or -354, bottom)
+    end
   end)
 end)

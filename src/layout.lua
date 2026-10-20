@@ -99,4 +99,46 @@ function layout.canAnchor(anchors, name, target)
   return true
 end
 
+-- The shift along one axis that brings a span's start, center or end onto another rect's, the nearest within
+-- range, or else one of its ends onto a multiple of grid. Returns the shift and the line it lands on, or 0.
+local function snapAxis(start, length, others, pos, size, range, grid)
+  local best, line = nil, nil
+  local function try(from, to)
+    local d = to - from
+    if math.abs(d) <= range and (best == nil or math.abs(d) < math.abs(best)) then best, line = d, to end
+  end
+  for _, o in ipairs(others) do
+    local oStart, oLength = o[pos], o[size]
+    for _, to in ipairs({ oStart, oStart + oLength // 2, oStart + oLength }) do
+      try(start, to)
+      try(start + length // 2, to)
+      try(start + length, to)
+    end
+  end
+  if best == nil and grid ~= nil then
+    for _, from in ipairs({ start, start + length }) do try(from, math.floor(from / grid + 0.5) * grid) end
+  end
+  return best or 0, line
+end
+
+-- Snaps a dragged rect onto the lines of others, a list of rects, or onto a grid of that spacing when no
+-- element line is within range. Returns { x, y, guideX, guideY }, each guide being the line an axis snapped
+-- to, or nil.
+function layout.snap(rect, others, range, grid)
+  local dx, guideX = snapAxis(rect.x, rect.w, others, "x", "w", range, grid)
+  local dy, guideY = snapAxis(rect.y, rect.h, others, "y", "h", range, grid)
+  return { x = rect.x + dx, y = rect.y + dy, guideX = guideX, guideY = guideY }
+end
+
+-- The rects in rects, by name, that a drag of name can snap to, as a list: all but name and its chain.
+function layout.snapTargets(rects, anchors, name)
+  local skip = { [name] = true }
+  for _, child in ipairs(layout.chain(anchors, name)) do skip[child] = true end
+  local targets = {}
+  for other, r in pairs(rects) do
+    if not skip[other] then targets[#targets + 1] = r end
+  end
+  return targets
+end
+
 return layout

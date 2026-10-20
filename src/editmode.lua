@@ -1,6 +1,6 @@
 -- Edit mode: an outline over each HUD element's shown bounds that drags it with everything anchored to it,
--- an Anchor button on each outline that picks a target and a side from a diagram menu, and a toolbar with
--- Reset positions and Done.
+-- an Anchor button on each outline that picks a target and a side from a diagram menu, snapping with guides
+-- over a grid, and a toolbar with a snap toggle, Reset positions and Done.
 local draw = require("src/draw")
 local layout = require("src/layout")
 
@@ -48,6 +48,12 @@ for _, side in ipairs({ "left", "right", "top", "bottom" }) do
 end
 
 local WHITE = draw.opaque(COLOURS.highlight)
+-- Pixels within which a drag snaps, and the grid it falls back to, drawn with brighter lines every 64 px and a
+-- teal line up the window's center. Canvas colours are 0xRRGGBBAA.
+local SNAP_RANGE = 6
+local GRID, GRID_MAJOR = 16, 64
+local GRID_RGBA, GRID_MAJOR_RGBA = 0xFFFFFF12, 0xFFFFFF24
+local GRID_CENTER_RGBA = (COLOURS.accent << 8) | 0x73
 
 -- The text on an anchored element's button, such as "Rotation, right, bottom".
 local function anchorText(anchor)
@@ -64,6 +70,31 @@ function editmode.create(root, deps)
   -- move: the element being dragged; pick: { name, hover, target } while choosing what name anchors to.
   local move, pick = nil, nil
   local refreshOverlays, pressOverlay, releaseOverlay, pressButton, hoverOverlay
+  -- The window's size in UI units, read on entering edit mode.
+  local screenW, screenH = 0, 0
+
+  -- The grid, drawn on entering edit mode with snapping on, and redrawn only when the window size changed.
+  local grid = ui.Canvas.new(root)
+  set(grid, "hidden", true)
+  local gridW, gridH = nil, nil
+
+  local function drawGrid()
+    if gridW == screenW and gridH == screenH then return end
+    gridW, gridH = screenW, screenH
+    grid:SetPos(0, 0)
+    grid:SetSize(screenW, screenH)
+    grid:Clear()
+    local cx = screenW // 2
+    for dx = GRID, cx, GRID do
+      local rgba = dx % GRID_MAJOR == 0 and GRID_MAJOR_RGBA or GRID_RGBA
+      grid:AddRectangle(cx - dx, 0, 1, screenH, rgba)
+      grid:AddRectangle(cx + dx, 0, 1, screenH, rgba)
+    end
+    for dy = GRID, screenH, GRID do
+      grid:AddRectangle(0, screenH - dy, screenW, 1, dy % GRID_MAJOR == 0 and GRID_MAJOR_RGBA or GRID_RGBA)
+    end
+    grid:AddRectangle(cx, 0, 1, screenH, GRID_CENTER_RGBA)
+  end
 
   -- Dims the HUD under the overlays while picking.
   local dim = hitArea(rect(root, COLOURS.border, 0, 0, 0, 0))
@@ -97,10 +128,27 @@ function editmode.create(root, deps)
     if element ~= nil then overlays[entry.name] = overlay(entry, element) end
   end
 
-  -- Dashed outlines over the picking element and where the chosen spot would put it.
+  -- Dashed outlines over the picking element and where the chosen spot would put it, and a guide line across
+  -- the window on each axis a drag snapped.
   local pickOutline = ui.Canvas.new(root)
   local landing = ui.Canvas.new(root)
-  hideAll({ pickOutline, landing }, true)
+  local guideX = rect(root, COLOURS.accent, 0, 0, 1, 0)
+  local guideY = rect(root, COLOURS.accent, 0, 0, 0, 1)
+  hideAll({ pickOutline, landing, guideX, guideY }, true)
+
+  -- Shows the guides at x and y from the window's bottom center, hiding each that is nil.
+  local function showGuides(x, y)
+    set(guideX, "hidden", x == nil)
+    set(guideY, "hidden", y == nil)
+    if x ~= nil then
+      draw.place(guideX, x, -screenH, 0.5, 1)
+      draw.size(guideX, 1, screenH)
+    end
+    if y ~= nil then
+      draw.place(guideY, -screenW // 2, y, 0.5, 1)
+      draw.size(guideY, screenW, 1)
+    end
+  end
 
   -- Places o over its element at pos, sized to the element's shown bounds.
   local function placeOverlay(o, pos)
@@ -150,8 +198,13 @@ function editmode.create(root, deps)
   toolbar:SetPos(-TOOLBAR_W // 2, 14, 0.5, 0)
   rect(toolbar, COLOURS.border, 0, 0, TOOLBAR_W, TOOLBAR_H)
   hitArea(rect(toolbar, COLOURS.panel, 1, 1, TOOLBAR_W - 2, TOOLBAR_H - 2))
-  local title = text(toolbar, FONTS.body, ui.AlignMode.TOPLEFT, 14, 1, 120, TOOLBAR_H - 2)
+  local title = text(toolbar, FONTS.body, ui.AlignMode.TOPLEFT, 14, 1, 80, TOOLBAR_H - 2)
   set(title, "content", "Edit mode")
+  local snapToggle = hitArea(rect(toolbar, COLOURS.button, 98, 7, 86, 30))
+  local snapLabel = text(toolbar, FONTS.body, ui.AlignMode.CENTRE, 98, 7, 86, 30)
+  local shiftHint = text(toolbar, FONTS.small, ui.AlignMode.TOPLEFT, 196, 1, 190, TOOLBAR_H - 2)
+  set(shiftHint, "content", "Hold Shift to move freely")
+  set(shiftHint, "rgb", COLOURS.dimText)
   local prompt = text(toolbar, FONTS.body, ui.AlignMode.TOPLEFT, 14, 1, 380, TOOLBAR_H - 2)
   local escHint = text(toolbar, FONTS.small, ui.AlignMode.TOPLEFT, 400, 1, 100, TOOLBAR_H - 2)
   set(escHint, "content", "Esc cancels")
@@ -169,9 +222,26 @@ function editmode.create(root, deps)
 
   local function showToolbar()
     local picking = pick ~= nil
-    hideAll({ title, reset.bg, reset.label, done.bg, done.label }, picking)
+    hideAll({ title, snapToggle, snapLabel, shiftHint, reset.bg, reset.label, done.bg, done.label }, picking)
     hideAll({ prompt, escHint, cancel.bg, cancel.label }, not picking)
   end
+
+  -- The snap toggle reads Snap on in light chip colours or Snap off as a plain button, and the grid shows only
+  -- while snapping is on.
+  local function showSnap()
+    local snap = saved.snap()
+    set(snapToggle, "rgb", snap and COLOURS.chip or COLOURS.button)
+    set(snapLabel, "content", snap and "Snap on" or "Snap off")
+    set(snapLabel, "rgb", snap and COLOURS.accentText or COLOURS.text)
+    set(snapLabel, "isShadowed", not snap)
+    if snap and editing then drawGrid() end
+    set(grid, "hidden", not (snap and editing))
+  end
+
+  on(snapToggle, "ONCLICK", function()
+    saved.setSnap(not saved.snap())
+    showSnap()
+  end)
 
   -- Anchor menu: a sketch of the target with a spot for each side and alignment, opened at the cursor.
   local menu = ui.Layer.new(root)
@@ -335,15 +405,20 @@ function editmode.create(root, deps)
     for name, anchor in pairs(saved.anchors()) do
       if name ~= o.name then free[name] = anchor end
     end
-    for name, element in pairs(elements) do bounds[name] = element.bounds end
+    local rects = {}
+    for name, element in pairs(elements) do
+      bounds[name] = element.bounds
+      rects[name] = rectOf(name)
+    end
     move = { name = o.name, startX = mx, startY = my, from = resolved[o.name], positions = positions, free = free,
-      bounds = bounds }
+      bounds = bounds, targets = layout.snapTargets(rects, saved.anchors(), o.name) }
   end
 
   -- Ends a move without saving, putting everything back where it was.
   local function cancelMove()
     if move == nil then return end
     move = nil
+    showGuides(nil, nil)
     mode.placeAll()
   end
 
@@ -352,6 +427,7 @@ function editmode.create(root, deps)
     if move == nil or move.name ~= o.name then return end
     local to, anchor = move.to, saved.anchors()[o.name]
     move = nil
+    showGuides(nil, nil)
     if to == nil then return end
     if anchor ~= nil then
       local captured = layout.capture(layout.rect(to, o.element.bounds), rectOf(anchor.target), anchor.side,
@@ -373,9 +449,11 @@ function editmode.create(root, deps)
     for _, o in pairs(overlays) do set(o.layer, "hidden", not enabled) end
     set(toolbar, "hidden", not enabled)
     if enabled then
+      screenW, screenH = tonumber(root.width) or 0, tonumber(root.height) or 0
       showToolbar()
       refreshOverlays()
     end
+    showSnap()
   end
 
   function mode.open() setEditing(true) end
@@ -387,9 +465,10 @@ function editmode.create(root, deps)
     if pick ~= nil then cancelPick() else setEditing(false) end
   end
 
-  -- Moves the dragged element and its chain with the cursor. It runs every frame through Event.Draw so a move
-  -- keeps up with the mouse, and on Event.Logic as well in case Draw does not fire. It returns before reading
-  -- the mouse unless a move is under way, and before drawing unless the cursor moved.
+  -- Moves the dragged element and its chain with the cursor, snapping unless snapping is off or Shift is held.
+  -- It runs every frame through Event.Draw so a move keeps up with the mouse, and on Event.Logic as well in
+  -- case Draw does not fire. It returns before reading the mouse unless a move is under way, and before
+  -- drawing unless the cursor moved.
   local lastX, lastY = nil, nil
   local function followCursor()
     if move == nil then return end
@@ -397,8 +476,15 @@ function editmode.create(root, deps)
     if mx == nil or (mx == lastX and my == lastY) then return end
     lastX, lastY = mx, my
     local from = move.from
-    move.to = { x = from.x + mx - move.startX, y = from.y + my - move.startY,
-      anchorX = from.anchorX, anchorY = from.anchorY }
+    local x, y = from.x + mx - move.startX, from.y + my - move.startY
+    local lineX, lineY = nil, nil
+    if saved.snap() and not Keyboard.IsShiftDown() then
+      local b = move.bounds[move.name]
+      local snapped = layout.snap({ x = x + b.x, y = y + b.y, w = b.w, h = b.h }, move.targets, SNAP_RANGE, GRID)
+      x, y, lineX, lineY = snapped.x - b.x, snapped.y - b.y, snapped.guideX, snapped.guideY
+    end
+    showGuides(lineX, lineY)
+    move.to = { x = x, y = y, anchorX = from.anchorX, anchorY = from.anchorY }
     move.positions[move.name] = move.to
     placeAt(layout.resolve(move.positions, move.free, move.bounds))
   end
@@ -410,6 +496,9 @@ function editmode.create(root, deps)
     menu:Destroy()
     dim:Destroy()
     pickOutline:Destroy()
+    grid:Destroy()
+    guideX:Destroy()
+    guideY:Destroy()
     landing:Destroy()
     for _, o in pairs(overlays) do o.layer:Destroy() end
   end
