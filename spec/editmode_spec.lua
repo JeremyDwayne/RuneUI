@@ -13,6 +13,7 @@ end
 -- elements by name, the settings and the options window.
 local function enterEditMode()
   local root = fake.component()
+  root:SetSize(1710, 1041)
   local tooltip = view.tooltip(root)
   local elements = {
     player = view.playerFrame(root),
@@ -203,11 +204,11 @@ describe("edit mode", function()
     fake.mouse.x, fake.mouse.y = 280, 310
     logicTick()
     fake.hook(tint, "ONRELEASE")
-    assert.are.same({ target = "rotation", side = "left", align = "bottom", gap = 28, offset = 5 },
+    assert.are.same({ target = "rotation", side = "left", align = "bottom", gap = 20, offset = 10 },
       saved.anchors().player)
   end)
 
-  it("snaps a drop 4 px from the target frame's bottom flush with it, unless Shift is held", function()
+  it("snaps a drop 4 px from the frames' shared bottom edge flush with it, unless Shift is held", function()
     for _, held in ipairs({ false, true }) do
       fake.reset()
       local elements, saved = enterEditMode()
@@ -218,7 +219,7 @@ describe("edit mode", function()
       logicTick()
       fake.hook(tint, "ONRELEASE")
       local bottom = saved.positions().player.y + elements.player.height
-      assert.are.equal(held and -358 or -354, bottom)
+      assert.are.equal(held and -353 or -349, bottom)
     end
   end)
 
@@ -245,5 +246,15 @@ describe("edit mode", function()
     logicTick()
     fake.hook(tint, "ONRELEASE")
     assert.are.equal("integer", math.type(saved.positions().player.x))
+  end)
+
+  it("snaps a dragged group's center onto the window's center line before a nearer grid line", function()
+    local elements = enterEditMode()
+    local tint = overlayOf(elements.rotation)
+    fake.mouse.x, fake.mouse.y = 300, 300
+    fake.hook(tint, "ONCLICK")
+    fake.mouse.x = 303
+    logicTick()
+    assert.are.equal(-219, elements.rotation.layer.x)
   end)
 end)

@@ -9,12 +9,11 @@ local options = require("src/options")
 local settings = require("src/settings")
 local view = require("src/view")
 
-local saved = settings.load(adapter.store())
-
 -- Game interfaces such as the bank draw over the game area, so the HUD sits under them. The options window
 -- goes on the plugin layer above them. Both span the whole window.
 local hud = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
 local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
+local saved = settings.load(adapter.store(), tonumber(hud.height))
 local debuffNames = icons.index(saved.debuffs())
 local tooltip = view.tooltip(hud)
 local elements = {

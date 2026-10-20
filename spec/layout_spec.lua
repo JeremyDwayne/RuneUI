@@ -22,13 +22,13 @@ describe("layout", function()
     assert.are.same(settings.DEFAULT_POSITIONS, positions)
   end)
 
-  it("moves the frames in to keep their gaps from 7 shown rotation tiles", function()
+  it("moves the frames in to stay flush with 7 shown rotation tiles", function()
     local bounds = fullBounds()
     bounds.rotation = { x = 66, y = 0, w = 306, h = 47 }
     local positions = layout.resolve(settings.DEFAULT_POSITIONS, settings.DEFAULT_ANCHORS, bounds)
-    assert.are.equal(-219 + 66 - 8 - 250, positions.player.x)
-    assert.are.equal(-219 + 66 + 306 + 8, positions.target.x)
-    assert.are.equal(-409, positions.player.y)
+    assert.are.equal(-219 + 66 - 250, positions.player.x)
+    assert.are.equal(-219 + 66 + 306, positions.target.x)
+    assert.are.equal(-404, positions.player.y)
   end)
 
   it("places a child flush on each side and alignment of its target", function()

@@ -411,8 +411,11 @@ function editmode.create(root, deps)
       bounds[name] = element.bounds
       rects[name] = rectOf(name)
     end
+    -- The window snaps like an element, so its edges and center lines win over the grid.
+    local targets = layout.snapTargets(rects, saved.anchors(), o.name)
+    targets[#targets + 1] = { x = -screenW // 2, y = -screenH, w = screenW, h = screenH }
     move = { name = o.name, startX = mx, startY = my, from = resolved[o.name], positions = positions, free = free,
-      bounds = bounds, targets = layout.snapTargets(rects, saved.anchors(), o.name) }
+      bounds = bounds, targets = targets }
   end
 
   -- Ends a move without saving, putting everything back where it was.

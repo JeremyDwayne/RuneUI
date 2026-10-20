@@ -6,23 +6,26 @@ local layout = require("src/layout")
 
 local settings = {}
 
--- Offsets from the bottom centre of the game window, clear of the native bottom panel. The frames sit
--- either side of the rotation row with their bottoms level, and the bars stack centred above it.
+-- Offsets from the bottom center of the game window with a full rotation row. The frames sit flush either
+-- side of the rotation row with their bottoms level, and the bars stack flush and centered above it.
 settings.DEFAULT_POSITIONS = {
-  player = { x = -477, y = -409, anchorX = 0.5, anchorY = 1 },
-  target = { x = 227, y = -432, anchorX = 0.5, anchorY = 1 },
-  resource = { x = -139, y = -496, anchorX = 0.5, anchorY = 1 },
+  player = { x = -469, y = -404, anchorX = 0.5, anchorY = 1 },
+  target = { x = 219, y = -427, anchorX = 0.5, anchorY = 1 },
+  resource = { x = -139, y = -443, anchorX = 0.5, anchorY = 1 },
   rotation = { x = -219, y = -396, anchorX = 0.5, anchorY = 1 },
-  cooldowns = { x = -189, y = -539, anchorX = 0.5, anchorY = 1 },
+  cooldowns = { x = -189, y = -484, anchorX = 0.5, anchorY = 1 },
 }
 -- src/layout anchors that keep the frames beside the rotation row and the bars stacked above it, matching
 -- DEFAULT_POSITIONS with a full row. Dragging the rotation row moves them all.
 settings.DEFAULT_ANCHORS = {
-  player = { target = "rotation", side = "left", align = "bottom", gap = 8, offset = -5 },
-  target = { target = "rotation", side = "right", align = "bottom", gap = 8, offset = -5 },
-  resource = { target = "rotation", side = "top", align = "center", gap = 53, offset = 0 },
-  cooldowns = { target = "resource", side = "top", align = "center", gap = 2, offset = 0 },
+  player = { target = "rotation", side = "left", align = "bottom", gap = 0, offset = 0 },
+  target = { target = "rotation", side = "right", align = "bottom", gap = 0, offset = 0 },
+  resource = { target = "rotation", side = "top", align = "center", gap = 0, offset = 0 },
+  cooldowns = { target = "resource", side = "top", align = "center", gap = 0, offset = 0 },
 }
+-- The default rotation row's top sits this fraction of the window height above its bottom, below the
+-- player's character, which the camera keeps near the middle of the window at any size.
+local ROTATION_HEIGHT = 0.315
 local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 -- Bar fills: one flat colour, or a gradient from top to bottom or across the bar.
 settings.TEXTURES = { "flat", "vertical", "horizontal" }
@@ -158,8 +161,22 @@ local function find(groups, key)
   end
 end
 
--- Loads saved settings from store, dropping unknown keys and malformed values.
-function settings.load(store)
+-- DEFAULT_POSITIONS raised or lowered together so the rotation row sits ROTATION_HEIGHT of windowHeight
+-- above the bottom. With no windowHeight they are DEFAULT_POSITIONS as written.
+local function defaultPositions(windowHeight)
+  if windowHeight == nil then return settings.DEFAULT_POSITIONS end
+  local shift = -math.floor(windowHeight * ROTATION_HEIGHT + 0.5) - settings.DEFAULT_POSITIONS.rotation.y
+  local out = {}
+  for name, pos in pairs(settings.DEFAULT_POSITIONS) do
+    out[name] = { x = pos.x, y = pos.y + shift, anchorX = pos.anchorX, anchorY = pos.anchorY }
+  end
+  return out
+end
+
+-- Loads saved settings from store, dropping unknown keys and malformed values. windowHeight, the game
+-- window's height in UI units, places the default HUD; specs leave it out.
+function settings.load(store, windowHeight)
+  local defaults = defaultPositions(windowHeight)
   local positions = readLayout(store.get("layout"))
   local anchors = readAnchors(store.get("anchors"))
   local savedEditMode = store.get("editMode")
@@ -177,7 +194,7 @@ function settings.load(store)
   -- Every element's position, saved or default.
   function s.positions()
     local out = {}
-    for name, default in pairs(settings.DEFAULT_POSITIONS) do out[name] = positions[name] or default end
+    for name, default in pairs(defaults) do out[name] = positions[name] or default end
     return out
   end
 

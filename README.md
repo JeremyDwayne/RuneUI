@@ -2,7 +2,7 @@
 
 # RuneUI
 
-A clean combat HUD for RuneScape 3. RuneUI draws compact unit frames, a resource bar and two rows of ability cooldowns above the bottom centre of the screen, so the numbers you check mid-fight sit close together. Game windows such as the bank draw over it.
+A clean combat HUD for RuneScape 3. RuneUI draws compact unit frames, a resource bar and two rows of ability cooldowns in one block below your character, so the numbers you check mid-fight sit close together. Game windows such as the bank draw over it.
 
 ## What it shows
 
@@ -30,7 +30,7 @@ Open the plugin ribbon and press **Open RuneUI options**. Press Esc or **Done** 
 - The Appearance page picks a flat bar fill or a vertical or horizontal gradient. It can also hide the game's own target panel, since RuneUI's target frame replaces it.
 - Edit mode, turned on from the window's footer, lets you drag any HUD element to move it. Everything anchored to that element moves with it. Press Esc to finish, or **Done** to return to the window.
 - To anchor an element, press its **Anchor** button in edit mode, click another element, then choose a side and alignment from the menu. The element sits flush against that side and keeps its gap when the other element grows or shrinks, such as when an ability row gains a tile. Its button then names the anchor, such as "Rotation, left, bottom", and pressing it removes the anchor. The frames and bars start anchored to the rotation row, so dragging the row moves the whole HUD.
-- While you drag, an element snaps to the edges and centers of other elements, or to a 16 px grid, and a line marks each snap. Hold Shift to move freely. **Snap on** in the toolbar turns snapping and the grid off. **Reset positions** asks first, then puts every element and anchor back.
+- While you drag, an element snaps to the edges and centers of other elements and of the game window, or to a 16 px grid, and a line marks each snap. Hold Shift to move freely. **Snap on** in the toolbar turns snapping and the grid off. **Reset positions** asks first, then puts every element and anchor back.
 
 RuneUI saves your layout, rows, markers and appearance and keeps them between sessions.
 

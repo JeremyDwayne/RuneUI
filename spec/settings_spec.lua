@@ -83,15 +83,25 @@ describe("settings", function()
   it("resets anchors to the defaults along with positions", function()
     local s = settings.load(fakeStore())
     assert.are.same({
-      player = { target = "rotation", side = "left", align = "bottom", gap = 8, offset = -5 },
-      target = { target = "rotation", side = "right", align = "bottom", gap = 8, offset = -5 },
-      resource = { target = "rotation", side = "top", align = "center", gap = 53, offset = 0 },
-      cooldowns = { target = "resource", side = "top", align = "center", gap = 2, offset = 0 },
+      player = { target = "rotation", side = "left", align = "bottom", gap = 0, offset = 0 },
+      target = { target = "rotation", side = "right", align = "bottom", gap = 0, offset = 0 },
+      resource = { target = "rotation", side = "top", align = "center", gap = 0, offset = 0 },
+      cooldowns = { target = "resource", side = "top", align = "center", gap = 0, offset = 0 },
     }, s.anchors())
     s.removeAnchor("player")
     s.setAnchor("target", { target = "player", side = "left", align = "top", gap = 0, offset = 0 })
     s.resetPositions()
     assert.are.same(settings.DEFAULT_ANCHORS, s.anchors())
+  end)
+
+  it("raises the default HUD to keep the rotation row 31.5% of the window height above its bottom", function()
+    for height, rotationY in pairs({ [1041] = -328, [1440] = -454 }) do
+      local positions = settings.load(fakeStore(), height).positions()
+      local shift = rotationY - settings.DEFAULT_POSITIONS.rotation.y
+      assert.are.equal(rotationY, positions.rotation.y)
+      assert.are.equal(settings.DEFAULT_POSITIONS.player.y + shift, positions.player.y)
+      assert.are.equal(settings.DEFAULT_POSITIONS.rotation.x, positions.rotation.x)
+    end
   end)
 
   it("snaps by default and saves turning it off", function()
