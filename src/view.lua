@@ -481,8 +481,10 @@ local function showAura(parts, model, x, y, size, bars)
   set(parts.icon, "sprite", model.sprite)
   set(parts.swipe, "hidden", not timed)
   if timed and (parts.sprite ~= model.sprite or parts.started ~= model.started) then
+    -- Start runs a full swipe from its initial value, so one seen partway starts at 0 and moves curValue on.
     local flags = ui.RadialProgressOverlayFlag
-    parts.swipe:Start(model.full - model.left, model.full, flags.AUTOMATIC + flags.REVERSE)
+    parts.swipe:Start(0, model.full, flags.AUTOMATIC + flags.REVERSE)
+    if model.left < model.full then parts.swipe.curValue = model.full - model.left end
   end
   parts.sprite, parts.started = model.sprite, model.started
   set(parts.plate, "hidden", not ring)
