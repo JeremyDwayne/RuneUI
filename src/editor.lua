@@ -1,4 +1,6 @@
 -- Pure rules for the options window's cooldown editor: where a dragged tile lands and what the picker lists.
+local cooldowns = require("src/cooldowns")
+
 local editor = {}
 
 -- Dropping within this fraction of a tile's width either side of its centre swaps instead of inserting.
@@ -42,15 +44,19 @@ function editor.dropAction(groups, key, groupName, target)
 end
 
 -- Picker sections for groupName's "+" tile: abilities in neither group, then those in the other group,
--- which adding moves across. keys is every known ability in display order.
-function editor.pickerSections(groupName, groups, keys)
+-- which adding moves across. keys is every known ability in display order. A style, such as "magic",
+-- keeps that style's abilities and the style-free ones.
+function editor.pickerSections(groupName, groups, keys, style)
   local other = OTHER_GROUP[groupName]
   local notShown, inOther = {}, {}
   for _, key in ipairs(keys) do
-    if indexOf(groups[other], key) ~= nil then
-      inOther[#inOther + 1] = key
-    elseif indexOf(groups[groupName], key) == nil then
-      notShown[#notShown + 1] = key
+    local keyStyle = style and cooldowns.styleOf(key)
+    if keyStyle == nil or keyStyle == style then
+      if indexOf(groups[other], key) ~= nil then
+        inOther[#inOther + 1] = key
+      elseif indexOf(groups[groupName], key) == nil then
+        notShown[#notShown + 1] = key
+      end
     end
   end
   return {

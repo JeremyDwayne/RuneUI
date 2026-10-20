@@ -103,7 +103,8 @@ end
 
 local alignWarned = false
 
--- The two-axis AlignTo raised a newindex error in the client; fall back to the one-axis form.
+-- The two-argument AlignTo raised a newindex error in the client; fall back to the one-argument form,
+-- which applies the alignment to both axes.
 local function align(t, horizontal)
   local ok, err = pcall(function() t:AlignTo(horizontal, ui.AlignMode.CENTRE) end)
   if ok then return end

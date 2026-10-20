@@ -32,7 +32,7 @@ Run all three from the repo root before opening a pull request. CI runs the same
 ```sh
 busted
 luacheck .
-for f in main.lua src/*.lua spec/*.lua; do luac5.4 -p "$f"; done
+for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; done
 ```
 
 A bug fix starts with a spec that fails without the fix.

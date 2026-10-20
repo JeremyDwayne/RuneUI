@@ -1,57 +1,63 @@
-_G.log = function() end
-_G.id = { Font = {} }
-
--- Client components as stand-ins that count property writes and Set, Add, Clear and MoveToFront calls.
-local writes = 0
-local function component()
-  local data = {}
-  local function call(method)
-    return function(_, x, y)
-      if method:match("^Set") or method:match("^Add") or method == "Clear" or method == "MoveToFront" then
-        writes = writes + 1
-      end
-      if method == "SetPos" then data.x, data.y = x, y end
-    end
-  end
-  return setmetatable({}, {
-    __index = function(_, key)
-      if data[key] ~= nil then return data[key] end
-      return call(key)
-    end,
-    __newindex = function(_, key, value)
-      writes = writes + 1
-      data[key] = value
-    end,
-  })
-end
-local constructor = { new = component }
-_G.ui = {
-  Layer = constructor, Rectangle = constructor, Text = constructor, Sprite = constructor, Canvas = constructor,
-  Hook = setmetatable({}, { __index = function(_, name) return name end }),
-  AlignMode = { TOPLEFT = 0, CENTRE = 1, BOTTOMRIGHT = 2 },
-}
-
+local fake = require("spec/support/fake_ui")
 local view = require("src/view")
 
 describe("view", function()
+  before_each(fake.reset)
+
   it("makes no client writes when a cooldown group redraws unchanged tiles", function()
-    local group = view.cooldownGroup(component(), view.TILE_STYLES.rotation, view.tooltip(component()))
+    local group = view.cooldownGroup(fake.component(), view.TILE_STYLES.rotation, view.tooltip(fake.component()))
     local tiles = {
       { key = "MAGIC_SUNSHINE", name = "Sunshine", initials = "SUN", ready = true },
       { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, keybind = "Q", seconds = 4 },
     }
     group.update(tiles, 0x2f7fd6)
-    writes = 0
+    fake.writes = 0
     group.update(tiles, 0x2f7fd6)
-    assert.are.equal(0, writes)
+    assert.are.equal(0, fake.writes)
   end)
 
   it("makes no client writes when the tooltip is shown again at the same icon", function()
-    local tooltip = view.tooltip(component())
+    local tooltip = view.tooltip(fake.component())
     local content = { title = "Sunshine", left = "Cooldown 60s", line = "Ready" }
     tooltip.show(content, 100, 300, 42)
-    writes = 0
+    fake.writes = 0
     tooltip.show(content, 100, 300, 42)
-    assert.are.equal(0, writes)
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("hides a debuff's tooltip when the target frame hides under it", function()
+    local tooltip = view.tooltip(fake.component())
+    local looked = {}
+    local frame = view.targetFrame(fake.component(), tooltip, function(sprite)
+      looked[#looked + 1] = sprite
+      return { name = "Bloated" }
+    end)
+    frame.update({ hidden = false, name = "Aviansie", valueText = "", fill = 1, debuffs = { 30098 } })
+    fake.hook(fake.find(function(c) return fake.hasHook(c, "ONMOUSEOVER") end), "ONMOUSEOVER")
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "Bloated" end))
+
+    frame.update({ hidden = true })
+    assert.is_nil(fake.find(function(_, d) return d.content == "Bloated" or d.content == "Unknown debuff" end))
+    assert.are.same({ 30098 }, looked)
+  end)
+
+  it("moves the tooltip to the front once shown, never while hidden", function()
+    local tooltip = view.tooltip(fake.component())
+    tooltip.show({ title = "Sunshine" }, 100, 300, 42)
+    assert.is_nil(fake.find(function(_, d) return d.undrawn end))
+    assert.is_not_nil(fake.find(function(_, d) return d.fronted and d.width == 200 end))
+  end)
+
+  it("keeps the tooltip inside the screen's side edges", function()
+    local root = fake.component()
+    root:SetSize(1000, 800)
+    local tooltip = view.tooltip(root)
+    local function layerX()
+      return fake.find(function(_, d) return d.parent == root and d.width == 200 end).x
+    end
+    tooltip.show({ title = "Sunshine" }, 950, 300, 42)
+    assert.are.equal(800, layerX())
+    tooltip.show({ title = "Sunshine" }, -20, 300, 42)
+    assert.are.equal(0, layerX())
   end)
 end)

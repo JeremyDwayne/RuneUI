@@ -19,10 +19,20 @@ local PAGE_W = WIDTH - PAGE_X - 1
 local DRAG_START = 3
 local MAX_TILES = 10
 local GAP = 2
-local PICKER_WIDTH, PICKER_ROW = 230, 26
+local PICKER_WIDTH, PICKER_ROW, PICKER_SEARCH, PICKER_TABS = 340, 26, 36, 34
+local PICKER_HEAD = PICKER_SEARCH + PICKER_TABS
+-- Picker tabs left to right; style nil lists every style.
+local PICKER_TAB_LIST = {
+  { label = "All", width = 34 }, { label = "Necromancy", style = "necromancy", width = 100 },
+  { label = "Magic", style = "magic", width = 58 }, { label = "Ranged", style = "ranged", width = 66 },
+  { label = "Melee", style = "melee", width = 58 },
+}
 local MARKER_STEP = 5
-local ELEMENT_LABELS = {
-  player = "Player", target = "Target", resource = "Resource bar", rotation = "Rotation", cooldowns = "Cooldowns",
+-- HUD elements in edit mode stacking order, later ones on top.
+local ELEMENTS = {
+  { name = "player", label = "Player" }, { name = "target", label = "Target" },
+  { name = "resource", label = "Resource bar" }, { name = "rotation", label = "Rotation" },
+  { name = "cooldowns", label = "Cooldowns" },
 }
 
 -- Makes c take clicks and stop them, like a button: plain components start enabled = false and
@@ -38,14 +48,36 @@ local function on(c, hook, fn)
   c:Subscribe(ui.Hook[hook], fn)
 end
 
--- A flat button with a centred label that lightens on hover. accent uses the accent fill and dark text.
-local function button(parent, label, x, y, w, h, accent, onClick)
-  local normal = accent and COLOURS.accent or COLOURS.button
-  local hover = accent and COLOURS.accentHover or COLOURS.buttonHover
+-- Mouse reports physical pixels, a multiple of UI units on a high-DPI display. pressAt sets the multiple
+-- from a press at local x on c, and cursor returns the mouse in UI units, or nil when there is none.
+local scale = 1
+
+local function pressAt(c, x)
+  local g, mx = c.xyGlobal, Mouse.GetX()
+  if g ~= nil and mx ~= nil and g.x + x > 0 then scale = mx / (g.x + x) end
+end
+
+local function cursor()
+  local mx, my = Mouse.GetX(), Mouse.GetY()
+  if mx == nil or my == nil then return nil end
+  return mx / scale, my / scale
+end
+
+-- Button fills: normal and hover colours, and dark text for the bright ones.
+local FILLS = {
+  plain = { COLOURS.button, COLOURS.buttonHover },
+  accent = { COLOURS.accent, COLOURS.accentHover, dark = true },
+  light = { COLOURS.highlight, COLOURS.dimText, dark = true },
+}
+
+-- A flat button with a centred label that lightens on hover. fill names a FILLS entry, plain when nil.
+local function button(parent, label, x, y, w, h, fill, onClick)
+  local colours = FILLS[fill or "plain"]
+  local normal, hover = colours[1], colours[2]
   local bg = hitArea(rect(parent, normal, x, y, w, h))
   local t = text(parent, FONTS.body, ui.AlignMode.CENTRE, x, y, w, h)
   set(t, "content", label)
-  if accent then
+  if colours.dark then
     set(t, "rgb", COLOURS.accentText)
     set(t, "isShadowed", false)
   end
@@ -171,9 +203,12 @@ function options.create(root, deps)
     on(t.edge, "ONCLICK", function(_, x, py)
       if t.key == nil then return end
       closePopups()
-      origin.x = Mouse.GetX() - (PAGE_X + group.x + x)
-      origin.y = Mouse.GetY() - (PAGE_Y + group.y + py)
-      drag = { tile = t, startX = Mouse.GetX(), startY = Mouse.GetY(), moved = false }
+      pressAt(t.edge, x)
+      local mx, my = cursor()
+      if mx == nil then return end
+      origin.x = mx - (PAGE_X + group.x + x)
+      origin.y = my - (PAGE_Y + group.y + py)
+      drag = { tile = t, startX = mx, startY = my, pressX = x, pressY = py, moved = false }
     end)
     on(t.edge, "ONRELEASE", function() if drag ~= nil and drag.tile == t then drop() end end)
     return t
@@ -251,21 +286,19 @@ function options.create(root, deps)
 
   local function showDragFeedback(t, wx, wy)
     local half = math.floor(t.row.size / 2)
-    ghost:SetSize(half, half)
-    ghost:SetPos(wx - PAGE_X + 8, wy - PAGE_Y + 8)
-    ghostInitials:SetPos(wx - PAGE_X + 8, wy - PAGE_Y + 8)
-    hideAll(swapBox, true)
-    set(insertLine, "hidden", true)
+    draw.size(ghost, half, half)
+    draw.pos(ghost, wx - PAGE_X + 8, wy - PAGE_Y + 8)
+    draw.pos(ghostInitials, wx - PAGE_X + 8, wy - PAGE_Y + 8)
     local row, target = targetAt(wx, wy)
     drag.row, drag.target = row, target
-    if target == nil then return end
-    if target.kind == "swap" then
+    local swap = target ~= nil and target.kind == "swap"
+    hideAll(swapBox, not swap)
+    set(insertLine, "hidden", target == nil or swap)
+    if swap then
       placeOutline(swapBox, row.x + (target.index - 1) * (row.size + GAP), row.y, row.size, row.size)
-      hideAll(swapBox, false)
-    else
-      insertLine:SetPos(row.x + (target.index - 1) * (row.size + GAP) - GAP, row.y - 4)
-      insertLine:SetSize(2, row.size + 8)
-      set(insertLine, "hidden", false)
+    elseif target ~= nil then
+      draw.pos(insertLine, row.x + (target.index - 1) * (row.size + GAP) - GAP, row.y - 4)
+      draw.size(insertLine, 2, row.size + 8)
     end
   end
 
@@ -295,11 +328,19 @@ function options.create(root, deps)
     set(menu, "hidden", false)
   end
 
-  function drop()
-    local d = drag
+  -- Ends a drag without dropping: the feedback hides and the source tile returns to its slot at full alpha.
+  local function cancelDrag()
+    if drag == nil then return end
+    local group = drag.tile.group
+    group.set("alpha", 1)
+    group.place(group.x, group.y)
     drag = nil
     hideDragFeedback()
-    d.tile.group.set("alpha", 1)
+  end
+
+  function drop()
+    local d = drag
+    cancelDrag()
     if not d.moved then
       openMenu(d.tile)
       return
@@ -316,16 +357,47 @@ function options.create(root, deps)
     changed()
   end
 
-  -- Picker: known abilities under a row's "+" tile, in sections. It stays open for several adds.
+  -- Picker: known abilities under a row's "+" tile, in sections, one combat style tab at a time, narrowed by
+  -- a search box. It opens on the current style and stays open for several adds. A search covers every style.
   local picker = ui.Layer.new(page)
-  local pickerRows = {}
-  local pickerFor = nil
-  local MAX_PICKER_ROWS = 16
-  picker:SetSize(PICKER_WIDTH, MAX_PICKER_ROWS * PICKER_ROW + 2)
+  local pickerRows, pickerTabs = {}, {}
+  local pickerFor, pickerStyle, query = nil, nil, ""
+  local MAX_PICKER_ROWS = 14
+  picker:SetSize(PICKER_WIDTH, PICKER_HEAD + MAX_PICKER_ROWS * PICKER_ROW + 2)
   local pickerEdge = hitArea(rect(picker, COLOURS.border, 0, 0, PICKER_WIDTH, 0))
   local pickerBg = rect(picker, COLOURS.popup, 1, 1, PICKER_WIDTH - 2, 0)
+  rect(picker, COLOURS.line, 1, PICKER_HEAD, PICKER_WIDTH - 2, 1)
+  local search = ui.InputField.new(picker)
+  search:SetPos(10, 6)
+  search:SetSize(PICKER_WIDTH - 20, 24)
+  search:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, 30)
+  if id.StyleSheet.INPUT_SEARCHBOX_24PX ~= nil then set(search, "stylesheetID", id.StyleSheet.INPUT_SEARCHBOX_24PX) end
+  set(search, "emptyText", "Find an ability")
+  -- The field also reports its contents on Enter, Esc and focus loss, which can come after the picker closed.
+  on(search, "ONCONTENTCHANGED", function(_, _, contents)
+    query = (contents or ""):lower()
+    if pickerFor == nil then return end
+    if query ~= "" then pickerStyle = nil end
+    fillPicker()
+  end)
+  local tabX = 10
+  for _, tab in ipairs(PICKER_TAB_LIST) do
+    local hit = hitArea(rect(picker, COLOURS.popup, tabX, PICKER_SEARCH, tab.width, PICKER_TABS))
+    local t = {
+      style = tab.style,
+      label = text(picker, FONTS.body, ui.AlignMode.CENTRE, tabX, PICKER_SEARCH, tab.width, PICKER_TABS - 2),
+      underline = rect(picker, COLOURS.accent, tabX, PICKER_HEAD - 2, tab.width, 2),
+    }
+    set(t.label, "content", tab.label)
+    on(hit, "ONCLICK", function()
+      pickerStyle = t.style
+      fillPicker()
+    end)
+    pickerTabs[#pickerTabs + 1] = t
+    tabX = tabX + tab.width
+  end
   for i = 1, MAX_PICKER_ROWS do
-    local ry = 1 + (i - 1) * PICKER_ROW
+    local ry = PICKER_HEAD + 1 + (i - 1) * PICKER_ROW
     local r = {
       bg = hitArea(rect(picker, COLOURS.popup, 1, ry, PICKER_WIDTH - 2, PICKER_ROW)),
       hover = rect(picker, COLOURS.buttonHover, 1, ry, PICKER_WIDTH - 2, PICKER_ROW),
@@ -363,15 +435,29 @@ function options.create(root, deps)
   end
 
   function fillPicker()
+    for _, t in ipairs(pickerTabs) do
+      set(t.label, "rgb", t.style == pickerStyle and COLOURS.text or COLOURS.mutedText)
+      set(t.underline, "hidden", t.style ~= pickerStyle)
+    end
     local keys, models = allKnownKeys()
+    if query ~= "" then
+      local matching = {}
+      for _, key in ipairs(keys) do
+        if models[key].name:lower():find(query, 1, true) then matching[#matching + 1] = key end
+      end
+      keys = matching
+    end
     local entries = {}
-    for _, section in ipairs(editor.pickerSections(pickerFor.name, saved.groups() or tracker.defaultGroups(), keys)) do
+    local groupsNow = saved.groups() or tracker.defaultGroups()
+    for _, section in ipairs(editor.pickerSections(pickerFor.name, groupsNow, keys, pickerStyle)) do
       if #section.keys > 0 then
         entries[#entries + 1] = { title = section.title }
         for _, key in ipairs(section.keys) do entries[#entries + 1] = { key = key, name = models[key].name } end
       end
     end
-    if #entries == 0 then entries[1] = { title = "Use an ability to add it here" } end
+    if #entries == 0 then
+      entries[1] = { title = query ~= "" and "No ability matches" or "Use an ability to add it here" }
+    end
     for i, r in ipairs(pickerRows) do
       local entry = entries[i]
       r.key = entry and entry.key
@@ -386,17 +472,21 @@ function options.create(root, deps)
       end
     end
     local shown = math.min(#entries, MAX_PICKER_ROWS)
-    pickerEdge:SetSize(PICKER_WIDTH, shown * PICKER_ROW + 2)
-    pickerBg:SetSize(PICKER_WIDTH - 2, shown * PICKER_ROW)
+    pickerEdge:SetSize(PICKER_WIDTH, PICKER_HEAD + shown * PICKER_ROW + 2)
+    pickerBg:SetSize(PICKER_WIDTH - 2, PICKER_HEAD + shown * PICKER_ROW)
   end
 
   function openPicker(row, plus)
     local wasOpen = pickerFor == row
     closePopups()
     if wasOpen then return end
-    pickerFor = row
+    pickerFor, pickerStyle = row, tracker.style()
+    if query ~= "" then
+      query = ""
+      search.content = ""
+    end
     fillPicker()
-    picker:SetPos(plus.x, plus.y + row.size + 4)
+    picker:SetPos(math.min(plus.x, PAGE_W - PICKER_WIDTH - 8), plus.y + row.size + 4)
     set(picker, "hidden", false)
   end
 
@@ -484,7 +574,7 @@ function options.create(root, deps)
   local overlays = {}
   local move = nil
 
-  for name, element in pairs(elements) do
+  local function overlay(name, label, element)
     local layer = ui.Layer.new(root)
     layer:SetSize(element.width, element.height)
     local tint = hitArea(rect(layer, COLOURS.accent, 0, 0, element.width, element.height))
@@ -492,11 +582,14 @@ function options.create(root, deps)
     placeOutline(outline(layer, COLOURS.accent, 2), 2, 2, element.width - 4, element.height - 4)
     rect(layer, COLOURS.accent, 2, 2, 96, 16)
     local tagText = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 6, 2, 92, 16)
-    set(tagText, "content", ELEMENT_LABELS[name])
+    set(tagText, "content", label)
     set(tagText, "rgb", COLOURS.accentText)
     set(tagText, "isShadowed", false)
-    on(tint, "ONCLICK", function()
-      move = { name = name, startX = Mouse.GetX(), startY = Mouse.GetY(), from = saved.positions()[name] }
+    on(tint, "ONCLICK", function(_, x)
+      pressAt(tint, x)
+      local mx, my = cursor()
+      if mx == nil then return end
+      move = { name = name, startX = mx, startY = my, from = saved.positions()[name] }
     end)
     on(tint, "ONRELEASE", function()
       if move ~= nil and move.name == name then
@@ -505,7 +598,20 @@ function options.create(root, deps)
       end
     end)
     set(layer, "hidden", true)
-    overlays[name] = layer
+    return layer
+  end
+
+  for _, entry in ipairs(ELEMENTS) do
+    local element = elements[entry.name]
+    if element ~= nil then overlays[entry.name] = overlay(entry.name, entry.label, element) end
+  end
+
+  -- Ends a move without saving, putting the element back where it was.
+  local function cancelMove()
+    if move == nil then return end
+    deps.view.place(elements[move.name].layer, move.from)
+    deps.view.place(overlays[move.name], move.from)
+    move = nil
   end
 
   local function placeAll()
@@ -525,12 +631,48 @@ function options.create(root, deps)
   set(toolbarTitle, "content", "Edit mode")
   set(toolbar, "hidden", true)
 
+  -- Reset dialog: confirms Reset positions over the window, which it dims when open. Built after the window
+  -- and toolbar so it draws above them.
+  local DIALOG_W, DIALOG_H = 320, 150
+  local dialog = ui.Layer.new(root)
+  dialog:SetSize(WIDTH, HEIGHT)
+  dialog:SetPos(-WIDTH // 2, -HEIGHT // 2, 0.5, 0.5)
+  local dim = hitArea(rect(dialog, COLOURS.border, 0, 0, WIDTH, HEIGHT))
+  set(dim, "alpha", 0.6)
+  local dialogX, dialogY = (WIDTH - DIALOG_W) // 2, (HEIGHT - DIALOG_H) // 2
+  rect(dialog, COLOURS.border, dialogX, dialogY, DIALOG_W, DIALOG_H)
+  hitArea(rect(dialog, COLOURS.popup, dialogX + 1, dialogY + 1, DIALOG_W - 2, DIALOG_H - 2))
+  local dialogTitle = text(dialog, FONTS.body, ui.AlignMode.TOPLEFT, dialogX + 16, dialogY + 12, DIALOG_W - 32, 20)
+  set(dialogTitle, "content", "Reset positions")
+  local dialogBody = text(dialog, FONTS.small, ui.AlignMode.TOPLEFT, dialogX + 16, dialogY + 40, DIALOG_W - 32, 44)
+  set(dialogBody, "content",
+    "Every frame, bar and ability row goes back to its default spot. Your rows and settings stay.")
+  set(dialogBody, "rgb", COLOURS.dimText)
+  rect(dialog, COLOURS.line, dialogX + 1, dialogY + DIALOG_H - 56, DIALOG_W - 2, 1)
+  local dialogOpen = false
+
+  local function closeDialog()
+    dialogOpen = false
+    set(dialog, "hidden", true)
+  end
+  closeDialog()
+
+  local buttonsY = dialogY + DIALOG_H - 44
+  button(dialog, "Cancel", dialogX + DIALOG_W - 264, buttonsY, 90, 32, nil, closeDialog)
+  button(dialog, "Reset positions", dialogX + DIALOG_W - 166, buttonsY, 150, 32, "light", function()
+    closeDialog()
+    saved.resetPositions()
+    placeAll()
+  end)
+
   local editing = false
   local openWindow
 
   local windowOpen = false
 
   local function closeWindow()
+    closeDialog()
+    cancelDrag()
     closePopups()
     windowOpen = false
     set(window, "hidden", true)
@@ -539,18 +681,21 @@ function options.create(root, deps)
   -- Edit mode hides the window, which covers the HUD, and shows a toolbar whose Done returns to it.
   local function setEditing(enabled)
     editing = enabled
+    if not enabled then cancelMove() end
     for _, layer in pairs(overlays) do set(layer, "hidden", not enabled) end
     set(toolbar, "hidden", not enabled)
     if enabled then closeWindow() end
   end
 
   local function resetPositions()
-    saved.resetPositions()
-    placeAll()
+    closePopups()
+    dialogOpen = true
+    set(dim, "hidden", not windowOpen)
+    set(dialog, "hidden", false)
   end
 
   button(toolbar, "Reset positions", 160, 7, 140, 30, false, resetPositions)
-  button(toolbar, "Done", 308, 7, 84, 30, true, function()
+  button(toolbar, "Done", 308, 7, 84, 30, "accent", function()
     setEditing(false)
     openWindow()
   end)
@@ -565,7 +710,7 @@ function options.create(root, deps)
   set(toggleLabel, "content", "Edit mode off")
   on(toggleHit, "ONCLICK", function() setEditing(true) end)
   button(window, "Reset positions", PAGE_X + 200, footerY + 12, 140, 32, false, resetPositions)
-  button(window, "Done", WIDTH - 24 - 90, footerY + 12, 90, 32, true, closeWindow)
+  button(window, "Done", WIDTH - 24 - 90, footerY + 12, 90, 32, "accent", closeWindow)
 
   function openWindow()
     for id_, value in pairs(markerValues) do set(value, "content", saved.markers()[id_] .. "%") end
@@ -578,16 +723,25 @@ function options.create(root, deps)
 
   -- Ticks ---------------------------------------------------------------------------------------------
 
-  -- Runs 50 times a second, so it returns before reading the mouse unless a drag or move is under way.
-  Event.Logic.Subscribe("runeuiOptions", function()
+  -- Moves the drag ghost or the element being placed with the cursor. It runs every frame through Event.Draw
+  -- so a drag keeps up with the mouse, and on Event.Logic as well in case Draw does not fire. It returns
+  -- before reading the mouse unless a drag or move is under way, and before drawing unless the cursor moved.
+  local lastX, lastY = nil, nil
+  local function followCursor()
     if drag == nil and move == nil then return end
-    local mx, my = Mouse.GetX(), Mouse.GetY()
-    if mx == nil or my == nil then return end
+    local mx, my = cursor()
+    if mx == nil or (mx == lastX and my == lastY) then return end
+    lastX, lastY = mx, my
     if drag ~= nil then
       if not drag.moved and math.abs(mx - drag.startX) + math.abs(my - drag.startY) > DRAG_START then
         startDrag(drag.tile)
       end
-      if drag.moved then showDragFeedback(drag.tile, mx - origin.x, my - origin.y) end
+      if drag.moved then
+        local wx, wy = mx - origin.x, my - origin.y
+        -- The client releases a press once the cursor leaves the pressed component, so the hit area follows.
+        draw.pos(drag.tile.edge, wx - PAGE_X - drag.pressX, wy - PAGE_Y - drag.pressY)
+        showDragFeedback(drag.tile, wx, wy)
+      end
     end
     if move ~= nil then
       local from = move.from
@@ -596,11 +750,15 @@ function options.create(root, deps)
       deps.view.place(elements[move.name].layer, move.to)
       deps.view.place(overlays[move.name], move.to)
     end
-  end)
+  end
+  Event.Draw.Subscribe("runeuiOptions", followCursor)
+  Event.Logic.Subscribe("runeuiOptions", followCursor)
 
   Event.KeyDown.Subscribe("runeuiOptions", function(e)
     if e.gameKey ~= GameKey.ESCAPE then return end
-    if editing then
+    if dialogOpen then
+      closeDialog()
+    elseif editing then
       setEditing(false)
     elseif windowOpen then
       closeWindow()
@@ -608,7 +766,7 @@ function options.create(root, deps)
   end)
 
   Event.ContentLayerReady.Subscribe("runeuiRibbon", function(e)
-    button(e.component, "Open RuneUI options", 10, 10, 180, 32, true, openWindow)
+    button(e.component, "Open RuneUI options", 10, 10, 180, 32, "accent", openWindow)
   end)
 
   placeAll()
@@ -618,6 +776,7 @@ function options.create(root, deps)
     shutdown = function()
       window:Destroy()
       toolbar:Destroy()
+      dialog:Destroy()
       for _, layer in pairs(overlays) do layer:Destroy() end
     end,
   }

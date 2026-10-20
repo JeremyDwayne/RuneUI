@@ -23,4 +23,4 @@ jobs:
       - name: Lint
         run: luacheck .
       - name: Syntax
-        run: for f in main.lua src/*.lua spec/*.lua; do luac -p "$f"; done
+        run: for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac -p "$f"; done
