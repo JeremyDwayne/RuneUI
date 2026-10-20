@@ -12,16 +12,18 @@ local view = require("src/view")
 local saved = settings.load(adapter.store())
 
 local root = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
+local debuffNames = icons.index(saved.debuffs())
+local tooltip = view.tooltip(root)
 local elements = {
   player = view.playerFrame(root),
-  target = view.targetFrame(root),
+  target = view.targetFrame(root, tooltip, debuffNames.info),
   resource = view.resourceBar(root),
-  rotation = view.cooldownGroup(root, view.TILE_STYLES.rotation),
-  cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns),
+  rotation = view.cooldownGroup(root, view.TILE_STYLES.rotation, tooltip),
+  cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns, tooltip),
 }
+tooltip.raise()
 local tracker = cooldowns.tracker()
 tracker.seed(saved.known())
-local debuffNames = icons.index(saved.debuffs())
 -- Struct ids scanned per tick while a debuff icon is unnamed, about 48 seconds for a full scan.
 local ICON_SCAN_BUDGET = 1000
 
@@ -68,6 +70,7 @@ function PluginShutdown()
   adapter.hideTargetPanel(false)
   optionsWindow.shutdown()
   for _, element in pairs(elements) do element.layer:Destroy() end
+  tooltip.destroy()
 end
 
 log("loaded")

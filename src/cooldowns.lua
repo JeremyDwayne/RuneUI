@@ -139,6 +139,7 @@ function cooldowns.tracker()
         keybind = a.icon and keybinds[a.icon],
         ready = left <= 0,
         seconds = left > 0 and secondsLeft(left) or nil,
+        cooldown = (a.start ~= nil and a.finish ~= nil) and secondsLeft(a.finish - a.start) or nil,
       }
     end
     return tiles

@@ -7,7 +7,7 @@ local settings = require("src/settings")
 
 local options = {}
 
-local set, rect, text = draw.set, draw.rect, draw.text
+local set, rect, text, outline, placeOutline = draw.set, draw.rect, draw.text, draw.outline, draw.placeOutline
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
 local WIDTH, HEIGHT = 900, 620
@@ -58,23 +58,6 @@ local function button(parent, label, x, y, w, h, accent, onClick)
   return { bg = bg, label = t }
 end
 
--- Four thin rects forming a box outline; returns them for moving and hiding.
-local function outline(parent, rgb, thickness)
-  return { rect(parent, rgb, 0, 0, 0, 0), rect(parent, rgb, 0, 0, 0, 0), rect(parent, rgb, 0, 0, 0, 0),
-    rect(parent, rgb, 0, 0, 0, 0), thickness = thickness }
-end
-
-local function placeOutline(box, x, y, w, h)
-  local t = box.thickness
-  box[1]:SetPos(x - t, y - t)
-  box[1]:SetSize(w + 2 * t, t)
-  box[2]:SetPos(x - t, y + h)
-  box[2]:SetSize(w + 2 * t, t)
-  box[3]:SetPos(x - t, y)
-  box[3]:SetSize(t, h)
-  box[4]:SetPos(x + w, y)
-  box[4]:SetSize(t, h)
-end
 
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
 -- view = src/view, refresh = function redrawing the HUD }. Returns { shutdown }.

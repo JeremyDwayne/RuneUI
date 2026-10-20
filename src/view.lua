@@ -16,6 +16,80 @@ function view.place(layer, at)
   layer:SetPos(at.x, at.y, at.anchorX, at.anchorY)
 end
 
+local TOOLTIP_WIDTH, TOOLTIP_PAD, TOOLTIP_GAP = 200, 8, 6
+-- Characters of info that fit one tooltip line in the small font.
+local TOOLTIP_LINE_CHARS = 34
+
+-- One tooltip for every HUD icon: a dark panel above the hovered icon, below it when
+-- there is no room, with a white outline on the icon. show(content, x, y, size) takes the icon's screen
+-- position and { title, left, right, line }, where line may wrap to two lines; hide() clears it, raise()
+-- keeps it on top and destroy() removes it.
+function view.tooltip(root)
+  local layer = ui.Layer.new(root)
+  local edge = rect(layer, COLOURS.border, 0, 0, TOOLTIP_WIDTH, 0)
+  local inner = rect(layer, COLOURS.tooltipEdge, 1, 1, TOOLTIP_WIDTH - 2, 0)
+  local panel = rect(layer, COLOURS.panel, 2, 2, TOOLTIP_WIDTH - 4, 0)
+  local textWidth = TOOLTIP_WIDTH - 2 * TOOLTIP_PAD
+  local title = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, TOOLTIP_PAD, 6, textWidth, 16)
+  local left = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, TOOLTIP_PAD, 24, textWidth, 14)
+  local right = text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, TOOLTIP_PAD, 24, textWidth, 14)
+  local line = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, TOOLTIP_PAD, 40, textWidth, 28)
+  set(left, "rgb", COLOURS.dimText)
+  set(right, "rgb", COLOURS.dimText)
+  local highlight = draw.outline(root, COLOURS.highlight, 2)
+  local height = nil
+  local tooltip = {}
+
+  local function setHidden(hidden)
+    set(layer, "hidden", hidden)
+    for _, side in ipairs(highlight) do set(side, "hidden", hidden) end
+  end
+  setHidden(true)
+
+  function tooltip.show(content, x, y, size)
+    set(title, "content", content.title)
+    set(left, "content", content.left or "")
+    set(right, "content", content.right or "")
+    set(line, "content", content.line or "")
+    local lines = content.line == nil and 0 or (#content.line > TOOLTIP_LINE_CHARS and 2 or 1)
+    local h = 46 + lines * 14 - (lines == 0 and 6 or 0)
+    if h ~= height then
+      height = h
+      layer:SetSize(TOOLTIP_WIDTH, h)
+      edge:SetHeight(h)
+      inner:SetHeight(h - 2)
+      panel:SetHeight(h - 4)
+    end
+    local top = y - h - TOOLTIP_GAP
+    if top < 0 then top = y + size + TOOLTIP_GAP end
+    pos(layer, x, top)
+    draw.placeOutline(highlight, x + 2, y + 2, size - 4, size - 4)
+    setHidden(false)
+  end
+
+  function tooltip.hide()
+    setHidden(true)
+  end
+
+  function tooltip.destroy()
+    layer:Destroy()
+    for _, side in ipairs(highlight) do side:Destroy() end
+  end
+
+  -- Keeps the tooltip above every HUD element built before this call.
+  function tooltip.raise()
+    layer:MoveToFront()
+    for _, side in ipairs(highlight) do side:MoveToFront() end
+  end
+
+  return tooltip
+end
+
+-- Screen position of a point inside a layer parented to the plugin layer.
+local function screenPos(layer, x, y)
+  return layer.x + x, layer.y + y
+end
+
 local FRAME_WIDTH = 250
 local HEALTH_HEIGHT = 46
 local POWER_HEIGHT = 6
@@ -68,7 +142,8 @@ local MAX_DEBUFFS = 8
 local DEBUFF_ROW = DEBUFF_SIZE + 4
 
 -- 250x78: a right-aligned row of debuff icons above a 46px health bar with name and "6,800 | 58%".
-function view.targetFrame(root)
+-- Hovering a debuff shows its name and info from debuffInfo(sprite), which returns { name, info } or nil.
+function view.targetFrame(root, tooltip, debuffInfo)
   local layer = ui.Layer.new(root)
   layer:SetSize(FRAME_WIDTH, DEBUFF_ROW + HEALTH_HEIGHT + 2)
   rect(layer, COLOURS.border, 0, DEBUFF_ROW, FRAME_WIDTH, HEALTH_HEIGHT + 2)
@@ -82,22 +157,56 @@ function view.targetFrame(root)
     debuffs[i] = { edge = edge, icon = icon }
   end
 
+  local current, hovered = nil, nil
+
+  local function showTooltip()
+    local slot = debuffs[hovered]
+    local sprite = current and not current.hidden and current.debuffs[hovered]
+    if sprite == nil then
+      tooltip.hide()
+      return
+    end
+    local info = debuffInfo(sprite)
+    local x, y = screenPos(layer, slot.x, 0)
+    tooltip.show({
+      title = info and info.name or "Unknown debuff",
+      left = info and info.info or (info == nil and "Looking up name" or nil),
+    }, x, y, DEBUFF_SIZE)
+  end
+
+  for i, slot in ipairs(debuffs) do
+    slot.edge:Subscribe(ui.Hook.ONMOUSEOVER, function()
+      hovered = i
+      showTooltip()
+    end)
+    slot.edge:Subscribe(ui.Hook.ONMOUSELEAVE, function()
+      if hovered == i then
+        hovered = nil
+        tooltip.hide()
+      end
+    end)
+  end
+
   local function update(model)
+    current = model
     set(layer, "hidden", model.hidden)
-    if model.hidden then return end
-    updateHealth(model)
-    local count = math.min(#model.debuffs, MAX_DEBUFFS)
-    for i, slot in ipairs(debuffs) do
-      local shown = i <= count
-      set(slot.edge, "hidden", not shown)
-      set(slot.icon, "hidden", not shown)
-      if shown then
-        local x = FRAME_WIDTH - (count - i + 1) * (DEBUFF_SIZE + 2) + 2
-        pos(slot.edge, x, 0)
-        pos(slot.icon, x + 1, 1)
-        set(slot.icon, "sprite", model.debuffs[i])
+    if not model.hidden then
+      updateHealth(model)
+      local count = math.min(#model.debuffs, MAX_DEBUFFS)
+      for i, slot in ipairs(debuffs) do
+        local shown = i <= count
+        set(slot.edge, "hidden", not shown)
+        set(slot.icon, "hidden", not shown)
+        if shown then
+          local x = FRAME_WIDTH - (count - i + 1) * (DEBUFF_SIZE + 2) + 2
+          slot.x = x
+          pos(slot.edge, x, 0)
+          pos(slot.icon, x + 1, 1)
+          set(slot.icon, "sprite", model.debuffs[i])
+        end
       end
     end
+    if hovered ~= nil then showTooltip() end
   end
 
   return {
@@ -236,6 +345,7 @@ local function tile(layer, style, top)
   parts.seconds = at(text(layer, style.secondsFont, ui.AlignMode.CENTRE, 0, 0, size, size), 0, 0)
 
   function parts.place(x)
+    parts.x = x
     for _, o in ipairs(offsets) do pos(o.component, x + o.dx, o.dy) end
   end
 
@@ -248,8 +358,8 @@ end
 
 -- A centred row of up to 10 ability tiles with an accent line as wide as the shown tiles. update takes
 -- src/cooldowns tiles and the accent colour, or nil to hide the line. Ready tiles are bright with their
--- keybind; cooling tiles are dimmed with whole seconds left.
-function view.cooldownGroup(root, style)
+-- keybind; cooling tiles are dimmed with whole seconds left. Hovering a tile shows its tooltip.
+function view.cooldownGroup(root, style, tooltip)
   local step = style.size + style.gap
   local width = MAX_TILES * step - style.gap
   local height = style.size + ACCENT_SPACE
@@ -262,7 +372,38 @@ function view.cooldownGroup(root, style)
   local tiles = {}
   for i = 1, MAX_TILES do tiles[i] = tile(layer, style, top) end
 
+  local current, hovered = {}, nil
+
+  local function showTooltip()
+    local model = current[hovered]
+    if model == nil then
+      tooltip.hide()
+      return
+    end
+    local x, y = screenPos(layer, tiles[hovered].x, top)
+    tooltip.show({
+      title = model.name,
+      left = model.cooldown and ("Cooldown " .. model.cooldown .. "s") or nil,
+      right = model.keybind and ("Key " .. model.keybind) or nil,
+      line = model.ready and "Ready" or ("Ready in " .. model.seconds .. "s"),
+    }, x, y, style.size)
+  end
+
+  for i, parts in ipairs(tiles) do
+    parts.edge:Subscribe(ui.Hook.ONMOUSEOVER, function()
+      hovered = i
+      showTooltip()
+    end)
+    parts.edge:Subscribe(ui.Hook.ONMOUSELEAVE, function()
+      if hovered == i then
+        hovered = nil
+        tooltip.hide()
+      end
+    end)
+  end
+
   local function update(models, accentRgb)
+    current = models
     local count = math.min(#models, MAX_TILES)
     local offset = math.floor((width - (count * step - style.gap)) / 2)
     local accentShown = accentRgb ~= nil and count > 0
@@ -295,6 +436,7 @@ function view.cooldownGroup(root, style)
         set(parts.keybind, "rgb", labelColour)
       end
     end
+    if hovered ~= nil then showTooltip() end
   end
 
   return { layer = layer, update = update, width = width, height = height }

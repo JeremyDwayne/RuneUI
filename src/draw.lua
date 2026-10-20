@@ -26,6 +26,8 @@ draw.COLOURS = {
   emptyBlock = 0x22262b,
   tile = 0x141414,
   dimText = 0xc7ccd1,
+  tooltipEdge = 0x3a3632,
+  highlight = 0xffffff,
   -- Options window palette: warm near-black panels and a teal accent.
   panel = 0x110f0c,
   sidebar = 0x0b0a08,
@@ -113,6 +115,25 @@ function draw.text(parent, font, horizontal, x, y, width, height)
   t:SetPos(x, y)
   t:SetSize(width, height)
   return t
+end
+
+-- Four thin rects forming a box outline; returns them for moving and hiding.
+function draw.outline(parent, rgb, thickness)
+  return { draw.rect(parent, rgb, 0, 0, 0, 0), draw.rect(parent, rgb, 0, 0, 0, 0), draw.rect(parent, rgb, 0, 0, 0, 0),
+    draw.rect(parent, rgb, 0, 0, 0, 0), thickness = thickness }
+end
+
+-- Places an outline around the box at x, y sized w by h, its thickness drawn outside.
+function draw.placeOutline(box, x, y, w, h)
+  local t = box.thickness
+  box[1]:SetPos(x - t, y - t)
+  box[1]:SetSize(w + 2 * t, t)
+  box[2]:SetPos(x - t, y + h)
+  box[2]:SetSize(w + 2 * t, t)
+  box[3]:SetPos(x - t, y)
+  box[3]:SetSize(t, h)
+  box[4]:SetPos(x + w, y)
+  box[4]:SetSize(t, h)
 end
 
 -- Gradient ends as fractions toward white and black.
