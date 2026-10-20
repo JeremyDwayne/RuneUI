@@ -1,3 +1,5 @@
+![RuneUI — a clean combat HUD for RuneScape 3](assets/branding/runeui-banner.png)
+
 # RuneUI
 
 A clean combat HUD for RuneScape 3. RuneUI draws compact unit frames, a resource bar and two rows of ability cooldowns above the bottom centre of the screen, so the numbers you check mid-fight sit close together. Game windows such as the bank draw over it.
