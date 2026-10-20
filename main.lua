@@ -2,6 +2,7 @@
 -- Each server tick reads the client through src/adapter and redraws from the src/frames, src/cooldowns and
 -- src/auras models.
 local adapter = require("src/adapter")
+local auralists = require("src/auralists")
 local auras = require("src/auras")
 local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
@@ -29,6 +30,12 @@ local tracker = cooldowns.tracker()
 local auraTracker = auras.tracker()
 local optionsWindow
 tracker.seed(saved.known())
+-- What the aura rows show: tracked debuffs, and Keep up tiles while the player has a target.
+local auraFilters = {
+  tracked = function(kind, sprite) return auralists.tracked(kind, {}, sprite) end,
+  keepUp = {},
+  hasTarget = false,
+}
 -- Struct ids scanned per tick while an aura icon is unnamed, about 48 seconds for a full scan.
 local ICON_SCAN_BUDGET = 1000
 
@@ -57,7 +64,8 @@ local function refresh()
   local rotationMoved = elements.rotation.update(tracker.tiles(groups.rotation, slots), accent)
   local moved = elements.cooldowns.update(tracker.tiles(groups.cooldowns, slots), accent) or rotationMoved
   local bars = saved.auraBars()
-  for name, models in pairs(auraTracker.rows(saved.auras(), target.debuffs or {})) do
+  auraFilters.hasTarget = not target.hidden
+  for name, models in pairs(auraTracker.rows(saved.auras(), target.debuffs or {}, auraFilters)) do
     -- Asking for each aura's name queues unnamed icons for the background scan.
     for _, model in ipairs(models) do auraNames.info(model.sprite) end
     if elements[name].update(models, bars) then moved = true end

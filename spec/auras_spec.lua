@@ -8,9 +8,12 @@ local function buffs(...)
   return { buffs = list, debuffs = {} }
 end
 
+-- Row filters that show every debuff and mark no buff Keep up.
+local ALL = { tracked = function() return true end, keepUp = {}, hasTarget = false }
+
 -- The row model for sprite in row, or nil.
 local function shown(tracker, row, sprite, categories)
-  for _, model in ipairs(tracker.rows(categories or {}, {})[row]) do
+  for _, model in ipairs(tracker.rows(categories or {}, {}, ALL)[row]) do
     if model.sprite == sprite then return model end
   end
 end
@@ -105,7 +108,7 @@ describe("auras.tracker", function()
   it("shows every player debuff in bar order and every target debuff without a timer", function()
     local tracker = auras.tracker()
     tracker.onTick({ buffs = {}, debuffs = { { sprite = STUN, label = "4" }, { sprite = 26402, label = "" } } })
-    local rows = tracker.rows({}, { 30098, 30212 })
+    local rows = tracker.rows({}, { 30098, 30212 }, ALL)
     assert.are.same({ STUN, 26402 }, { rows.playerDebuffs[1].sprite, rows.playerDebuffs[2].sprite })
     assert.are.same({ "4", nil }, { rows.playerDebuffs[1].text, rows.playerDebuffs[2].text })
     assert.are.same({ { sprite = 30098 }, { sprite = 30212 } }, rows.targetDebuffs)
@@ -118,7 +121,33 @@ describe("auras.tracker", function()
     tracker.onTick(reads)
     local targets = {}
     for i = 1, 12 do targets[i] = 2000 + i end
-    local rows = tracker.rows({}, targets)
+    local rows = tracker.rows({}, targets, ALL)
     assert.are.same({ 10, 10 }, { #rows.playerDebuffs, #rows.targetDebuffs })
+  end)
+
+  it("drops debuffs their row does not track", function()
+    local tracker = auras.tracker()
+    tracker.onTick({ buffs = {}, debuffs = { { sprite = STUN, label = "4" }, { sprite = 26402, label = "9" } } })
+    local function tracked(kind, sprite) return kind == "player" and sprite == STUN or sprite == 30098 end
+    local filters = { tracked = tracked, keepUp = {}, hasTarget = true }
+    local rows = tracker.rows({}, { 30098, 26104 }, filters)
+    assert.are.same({ { STUN }, { 30098 } }, {
+      { rows.playerDebuffs[1].sprite, rows.playerDebuffs[2] and rows.playerDebuffs[2].sprite },
+      { rows.targetDebuffs[1].sprite, rows.targetDebuffs[2] and rows.targetDebuffs[2].sprite },
+    })
+  end)
+
+  it("keeps a missing Keep up buff's tile after the active upkeep buffs only while the player has a target", function()
+    local tracker = auras.tracker()
+    tracker.onTick(buffs(14695, "5m"))
+    local categories = { [tostring(OVERLOAD)] = "upkeep", ["14695"] = "upkeep" }
+    local keepUp = { [tostring(OVERLOAD)] = true, ["14695"] = true }
+    local filters = { tracked = ALL.tracked, keepUp = keepUp, hasTarget = true }
+    local upkeep = tracker.rows(categories, {}, filters).upkeepBuffs
+    assert.are.same({ 14695, OVERLOAD }, { upkeep[1].sprite, upkeep[2].sprite })
+    assert.are.same({ nil, true }, { upkeep[1].missing, upkeep[2].missing })
+    assert.is_nil(upkeep[2].text)
+    filters.hasTarget = false
+    assert.are.equal(1, #tracker.rows(categories, {}, filters).upkeepBuffs)
   end)
 end)

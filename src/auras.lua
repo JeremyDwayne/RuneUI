@@ -105,17 +105,35 @@ function auras.tracker()
   end
 
   -- categories: { [tostring(sprite)] = "combat" | "upkeep" | "hidden" } from settings; a buff missing from it
-  -- goes where its first time left put it. targetDebuffs: target debuff sprites. Returns { targetDebuffs,
-  -- playerDebuffs, upkeepBuffs, combatBuffs }, keyed by HUD element, each a list of up to 10 models in bar
-  -- order. Target debuffs carry only their sprite.
-  function tracker.rows(categories, targetDebuffs)
+  -- goes where its first time left put it. targetDebuffs: target debuff sprites. filters: { tracked(kind,
+  -- sprite), keepUp, hasTarget }, where tracked says whether the "target" or "player" debuff row shows a
+  -- sprite and keepUp is settings' { [tostring(sprite)] = true }. Returns { targetDebuffs, playerDebuffs,
+  -- upkeepBuffs, combatBuffs }, keyed by HUD element, each a list of up to 10 models in bar order. Target
+  -- debuffs carry only their sprite. While hasTarget, each Keep up upkeep buff missing from the bar follows
+  -- the active upkeep buffs as { sprite, missing = true }, in sprite order.
+  function tracker.rows(categories, targetDebuffs, filters)
     local rows = { targetDebuffs = {}, playerDebuffs = {}, upkeepBuffs = {}, combatBuffs = {} }
-    for _, sprite in ipairs(targetDebuffs) do add(rows.targetDebuffs, { sprite = sprite }) end
-    for _, sprite in ipairs(bars.debuffs.order) do add(rows.playerDebuffs, model(bars.debuffs.states[sprite])) end
+    for _, sprite in ipairs(targetDebuffs) do
+      if filters.tracked("target", sprite) then add(rows.targetDebuffs, { sprite = sprite }) end
+    end
+    for _, sprite in ipairs(bars.debuffs.order) do
+      if filters.tracked("player", sprite) then add(rows.playerDebuffs, model(bars.debuffs.states[sprite])) end
+    end
     for _, sprite in ipairs(bars.buffs.order) do
       local state = bars.buffs.states[sprite]
       local row = rows[ROWS[categories[tostring(sprite)] or state.category]]
       if row ~= nil then add(row, model(state)) end
+    end
+    if filters.hasTarget then
+      local missing = {}
+      for key in pairs(filters.keepUp) do
+        local sprite = tonumber(key)
+        if categories[key] == "upkeep" and bars.buffs.states[sprite] == nil then missing[#missing + 1] = sprite end
+      end
+      table.sort(missing)
+      for _, sprite in ipairs(missing) do
+        add(rows.upkeepBuffs, { sprite = sprite, missing = true, highlight = false })
+      end
     end
     return rows
   end
