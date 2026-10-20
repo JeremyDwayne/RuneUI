@@ -70,6 +70,26 @@ describe("cooldowns.tracker", function()
     assert.is_nil(tiles[2].icon)
   end)
 
+  it("reports the ability it learned on a tick", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, CB, 1000, 9)
+    justUsedChanged(tracker)
+    assert.are.same({ key = "MAGIC_CONCENTRATED_BLAST", name = "Concentrated Blast", icon = 13309 },
+      tracker.onTick(blast))
+    assert.is_nil(tracker.onTick(blast))
+  end)
+
+  it("shows saved names and icons before an ability fires this session", function()
+    local tracker = cooldowns.tracker()
+    tracker.seed({ MAGIC_CONCENTRATED_BLAST = { name = "Concentrated Blast", icon = 13309 } })
+    local tile = tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1]
+    assert.are.equal(13309, tile.icon)
+    assert.is_true(tile.ready)
+    assert.are.same({}, tracker.known())
+    fire(tracker, CB, 1000, 9)
+    assert.are.same({ "MAGIC_CONCENTRATED_BLAST" }, tracker.known())
+  end)
+
   it("ignores a just-used ability that did not change on that tick", function()
     local tracker = cooldowns.tracker()
     fire(tracker, CB, 1000, 9)

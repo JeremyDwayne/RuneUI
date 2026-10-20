@@ -26,7 +26,7 @@ local function secondsLeft(ticks)
 end
 
 -- Returns a tracker. onVar takes every numeric var change, onTick runs once per server tick with a
--- function returning the just-used ability as { key, name, icon } or nil.
+-- function returning the just-used ability as { key, name, icon } or nil, and returns what it learned.
 function cooldowns.tracker()
   local abilities = {}
   local order = {}
@@ -34,9 +34,12 @@ function cooldowns.tracker()
   local startedThisTick = {}
   local justUsedChanged = false
 
+  local fired = {}
+
   local function ability(key)
-    if abilities[key] == nil then
-      abilities[key] = {}
+    abilities[key] = abilities[key] or {}
+    if not fired[key] then
+      fired[key] = true
       order[#order + 1] = key
     end
     return abilities[key]
@@ -72,16 +75,27 @@ function cooldowns.tracker()
 
   -- Names a cooldown that started this tick from the just-used ability, read here because its change
   -- can arrive after the _START change. An unchanged just-used var is stale, so a repeat use keeps the
-  -- earlier name.
+  -- earlier name. Returns { key, name, icon } when it named one, for saving.
   function tracker.onTick(readJustUsed)
     local info = justUsedChanged and #startedThisTick > 0 and readJustUsed() or nil
     local key = info and startedBy(info)
+    local learned = nil
     if key ~= nil then
       abilities[key].name, abilities[key].icon = info.name, info.icon
+      learned = { key = key, name = info.name, icon = info.icon }
     end
     startedThisTick = {}
     justUsedChanged = false
     if now ~= nil then now = now + 1 end
+    return learned
+  end
+
+  -- Restores saved names and icons, { [key] = { name, icon } }, without adding to known().
+  function tracker.seed(saved)
+    for key, info in pairs(saved) do
+      abilities[key] = abilities[key] or {}
+      abilities[key].name, abilities[key].icon = info.name, info.icon
+    end
   end
 
   -- Ability keys such as "MAGIC_DRAGON_BREATH" in the order they first fired.

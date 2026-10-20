@@ -101,6 +101,16 @@ function adapter.slotKeybinds()
   return keybinds
 end
 
+-- PersistentDB as a src/settings store, one structured table per key.
+function adapter.store()
+  return {
+    get = function(key) return PersistentDB:GetStructuredData(key) end,
+    set = function(key, value)
+      if PersistentDB:SetStructuredData(key, value) == false then log("could not save", key) end
+    end,
+  }
+end
+
 -- spenders: the frames.SPENDERS list; each is read by its var name.
 function adapter.resourceReads(spenders)
   local counts = {}

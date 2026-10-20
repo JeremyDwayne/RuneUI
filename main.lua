@@ -4,18 +4,10 @@
 local adapter = require("src/adapter")
 local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
+local settings = require("src/settings")
 local view = require("src/view")
 
-local MARKERS = { threshold = 50, ultimate = 100 }
-
--- Default positions, offset from the bottom centre of the game window, clear of the native bottom panel.
-local POSITIONS = {
-  player = { x = -558, y = -394, anchorX = 0.5, anchorY = 1 },
-  target = { x = 258, y = -424, anchorX = 0.5, anchorY = 1 },
-  resource = { x = -139, y = -496, anchorX = 0.5, anchorY = 1 },
-  rotation = { x = -286, y = -396, anchorX = 0.5, anchorY = 1 },
-  cooldowns = { x = -139, y = -552, anchorX = 0.5, anchorY = 1 },
-}
+local saved = settings.load(adapter.store())
 
 local root = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
 local elements = {
@@ -25,9 +17,11 @@ local elements = {
   rotation = view.cooldownGroup(root, view.TILE_STYLES.rotation),
   cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns),
 }
-for name, element in pairs(elements) do view.place(element.layer, POSITIONS[name]) end
+local positions = saved.positions()
+for name, element in pairs(elements) do view.place(element.layer, positions[name]) end
 
 local tracker = cooldowns.tracker()
+tracker.seed(saved.known())
 
 Event.VarTransmit.Subscribe("cooldowns", function(e)
   tracker.onVar(adapter.varChange(e))
@@ -36,16 +30,17 @@ end)
 local function refresh()
   elements.player.update(frames.player(adapter.playerReads()))
   elements.target.update(frames.target(adapter.targetReads()))
-  elements.resource.update(frames.resource(adapter.resourceReads(frames.SPENDERS), MARKERS))
-  -- Until the settings panel lets you pick abilities, groups fill by cooldown length as abilities fire.
-  local groups = tracker.defaultGroups()
+  elements.resource.update(frames.resource(adapter.resourceReads(frames.SPENDERS), saved.markers()))
+  -- Until the first edit in the options window, groups fill by cooldown length as abilities fire.
+  local groups = saved.groups() or tracker.defaultGroups()
   local keybinds = adapter.slotKeybinds()
   elements.rotation.update(tracker.tiles(groups.rotation, keybinds))
   elements.cooldowns.update(tracker.tiles(groups.cooldowns, keybinds))
 end
 
 Event.ServerLogic.Subscribe("refresh", function()
-  tracker.onTick(adapter.justUsed)
+  local learned = tracker.onTick(adapter.justUsed)
+  if learned ~= nil then saved.learn(learned.key, learned.name, learned.icon) end
   refresh()
 end)
 refresh()
