@@ -115,10 +115,98 @@ function draw.text(parent, font, horizontal, x, y, width, height)
   return t
 end
 
--- Sets a bar's width from a 0..1 fill, hiding it when the fill is unknown.
-function draw.setFill(bar, fill, fullWidth)
-  draw.set(bar, "hidden", fill == nil)
-  if fill ~= nil then draw.width(bar, math.floor(fullWidth * fill)) end
+-- Gradient ends as fractions toward white and black.
+local LIGHTEN, DARKEN = 0.15, 0.35
+
+-- Moves each channel of a 0xRRGGBB colour toward target by amount, from 0 to 1.
+local function mix(rgb, target, amount)
+  local out = 0
+  for shift = 16, 0, -8 do
+    local from, to = (rgb >> shift) & 0xFF, (target >> shift) & 0xFF
+    out = out | (math.floor(from + (to - from) * amount + 0.5) << shift)
+  end
+  return out
+end
+
+-- Canvas colours are 0xRRGGBBAA.
+local function opaque(rgb)
+  return (rgb << 8) | 0xFF
+end
+
+local canvasWarned = false
+
+local function warnCanvas(err)
+  if canvasWarned then return end
+  canvasWarned = true
+  log("canvas failed, bars stay flat:", err)
+end
+
+-- A bar fill over its track, flat or with a settings.TEXTURES gradient. The gradient is drawn once per
+-- texture on a canvas, and a track-coloured cover hides the empty part, so a fill change moves one rect.
+-- Returns { setFill(fill from 0 to 1, or nil to hide), setTexture(texture) }.
+function draw.bar(parent, rgb, trackRgb, x, y, width, height)
+  local solid = draw.rect(parent, rgb, x, y, width, height)
+  local ok, canvas = pcall(function()
+    local c = ui.Canvas.new(parent)
+    c:SetPos(x, y)
+    c:SetSize(width, height)
+    return c
+  end)
+  if not ok then
+    warnCanvas(canvas)
+    canvas = nil
+  end
+  local cover = canvas and draw.rect(parent, trackRgb, x, y, width, height)
+  local texture, fill = "flat", nil
+
+  local function redraw()
+    local gradient = canvas ~= nil and texture ~= "flat"
+    local filled = fill and math.floor(width * fill)
+    draw.set(solid, "hidden", gradient or fill == nil)
+    if canvas ~= nil then
+      draw.set(canvas, "hidden", not gradient or fill == nil)
+      draw.set(cover, "hidden", not gradient or fill == nil or filled == width)
+    end
+    if fill == nil then return end
+    if gradient then
+      draw.pos(cover, x + filled, y)
+      draw.width(cover, width - filled)
+    else
+      draw.width(solid, filled)
+    end
+  end
+
+  local bar = {}
+
+  function bar.setFill(value)
+    fill = value
+    redraw()
+  end
+
+  function bar.setTexture(value)
+    if value == texture then return end
+    texture = value
+    if canvas ~= nil and texture ~= "flat" then
+      local light, dark = opaque(mix(rgb, 0xffffff, LIGHTEN)), opaque(mix(rgb, 0x000000, DARKEN))
+      local drawn, err = pcall(function()
+        canvas:Clear()
+        if texture == "vertical" then
+          canvas:AddGradientV(0, 0, width, height, light, dark)
+        else
+          canvas:AddGradientH(0, 0, width, height, dark, light)
+        end
+      end)
+      if not drawn then
+        warnCanvas(err)
+        draw.set(canvas, "hidden", true)
+        draw.set(cover, "hidden", true)
+        canvas = nil
+      end
+    end
+    redraw()
+  end
+
+  return bar
 end
 
 return draw

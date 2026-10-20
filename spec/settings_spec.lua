@@ -94,6 +94,14 @@ describe("settings", function()
     assert.are.same({ threshold = 0, ultimate = 100 }, s.markers())
   end)
 
+  it("keeps bars flat until a known texture is chosen, and saves the choice", function()
+    local store = fakeStore()
+    assert.are.equal("flat", settings.load(store).texture())
+    settings.load(store).setTexture("vertical")
+    assert.are.equal("vertical", settings.load(store).texture())
+    assert.are.equal("flat", settings.load(fakeStore({ appearance = { texture = "plaid" } })).texture())
+  end)
+
   it("restores whole numbers that PersistentDB returns as floats as integers", function()
     local s = settings.load(fakeStore({
       layout = { player = { x = -427.0, y = -429.0, anchorX = 0.5, anchorY = 1.0 } },

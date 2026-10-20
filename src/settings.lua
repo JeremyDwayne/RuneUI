@@ -1,4 +1,5 @@
--- Saved settings: element positions, cooldown groups, marker percents and learned ability names and icons.
+-- Saved settings: element positions, cooldown groups, marker percents, bar texture and learned ability
+-- names and icons.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local settings = {}
 
@@ -12,6 +13,8 @@ settings.DEFAULT_POSITIONS = {
   cooldowns = { x = -189, y = -534, anchorX = 0.5, anchorY = 1 },
 }
 local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
+-- Bar fills: one flat colour, or a gradient from top to bottom or across the bar.
+settings.TEXTURES = { "flat", "vertical", "horizontal" }
 local GROUP_NAMES = { "rotation", "cooldowns" }
 local POSITION_FIELDS = { "x", "y", "anchorX", "anchorY" }
 
@@ -62,6 +65,14 @@ local function readMarkers(saved)
   return markers
 end
 
+local function readTexture(saved)
+  local texture = type(saved) == "table" and saved.texture or nil
+  for _, known in ipairs(settings.TEXTURES) do
+    if texture == known then return texture end
+  end
+  return "flat"
+end
+
 local function readKnown(saved)
   local known = {}
   if type(saved) ~= "table" then return known end
@@ -89,6 +100,7 @@ function settings.load(store)
   local groups = readGroups(store.get("groups"))
   local markers = readMarkers(store.get("markers"))
   local known = readKnown(store.get("known"))
+  local texture = readTexture(store.get("appearance"))
 
   local function saveGroups() store.set("groups", groups) end
 
@@ -158,6 +170,16 @@ function settings.load(store)
   function s.setMarker(name, percent)
     markers[name] = math.max(0, math.min(100, percent))
     store.set("markers", markers)
+  end
+
+  function s.texture()
+    return texture
+  end
+
+  -- texture is one of settings.TEXTURES.
+  function s.setTexture(value)
+    texture = value
+    store.set("appearance", { texture = texture })
   end
 
   -- { [key] = { name, icon } } for every ability whose struct has been seen.

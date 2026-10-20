@@ -26,6 +26,9 @@ Event.VarTransmit.Subscribe("cooldowns", function(e)
 end)
 
 local function refresh()
+  for _, element in pairs(elements) do
+    if element.setTexture ~= nil then element.setTexture(saved.texture()) end
+  end
   elements.player.update(frames.player(adapter.playerReads()))
   elements.target.update(frames.target(adapter.targetReads()))
   elements.resource.update(frames.resource(adapter.resourceReads(frames.SPENDERS), saved.markers()))

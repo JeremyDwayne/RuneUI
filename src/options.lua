@@ -1,8 +1,9 @@
 -- The options window, its ribbon button and edit mode: a sidebar of pages, a cooldown
 -- editor that mirrors both rows with a "+" picker, drag to swap or insert and a Remove menu, marker
--- steppers, and edit mode outlines for dragging HUD elements.
+-- steppers, the bar texture choice, and edit mode outlines for dragging HUD elements.
 local draw = require("src/draw")
 local editor = require("src/editor")
+local settings = require("src/settings")
 
 local options = {}
 
@@ -111,7 +112,11 @@ function options.create(root, deps)
   -- Pages ---------------------------------------------------------------------------------------------
 
   local pages, navRows = {}, {}
-  local PAGE_LIST = { { id = "cooldowns", label = "Cooldown manager" }, { id = "resource", label = "Resource bar" } }
+  local PAGE_LIST = {
+    { id = "cooldowns", label = "Cooldown manager" },
+    { id = "resource", label = "Resource bar" },
+    { id = "appearance", label = "Appearance" },
+  }
 
   local function showPage(pageID)
     closePopups()
@@ -460,6 +465,43 @@ function options.create(root, deps)
     button(markerPage, "+", right - 44, ry + 11, 28, 28, false, function() step(MARKER_STEP) end)
   end
 
+  -- Appearance page ----------------------------------------------------------------------------------
+
+  local appearancePage = pages.appearance
+  rect(appearancePage, COLOURS.sidebar, 24, 18, PAGE_W - 48, 50)
+  local textureLabel = text(appearancePage, FONTS.body, ui.AlignMode.TOPLEFT, 40, 18, 160, 50)
+  set(textureLabel, "content", "Bar texture")
+  local TEXTURE_LABELS = { flat = "Flat", vertical = "Vertical gradient", horizontal = "Horizontal gradient" }
+  local CHOICE_W = 150
+  local choices = {}
+
+  -- The chosen texture takes the accent fill and dark text; the others are plain buttons.
+  local function showTexture()
+    for texture, choice in pairs(choices) do
+      local chosen = texture == saved.texture()
+      set(choice.bg, "rgb", chosen and COLOURS.accent or COLOURS.button)
+      set(choice.label, "rgb", chosen and COLOURS.accentText or COLOURS.text)
+      set(choice.label, "isShadowed", not chosen)
+    end
+  end
+
+  for i, texture in ipairs(settings.TEXTURES) do
+    local x = PAGE_W - 40 - (#settings.TEXTURES - i + 1) * (CHOICE_W + 4) + 4
+    local bg = hitArea(rect(appearancePage, COLOURS.button, x, 29, CHOICE_W, 28))
+    local label = text(appearancePage, FONTS.body, ui.AlignMode.CENTRE, x, 29, CHOICE_W, 28)
+    set(label, "content", TEXTURE_LABELS[texture])
+    choices[texture] = { bg = bg, label = label }
+    on(bg, "ONMOUSEOVER", function()
+      if texture ~= saved.texture() then set(bg, "rgb", COLOURS.buttonHover) end
+    end)
+    on(bg, "ONMOUSELEAVE", showTexture)
+    on(bg, "ONCLICK", function()
+      saved.setTexture(texture)
+      showTexture()
+      deps.refresh()
+    end)
+  end
+
   -- Edit mode ----------------------------------------------------------------------------------------
 
   local overlays = {}
@@ -550,6 +592,7 @@ function options.create(root, deps)
 
   function openWindow()
     for id_, value in pairs(markerValues) do set(value, "content", saved.markers()[id_] .. "%") end
+    showTexture()
     rebuildEditor()
     showPage("cooldowns")
     windowOpen = true

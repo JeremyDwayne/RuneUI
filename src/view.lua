@@ -1,10 +1,11 @@
 -- Draws RuneUI elements on the plugin layer from display models, in a flat dark style.
--- Each constructor returns { layer, update(model), width, height }; place() positions a layer on the game window.
+-- Each constructor returns { layer, update(model), width, height }, plus setTexture(texture) for elements
+-- with bars; place() positions a layer on the game window.
 local view = {}
 
 local draw = require("src/draw")
 local frames = require("src/frames")
-local set, pos, rect, text, setFill = draw.set, draw.pos, draw.rect, draw.text, draw.setFill
+local set, pos, rect, text = draw.set, draw.pos, draw.rect, draw.text
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
 -- Tile backgrounds are translucent so the game shows through empty tiles.
@@ -19,18 +20,20 @@ local FRAME_WIDTH = 250
 local HEALTH_HEIGHT = 46
 local POWER_HEIGHT = 6
 
--- A unit frame bar with the name on the left and the value on the right; returns its update(model).
+-- A unit frame bar with the name on the left and the value on the right; returns its update(model) and
+-- the draw.bar under it.
 local function unitBar(layer, rgb, y, height)
   local inner = FRAME_WIDTH - 2
   rect(layer, COLOURS.healthTrack, 1, y, inner, height)
-  local bar = rect(layer, rgb, 1, y, inner, height)
+  local bar = draw.bar(layer, rgb, COLOURS.healthTrack, 1, y, inner, height)
   local name = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, 6, y, 140, height)
   local value = text(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, FRAME_WIDTH - 101, y, 95, height)
-  return function(model)
-    setFill(bar, model.fill, inner)
+  local function update(model)
+    bar.setFill(model.fill)
     set(name, "content", model.name)
     set(value, "content", model.valueText)
   end
+  return update, bar
 end
 
 -- 250x55: 46px health bar with name and "13.1K | 78%", 6px prayer bar below.
@@ -40,19 +43,24 @@ function view.playerFrame(root)
   local layer = ui.Layer.new(root)
   layer:SetSize(FRAME_WIDTH, height)
   rect(layer, COLOURS.border, 0, 0, FRAME_WIDTH, height)
-  local updateHealth = unitBar(layer, COLOURS.player, 1, HEALTH_HEIGHT)
+  local updateHealth, health = unitBar(layer, COLOURS.player, 1, HEALTH_HEIGHT)
   local prayerTrack = rect(layer, COLOURS.healthTrack, 1, prayerY, FRAME_WIDTH - 2, POWER_HEIGHT)
-  local prayer = rect(layer, COLOURS.prayer, 1, prayerY, FRAME_WIDTH - 2, POWER_HEIGHT)
+  local prayer = draw.bar(layer, COLOURS.prayer, COLOURS.healthTrack, 1, prayerY, FRAME_WIDTH - 2, POWER_HEIGHT)
 
   local function update(model)
     set(layer, "hidden", model.hidden)
     if model.hidden then return end
     updateHealth(model)
     set(prayerTrack, "hidden", model.prayerText == nil)
-    setFill(prayer, model.prayerFill, FRAME_WIDTH - 2)
+    prayer.setFill(model.prayerFill)
   end
 
-  return { layer = layer, update = update, width = FRAME_WIDTH, height = height }
+  local function setTexture(texture)
+    health.setTexture(texture)
+    prayer.setTexture(texture)
+  end
+
+  return { layer = layer, update = update, setTexture = setTexture, width = FRAME_WIDTH, height = height }
 end
 
 local DEBUFF_SIZE = 26
@@ -64,7 +72,7 @@ function view.targetFrame(root)
   local layer = ui.Layer.new(root)
   layer:SetSize(FRAME_WIDTH, DEBUFF_ROW + HEALTH_HEIGHT + 2)
   rect(layer, COLOURS.border, 0, DEBUFF_ROW, FRAME_WIDTH, HEALTH_HEIGHT + 2)
-  local updateHealth = unitBar(layer, COLOURS.target, DEBUFF_ROW + 1, HEALTH_HEIGHT)
+  local updateHealth, health = unitBar(layer, COLOURS.target, DEBUFF_ROW + 1, HEALTH_HEIGHT)
 
   local debuffs = {}
   for i = 1, MAX_DEBUFFS do
@@ -92,7 +100,10 @@ function view.targetFrame(root)
     end
   end
 
-  return { layer = layer, update = update, width = FRAME_WIDTH, height = DEBUFF_ROW + HEALTH_HEIGHT + 2 }
+  return {
+    layer = layer, update = update, setTexture = health.setTexture,
+    width = FRAME_WIDTH, height = DEBUFF_ROW + HEALTH_HEIGHT + 2,
+  }
 end
 
 local BAR_WIDTH = 278
@@ -132,7 +143,7 @@ function view.resourceBar(root)
 
   rect(layer, COLOURS.border, 0, BAR_Y, BAR_WIDTH, BAR_HEIGHT)
   rect(layer, COLOURS.track, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
-  local fill = rect(layer, COLOURS.adrenaline, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
+  local fill = draw.bar(layer, COLOURS.adrenaline, COLOURS.track, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
   -- Light notches with black edges hang from the bar's bottom edge.
   local markers = {}
   for i = 1, 2 do
@@ -163,7 +174,7 @@ function view.resourceBar(root)
   local function update(model)
     set(layer, "hidden", model.hidden)
     if model.hidden then return end
-    setFill(fill, model.fill, BAR_WIDTH - 2)
+    fill.setFill(model.fill)
     set(percent, "content", model.text)
     -- Dark text once the fill passes the centred label, white with a shadow on the track.
     local onFill = model.fill >= PERCENT_ON_FILL
@@ -177,7 +188,7 @@ function view.resourceBar(root)
     updateSpenders(model.spenders)
   end
 
-  return { layer = layer, update = update, width = BAR_WIDTH, height = height }
+  return { layer = layer, update = update, setTexture = fill.setTexture, width = BAR_WIDTH, height = height }
 end
 
 -- Tile sizes: 42px tiles for the rotation and 36px for cooldowns, 2px apart.
