@@ -7,7 +7,7 @@ A clean combat HUD for RuneScape 3. RuneUI draws compact unit frames, a resource
 ## What it shows
 
 - The player frame shows your name and lifepoints as "13.1K | 78%" on a health bar, with a thin prayer bar underneath.
-- The target frame shows your target's name and lifepoints as "6,800 | 58%", with its debuff icons in a row above the bar. Hover a debuff to see its name and description.
+- The target frame shows your target's name and lifepoints as "6,800 | 58%", with its debuff icons in a row above the bar. Hover a debuff to see its name and description. The first time RuneUI sees a debuff, it shows a name taken from the icon until the game's own name and description load, within about a minute.
 - The resource bar fills with your adrenaline and shows its percent, with two marker notches you can set, such as 50% and 100%. With Necromancy it adds rows of blocks for residual souls and necrosis stacks. The soul row grows to 5 blocks while a Soulbound lantern is worn.
 - The rotation and cooldowns rows hold ability icons. Each icon shows its action bar keybind, and dims and counts down in whole seconds while cooling. Hover an icon to see its name, cooldown length, keybind and ready state. A thin line on each row takes the colour of the combat style you last used.
 

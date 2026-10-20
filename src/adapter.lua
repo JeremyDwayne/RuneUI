@@ -250,6 +250,16 @@ function adapter.iconStruct(structID)
   return ok and struct or nil
 end
 
+local function readSpriteName(sprite)
+  return id.Sprite.FromID(sprite)
+end
+
+-- src/icons sprite names: the config name of a sprite id, or nil.
+function adapter.spriteName(sprite)
+  local ok, name = pcall(readSpriteName, sprite)
+  return ok and type(name) == "string" and name or nil
+end
+
 -- spenders: the frames.SPENDERS list; each is read by its var name.
 function adapter.resourceReads(spenders)
   local counts = {}

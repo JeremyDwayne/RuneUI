@@ -12,9 +12,24 @@ local function lookup(id)
   return STRUCTS[id]
 end
 
+local SPRITES = { [30098] = "BUFF_ICON_NECROMANCY_BLOATED", [26104] = "COMBAT_ICON_BUFF_11" }
+local function spriteName(sprite) return SPRITES[sprite] end
+local function noName() return nil end
+
+describe("icons.spriteLabel", function()
+  it("drops the icon prefix and a leading combat style, and title cases the rest", function()
+    assert.are.equal("Haunted", icons.spriteLabel("DEBUFF_ICON_NECROMANCY_HAUNTED"))
+    assert.are.equal("Corruption Shot", icons.spriteLabel("COMBAT_ABILITY_ICON_RANGED_CORRUPTION_SHOT"))
+    assert.are.equal("Adrenaline Reduced", icons.spriteLabel("DEBUFF_ICON_COMBAT_ADRENALINE_REDUCED"))
+    assert.are.equal("Buff 11", icons.spriteLabel("COMBAT_ICON_BUFF_11"))
+    assert.are.equal("Smoke Cloud", icons.spriteLabel("SPELL_ANCIENT_MAGICKS_ICON_SMOKE_CLOUD"))
+    assert.is_nil(icons.spriteLabel("BUFF_ICON_MAGIC"))
+  end)
+end)
+
 describe("icons.index", function()
   it("names wanted icons, preferring a debuff struct over an earlier match, and saves what it found", function()
-    local index = icons.index({}, 10)
+    local index = icons.index({}, noName, 10)
     assert.is_nil(index.info(30098))
     assert.is_nil(index.info(26104))
     local learned = {}
@@ -28,10 +43,17 @@ describe("icons.index", function()
   end)
 
   it("starts from saved names and scans nothing until an unknown icon is wanted", function()
-    local index = icons.index({ ["30098"] = { name = "Bloated" } }, 10)
+    local index = icons.index({ ["30098"] = { name = "Bloated" } }, spriteName, 10)
     looked = 0
     assert.are.equal("Bloated", index.info(30098).name)
     index.step(lookup, 5)
     assert.are.equal(0, looked)
+  end)
+
+  it("shows an icon's sprite label until the scan names it", function()
+    local index = icons.index({}, spriteName, 10)
+    assert.are.same({ name = "Buff 11" }, index.info(26104))
+    for _ = 1, 4 do index.step(lookup, 3) end
+    assert.are.same({ name = "Stun Immune" }, index.info(26104))
   end)
 end)
