@@ -82,12 +82,7 @@ describe("settings", function()
 
   it("resets anchors to the defaults along with positions", function()
     local s = settings.load(fakeStore())
-    assert.are.same({
-      player = { target = "rotation", side = "left", align = "bottom", gap = 0, offset = 0 },
-      target = { target = "rotation", side = "right", align = "bottom", gap = 0, offset = 0 },
-      resource = { target = "rotation", side = "top", align = "center", gap = 0, offset = 0 },
-      cooldowns = { target = "resource", side = "top", align = "center", gap = 0, offset = 0 },
-    }, s.anchors())
+    assert.are.same(settings.DEFAULT_ANCHORS, s.anchors())
     s.removeAnchor("player")
     s.setAnchor("target", { target = "player", side = "left", align = "top", gap = 0, offset = 0 })
     s.resetPositions()
@@ -180,6 +175,25 @@ describe("settings", function()
     local reloaded = settings.load(store)
     assert.is_true(reloaded.hideTargetPanel())
     assert.are.equal("horizontal", reloaded.texture())
+  end)
+
+  it("keeps the first category learned for each buff icon across loads, dropping malformed entries", function()
+    local store = fakeStore({ auras = { ["1"] = "sideways", ["2"] = 5 } })
+    local s = settings.load(store)
+    s.learnAura(30093, "upkeep")
+    s.learnAura(30093, "combat")
+    s.learnAura(26466, "hidden")
+    assert.are.same({ ["30093"] = "upkeep", ["26466"] = "hidden" }, settings.load(store).auras())
+  end)
+
+  it("shows the game's buff bars and plain aura icons until chosen otherwise", function()
+    local store = fakeStore()
+    local s = settings.load(store)
+    assert.are.same({ false, false }, { s.hideBuffBars(), s.auraBars() })
+    s.setHideBuffBars(true)
+    s.setAuraBars(true)
+    local reloaded = settings.load(store)
+    assert.are.same({ true, true }, { reloaded.hideBuffBars(), reloaded.auraBars() })
   end)
 
   it("restores whole numbers that PersistentDB returns as floats as integers", function()

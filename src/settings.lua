@@ -1,6 +1,6 @@
--- Saved settings: element positions and anchors, cooldown groups, marker percents, appearance (bar texture
--- and whether the default target panel is hidden), edit mode snapping, learned ability names and icons, and
--- debuff names by icon.
+-- Saved settings: element positions and anchors, cooldown groups, marker percents, appearance (bar texture,
+-- aura bars, and whether the default target panel and buff bars are hidden), edit mode snapping, learned
+-- ability names and icons, aura names by icon, and the aura row each buff icon belongs to.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local layout = require("src/layout")
 
@@ -10,18 +10,27 @@ local settings = {}
 -- side of the rotation row with their bottoms level, and the bars stack flush and centered above it.
 settings.DEFAULT_POSITIONS = {
   player = { x = -469, y = -404, anchorX = 0.5, anchorY = 1 },
-  target = { x = 219, y = -434, anchorX = 0.5, anchorY = 1 },
+  target = { x = 219, y = -404, anchorX = 0.5, anchorY = 1 },
   resource = { x = -139, y = -443, anchorX = 0.5, anchorY = 1 },
   rotation = { x = -219, y = -396, anchorX = 0.5, anchorY = 1 },
   cooldowns = { x = -189, y = -484, anchorX = 0.5, anchorY = 1 },
+  targetDebuffs = { x = 188, y = -437, anchorX = 0.5, anchorY = 1 },
+  playerDebuffs = { x = -472, y = -437, anchorX = 0.5, anchorY = 1 },
+  upkeepBuffs = { x = -472, y = -350, anchorX = 0.5, anchorY = 1 },
+  combatBuffs = { x = -192, y = -529, anchorX = 0.5, anchorY = 1 },
 }
--- src/layout anchors that keep the frames beside the rotation row and the bars stacked above it, matching
--- DEFAULT_POSITIONS with a full row. Dragging the rotation row moves them all.
+-- src/layout anchors that keep the frames beside the rotation row, the bars stacked above it, and the aura
+-- rows on the frames and above the cooldowns row, matching DEFAULT_POSITIONS with full rows. Dragging the
+-- rotation row moves them all.
 settings.DEFAULT_ANCHORS = {
   player = { target = "rotation", side = "left", align = "bottom", gap = 0, offset = 0 },
   target = { target = "rotation", side = "right", align = "bottom", gap = 0, offset = 0 },
   resource = { target = "rotation", side = "top", align = "center", gap = 0, offset = 0 },
   cooldowns = { target = "resource", side = "top", align = "center", gap = 0, offset = 0 },
+  targetDebuffs = { target = "target", side = "top", align = "right", gap = 4, offset = 0 },
+  playerDebuffs = { target = "player", side = "top", align = "left", gap = 4, offset = 0 },
+  upkeepBuffs = { target = "player", side = "bottom", align = "left", gap = 2, offset = 0 },
+  combatBuffs = { target = "cooldowns", side = "top", align = "center", gap = 6, offset = 0 },
 }
 -- The default rotation row's top sits this fraction of the window height above its bottom, below the
 -- player's character, which the camera keeps near the middle of the window at any size.
@@ -30,6 +39,8 @@ local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 -- Bar fills: one flat colour, or a gradient from top to bottom or across the bar.
 settings.TEXTURES = { "flat", "vertical", "horizontal" }
 local GROUP_NAMES = { "rotation", "cooldowns" }
+-- Aura rows a buff icon can be sorted into.
+local AURA_CATEGORIES = { combat = true, upkeep = true, hidden = true }
 local POSITION_FIELDS = { "x", "y", "anchorX", "anchorY" }
 
 -- PersistentDB hands numbers back as floats, so -427 returns as -427.0; whole numbers become integers again.
@@ -122,7 +133,12 @@ end
 
 local function readAppearance(saved)
   saved = type(saved) == "table" and saved or {}
-  local appearance = { texture = "flat", hideTargetPanel = saved.hideTargetPanel == true }
+  local appearance = {
+    texture = "flat",
+    hideTargetPanel = saved.hideTargetPanel == true,
+    hideBuffBars = saved.hideBuffBars == true,
+    auraBars = saved.auraBars == true,
+  }
   for _, known in ipairs(settings.TEXTURES) do
     if saved.texture == known then appearance.texture = known end
   end
@@ -138,6 +154,15 @@ local function readDebuffs(saved)
     end
   end
   return debuffs
+end
+
+local function readAuras(saved)
+  local out = {}
+  if type(saved) ~= "table" then return out end
+  for sprite, category in pairs(saved) do
+    if AURA_CATEGORIES[category] then out[tostring(sprite)] = category end
+  end
+  return out
 end
 
 local function readKnown(saved)
@@ -186,6 +211,7 @@ function settings.load(store, windowHeight)
   local known = readKnown(store.get("known"))
   local appearance = readAppearance(store.get("appearance"))
   local debuffs = readDebuffs(store.get("debuffs"))
+  local auras = readAuras(store.get("auras"))
 
   local function saveGroups() store.set("groups", groups) end
 
@@ -305,7 +331,39 @@ function settings.load(store, windowHeight)
     store.set("appearance", appearance)
   end
 
-  -- { [tostring(sprite)] = { name, info } } for every debuff icon src/icons has named.
+  function s.hideBuffBars()
+    return appearance.hideBuffBars
+  end
+
+  function s.setHideBuffBars(hidden)
+    appearance.hideBuffBars = hidden
+    store.set("appearance", appearance)
+  end
+
+  -- Whether aura icons draw a draining bar under them.
+  function s.auraBars()
+    return appearance.auraBars
+  end
+
+  function s.setAuraBars(on)
+    appearance.auraBars = on
+    store.set("appearance", appearance)
+  end
+
+  -- { [tostring(sprite)] = "combat" | "upkeep" | "hidden" }: the aura row each buff icon seen so far joins.
+  function s.auras()
+    return auras
+  end
+
+  -- Saves the category of a buff icon seen for the first time. No-op once the icon has one.
+  function s.learnAura(sprite, category)
+    local key = tostring(sprite)
+    if auras[key] ~= nil then return end
+    auras[key] = category
+    store.set("auras", auras)
+  end
+
+  -- { [tostring(sprite)] = { name, info } } for every aura icon src/icons has named.
   function s.debuffs()
     return debuffs
   end

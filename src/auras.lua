@@ -27,6 +27,9 @@ local function category(seconds)
   return seconds <= COMBAT_SECONDS and "combat" or "upkeep"
 end
 
+-- The aura row each buff category shows in; hidden buffs show in none.
+local ROWS = { combat = "combatBuffs", upkeep = "upkeepBuffs" }
+
 -- Returns a tracker. onTick takes { buffs, debuffs }, each a list of { sprite, label } in bar order, once
 -- per server tick, and returns the buffs it saw appear as { sprite, category }. rows builds the display
 -- models.
@@ -103,15 +106,16 @@ function auras.tracker()
   end
 
   -- categories: { [tostring(sprite)] = "combat" | "upkeep" | "hidden" } from settings; a buff missing from it
-  -- goes where its first time left put it. targetDebuffs: target debuff sprites. Returns { target, debuffs,
-  -- upkeep, combat }, each a list of up to 10 models in bar order. Target debuffs carry only their sprite.
+  -- goes where its first time left put it. targetDebuffs: target debuff sprites. Returns { targetDebuffs,
+  -- playerDebuffs, upkeepBuffs, combatBuffs }, keyed by HUD element, each a list of up to 10 models in bar
+  -- order. Target debuffs carry only their sprite.
   function tracker.rows(categories, targetDebuffs)
-    local rows = { target = {}, debuffs = {}, upkeep = {}, combat = {} }
-    for _, sprite in ipairs(targetDebuffs) do add(rows.target, { sprite = sprite }) end
-    for _, sprite in ipairs(bars.debuffs.order) do add(rows.debuffs, model(bars.debuffs.states[sprite])) end
+    local rows = { targetDebuffs = {}, playerDebuffs = {}, upkeepBuffs = {}, combatBuffs = {} }
+    for _, sprite in ipairs(targetDebuffs) do add(rows.targetDebuffs, { sprite = sprite }) end
+    for _, sprite in ipairs(bars.debuffs.order) do add(rows.playerDebuffs, model(bars.debuffs.states[sprite])) end
     for _, sprite in ipairs(bars.buffs.order) do
       local state = bars.buffs.states[sprite]
-      local row = rows[categories[tostring(sprite)] or state.category]
+      local row = rows[ROWS[categories[tostring(sprite)] or state.category]]
       if row ~= nil then add(row, model(state)) end
     end
     return rows
