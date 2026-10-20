@@ -206,6 +206,7 @@ end
 
 -- Whether c reads an alpha above 0.
 local function opaque(c)
+  if c == nil then return false end
   local alpha = read(c, "alpha")
   return alpha ~= nil and alpha > 0
 end
