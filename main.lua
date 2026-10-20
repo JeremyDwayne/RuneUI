@@ -11,15 +11,18 @@ local view = require("src/view")
 
 local saved = settings.load(adapter.store())
 
-local root = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
+-- Game interfaces such as the bank draw over the game area, so the HUD sits under them. The options window
+-- goes on the plugin layer above them. Both span the whole window.
+local hud = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
+local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
 local debuffNames = icons.index(saved.debuffs())
-local tooltip = view.tooltip(root)
+local tooltip = view.tooltip(hud)
 local elements = {
-  player = view.playerFrame(root),
-  target = view.targetFrame(root, tooltip, debuffNames.info),
-  resource = view.resourceBar(root),
-  rotation = view.cooldownGroup(root, view.TILE_STYLES.rotation, tooltip),
-  cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns, tooltip),
+  player = view.playerFrame(hud),
+  target = view.targetFrame(hud, tooltip, debuffNames.info),
+  resource = view.resourceBar(hud),
+  rotation = view.cooldownGroup(hud, view.TILE_STYLES.rotation, tooltip),
+  cooldowns = view.cooldownGroup(hud, view.TILE_STYLES.cooldowns, tooltip),
 }
 tooltip.raise()
 local tracker = cooldowns.tracker()
@@ -52,7 +55,7 @@ local function refresh()
   elements.cooldowns.update(tracker.tiles(groups.cooldowns, keybinds), accent)
 end
 
-local optionsWindow = options.create(root, {
+local optionsWindow = options.create(top, {
   saved = saved, tracker = tracker, elements = elements, view = view, refresh = refresh,
 })
 
