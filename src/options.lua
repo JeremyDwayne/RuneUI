@@ -455,7 +455,9 @@ function options.create(root, deps)
         for _, key in ipairs(section.keys) do entries[#entries + 1] = { key = key, name = models[key].name } end
       end
     end
-    if #entries == 0 then entries[1] = { title = "Use an ability to add it here" } end
+    if #entries == 0 then
+      entries[1] = { title = query ~= "" and "No ability matches" or "Use an ability to add it here" }
+    end
     for i, r in ipairs(pickerRows) do
       local entry = entries[i]
       r.key = entry and entry.key
@@ -686,6 +688,7 @@ function options.create(root, deps)
   end
 
   local function resetPositions()
+    closePopups()
     dialogOpen = true
     set(dim, "hidden", not windowOpen)
     set(dialog, "hidden", false)
