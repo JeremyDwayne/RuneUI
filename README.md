@@ -45,7 +45,7 @@ Specs use [busted](https://lunarmodules.github.io/busted/) and linting uses [lua
 ```sh
 busted
 luacheck .
-for f in main.lua src/*.lua spec/*.lua; do luac5.4 -p "$f"; done
+for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; done
 ```
 
 After saving a change, run `prl runeui` in the game console to reload the plugin.
