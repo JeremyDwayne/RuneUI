@@ -126,6 +126,15 @@ describe("options", function()
     assert.is_nil(fake.find(function(_, d) return d.content == "Cancel" end))
   end)
 
+  it("ignores a search event that arrives after the picker closed", function()
+    openWindow()
+    fake.press("+")
+    local search = fake.find(function(c) return fake.hasHook(c, "ONCONTENTCHANGED") end)
+    fake.hook(search, "ONCONTENTCHANGED", 0, "soul")
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.has_no.errors(function() fake.hook(search, "ONCONTENTCHANGED", 4, "soul") end)
+  end)
+
   it("puts a moved element back on Esc in edit mode", function()
     local elements = openWindow()
     local layer = elements.player.layer

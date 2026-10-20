@@ -373,8 +373,10 @@ function options.create(root, deps)
   search:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, 30)
   if id.StyleSheet.INPUT_SEARCHBOX_24PX ~= nil then set(search, "stylesheetID", id.StyleSheet.INPUT_SEARCHBOX_24PX) end
   set(search, "emptyText", "Find an ability")
+  -- The field also reports its contents on Enter, Esc and focus loss, which can come after the picker closed.
   on(search, "ONCONTENTCHANGED", function(_, _, contents)
     query = (contents or ""):lower()
+    if pickerFor == nil then return end
     if query ~= "" then pickerStyle = nil end
     fillPicker()
   end)
