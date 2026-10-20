@@ -60,9 +60,21 @@ describe("settings", function()
     assert.are.equal("integer", math.type(anchor.gap))
   end)
 
+  it("anchors an element added since anchors were saved by its default, until it is placed", function()
+    local store = fakeStore({
+      anchors = { player = { target = "rotation", side = "left", align = "bottom", gap = 0, offset = 0 } },
+      layout = { target = { x = 5, y = 6, anchorX = 0.5, anchorY = 1 } },
+    })
+    local anchors = settings.load(store).anchors()
+    assert.are.same(settings.DEFAULT_ANCHORS.playerDebuffs, anchors.playerDebuffs)
+    assert.is_nil(anchors.target)
+  end)
+
   it("removes an anchor, keeping it removed across loads", function()
     local store = fakeStore()
-    settings.load(store).removeAnchor("player")
+    local s = settings.load(store)
+    s.setPosition("player", { x = 1, y = 2, anchorX = 0.5, anchorY = 1 })
+    s.removeAnchor("player")
     assert.is_nil(settings.load(store).anchors().player)
     assert.is_not_nil(settings.load(store).anchors().target)
   end)
@@ -76,8 +88,9 @@ describe("settings", function()
       cooldowns = { target = "resource", side = "top", align = "center", gap = 2.0, offset = 0 },
       bogus = { target = "player", side = "left", align = "top", gap = 0, offset = 0 },
     } }))
-    assert.are.same({ cooldowns = { target = "resource", side = "top", align = "center", gap = 2, offset = 0 } },
-      s.anchors())
+    local anchors = s.anchors()
+    assert.are.same({ target = "resource", side = "top", align = "center", gap = 2, offset = 0 }, anchors.cooldowns)
+    assert.is_nil(anchors.player or anchors.rotation or anchors.target or anchors.resource or anchors.bogus)
   end)
 
   it("resets anchors to the defaults along with positions", function()

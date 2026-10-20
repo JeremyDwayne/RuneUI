@@ -87,10 +87,15 @@ local function cyclic(anchors, name)
   return false
 end
 
--- Saved anchors without malformed entries or cycles, or the defaults when none were ever saved.
-local function readAnchors(saved)
+-- Saved anchors without malformed entries or cycles, or the defaults when none were ever saved. An element
+-- with neither a saved anchor nor a saved position has never been placed, such as one added since anchors
+-- were saved, so it takes its default anchor; removing an anchor saves a position.
+local function readAnchors(saved, positions)
   if type(saved) ~= "table" then return copyAnchors(settings.DEFAULT_ANCHORS) end
   local anchors = copyAnchors(saved)
+  for name, default in pairs(settings.DEFAULT_ANCHORS) do
+    if saved[name] == nil and positions[name] == nil then anchors[name] = copyAnchor(default) end
+  end
   local looped = {}
   for name in pairs(anchors) do looped[name] = cyclic(anchors, name) end
   for name, dropped in pairs(looped) do
@@ -203,7 +208,7 @@ end
 function settings.load(store, windowHeight)
   local defaults = defaultPositions(windowHeight)
   local positions = readLayout(store.get("layout"))
-  local anchors = readAnchors(store.get("anchors"))
+  local anchors = readAnchors(store.get("anchors"), positions)
   local savedEditMode = store.get("editMode")
   local editMode = { snap = type(savedEditMode) ~= "table" or savedEditMode.snap ~= false }
   local groups = readGroups(store.get("groups"))
