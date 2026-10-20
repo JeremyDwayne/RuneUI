@@ -5,6 +5,12 @@ local MAIN_BAR = 1430
 local TARGET_PANEL = 1490
 -- Target debuff icon sprites sit every 3 static IDs from :38 to :71; -1 marks an empty slot.
 local DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP = 38, 71, 3
+-- Native action bars: first slot background ID per interface. Slots are 13 IDs apart, with the icon
+-- sprite at +2 and the keybind label at +9.
+local BAR_FIRST_SLOTS = { [1430] = 64, [1670] = 19, [1671] = 17, [1672] = 14, [1673] = 14 }
+local SLOTS_PER_BAR, SLOT_STRIDE, SLOT_ICON, SLOT_KEYBIND = 14, 13, 2, 9
+-- Ability struct params read into justUsed()'s result.
+local STRUCT_FIELDS = { COMBATV2_ABILITY_NAME = "name", COMBATV2_ABILITY_ICON = "icon" }
 
 -- Reads a field from a game proxy, returning nil when the proxy does not expose it.
 local function read(obj, field)
@@ -56,6 +62,43 @@ function adapter.targetReads()
     healthPercent = varValue("VarClient", "COMBATV2_TARGET_SIDE_PANEL_HEALTH"),
     debuffs = debuffs,
   }
+end
+
+-- Name, old value and new value of an Event.VarTransmit payload.
+function adapter.varChange(e)
+  return read(e.var, "configName") or "", e.oldValue, e.newValue
+end
+
+-- The struct in COMBATV2_JUST_USED_ABILITY as { key, name, icon }, or nil when it has no name or icon.
+-- key is the struct name without "COMBATV2_ABILITY_", matching the cooldown var keys in src/cooldowns.
+function adapter.justUsed()
+  local struct = varValue("VarClient", "COMBATV2_JUST_USED_ABILITY")
+  local params = struct and read(struct, "params")
+  if params == nil then return nil end
+  local info = { key = (tostring(read(struct, "configName")):gsub("^COMBATV2_ABILITY_", "")) }
+  for _, param in ipairs(params) do
+    local field = STRUCT_FIELDS[read(param, "configName")]
+    if field ~= nil then
+      local ok, value = pcall(function() return struct:GetParamValue(param) end)
+      if ok then info[field] = value end
+    end
+  end
+  if info.name ~= nil or info.icon ~= nil then return info end
+end
+
+-- { [iconSpriteID] = keybind } for every native action bar slot showing both.
+function adapter.slotKeybinds()
+  local keybinds = {}
+  for interfaceID, first in pairs(BAR_FIRST_SLOTS) do
+    for slot = 0, SLOTS_PER_BAR - 1 do
+      local base = first + slot * SLOT_STRIDE
+      local icon = ui.Interfaces:GetComponent(interfaceID, base + SLOT_ICON)
+      local sprite = icon and read(icon, "spriteID")
+      local keybind = labelText(interfaceID, base + SLOT_KEYBIND)
+      if sprite ~= nil and sprite ~= -1 and keybind ~= nil then keybinds[sprite] = keybind end
+    end
+  end
+  return keybinds
 end
 
 -- spenders: the frames.SPENDERS list; each is read by its var name.

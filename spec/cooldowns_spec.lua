@@ -1,0 +1,112 @@
+local cooldowns = require("src/cooldowns")
+
+local CB = "COMBATV2_COOLDOWN_MAGIC_CONCENTRATED_BLAST"
+local DB = "COMBATV2_COOLDOWN_MAGIC_DRAGON_BREATH"
+local BLAST = { name = "Concentrated Blast", icon = 13309 }
+
+local function noAbility() return nil end
+local function blast() return BLAST end
+
+-- Fires an ability whose cooldown runs from tick start for length ticks.
+local function fire(tracker, varStem, start, length)
+  tracker.onVar(varStem .. "_START", start - 50, start)
+  tracker.onVar(varStem .. "_END", start - 40, start + length)
+end
+
+local function justUsedChanged(tracker)
+  tracker.onVar("COMBATV2_JUST_USED_ABILITY", 14730, 45450)
+end
+
+describe("cooldowns.tracker", function()
+  it("counts whole seconds down with server ticks and turns ready at the end", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, CB, 1000, 9)
+    tracker.onTick(noAbility)
+    local tile = tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1]
+    assert.is_false(tile.ready)
+    assert.are.equal(5, tile.seconds)
+    for _ = 1, 8 do tracker.onTick(noAbility) end
+    assert.is_true(tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1].ready)
+  end)
+
+  it("ignores unchanged values and the global cooldown", function()
+    local tracker = cooldowns.tracker()
+    tracker.onVar(CB .. "_START", 1000, 1000)
+    tracker.onVar("COMBATV2_GLOBAL_COOLDOWN_START", 990, 1000)
+    assert.are.same({}, tracker.known())
+  end)
+
+  it("takes name and icon from the just-used ability on the tick a single cooldown starts", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, CB, 1000, 9)
+    justUsedChanged(tracker)
+    tracker.onTick(blast)
+    local tile = tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1]
+    assert.are.equal("Concentrated Blast", tile.name)
+    assert.are.equal(13309, tile.icon)
+  end)
+
+  it("leaves both unnamed when two cooldowns start on the same tick", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, CB, 1000, 9)
+    fire(tracker, DB, 1000, 12)
+    justUsedChanged(tracker)
+    tracker.onTick(blast)
+    local tiles = tracker.tiles({ "MAGIC_CONCENTRATED_BLAST", "MAGIC_DRAGON_BREATH" }, {})
+    assert.is_nil(tiles[1].icon)
+    assert.is_nil(tiles[2].icon)
+  end)
+
+  it("names the cooldown matching the struct when several start on one tick", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, "COMBATV2_COOLDOWN_NECROMANCY_CONJURE_VENGEFUL_GHOST", 1000, 50)
+    fire(tracker, "COMBATV2_COOLDOWN_NECROMANCY_COMMAND_VENGEFUL_GHOST", 1000, 25)
+    justUsedChanged(tracker)
+    tracker.onTick(function()
+      return { key = "NECROMANCY_CONJURE_VENGEFUL_GHOST", name = "Conjure Vengeful Ghost", icon = 30080 }
+    end)
+    local tiles = tracker.tiles({ "NECROMANCY_CONJURE_VENGEFUL_GHOST", "NECROMANCY_COMMAND_VENGEFUL_GHOST" }, {})
+    assert.are.equal(30080, tiles[1].icon)
+    assert.is_nil(tiles[2].icon)
+  end)
+
+  it("ignores a just-used ability that did not change on that tick", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, CB, 1000, 9)
+    tracker.onTick(blast)
+    assert.is_nil(tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1].icon)
+  end)
+
+  it("names an ability from its var with initials when no struct is known", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, DB, 1000, 12)
+    local tile = tracker.tiles({ "MAGIC_DRAGON_BREATH" }, {})[1]
+    assert.are.equal("Dragon Breath", tile.name)
+    assert.are.equal("DB", tile.initials)
+  end)
+
+  it("shows the keybind of the bar slot whose icon matches", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, CB, 1000, 9)
+    justUsedChanged(tracker)
+    tracker.onTick(blast)
+    assert.are.equal("Q", tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, { [13309] = "Q" })[1].keybind)
+  end)
+
+  it("builds tiles in the given order", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, CB, 1000, 9)
+    fire(tracker, DB, 1001, 12)
+    local tiles = tracker.tiles({ "MAGIC_DRAGON_BREATH", "MAGIC_CONCENTRATED_BLAST" }, {})
+    assert.are.equal("MAGIC_DRAGON_BREATH", tiles[1].key)
+    assert.are.equal("MAGIC_CONCENTRATED_BLAST", tiles[2].key)
+  end)
+
+  it("defaults abilities of 30 seconds or more to the cooldowns group", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, CB, 1000, 9)
+    fire(tracker, "COMBATV2_COOLDOWN_MAGIC_SUNSHINE", 1001, 100)
+    assert.are.same({ rotation = { "MAGIC_CONCENTRATED_BLAST" }, cooldowns = { "MAGIC_SUNSHINE" } },
+      tracker.defaultGroups())
+  end)
+end)

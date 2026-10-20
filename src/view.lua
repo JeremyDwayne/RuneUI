@@ -6,6 +6,8 @@ local view = {}
 local FONTS = {
   body = id.Font.MUSEO_SANS_13PT_BOLD,
   small = id.Font.NOTOSANS_BOLD_10,
+  seconds = id.Font.MUSEO_SANS_19PT_BOLD,
+  bigSeconds = id.Font.MUSEO_SANS_21PT_BOLD,
 }
 
 local COLOURS = {
@@ -20,6 +22,8 @@ local COLOURS = {
   darkText = 0x111316,
   spender = 0xdfe4ea,
   emptyBlock = 0x22262b,
+  tile = 0x2a2e33,
+  dimText = 0xc7ccd1,
 }
 
 local warned = {}
@@ -213,6 +217,84 @@ function view.resourceBar(root)
       if i == 1 then markerLabels[i]:SetPos(x - 40, 37) end
     end
     updateSpender(model.spender)
+  end
+
+  return { layer = layer, update = update }
+end
+
+-- Tile layouts: a centred rotation row with initials at the bottom, and larger cooldowns
+-- tiles with initials at the top.
+view.TILE_STYLES = {
+  rotation = { size = 44, gap = 4, centred = true, initialsTop = false, secondsFont = FONTS.seconds },
+  cooldowns = { size = 54, gap = 2, centred = false, initialsTop = true, secondsFont = FONTS.bigSeconds },
+}
+local MAX_TILES = 10
+local COOLING_DIM = 0.62
+
+-- Builds one tile's components; place(x) moves them all, keeping each part's offset in the tile.
+local function tile(layer, style)
+  local size = style.size
+  local offsets = {}
+  local function at(component, dx, dy)
+    offsets[#offsets + 1] = { component = component, dx = dx, dy = dy }
+    return component
+  end
+  local parts = {
+    edge = at(rect(layer, COLOURS.border, 0, 0, size, size), 0, 0),
+    background = at(rect(layer, COLOURS.tile, 0, 0, size - 2, size - 2), 1, 1),
+    icon = at(ui.Sprite.new(layer), 1, 1),
+  }
+  parts.icon:SetSize(size - 2, size - 2)
+  local initialsY = style.initialsTop and 3 or size - 15
+  parts.initials = at(text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, size - 8, 12), 4, initialsY)
+  parts.dim = at(rect(layer, COLOURS.border, 0, 0, size - 2, size - 2), 1, 1)
+  set(parts.dim, "alpha", COOLING_DIM)
+  parts.keybind = at(text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 24, 2)
+  parts.seconds = at(text(layer, style.secondsFont, ui.AlignMode.CENTRE, 0, 0, size, size), 0, 0)
+
+  function parts.place(x)
+    for _, o in ipairs(offsets) do o.component:SetPos(x + o.dx, o.dy) end
+  end
+
+  function parts.setHidden(hidden)
+    for _, o in ipairs(offsets) do set(o.component, "hidden", hidden) end
+  end
+
+  return parts
+end
+
+-- A row of up to 10 ability tiles; update takes src/cooldowns tiles. Ready tiles are bright with their
+-- keybind; cooling tiles are dimmed with whole seconds left.
+function view.cooldownGroup(root, style)
+  local step = style.size + style.gap
+  local width = MAX_TILES * step - style.gap
+  local layer = ui.Layer.new(root)
+  layer:SetSize(width, style.size)
+  local tiles = {}
+  for i = 1, MAX_TILES do tiles[i] = tile(layer, style) end
+
+  local function update(models)
+    local count = math.min(#models, MAX_TILES)
+    local offset = style.centred and math.floor((width - (count * step - style.gap)) / 2) or 0
+    for i, parts in ipairs(tiles) do
+      local model = models[i]
+      parts.setHidden(model == nil)
+      if model ~= nil then
+        parts.place(offset + (i - 1) * step)
+        set(parts.icon, "hidden", model.icon == nil)
+        if model.icon ~= nil then set(parts.icon, "sprite", model.icon) end
+        set(parts.initials, "hidden", model.icon ~= nil)
+        set(parts.initials, "content", model.initials)
+        set(parts.dim, "hidden", model.ready)
+        set(parts.keybind, "hidden", model.keybind == nil)
+        set(parts.keybind, "content", model.keybind or "")
+        set(parts.seconds, "hidden", model.ready)
+        set(parts.seconds, "content", model.seconds and tostring(model.seconds) or "")
+        local labelColour = model.ready and COLOURS.text or COLOURS.dimText
+        set(parts.initials, "rgb", labelColour)
+        set(parts.keybind, "rgb", labelColour)
+      end
+    end
   end
 
   return { layer = layer, update = update }
