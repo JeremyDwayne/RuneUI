@@ -9,6 +9,10 @@ local LONG_COOLDOWN_TICKS = 50
 -- STRENGTH_DESTROY; DEFENCE and CONSTITUTION abilities belong to no style.
 local STYLES = { MAGIC = "magic", NECROMANCY = "necromancy", RANGED = "ranged", ATTACK = "melee", STRENGTH = "melee" }
 
+-- Just-used struct keys shared by many abilities, which lend their icon but not their name: every weapon
+-- special reports the special attack, whose icon its action bar slot shows.
+local GENERIC_STRUCTS = { CONSTITUTION_SPECIAL_ATTACK = true }
+
 -- "MAGIC_SUNSHINE" -> "magic": the combat style a cooldown key belongs to, or nil for a style-free one.
 function cooldowns.styleOf(key)
   return STYLES[key:match("^(%u+)_")]
@@ -57,7 +61,9 @@ function cooldowns.tracker()
 
   local tracker = {}
 
-  -- A _START var holds the server tick its ability fired, which also keeps the clock in step.
+  -- A _START var holds the server tick its ability fired, which also keeps the clock in step. Weapon
+  -- specials such as Instability use COMBATV2_ABILITY_WEAPON_COOLDOWN_<NAME> vars and take the key
+  -- WEAPON_<NAME>.
   function tracker.onVar(name, old, new)
     if old == new then return end
     if name == "COMBATV2_JUST_USED_ABILITY" then
@@ -65,6 +71,10 @@ function cooldowns.tracker()
       return
     end
     local key, edge = name:match("^COMBATV2_COOLDOWN_(.+)_(%u+)$")
+    if key == nil then
+      key, edge = name:match("^COMBATV2_ABILITY_WEAPON_COOLDOWN_(.+)_(%u+)$")
+      key = key and "WEAPON_" .. key
+    end
     if edge == "START" then
       ability(key).start = new
       now = new
@@ -92,8 +102,10 @@ function cooldowns.tracker()
     local key = info and startedBy(info)
     local learned = nil
     if key ~= nil then
-      abilities[key].name, abilities[key].icon = info.name, info.icon
-      learned = { key = key, name = info.name, icon = info.icon }
+      local a = abilities[key]
+      if not GENERIC_STRUCTS[info.key] then a.name = info.name end
+      a.icon = info.icon
+      learned = { key = key, name = a.name, icon = a.icon }
     end
     startedThisTick = {}
     justUsedChanged = false

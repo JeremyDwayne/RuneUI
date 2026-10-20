@@ -48,6 +48,27 @@ describe("cooldowns.tracker", function()
     assert.are.equal(15, tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1].cooldown)
   end)
 
+  it("tracks weapon special cooldowns, whose vars carry their own prefix", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, "COMBATV2_ABILITY_WEAPON_COOLDOWN_INSTABILITY", 1000, 100)
+    tracker.onTick(noAbility)
+    local tile = tracker.tiles({ "WEAPON_INSTABILITY" }, {})[1]
+    assert.are.same({ "Instability", 60, 60 }, { tile.name, tile.seconds, tile.cooldown })
+    assert.are.same({ "WEAPON_INSTABILITY" }, tracker.known())
+  end)
+
+  it("gives a weapon special the shared special attack icon and keeps its own name", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, "COMBATV2_ABILITY_WEAPON_COOLDOWN_INSTABILITY", 1000, 100)
+    justUsedChanged(tracker)
+    local learned = tracker.onTick(function()
+      return { key = "CONSTITUTION_SPECIAL_ATTACK", name = "Weapon Special Attack", icon = 26105 }
+    end)
+    assert.are.same({ key = "WEAPON_INSTABILITY", icon = 26105 }, learned)
+    local tile = tracker.tiles({ "WEAPON_INSTABILITY" }, {})[1]
+    assert.are.same({ "Instability", 26105 }, { tile.name, tile.icon })
+  end)
+
   it("ignores unchanged values and the global cooldown", function()
     local tracker = cooldowns.tracker()
     tracker.onVar(CB .. "_START", 1000, 1000)

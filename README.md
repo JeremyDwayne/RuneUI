@@ -15,7 +15,7 @@ A clean combat HUD for RuneScape 3. RuneUI draws compact unit frames, a resource
 
 A buff joins a row the first time RuneUI sees it: the combat row if it has a minute or less left, the long buff row if it has more, and no row if it has no timer, such as a percent. Target debuffs show no timer, because the game's target panel does not show one.
 
-Abilities join a row the first time you use them. Ones with a cooldown of 30 seconds or more go in the cooldowns row, and the rest go in the rotation row. You can rearrange both rows yourself in the options window.
+Abilities join a row the first time you use them, weapon special attacks such as Instability and Black Hole included. Ones with a cooldown of 30 seconds or more go in the cooldowns row, and the rest go in the rotation row. You can rearrange both rows yourself in the options window.
 
 ## Install
 
