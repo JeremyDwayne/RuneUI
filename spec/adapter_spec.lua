@@ -87,3 +87,19 @@ describe("adapter.hideTargetPanel", function()
     assert.are.equal(1, panel[0].alpha)
   end)
 end)
+
+describe("adapter.targetReads", function()
+  it("lists only the debuff slots the panel shows, since expired slots keep their icon while invisible", function()
+    _G.var = { VarPlayer = { NPCTARGET = { value = 25126 } }, VarClient = {} }
+    local slots = {
+      [38] = { spriteID = 30097, visibleGlobal = true },
+      [41] = { spriteID = 30212, visibleGlobal = false },
+      [44] = { spriteID = 30098, visibleGlobal = true },
+      [47] = { spriteID = -1, visibleGlobal = false },
+    }
+    _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID)
+      if interfaceID == 1490 then return slots[staticID] end
+    end } }
+    assert.are.same({ 30097, 30098 }, adapter.targetReads().debuffs)
+  end)
+end)

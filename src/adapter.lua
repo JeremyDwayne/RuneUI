@@ -3,7 +3,8 @@ local adapter = {}
 
 local MAIN_BAR = 1430
 local TARGET_PANEL = 1490
--- Target debuff icon sprites sit every 3 static IDs from :38 to :71; -1 marks an empty slot.
+-- Target debuff icon sprites sit every 3 static IDs from :38 to :71. A slot is empty when its sprite is -1
+-- or it reads not visibleGlobal: an expired or switched-away debuff keeps its sprite while invisible.
 local DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP = 38, 71, 3
 -- Native action bars: first slot background ID per interface. Slots are 13 IDs apart, with the icon
 -- sprite at +2 and the keybind label at +9.
@@ -70,7 +71,7 @@ function adapter.targetReads()
   for staticID = DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP do
     local c = ui.Interfaces:GetComponent(TARGET_PANEL, staticID)
     local sprite = c and read(c, "spriteID")
-    if sprite ~= nil and sprite ~= -1 then debuffs[#debuffs + 1] = sprite end
+    if sprite ~= nil and sprite ~= -1 and read(c, "visibleGlobal") ~= false then debuffs[#debuffs + 1] = sprite end
   end
   return {
     target = target,
