@@ -3,6 +3,7 @@
 local view = {}
 
 local draw = require("src/draw")
+local frames = require("src/frames")
 local set, rect, text, setFill = draw.set, draw.rect, draw.text, draw.setFill
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
@@ -96,45 +97,67 @@ end
 
 local BAR_WIDTH = 278
 local MAX_BLOCKS = 12
+local SPENDER_ROW = 8
+-- Spender rows stack upward from just above the bar, one per spender with stacks.
+local BAR_Y = 2 * (SPENDER_ROW + 2)
+local BAR_HEIGHT = 20
+local NOTCH = 7
+local SPENDER_COLOURS = { souls = COLOURS.spender, necrosis = COLOURS.necrosis }
 -- Fill fraction at which the centred percent label sits entirely on the fill.
 local PERCENT_ON_FILL = 0.56
 
--- 278 wide: spender blocks with a count label, adrenaline bar with markers, marker labels.
+-- Left edges and widths of count blocks spread evenly across width with 2px gaps, using every pixel.
+local function blockSpans(count, width)
+  local spans = {}
+  for i = 1, count do
+    local left = math.floor((i - 1) * (width + 2) / count)
+    local right = math.floor(i * (width + 2) / count) - 2
+    spans[i] = { x = left, w = right - left }
+  end
+  return spans
+end
+
+-- 278 wide: up to two rows of spender blocks, the adrenaline bar with its percent, and marker notches
+-- below the bar so they never cross the percent.
 function view.resourceBar(root)
+  local height = BAR_Y + BAR_HEIGHT + NOTCH
   local layer = ui.Layer.new(root)
-  layer:SetSize(BAR_WIDTH, 52)
+  layer:SetSize(BAR_WIDTH, height)
 
-  local blocks = {}
-  for i = 1, MAX_BLOCKS do blocks[i] = rect(layer, COLOURS.emptyBlock, 0, 0, 0, 12) end
-  local spenderLabel = text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, BAR_WIDTH - 80, 0, 80, 12)
+  local rows = {}
+  for r = 1, #frames.SPENDERS do
+    rows[r] = {}
+    for i = 1, MAX_BLOCKS do rows[r][i] = rect(layer, COLOURS.emptyBlock, 0, 0, 0, SPENDER_ROW) end
+  end
 
-  rect(layer, COLOURS.border, 0, 15, BAR_WIDTH, 20)
-  rect(layer, COLOURS.track, 1, 16, BAR_WIDTH - 2, 18)
-  local fill = rect(layer, COLOURS.adrenaline, 1, 16, BAR_WIDTH - 2, 18)
-  -- Light lines with black edges, so a marker shows on both the dark track and the fill.
+  rect(layer, COLOURS.border, 0, BAR_Y, BAR_WIDTH, BAR_HEIGHT)
+  rect(layer, COLOURS.track, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
+  local fill = rect(layer, COLOURS.adrenaline, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
+  -- Light notches with black edges hang from the bar's bottom edge.
   local markers = {}
   for i = 1, 2 do
-    markers[i] = { edge = rect(layer, COLOURS.border, 0, 12, 4, 26), line = rect(layer, COLOURS.marker, 0, 13, 2, 24) }
+    markers[i] = {
+      edge = rect(layer, COLOURS.border, 0, BAR_Y + BAR_HEIGHT, 4, NOTCH),
+      line = rect(layer, COLOURS.marker, 0, BAR_Y + BAR_HEIGHT, 2, NOTCH - 1),
+    }
   end
-  local percent = text(layer, FONTS.body, ui.AlignMode.CENTRE, 0, 16, BAR_WIDTH, 18)
-  local markerLabels = {
-    text(layer, FONTS.small, ui.AlignMode.CENTRE, 0, 37, 80, 14),
-    text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, BAR_WIDTH - 80, 37, 80, 14),
-  }
+  local percent = text(layer, FONTS.body, ui.AlignMode.CENTRE, 0, BAR_Y + 1, BAR_WIDTH, BAR_HEIGHT - 2)
 
-  local function updateSpender(spender)
-    set(spenderLabel, "hidden", spender == nil)
-    local count = spender and spender.max or 0
-    local blockWidth = count > 0 and math.floor((BAR_WIDTH - 86 - 2 * (count - 1)) / count) or 0
-    for i, block in ipairs(blocks) do
-      set(block, "hidden", i > count)
-      if i <= count then
-        block:SetPos((i - 1) * (blockWidth + 2), 0)
-        block:SetWidth(blockWidth)
-        set(block, "rgb", i <= spender.count and COLOURS.spender or COLOURS.emptyBlock)
+  local function updateSpenders(spenders)
+    for r, blocks in ipairs(rows) do
+      local spender = spenders[r]
+      local count = spender and spender.max or 0
+      local spans = blockSpans(count, BAR_WIDTH)
+      local y = BAR_Y - (#spenders - r + 1) * (SPENDER_ROW + 2)
+      for i, block in ipairs(blocks) do
+        set(block, "hidden", i > count)
+        if i <= count then
+          block:SetPos(spans[i].x, y)
+          block:SetWidth(spans[i].w)
+          set(block, "rgb", i <= spender.count and SPENDER_COLOURS[spender.key] or COLOURS.emptyBlock)
+        end
       end
     end
-    if spender ~= nil then set(spenderLabel, "content", spender.label .. " " .. spender.count .. "/" .. spender.max) end
   end
 
   local function update(model)
@@ -148,15 +171,13 @@ function view.resourceBar(root)
     set(percent, "isShadowed", not onFill)
     for i, marker in ipairs(model.markers) do
       local x = math.min(math.floor(marker.at * (BAR_WIDTH - 2)), BAR_WIDTH - 3)
-      markers[i].edge:SetPos(x - 1, 12)
-      markers[i].line:SetPos(x, 13)
-      set(markerLabels[i], "content", marker.label)
-      if i == 1 then markerLabels[i]:SetPos(x - 40, 37) end
+      markers[i].edge:SetPos(x - 1, BAR_Y + BAR_HEIGHT)
+      markers[i].line:SetPos(x, BAR_Y + BAR_HEIGHT)
     end
-    updateSpender(model.spender)
+    updateSpenders(model.spenders)
   end
 
-  return { layer = layer, update = update, width = BAR_WIDTH, height = 52 }
+  return { layer = layer, update = update, width = BAR_WIDTH, height = height }
 end
 
 -- Tile sizes: 42px tiles for the rotation and 36px for cooldowns, 2px apart.

@@ -22,6 +22,7 @@ draw.COLOURS = {
   text = 0xffffff,
   darkText = 0x111316,
   spender = 0xdfe4ea,
+  necrosis = 0x9b59d0,
   emptyBlock = 0x22262b,
   tile = 0x141414,
   dimText = 0xc7ccd1,

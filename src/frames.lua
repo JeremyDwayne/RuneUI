@@ -2,11 +2,11 @@
 -- Pure: no client calls, so specs drive it with fake reads from src/adapter's shape.
 local frames = {}
 
--- Spender resources shown as blocks above the resource bar, keyed by their VarPlayer name.
--- Both maxes are unconfirmed in the client.
+-- Spender resources shown as rows of blocks above the resource bar, read by their VarPlayer name.
+-- Residual souls cap at 3, or 5 with a Soulbound lantern equipped.
 frames.SPENDERS = {
-  { var = "COMBATV2_BUFF_NECROMANCY_RESIDUAL_SOUL_STACKS", label = "Souls", max = 5 },
-  { var = "COMBATV2_BUFF_NECROMANCY_NECROSIS_STACKS", label = "Necrosis", max = 12 },
+  { key = "souls", var = "COMBATV2_BUFF_NECROMANCY_RESIDUAL_SOUL_STACKS", max = 3, lanternMax = 5 },
+  { key = "necrosis", var = "COMBATV2_BUFF_NECROMANCY_NECROSIS_STACKS", max = 12 },
 }
 
 local function clamp01(x)
@@ -79,7 +79,8 @@ function frames.target(reads)
   return model
 end
 
--- reads: { adrenaline = SA_ENERGY in tenths of a percent, spenders = { [varName] = count } }
+-- reads: { adrenaline = SA_ENERGY in tenths of a percent, spenders = { [varName] = count },
+--         lantern = whether a Soulbound lantern is equipped }
 -- markers: { threshold = percent, ultimate = percent }
 function frames.resource(reads, markers)
   if reads.adrenaline == nil then return { hidden = true } end
@@ -88,16 +89,14 @@ function frames.resource(reads, markers)
     hidden = false,
     fill = fill,
     text = percentText(reads.adrenaline, 1000),
-    markers = {
-      { at = clamp01(markers.threshold / 100), label = "Threshold" },
-      { at = clamp01(markers.ultimate / 100), label = "Ultimate" },
-    },
+    markers = { { at = clamp01(markers.threshold / 100) }, { at = clamp01(markers.ultimate / 100) } },
+    spenders = {},
   }
   for _, spender in ipairs(frames.SPENDERS) do
     local count = reads.spenders[spender.var]
     if count ~= nil and count > 0 then
-      model.spender = { label = spender.label, count = math.min(count, spender.max), max = spender.max }
-      break
+      local max = reads.lantern and spender.lanternMax or spender.max
+      model.spenders[#model.spenders + 1] = { key = spender.key, count = math.min(count, max), max = max }
     end
   end
   return model

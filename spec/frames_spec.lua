@@ -59,16 +59,25 @@ describe("frames.resource", function()
   it("places markers at the configured threshold and ultimate costs", function()
     local model = frames.resource({ adrenaline = 0, spenders = {} }, { threshold = 60, ultimate = 100 })
     assert.is_near(0.6, model.markers[1].at, 1e-9)
-    assert.are.equal("Threshold", model.markers[1].label)
     assert.is_near(1.0, model.markers[2].at, 1e-9)
   end)
 
-  it("shows spender blocks only while the resource has stacks", function()
-    local souls = "COMBATV2_BUFF_NECROMANCY_RESIDUAL_SOUL_STACKS"
-    local shown = frames.resource({ adrenaline = 0, spenders = { [souls] = 3 } }, MARKERS)
-    assert.are.same({ label = "Souls", count = 3, max = 5 }, shown.spender)
-    local empty = frames.resource({ adrenaline = 0, spenders = { [souls] = 0 } }, MARKERS)
-    assert.is_nil(empty.spender)
+  local SOULS = "COMBATV2_BUFF_NECROMANCY_RESIDUAL_SOUL_STACKS"
+  local NECROSIS = "COMBATV2_BUFF_NECROMANCY_NECROSIS_STACKS"
+
+  it("shows a row of blocks for each spender with stacks, both at once", function()
+    local model = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 2, [NECROSIS] = 7 } }, MARKERS)
+    assert.are.same({ { key = "souls", count = 2, max = 3 }, { key = "necrosis", count = 7, max = 12 } },
+      model.spenders)
+    local empty = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 0, [NECROSIS] = 0 } }, MARKERS)
+    assert.are.same({}, empty.spenders)
+  end)
+
+  it("caps souls at 5 with a Soulbound lantern equipped and 3 without", function()
+    local with = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 5 }, lantern = true }, MARKERS)
+    assert.are.same({ key = "souls", count = 5, max = 5 }, with.spenders[1])
+    local without = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 5 } }, MARKERS)
+    assert.are.same({ key = "souls", count = 3, max = 3 }, without.spenders[1])
   end)
 end)
 
