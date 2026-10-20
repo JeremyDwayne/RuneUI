@@ -162,65 +162,88 @@ function adapter.inventoryChanged(e)
   if id == nil or id == WORN_INV then lantern = nil end
 end
 
--- Original alpha of each target panel component while RuneUI holds it transparent, keyed "static" or
--- "static:category:dynamic".
-local panelAlpha = nil
-
--- Calls fn(key, component) for every target panel component, dynamic children included, since a
--- component's alpha does not reach its children.
-local function eachPanelComponent(fn)
-  for staticID = 0, TARGET_LAST_STATIC do
-    local c = ui.Interfaces:GetComponent(TARGET_PANEL, staticID)
-    if c ~= nil then
-      fn(tostring(staticID), c)
-      pcall(function()
-        c:IterateDynamicComponents(function(child)
-          fn(staticID .. ":" .. tostring(read(child, "categoryID")) .. ":" .. tostring(read(child, "dynamicID")), child)
-          return false
-        end)
-      end)
-    end
-  end
-end
-
-local function setPanelAlpha(transparent)
-  eachPanelComponent(function(key, c)
-    if transparent and panelAlpha[key] == nil then panelAlpha[key] = read(c, "alpha") or 1 end
-    local alpha = transparent and 0 or panelAlpha[key] or 1
-    pcall(function() c.alpha = alpha end)
-  end)
-end
-
 -- Whether c reads an alpha above 0.
 local function opaque(c)
   local alpha = read(c, "alpha")
   return alpha ~= nil and alpha > 0
 end
 
--- Runs on every rendered frame while the target panel is hidden, since the client rebuilds the panel's frame
--- sprites opaque between server ticks. A visible name label means the panel reloaded, and a visible
--- background means its frame was rebuilt, so either makes it transparent again. Two reads when nothing
--- changed, and none while the panel is shown.
-function adapter.keepTargetPanelHidden()
-  if panelAlpha == nil then return end
-  if opaque(ui.Interfaces:GetComponent(TARGET_PANEL, TARGET_NAME))
-    or opaque(ui.Interfaces:GetComponent(TARGET_PANEL, TARGET_BACKGROUND, 0, 0)) then
-    setPanelAlpha(true)
+-- An interface RuneUI can hold transparent with alpha 0, since hiding its components stops them updating.
+-- lastStatic is its highest static ID. watched lists { staticID, categoryID, dynamicID } addresses, without
+-- the last two for a static, that read opaque once the client reloads or rebuilds the interface. Returns
+-- { hide(hidden), keep() }: hide runs each server tick and false restores the original alphas; keep runs on
+-- every rendered frame, reading only the watched components while hidden and nothing while shown.
+local function transparency(interfaceID, lastStatic, watched)
+  -- Original alpha of each component while held transparent, keyed "static" or "static:category:dynamic".
+  local originals = nil
+
+  -- Calls fn(key, component) for every component, dynamic children included, since a component's alpha
+  -- does not reach its children.
+  local function each(fn)
+    for staticID = 0, lastStatic do
+      local c = ui.Interfaces:GetComponent(interfaceID, staticID)
+      if c ~= nil then
+        fn(tostring(staticID), c)
+        pcall(function()
+          c:IterateDynamicComponents(function(child)
+            fn(staticID .. ":" .. tostring(read(child, "categoryID")) .. ":" .. tostring(read(child, "dynamicID")),
+              child)
+            return false
+          end)
+        end)
+      end
+    end
   end
+
+  local function setAlpha(transparent)
+    each(function(key, c)
+      if transparent and originals[key] == nil then originals[key] = read(c, "alpha") or 1 end
+      local alpha = transparent and 0 or originals[key] or 1
+      pcall(function() c.alpha = alpha end)
+    end)
+  end
+
+  local t = {}
+
+  function t.keep()
+    if originals == nil then return end
+    for _, at in ipairs(watched) do
+      local c
+      if at[2] ~= nil then
+        c = ui.Interfaces:GetComponent(interfaceID, at[1], at[2], at[3])
+      else
+        c = ui.Interfaces:GetComponent(interfaceID, at[1])
+      end
+      if opaque(c) then
+        setAlpha(true)
+        return
+      end
+    end
+  end
+
+  function t.hide(hidden)
+    if hidden then
+      originals = originals or {}
+      t.keep()
+    elseif originals ~= nil then
+      setAlpha(false)
+      originals = nil
+    end
+  end
+
+  return t
 end
 
+-- The target panel rebuilds its frame sprites opaque between server ticks. A visible name label means the
+-- panel reloaded, and a visible background means its frame was rebuilt.
+local targetPanel = transparency(TARGET_PANEL, TARGET_LAST_STATIC, { { TARGET_NAME }, { TARGET_BACKGROUND, 0, 0 } })
+
+-- Runs on every rendered frame, making the target panel transparent again when the client rebuilt it.
+adapter.keepTargetPanelHidden = targetPanel.keep
+
 -- Runs each server tick with whether the native target panel should be hidden. Hiding sets alpha 0,
--- because hidden stops the panel filling its debuff slots, which targetReads relies on. false restores the
--- original alphas.
-function adapter.hideTargetPanel(hidden)
-  if hidden then
-    panelAlpha = panelAlpha or {}
-    adapter.keepTargetPanelHidden()
-  elseif panelAlpha ~= nil then
-    setPanelAlpha(false)
-    panelAlpha = nil
-  end
-end
+-- because hidden stops the panel filling its debuff slots, which targetReads relies on.
+adapter.hideTargetPanel = targetPanel.hide
 
 local iconParams = nil
 
