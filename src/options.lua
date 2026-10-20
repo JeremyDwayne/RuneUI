@@ -599,7 +599,9 @@ function options.create(root, deps)
 
   -- Ticks ---------------------------------------------------------------------------------------------
 
+  -- Runs 50 times a second, so it returns before reading the mouse unless a drag or move is under way.
   Event.Logic.Subscribe("runeuiOptions", function()
+    if drag == nil and move == nil then return end
     local mx, my = Mouse.GetX(), Mouse.GetY()
     if mx == nil or my == nil then return end
     if drag ~= nil then

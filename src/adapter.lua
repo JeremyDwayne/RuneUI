@@ -17,10 +17,15 @@ local WORN_INV = 94
 -- Ability struct params read into justUsed()'s result.
 local STRUCT_FIELDS = { COMBATV2_ABILITY_NAME = "name", COMBATV2_ABILITY_ICON = "icon" }
 
+local function index(obj, field)
+  return obj[field]
+end
+
 -- Reads a field from a game proxy, returning nil when the proxy does not expose it. Always one value, so
--- it is safe as a tostring argument.
+-- it is safe as a tostring argument. Runs many times a tick, so it passes index to pcall rather than
+-- building a closure per read.
 local function read(obj, field)
-  local ok, value = pcall(function() return obj[field] end)
+  local ok, value = pcall(index, obj, field)
   if ok then return value end
   return nil
 end
@@ -64,7 +69,7 @@ function adapter.targetReads()
   end
   return {
     target = varValue("VarPlayer", "NPCTARGET"),
-    name = labelText(TARGET_PANEL, 21),
+    name = labelText(TARGET_PANEL, TARGET_NAME),
     lifepointsLabel = labelText(TARGET_PANEL, 34),
     healthPercent = varValue("VarClient", "COMBATV2_TARGET_SIDE_PANEL_HEALTH"),
     debuffs = debuffs,
@@ -101,8 +106,10 @@ function adapter.slotKeybinds()
       local base = first + slot * SLOT_STRIDE
       local icon = ui.Interfaces:GetComponent(interfaceID, base + SLOT_ICON)
       local sprite = icon and read(icon, "spriteID")
-      local keybind = labelText(interfaceID, base + SLOT_KEYBIND)
-      if sprite ~= nil and sprite ~= -1 and keybind ~= nil then keybinds[sprite] = keybind end
+      if sprite ~= nil and sprite ~= -1 then
+        local keybind = labelText(interfaceID, base + SLOT_KEYBIND)
+        if keybind ~= nil then keybinds[sprite] = keybind end
+      end
     end
   end
   return keybinds
