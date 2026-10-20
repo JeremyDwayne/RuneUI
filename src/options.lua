@@ -194,7 +194,7 @@ function options.create(root, deps)
       if mx == nil then return end
       origin.x = mx - (PAGE_X + group.x + x)
       origin.y = my - (PAGE_Y + group.y + py)
-      drag = { tile = t, startX = mx, startY = my, moved = false }
+      drag = { tile = t, startX = mx, startY = my, pressX = x, pressY = py, moved = false }
     end)
     on(t.edge, "ONRELEASE", function() if drag ~= nil and drag.tile == t then drop() end end)
     return t
@@ -314,10 +314,12 @@ function options.create(root, deps)
     set(menu, "hidden", false)
   end
 
-  -- Ends a drag without dropping: the feedback hides and the source tile returns to full alpha.
+  -- Ends a drag without dropping: the feedback hides and the source tile returns to its slot at full alpha.
   local function cancelDrag()
     if drag == nil then return end
-    drag.tile.group.set("alpha", 1)
+    local group = drag.tile.group
+    group.set("alpha", 1)
+    group.place(group.x, group.y)
     drag = nil
     hideDragFeedback()
   end
@@ -634,7 +636,12 @@ function options.create(root, deps)
       if not drag.moved and math.abs(mx - drag.startX) + math.abs(my - drag.startY) > DRAG_START then
         startDrag(drag.tile)
       end
-      if drag.moved then showDragFeedback(drag.tile, mx - origin.x, my - origin.y) end
+      if drag.moved then
+        local wx, wy = mx - origin.x, my - origin.y
+        -- The client releases a press once the cursor leaves the pressed component, so the hit area follows.
+        draw.pos(drag.tile.edge, wx - PAGE_X - drag.pressX, wy - PAGE_Y - drag.pressY)
+        showDragFeedback(drag.tile, wx, wy)
+      end
     end
     if move ~= nil then
       local from = move.from

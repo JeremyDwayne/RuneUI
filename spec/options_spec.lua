@@ -67,6 +67,20 @@ describe("options", function()
     assert.are.equal(0, fake.writes)
   end)
 
+  it("keeps the pressed tile under the cursor during a drag so the client does not release it", function()
+    openWindow()
+    local tile = editorTile()
+    local x, y = tile.x, tile.y
+    fake.mouse.x, fake.mouse.y = 500, 300
+    fake.hook(tile, "ONCLICK", 5, 5)
+    fake.mouse.x, fake.mouse.y = 540, 310
+    logicTick()
+    assert.are.same({ x + 40, y + 10 }, { tile.x, tile.y })
+
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.are.same({ x, y }, { tile.x, tile.y })
+  end)
+
   it("puts a moved element back on Esc in edit mode", function()
     local elements = openWindow()
     local layer = elements.player.layer
