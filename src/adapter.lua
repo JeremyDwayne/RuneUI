@@ -9,7 +9,7 @@ local DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP = 38, 71, 3
 -- sprite at +2 and the keybind label at +9.
 local BAR_FIRST_SLOTS = { [1430] = 64, [1670] = 19, [1671] = 17, [1672] = 14, [1673] = 14 }
 local SLOTS_PER_BAR, SLOT_STRIDE, SLOT_ICON, SLOT_KEYBIND = 14, 13, 2, 9
--- RuneScape's worn-equipment inventory ID; unconfirmed through this API.
+-- config.Inv.WORN, the worn-equipment inventory.
 local WORN_INV = 94
 -- Ability struct params read into justUsed()'s result.
 local STRUCT_FIELDS = { COMBATV2_ABILITY_NAME = "name", COMBATV2_ABILITY_ICON = "icon" }
@@ -115,15 +115,14 @@ end
 
 local equipmentWarned = false
 
--- Whether an item named Soulbound lantern is equipped. Slots may hold an ObjType or its ID.
+-- Whether a Soulbound lantern, augmented or not, is equipped. The inventory proxy's valid reads nil,
+-- so a nil result from Find is the only failure check.
 local function lanternEquipped()
   local ok, result = pcall(function()
     local inv = Inventory.Find(WORN_INV)
-    if inv == nil or not inv.valid then return false end
+    if inv == nil then return false end
     for _, slot in ipairs(inv:GetSlots() or {}) do
-      local obj = slot.obj
-      if type(obj) == "number" then obj = config.Obj.FromID(obj) end
-      local name = obj and read(obj, "name")
+      local name = read(slot.obj, "name")
       if type(name) == "string" and name:lower():find("soulbound lantern", 1, true) then return true end
     end
     return false
