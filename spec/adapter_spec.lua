@@ -115,3 +115,23 @@ describe("adapter.spriteName", function()
     assert.is_nil(adapter.spriteName(-2))
   end)
 end)
+
+describe("adapter.auraReads", function()
+  it("reads shown icons with their labels, skipping item icons, hidden icons and slots past an empty run", function()
+    -- { sprite, label, visibleGlobal } per 284 slot from :19.
+    local slots = {
+      [19] = { 30093, "6m", true }, [20] = { -1, "5m", true }, [21] = { 18857, "", false },
+      [22] = { 14766, "20<br>(5)", true }, [27] = { 27432, "9", true },
+    }
+    _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID, _, dynamicID)
+      local slot = interfaceID == 284 and slots[staticID]
+      if not slot then return nil end
+      if dynamicID == 0 then return { spriteID = slot[1], visibleGlobal = slot[3] } end
+      return { content = slot[2] }
+    end } }
+    assert.are.same({
+      buffs = { { sprite = 30093, label = "6m" }, { sprite = 14766, label = "20<br>(5)" } },
+      debuffs = {},
+    }, adapter.auraReads())
+  end)
+end)

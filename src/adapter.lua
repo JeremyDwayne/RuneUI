@@ -15,6 +15,12 @@ local TARGET_LAST_STATIC = 80
 local TARGET_NAME = 21
 -- The panel's background sprite, dynamic child :25:0:0, which the client can rebuild opaque on its own.
 local TARGET_BACKGROUND = 25
+-- The buff bar and debuff bar share a layout: slot :<n>:0:0 holds the icon sprite and :<n>:0:1 the label.
+-- An icon showing an item reads sprite -1, and one the player's buff settings hide reads not visibleGlobal.
+local BUFF_BAR, DEBUFF_BAR = 284, 291
+local BUFF_FIRST, BUFF_LAST, DEBUFF_BAR_FIRST, DEBUFF_BAR_LAST = 19, 68, 2, 51
+-- Empty slots in a row after which a bar holds no more icons.
+local EMPTY_RUN = 4
 -- config.Inv.WORN, the worn-equipment inventory.
 local WORN_INV = 94
 -- Ability struct params read into justUsed()'s result.
@@ -79,6 +85,34 @@ function adapter.targetReads()
     lifepointsLabel = labelText(TARGET_PANEL, 34),
     healthPercent = varValue("VarClient", "COMBATV2_TARGET_SIDE_PANEL_HEALTH"),
     debuffs = debuffs,
+  }
+end
+
+-- Appends { sprite, label } for each shown icon in slots first to last of interfaceID to list.
+local function barReads(interfaceID, first, last, list)
+  local empty = 0
+  for staticID = first, last do
+    local icon = ui.Interfaces:GetComponent(interfaceID, staticID, 0, 0)
+    local sprite = icon and read(icon, "spriteID")
+    local label = labelText(interfaceID, staticID, 0, 1)
+    if (sprite == nil or sprite == -1) and label == nil then
+      empty = empty + 1
+      if empty >= EMPTY_RUN then return list end
+    else
+      empty = 0
+      if sprite ~= nil and sprite ~= -1 and read(icon, "visibleGlobal") ~= false then
+        list[#list + 1] = { sprite = sprite, label = label }
+      end
+    end
+  end
+  return list
+end
+
+-- The native buff and debuff bars as src/auras reads: { buffs, debuffs }, each a list of { sprite, label }.
+function adapter.auraReads()
+  return {
+    buffs = barReads(BUFF_BAR, BUFF_FIRST, BUFF_LAST, {}),
+    debuffs = barReads(DEBUFF_BAR, DEBUFF_BAR_FIRST, DEBUFF_BAR_LAST, {}),
   }
 end
 
