@@ -84,6 +84,22 @@ describe("options", function()
     assert.are.equal(0, fake.writes)
   end)
 
+  it("moves an element by the cursor's UI distance when the mouse reports physical pixels", function()
+    local elements = openWindow()
+    local layer = elements.player.layer
+    local x = layer.x
+    fake.press("Edit mode off")
+    local tint = fake.find(function(c, d)
+      return fake.hasHook(c, "ONRELEASE") and d.width == elements.player.width
+    end)
+    tint.xyGlobal = { x = 150, y = 150 }
+    fake.mouse.x, fake.mouse.y = 300, 300
+    fake.hook(tint, "ONCLICK")
+    fake.mouse.x = 400
+    logicTick()
+    assert.are.equal(x + 50, layer.x)
+  end)
+
   it("makes no client writes while a drag or a move is held still", function()
     local elements = openWindow()
     fake.mouse.x, fake.mouse.y = 500, 300

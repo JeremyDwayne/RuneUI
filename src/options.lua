@@ -41,6 +41,21 @@ local function on(c, hook, fn)
   c:Subscribe(ui.Hook[hook], fn)
 end
 
+-- Mouse reports physical pixels, a multiple of UI units on a high-DPI display. pressAt sets the multiple
+-- from a press at local x on c, and cursor returns the mouse in UI units, or nil when there is none.
+local scale = 1
+
+local function pressAt(c, x)
+  local g, mx = c.xyGlobal, Mouse.GetX()
+  if g ~= nil and mx ~= nil and g.x + x > 0 then scale = mx / (g.x + x) end
+end
+
+local function cursor()
+  local mx, my = Mouse.GetX(), Mouse.GetY()
+  if mx == nil or my == nil then return nil end
+  return mx / scale, my / scale
+end
+
 -- A flat button with a centred label that lightens on hover. accent uses the accent fill and dark text.
 local function button(parent, label, x, y, w, h, accent, onClick)
   local normal = accent and COLOURS.accent or COLOURS.button
@@ -174,9 +189,12 @@ function options.create(root, deps)
     on(t.edge, "ONCLICK", function(_, x, py)
       if t.key == nil then return end
       closePopups()
-      origin.x = Mouse.GetX() - (PAGE_X + group.x + x)
-      origin.y = Mouse.GetY() - (PAGE_Y + group.y + py)
-      drag = { tile = t, startX = Mouse.GetX(), startY = Mouse.GetY(), moved = false }
+      pressAt(t.edge, x)
+      local mx, my = cursor()
+      if mx == nil then return end
+      origin.x = mx - (PAGE_X + group.x + x)
+      origin.y = my - (PAGE_Y + group.y + py)
+      drag = { tile = t, startX = mx, startY = my, moved = false }
     end)
     on(t.edge, "ONRELEASE", function() if drag ~= nil and drag.tile == t then drop() end end)
     return t
@@ -502,8 +520,11 @@ function options.create(root, deps)
     set(tagText, "content", label)
     set(tagText, "rgb", COLOURS.accentText)
     set(tagText, "isShadowed", false)
-    on(tint, "ONCLICK", function()
-      move = { name = name, startX = Mouse.GetX(), startY = Mouse.GetY(), from = saved.positions()[name] }
+    on(tint, "ONCLICK", function(_, x)
+      pressAt(tint, x)
+      local mx, my = cursor()
+      if mx == nil then return end
+      move = { name = name, startX = mx, startY = my, from = saved.positions()[name] }
     end)
     on(tint, "ONRELEASE", function()
       if move ~= nil and move.name == name then
@@ -606,8 +627,8 @@ function options.create(root, deps)
   local lastX, lastY = nil, nil
   local function followCursor()
     if drag == nil and move == nil then return end
-    local mx, my = Mouse.GetX(), Mouse.GetY()
-    if mx == nil or my == nil or (mx == lastX and my == lastY) then return end
+    local mx, my = cursor()
+    if mx == nil or (mx == lastX and my == lastY) then return end
     lastX, lastY = mx, my
     if drag ~= nil then
       if not drag.moved and math.abs(mx - drag.startX) + math.abs(my - drag.startY) > DRAG_START then
