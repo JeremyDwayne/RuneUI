@@ -1,18 +1,19 @@
--- Draws RuneUI elements on the plugin layer from src/frames display models.
+-- Draws RuneUI elements on the plugin layer from display models, in a flat dark style.
 -- Each constructor returns { layer, update(model) }; place() positions a layer on the game window.
 local view = {}
 
--- Closest client fonts to 13px values and 10px labels.
+-- Closest client fonts to 13px values, 10px labels and seconds sized to each tile.
 local FONTS = {
   body = id.Font.MUSEO_SANS_13PT_BOLD,
   small = id.Font.NOTOSANS_BOLD_10,
-  seconds = id.Font.MUSEO_SANS_19PT_BOLD,
-  bigSeconds = id.Font.MUSEO_SANS_21PT_BOLD,
+  seconds = id.Font.MUSEO_SANS_17PT_BOLD,
+  smallSeconds = id.Font.MUSEO_SANS_15PT_BOLD,
 }
 
 local COLOURS = {
   border = 0x000000,
   track = 0x1a1d21,
+  healthTrack = 0x111111,
   player = 0x2f63a8,
   target = 0xa4511c,
   prayer = 0xdfe4ea,
@@ -22,9 +23,11 @@ local COLOURS = {
   darkText = 0x111316,
   spender = 0xdfe4ea,
   emptyBlock = 0x22262b,
-  tile = 0x2a2e33,
+  tile = 0x141414,
   dimText = 0xc7ccd1,
 }
+-- Tile backgrounds are translucent so the game shows through empty tiles.
+local TILE_ALPHA = 0.6
 
 local warned = {}
 
@@ -81,15 +84,17 @@ function view.place(layer, pos)
   layer:SetPos(pos.x, pos.y, pos.anchorX, pos.anchorY)
 end
 
-local FRAME_WIDTH = 300
+local FRAME_WIDTH = 250
+local HEALTH_HEIGHT = 46
+local POWER_HEIGHT = 6
 
 -- A unit frame bar with the name on the left and the value on the right; returns its update(model).
 local function unitBar(layer, rgb, y, height)
   local inner = FRAME_WIDTH - 2
-  rect(layer, COLOURS.track, 1, y, inner, height)
+  rect(layer, COLOURS.healthTrack, 1, y, inner, height)
   local bar = rect(layer, rgb, 1, y, inner, height)
-  local name = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, 9, y, 160, height)
-  local value = text(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, 130, y, 161, height)
+  local name = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, 6, y, 140, height)
+  local value = text(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, FRAME_WIDTH - 101, y, 95, height)
   return function(model)
     setFill(bar, model.fill, inner)
     set(name, "content", model.name)
@@ -97,14 +102,16 @@ local function unitBar(layer, rgb, y, height)
   end
 end
 
--- 300x46: health bar with name and "13.1K | 78%", prayer bar below.
+-- 250x55: 46px health bar with name and "13.1K | 78%", 6px prayer bar below.
 function view.playerFrame(root)
+  local height = HEALTH_HEIGHT + POWER_HEIGHT + 3
+  local prayerY = HEALTH_HEIGHT + 2
   local layer = ui.Layer.new(root)
-  layer:SetSize(FRAME_WIDTH, 46)
-  rect(layer, COLOURS.border, 0, 0, FRAME_WIDTH, 46)
-  local updateHealth = unitBar(layer, COLOURS.player, 1, 37)
-  local prayerTrack = rect(layer, COLOURS.track, 1, 39, FRAME_WIDTH - 2, 6)
-  local prayer = rect(layer, COLOURS.prayer, 1, 39, FRAME_WIDTH - 2, 6)
+  layer:SetSize(FRAME_WIDTH, height)
+  rect(layer, COLOURS.border, 0, 0, FRAME_WIDTH, height)
+  local updateHealth = unitBar(layer, COLOURS.player, 1, HEALTH_HEIGHT)
+  local prayerTrack = rect(layer, COLOURS.healthTrack, 1, prayerY, FRAME_WIDTH - 2, POWER_HEIGHT)
+  local prayer = rect(layer, COLOURS.prayer, 1, prayerY, FRAME_WIDTH - 2, POWER_HEIGHT)
 
   local function update(model)
     set(layer, "hidden", model.hidden)
@@ -118,15 +125,15 @@ function view.playerFrame(root)
 end
 
 local DEBUFF_SIZE = 26
-local MAX_DEBUFFS = 10
+local MAX_DEBUFFS = 8
 local DEBUFF_ROW = DEBUFF_SIZE + 4
 
--- 300x76: a right-aligned row of debuff icons above a 46 tall health bar with name and "6,800 | 58%".
+-- 250x78: a right-aligned row of debuff icons above a 46px health bar with name and "6,800 | 58%".
 function view.targetFrame(root)
   local layer = ui.Layer.new(root)
-  layer:SetSize(FRAME_WIDTH, DEBUFF_ROW + 46)
-  rect(layer, COLOURS.border, 0, DEBUFF_ROW, FRAME_WIDTH, 46)
-  local updateHealth = unitBar(layer, COLOURS.target, DEBUFF_ROW + 1, 44)
+  layer:SetSize(FRAME_WIDTH, DEBUFF_ROW + HEALTH_HEIGHT + 2)
+  rect(layer, COLOURS.border, 0, DEBUFF_ROW, FRAME_WIDTH, HEALTH_HEIGHT + 2)
+  local updateHealth = unitBar(layer, COLOURS.target, DEBUFF_ROW + 1, HEALTH_HEIGHT)
 
   local debuffs = {}
   for i = 1, MAX_DEBUFFS do
@@ -222,11 +229,10 @@ function view.resourceBar(root)
   return { layer = layer, update = update }
 end
 
--- Tile layouts: a centred rotation row with initials at the bottom, and larger cooldowns
--- tiles with initials at the top.
+-- Tile sizes: 42px tiles for the rotation and 36px for cooldowns, 2px apart.
 view.TILE_STYLES = {
-  rotation = { size = 44, gap = 4, centred = true, initialsTop = false, secondsFont = FONTS.seconds },
-  cooldowns = { size = 54, gap = 2, centred = false, initialsTop = true, secondsFont = FONTS.bigSeconds },
+  rotation = { size = 42, gap = 2, secondsFont = FONTS.seconds },
+  cooldowns = { size = 36, gap = 2, secondsFont = FONTS.smallSeconds },
 }
 local MAX_TILES = 10
 local COOLING_DIM = 0.62
@@ -245,8 +251,8 @@ local function tile(layer, style)
     icon = at(ui.Sprite.new(layer), 1, 1),
   }
   parts.icon:SetSize(size - 2, size - 2)
-  local initialsY = style.initialsTop and 3 or size - 15
-  parts.initials = at(text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, size - 8, 12), 4, initialsY)
+  set(parts.background, "alpha", TILE_ALPHA)
+  parts.initials = at(text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, size - 8, 12), 4, size - 15)
   parts.dim = at(rect(layer, COLOURS.border, 0, 0, size - 2, size - 2), 1, 1)
   set(parts.dim, "alpha", COOLING_DIM)
   parts.keybind = at(text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 24, 2)
@@ -263,8 +269,8 @@ local function tile(layer, style)
   return parts
 end
 
--- A row of up to 10 ability tiles; update takes src/cooldowns tiles. Ready tiles are bright with their
--- keybind; cooling tiles are dimmed with whole seconds left.
+-- A centred row of up to 10 ability tiles; update takes src/cooldowns tiles. Ready tiles are bright with
+-- their keybind; cooling tiles are dimmed with whole seconds left.
 function view.cooldownGroup(root, style)
   local step = style.size + style.gap
   local width = MAX_TILES * step - style.gap
@@ -275,7 +281,7 @@ function view.cooldownGroup(root, style)
 
   local function update(models)
     local count = math.min(#models, MAX_TILES)
-    local offset = style.centred and math.floor((width - (count * step - style.gap)) / 2) or 0
+    local offset = math.floor((width - (count * step - style.gap)) / 2)
     for i, parts in ipairs(tiles) do
       local model = models[i]
       parts.setHidden(model == nil)

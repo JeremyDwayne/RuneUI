@@ -2,13 +2,14 @@
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local settings = {}
 
--- Offsets from the bottom centre of the game window, clear of the native bottom panel.
+-- Offsets from the bottom centre of the game window, clear of the native bottom panel. The frames sit
+-- either side of the rotation row with their bottoms level, and the bars stack centred above it.
 settings.DEFAULT_POSITIONS = {
-  player = { x = -558, y = -394, anchorX = 0.5, anchorY = 1 },
-  target = { x = 258, y = -424, anchorX = 0.5, anchorY = 1 },
+  player = { x = -477, y = -409, anchorX = 0.5, anchorY = 1 },
+  target = { x = 227, y = -432, anchorX = 0.5, anchorY = 1 },
   resource = { x = -139, y = -496, anchorX = 0.5, anchorY = 1 },
-  rotation = { x = -286, y = -396, anchorX = 0.5, anchorY = 1 },
-  cooldowns = { x = -139, y = -552, anchorX = 0.5, anchorY = 1 },
+  rotation = { x = -219, y = -396, anchorX = 0.5, anchorY = 1 },
+  cooldowns = { x = -189, y = -534, anchorX = 0.5, anchorY = 1 },
 }
 local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 local GROUP_NAMES = { "rotation", "cooldowns" }
