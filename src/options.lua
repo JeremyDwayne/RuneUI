@@ -600,10 +600,11 @@ function options.create(root, deps)
 
   -- Ticks ---------------------------------------------------------------------------------------------
 
-  -- Runs 50 times a second, so it returns before reading the mouse unless a drag or move is under way, and
-  -- before drawing unless the cursor moved.
+  -- Moves the drag ghost or the element being placed with the cursor. It runs every frame through Event.Draw
+  -- so a drag keeps up with the mouse, and on Event.Logic as well in case Draw does not fire. It returns
+  -- before reading the mouse unless a drag or move is under way, and before drawing unless the cursor moved.
   local lastX, lastY = nil, nil
-  Event.Logic.Subscribe("runeuiOptions", function()
+  local function followCursor()
     if drag == nil and move == nil then return end
     local mx, my = Mouse.GetX(), Mouse.GetY()
     if mx == nil or my == nil or (mx == lastX and my == lastY) then return end
@@ -621,7 +622,9 @@ function options.create(root, deps)
       deps.view.place(elements[move.name].layer, move.to)
       deps.view.place(overlays[move.name], move.to)
     end
-  end)
+  end
+  Event.Draw.Subscribe("runeuiOptions", followCursor)
+  Event.Logic.Subscribe("runeuiOptions", followCursor)
 
   Event.KeyDown.Subscribe("runeuiOptions", function(e)
     if e.gameKey ~= GameKey.ESCAPE then return end
