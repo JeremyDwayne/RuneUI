@@ -76,6 +76,15 @@ function draw.pos(obj, x, y)
   fields["SetPos.x"], fields["SetPos.y"] = x, y
 end
 
+-- SetPos with anchors as fractions of the parent, with the same unchanged-value skip as draw.pos.
+function draw.place(obj, x, y, anchorX, anchorY)
+  local fields = writtenFor(obj)
+  if fields["place.x"] == x and fields["place.y"] == y and fields["place.anchorX"] == anchorX
+    and fields["place.anchorY"] == anchorY then return end
+  obj:SetPos(x, y, anchorX, anchorY)
+  fields["place.x"], fields["place.y"], fields["place.anchorX"], fields["place.anchorY"] = x, y, anchorX, anchorY
+end
+
 -- SetWidth with the same unchanged-value skip as draw.pos.
 function draw.width(obj, width)
   local fields = writtenFor(obj)

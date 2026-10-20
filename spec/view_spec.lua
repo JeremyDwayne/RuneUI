@@ -1,5 +1,26 @@
 local fake = require("spec/support/fake_ui")
+local settings = require("src/settings")
 local view = require("src/view")
+
+-- n ready tiles for a cooldown group.
+local function readyTiles(n)
+  local out = {}
+  for i = 1, n do out[i] = { key = "K" .. i, name = "Tile " .. i, initials = "T" .. i, ready = true } end
+  return out
+end
+
+-- Every HUD element on one root.
+local function hud()
+  local root = fake.component()
+  local tooltip = view.tooltip(root)
+  return {
+    player = view.playerFrame(root),
+    target = view.targetFrame(root, tooltip, function() end),
+    resource = view.resourceBar(root),
+    rotation = view.cooldownGroup(root, view.TILE_STYLES.rotation, tooltip),
+    cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns, tooltip),
+  }
+end
 
 describe("view", function()
   before_each(fake.reset)
@@ -59,5 +80,31 @@ describe("view", function()
     assert.are.equal(800, layerX())
     tooltip.show({ title = "Sunshine" }, -20, 300, 42)
     assert.are.equal(0, layerX())
+  end)
+
+  it("bounds a cooldown row by its shown tiles, meeting at its center when empty", function()
+    local group = view.cooldownGroup(fake.component(), view.TILE_STYLES.rotation, view.tooltip(fake.component()))
+    assert.is_true(group.update(readyTiles(7)))
+    assert.are.same({ x = 66, y = 0, w = 306, h = 47 }, group.bounds)
+    assert.is_false(group.update(readyTiles(7)))
+    group.update({})
+    assert.are.same({ x = 219, y = 0, w = 0, h = 47 }, group.bounds)
+  end)
+
+  it("moves anchored frames on the tick the rotation row gains a tile, and makes no writes when steady", function()
+    local elements = hud()
+    local saved = settings.load({ get = function() end, set = function() end })
+    local function tick(count)
+      local moved = elements.rotation.update(readyTiles(count))
+      if moved then view.arrange(elements, saved.positions(), saved.anchors()) end
+    end
+    view.arrange(elements, saved.positions(), saved.anchors())
+    tick(7)
+    local x = elements.player.layer.x
+    tick(8)
+    assert.are.equal(x - 22, elements.player.layer.x)
+    fake.writes = 0
+    tick(8)
+    assert.are.equal(0, fake.writes)
   end)
 end)

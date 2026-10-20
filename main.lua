@@ -50,8 +50,10 @@ local function refresh()
   local groups = saved.groups() or tracker.defaultGroups()
   local keybinds = adapter.slotKeybinds()
   local accent = view.STYLE_COLOURS[tracker.style()]
-  elements.rotation.update(tracker.tiles(groups.rotation, keybinds), accent)
-  elements.cooldowns.update(tracker.tiles(groups.cooldowns, keybinds), accent)
+  local rotationMoved = elements.rotation.update(tracker.tiles(groups.rotation, keybinds), accent)
+  local cooldownsMoved = elements.cooldowns.update(tracker.tiles(groups.cooldowns, keybinds), accent)
+  -- Anchored elements follow a row whose shown tiles changed.
+  if rotationMoved or cooldownsMoved then view.arrange(elements, saved.positions(), saved.anchors()) end
 end
 
 local optionsWindow = options.create(top, {

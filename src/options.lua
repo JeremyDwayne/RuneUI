@@ -615,11 +615,8 @@ function options.create(root, deps)
   end
 
   local function placeAll()
-    local positions = saved.positions()
-    for name, element in pairs(elements) do
-      deps.view.place(element.layer, positions[name])
-      deps.view.place(overlays[name], positions[name])
-    end
+    local positions = deps.view.arrange(elements, saved.positions(), saved.anchors())
+    for name in pairs(elements) do deps.view.place(overlays[name], positions[name]) end
   end
 
   local toolbar = ui.Layer.new(root)

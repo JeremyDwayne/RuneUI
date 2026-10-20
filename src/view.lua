@@ -1,10 +1,12 @@
 -- Draws RuneUI elements on the plugin layer from display models, in a flat dark style.
--- Each constructor returns { layer, update(model), width, height }, plus setTexture(texture) for elements
--- with bars; place() positions a layer on the game window.
+-- Each constructor returns { layer, update(model), width, height, bounds }, plus setTexture(texture) for
+-- elements with bars. bounds is the shown { x, y, w, h } inside the layer. place() positions a layer on the
+-- game window and arrange() places every element from saved positions and anchors.
 local view = {}
 
 local draw = require("src/draw")
 local frames = require("src/frames")
+local layout = require("src/layout")
 local set, pos, rect, text = draw.set, draw.pos, draw.rect, draw.text
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
@@ -13,7 +15,17 @@ local TILE_ALPHA = 0.6
 
 -- at: { x, y, anchorX, anchorY }, with anchors as fractions of the game window.
 function view.place(layer, at)
-  layer:SetPos(at.x, at.y, at.anchorX, at.anchorY)
+  draw.place(layer, at.x, at.y, at.anchorX, at.anchorY)
+end
+
+-- Places elements, by name, at positions resolved from src/layout anchors against their bounds. Called at
+-- load and on a tick where a cooldown row's bounds changed. Returns the resolved positions.
+function view.arrange(elements, positions, anchors)
+  local bounds = {}
+  for name, element in pairs(elements) do bounds[name] = element.bounds end
+  local resolved = layout.resolve(positions, anchors, bounds)
+  for name, element in pairs(elements) do view.place(element.layer, resolved[name]) end
+  return resolved
 end
 
 local TOOLTIP_WIDTH, TOOLTIP_PAD, TOOLTIP_GAP = 200, 8, 6
@@ -160,7 +172,10 @@ function view.playerFrame(root)
     prayer.setTexture(texture)
   end
 
-  return { layer = layer, update = update, setTexture = setTexture, width = FRAME_WIDTH, height = height }
+  return {
+    layer = layer, update = update, setTexture = setTexture, width = FRAME_WIDTH, height = height,
+    bounds = { x = 0, y = 0, w = FRAME_WIDTH, h = height },
+  }
 end
 
 local DEBUFF_SIZE = 26
@@ -227,6 +242,7 @@ function view.targetFrame(root, tooltip, debuffInfo)
   return {
     layer = layer, update = update, setTexture = health.setTexture,
     width = FRAME_WIDTH, height = DEBUFF_ROW + HEALTH_HEIGHT + 2,
+    bounds = { x = 0, y = 0, w = FRAME_WIDTH, h = DEBUFF_ROW + HEALTH_HEIGHT + 2 },
   }
 end
 
@@ -321,7 +337,10 @@ function view.resourceBar(root)
     updateSpenders(model.spenders)
   end
 
-  return { layer = layer, update = update, setTexture = fill.setTexture, width = BAR_WIDTH, height = height }
+  return {
+    layer = layer, update = update, setTexture = fill.setTexture, width = BAR_WIDTH, height = height,
+    bounds = { x = 0, y = 0, w = BAR_WIDTH, h = height },
+  }
 end
 
 -- Tile sizes: 42px tiles for the rotation and 36px for cooldowns, 2px apart. Each row's
@@ -358,7 +377,8 @@ local function tile(layer, style)
 end
 
 -- A centred row of up to 10 ability tiles with an accent line as wide as the shown tiles. update takes
--- src/cooldowns tiles and the accent colour, or nil to hide the line. Ready tiles are bright with their
+-- src/cooldowns tiles and the accent colour, or nil to hide the line, and returns whether bounds changed.
+-- bounds spans the shown tiles; an empty row's edges meet at its center. Ready tiles are bright with their
 -- keybind; cooling tiles are dimmed with whole seconds left. Hovering a tile shows its tooltip.
 function view.cooldownGroup(root, style, tooltip)
   local step = style.size + style.gap
@@ -374,6 +394,7 @@ function view.cooldownGroup(root, style, tooltip)
   for i = 1, MAX_TILES do tiles[i] = tile(layer, style) end
 
   local current = {}
+  local bounds = { x = 0, y = 0, w = width, h = height }
 
   local function showTooltip(i)
     local model = current[i]
@@ -396,6 +417,10 @@ function view.cooldownGroup(root, style, tooltip)
     current = models
     local count = math.min(#models, MAX_TILES)
     local offset = math.floor((width - (count * step - style.gap)) / 2)
+    local left, shownWidth = offset, count * step - style.gap
+    if count == 0 then left, shownWidth = width // 2, 0 end
+    local moved = bounds.x ~= left or bounds.w ~= shownWidth
+    bounds.x, bounds.w = left, shownWidth
     local accentShown = accentRgb ~= nil and count > 0
     set(accentEdge, "hidden", not accentShown)
     set(accent, "hidden", not accentShown)
@@ -427,9 +452,10 @@ function view.cooldownGroup(root, style, tooltip)
       end
     end
     if hover.index ~= nil then showTooltip(hover.index) end
+    return moved
   end
 
-  return { layer = layer, update = update, width = width, height = height }
+  return { layer = layer, update = update, width = width, height = height, bounds = bounds }
 end
 
 return view
