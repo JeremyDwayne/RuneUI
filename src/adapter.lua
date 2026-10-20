@@ -7,9 +7,10 @@ local TARGET_PANEL = 1490
 -- or it reads not visibleGlobal: an expired or switched-away debuff keeps its sprite while invisible.
 local DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP = 38, 71, 3
 -- Native action bars: first slot background ID per interface. Slots are 13 IDs apart, with the icon
--- sprite at +2 and the keybind label at +9.
+-- sprite at +2 and the keybind label at +9. The client tints the icon SLOT_DIM while its ability can't be cast.
 local BAR_FIRST_SLOTS = { [1430] = 64, [1670] = 19, [1671] = 17, [1672] = 14, [1673] = 14 }
 local SLOTS_PER_BAR, SLOT_STRIDE, SLOT_ICON, SLOT_KEYBIND = 14, 13, 2, 9
+local SLOT_DIM = 0x333333
 -- The target panel's static IDs run to :71; dynamic children of some hold its border and background.
 local TARGET_LAST_STATIC = 80
 local TARGET_NAME = 21
@@ -146,9 +147,10 @@ function adapter.justUsed()
   if info.name ~= nil or info.icon ~= nil then return info end
 end
 
--- { [iconSpriteID] = keybind } for every native action bar slot showing both.
-function adapter.slotKeybinds()
-  local keybinds = {}
+-- { [iconSpriteID] = { keybind, usable } } for every filled native action bar slot. keybind is nil on a slot
+-- with none, and usable is false while the client dims the slot's icon.
+function adapter.barSlots()
+  local slots = {}
   for interfaceID, first in pairs(BAR_FIRST_SLOTS) do
     for slot = 0, SLOTS_PER_BAR - 1 do
       local base = first + slot * SLOT_STRIDE
@@ -156,11 +158,11 @@ function adapter.slotKeybinds()
       local sprite = icon and read(icon, "spriteID")
       if sprite ~= nil and sprite ~= -1 then
         local keybind = labelText(interfaceID, base + SLOT_KEYBIND)
-        if keybind ~= nil then keybinds[sprite] = keybind end
+        slots[sprite] = { keybind = keybind, usable = read(icon, "rgb") ~= SLOT_DIM }
       end
     end
   end
-  return keybinds
+  return slots
 end
 
 -- PersistentDB as a src/settings store, one structured table per key.

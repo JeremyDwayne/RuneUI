@@ -217,3 +217,17 @@ describe("adapter.hideBuffBars", function()
     adapter.hideBuffBars(false)
   end)
 end)
+
+describe("adapter.barSlots", function()
+  it("reads each slot's keybind, and that its ability can't be cast while the client dims its icon", function()
+    -- Main bar 1430: slot 0 Concentrated Blast on Q, slot 1 Wild Magic dimmed with no keybind.
+    local components = {
+      [66] = { spriteID = 13309, rgb = 0xffffff }, [73] = { content = "Q" },
+      [79] = { spriteID = 14385, rgb = 0x333333 }, [86] = { content = "" },
+    }
+    _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID)
+      if interfaceID == 1430 then return components[staticID] end
+    end } }
+    assert.are.same({ [13309] = { keybind = "Q", usable = true }, [14385] = { usable = false } }, adapter.barSlots())
+  end)
+end)

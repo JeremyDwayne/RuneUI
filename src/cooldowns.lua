@@ -141,19 +141,22 @@ function cooldowns.tracker()
     return groups
   end
 
-  -- keys: ability keys in display order. keybinds: { [iconSpriteID] = "Q" } from the native bars.
-  function tracker.tiles(keys, keybinds)
+  -- keys: ability keys in display order. slots: { [iconSpriteID] = { keybind, usable } } from the native
+  -- bars. A tile with no matching slot counts as usable.
+  function tracker.tiles(keys, slots)
     local tiles = {}
     for _, key in ipairs(keys) do
       local a = abilities[key] or {}
       local name = a.name or nameFromKey(key)
       local left = (now ~= nil and a.finish ~= nil) and a.finish - now or 0
+      local slot = a.icon and slots[a.icon]
       tiles[#tiles + 1] = {
         key = key,
         name = name,
         initials = initials(name),
         icon = a.icon,
-        keybind = a.icon and keybinds[a.icon],
+        keybind = slot and slot.keybind,
+        usable = not slot or slot.usable,
         ready = left <= 0,
         seconds = left > 0 and secondsLeft(left) or nil,
         cooldown = (a.start ~= nil and a.finish ~= nil) and secondsLeft(a.finish - a.start) or nil,

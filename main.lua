@@ -52,10 +52,10 @@ local function refresh()
   elements.resource.update(frames.resource(adapter.resourceReads(frames.SPENDERS), saved.markers()))
   -- Until the first edit in the options window, groups fill by cooldown length as abilities fire.
   local groups = saved.groups() or tracker.defaultGroups()
-  local keybinds = adapter.slotKeybinds()
+  local slots = adapter.barSlots()
   local accent = view.STYLE_COLOURS[tracker.style()]
-  local rotationMoved = elements.rotation.update(tracker.tiles(groups.rotation, keybinds), accent)
-  local moved = elements.cooldowns.update(tracker.tiles(groups.cooldowns, keybinds), accent) or rotationMoved
+  local rotationMoved = elements.rotation.update(tracker.tiles(groups.rotation, slots), accent)
+  local moved = elements.cooldowns.update(tracker.tiles(groups.cooldowns, slots), accent) or rotationMoved
   local bars = saved.auraBars()
   for name, models in pairs(auraTracker.rows(saved.auras(), target.debuffs or {})) do
     -- Asking for each aura's name queues unnamed icons for the background scan.

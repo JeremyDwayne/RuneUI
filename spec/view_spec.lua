@@ -37,6 +37,19 @@ describe("view", function()
     assert.are.equal(0, fake.writes)
   end)
 
+  it("tints a tile's icon and keybind as the native bar does while its ability can't be cast", function()
+    local group = view.cooldownGroup(fake.component(), view.TILE_STYLES.rotation, view.tooltip(fake.component()))
+    local tile = { key = "MAGIC_WILD_MAGIC", name = "Wild Magic", initials = "WM", icon = 14385, keybind = "W",
+      ready = true, usable = false }
+    group.update({ tile }, nil)
+    local icon = fake.find(function(_, d) return d.sprite == 14385 end)
+    local keybind = fake.find(function(_, d) return d.content == "W" end)
+    assert.are.same({ 0x333333, 0xa5a5a5, 0.6 }, { icon.rgb, keybind.rgb, keybind.alpha })
+    tile.usable = true
+    group.update({ tile }, nil)
+    assert.are.same({ 0xffffff, 1 }, { icon.rgb, keybind.alpha })
+  end)
+
   it("makes no client writes when the tooltip is shown again at the same icon", function()
     local tooltip = view.tooltip(fake.component())
     local content = { title = "Sunshine", left = "Cooldown 60s", line = "Ready" }

@@ -308,6 +308,9 @@ view.STYLE_COLOURS = { necromancy = 0x6f4ad8, magic = 0x2f7fd6, melee = 0xb8352f
 local ACCENT, ACCENT_SPACE = 2, 5
 local MAX_TILES = 10
 local COOLING_DIM = 0.62
+-- A tile whose ability can't be cast takes the native action bar's look: a dark icon tint and a faded grey
+-- keybind.
+local UNTINTED, BLOCKED_ICON, BLOCKED_TEXT, BLOCKED_ALPHA = 0xffffff, 0x333333, 0xa5a5a5, 0.6
 
 -- Builds one cooldown tile's components as a draw.group, so group.place moves them all.
 local function tile(layer, style)
@@ -332,7 +335,8 @@ end
 -- A centred row of up to 10 ability tiles with an accent line as wide as the shown tiles. update takes
 -- src/cooldowns tiles and the accent colour, or nil to hide the line, and returns whether bounds changed.
 -- bounds spans the shown tiles; an empty row's edges meet at its center. Ready tiles are bright with their
--- keybind; cooling tiles are dimmed with whole seconds left. Hovering a tile shows its tooltip.
+-- keybind; cooling tiles are dimmed with whole seconds left; tiles whose ability can't be cast are tinted
+-- dark. Hovering a tile shows its tooltip.
 function view.cooldownGroup(root, style, tooltip)
   local step = style.size + style.gap
   local width = MAX_TILES * step - style.gap
@@ -399,9 +403,14 @@ function view.cooldownGroup(root, style, tooltip)
         set(parts.keybind, "content", model.keybind or "")
         set(parts.seconds, "hidden", model.ready)
         set(parts.seconds, "content", model.seconds and tostring(model.seconds) or "")
-        local labelColour = model.ready and COLOURS.text or COLOURS.dimText
+        local usable = model.usable ~= false
+        set(parts.icon, "rgb", usable and UNTINTED or BLOCKED_ICON)
+        local labelColour = not usable and BLOCKED_TEXT or model.ready and COLOURS.text or COLOURS.dimText
+        local labelAlpha = usable and 1 or BLOCKED_ALPHA
         set(parts.initials, "rgb", labelColour)
         set(parts.keybind, "rgb", labelColour)
+        set(parts.initials, "alpha", labelAlpha)
+        set(parts.keybind, "alpha", labelAlpha)
       end
     end
     if hover.index ~= nil then showTooltip(hover.index) end

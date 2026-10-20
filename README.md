@@ -9,7 +9,7 @@ A clean combat HUD for RuneScape 3. RuneUI draws compact unit frames, a resource
 - The player frame shows your name and lifepoints as "13.1K | 78%" on a health bar, with a thin prayer bar underneath.
 - The target frame shows your target's name and lifepoints as "6,800 | 58%".
 - The resource bar fills with your adrenaline and shows its percent, with two marker notches you can set, such as 50% and 100%. With Necromancy it adds rows of blocks for residual souls and necrosis stacks. The soul row grows to 5 blocks while a Soulbound lantern is worn.
-- The rotation and cooldowns rows hold ability icons. Each icon shows its action bar keybind, and dims and counts down in whole seconds while cooling. Hover an icon to see its name, cooldown length, keybind and ready state. A thin line on each row takes the colour of the combat style you last used.
+- The rotation and cooldowns rows hold ability icons. Each icon shows its action bar keybind, and dims and counts down in whole seconds while cooling. An icon turns dark with a faded keybind while its ability can't be cast, as it does on the action bar, such as when you lack the adrenaline. Hover an icon to see its name, cooldown length, keybind and ready state. A thin line on each row takes the colour of the combat style you last used.
 
 - Four aura rows show the icons from the game's buff bar, debuff bar and target panel. Target debuffs sit above the target frame and your debuffs above the player frame, both with an orange edge. Long buffs such as overloads and prayer renewals sit below the player frame, and short combat buffs such as ultimates sit above the cooldowns row. Each icon shows its time left as the game's own label does, and its stacks in the top right. In its last 10%, or its last 3 seconds when that is longer, an icon gets a white ring and its time turns black on a white plate. Hover an icon to see its name and description. The first time RuneUI sees an icon, it shows a name taken from the icon until the game's own name and description load, within about a minute.
 
@@ -40,7 +40,7 @@ RuneUI saves your layout, rows, markers and appearance and keeps them between se
 
 ## What RuneUI reads and does
 
-RuneUI only displays information the game already shows you. It reads your lifepoints, prayer, adrenaline, stacks and cooldowns from the game, along with the icons and keybinds on your action bars, the icons and time labels on the game's buff and debuff bars, the game's own target panel and your worn equipment. Ability, buff and debuff names come from the game's own data, the same names its tooltips show. Until RuneUI has looked up an icon's name, it shows one built from the icon's name in the game data. RuneUI saves which row each buff joined.
+RuneUI only displays information the game already shows you. It reads your lifepoints, prayer, adrenaline, stacks and cooldowns from the game, along with the icons and keybinds on your action bars and whether each one is dimmed, the icons and time labels on the game's buff and debuff bars, the game's own target panel and your worn equipment. Ability, buff and debuff names come from the game's own data, the same names its tooltips show. Until RuneUI has looked up an icon's name, it shows one built from the icon's name in the game data. RuneUI saves which row each buff joined.
 
 It never clicks, casts or sends anything to the game on your behalf. It needs no permissions and sends no data off your computer.
 
