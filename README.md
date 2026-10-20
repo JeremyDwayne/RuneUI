@@ -51,3 +51,13 @@ for f in main.lua src/*.lua spec/*.lua; do luac5.4 -p "$f"; done
 After saving a change, run `prl runeui` in the game console to reload the plugin.
 
 `src/adapter.lua` is the only module that reads the game client. `src/frames.lua`, `src/cooldowns.lua`, `src/settings.lua`, `src/editor.lua` and `src/icons.lua` are pure Lua with specs. `src/view.lua` and `src/options.lua` draw the HUD and the options window.
+
+## Contributing
+
+Bug reports and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first, and follow the [code of conduct](CODE_OF_CONDUCT.md).
+
+## License
+
+RuneUI is released under the [MIT licence](LICENSE).
+
+RuneScape is a trademark of Jagex Ltd. RuneUI is a fan-made plugin and is not affiliated with or endorsed by Jagex.

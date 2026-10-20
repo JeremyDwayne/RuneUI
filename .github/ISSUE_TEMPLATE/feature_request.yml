@@ -1,0 +1,27 @@
+name: Feature request
+description: An idea for RuneUI.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is hard or missing today, from a player's point of view.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea
+      description: What RuneUI could show or let you change.
+    validations:
+      required: true
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Plugin rules
+      options:
+        - label: It only shows information the game already shows or the player already knows.
+          required: true
+        - label: It never acts for the player, such as clicking, casting or sending input.
+          required: true
