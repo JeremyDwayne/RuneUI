@@ -5,7 +5,7 @@ local settings = require("src/settings")
 local function fullBounds()
   return {
     player = { x = 0, y = 0, w = 250, h = 55 },
-    target = { x = 0, y = 0, w = 250, h = 78 },
+    target = { x = 0, y = 0, w = 250, h = 85 },
     resource = { x = 0, y = 0, w = 278, h = 47 },
     rotation = { x = 0, y = 0, w = 438, h = 47 },
     cooldowns = { x = 0, y = 0, w = 378, h = 41 },

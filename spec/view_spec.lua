@@ -82,6 +82,21 @@ describe("view", function()
     assert.are.equal(0, layerX())
   end)
 
+  it("draws the player and target frames the same height, with or without a prayer bar", function()
+    local elements = hud()
+    -- A frame's box is the tallest full-width component on its layer: its black border.
+    local function boxHeight(frame)
+      local tallest = 0
+      fake.find(function(_, d)
+        if d.parent == frame.layer and d.width == frame.width then tallest = math.max(tallest, d.height or 0) end
+      end)
+      return tallest
+    end
+    elements.player.update({ hidden = false, name = "Jeremy", valueText = "", fill = 1 })
+    elements.target.update({ hidden = false, name = "Aviansie", valueText = "", fill = 1, debuffs = {} })
+    assert.are.equal(boxHeight(elements.player), boxHeight(elements.target))
+  end)
+
   it("bounds a cooldown row by its shown tiles, meeting at its center when empty", function()
     local group = view.cooldownGroup(fake.component(), view.TILE_STYLES.rotation, view.tooltip(fake.component()))
     assert.is_true(group.update(readyTiles(7)))
