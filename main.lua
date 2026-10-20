@@ -32,6 +32,7 @@ local ICON_SCAN_BUDGET = 1000
 Event.VarTransmit.Subscribe("cooldowns", function(e)
   tracker.onVar(adapter.varChange(e))
 end)
+Event.Draw.Subscribe("targetPanel", adapter.keepTargetPanelHidden)
 Event.InventoryAdded.Subscribe("lantern", adapter.inventoryChanged)
 Event.InventoryUpdated.Subscribe("lantern", adapter.inventoryChanged)
 

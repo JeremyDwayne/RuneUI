@@ -36,7 +36,7 @@ Handlers run inside the player's frame. The rates are measured, not documented.
 - `Event.Draw` fires once per rendered frame, about 30 a second when measured. `Event.Logic` fires 50 times a second. `Event.ServerLogic` fires every 0.6 s tick. `VarTransmit` arrives in bursts during combat.
 - A steady tick, where nothing in the game changed, makes 0 component writes. Specs in `spec/view_spec.lua`, `spec/options_spec.lua` and `spec/editmode_spec.lua` assert this. Keep them passing.
 - `VarTransmit` handlers record the change and return. They make no client reads and draw nothing.
-- `Draw` and `Logic` handlers return before any client call or allocation when idle, such as when no drag is under way.
+- `Draw` and `Logic` handlers return before any client call or allocation when idle, such as when no drag is under way. The one exception: while the native target panel is hidden, a `Draw` handler reads two of its alphas, because the client rebuilds the panel's frame sprites opaque between server ticks.
 - Build components at load and hide the spares. Create and destroy only on player actions.
 - Save to PersistentDB when a value changes, never per tick. A drag saves on release.
 
@@ -58,6 +58,7 @@ The client API is thinly documented, and these facts came from probing it in the
 - PersistentDB returns every number as a float, so convert with `math.tointeger` before indexing. A structured value of 400 entries of about 70 bytes saved and 800 failed, with the setter returning `false`, so check its result.
 - `pairs(id.Component)` and `pairs(id.StyleSheet)` yield number keys with name values.
 - `Keyboard.IsShiftDown()` and `IsGameKeyDown(GameKey.SHIFT)` read false inside `Event.Logic` with Shift held. Track Shift from `KeyDown` and `KeyUp`, as `src/editmode.lua` does.
+- Hiding target panel components stops its debuff slots updating, even when only the frame containers `:25` and `:26` are hidden: a debuff appeared and never cleared. Make the panel transparent instead.
 - The global `os` is nil, so there is no `os.clock` for timing. The two root layers report the whole window in UI units, such as 1710 by 1041 on a Retina Mac.
 
 ## Moderation
