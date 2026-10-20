@@ -1,7 +1,8 @@
 -- Client stand-ins for specs that drive src/view and src/options. require() sets the ui, Event, Mouse,
 -- GameKey, id and log globals and returns the fake: writes counts property writes and Set, Add, Clear and
 -- MoveToFront calls; component() builds a root; fire(name, payload) runs Event handlers; hook(c, name)
--- runs a component's hook; find(predicate) returns the first created component that is shown and matches.
+-- runs a component's hook; find(predicate) returns the first created component that is shown and matches;
+-- reset() forgets every component and handler, for a before_each.
 local fake = { writes = 0, mouse = { x = 0, y = 0 }, created = {}, handlers = {} }
 
 local dataOf = setmetatable({}, { __mode = "k" })
@@ -24,7 +25,7 @@ local function subscribe(c, hook, fn)
 end
 
 function fake.component(parent)
-  local data = { hooks = {}, parent = parent }
+  local data = { hooks = {}, parent = parent, x = 0, y = 0 }
   local c = setmetatable({}, {
     __index = function(_, key)
       if key == "Subscribe" then return subscribe end
@@ -40,6 +41,11 @@ function fake.component(parent)
   dataOf[c] = data
   fake.created[#fake.created + 1] = c
   return c
+end
+
+function fake.reset()
+  fake.writes, fake.created, fake.handlers = 0, {}, {}
+  fake.mouse.x, fake.mouse.y = 0, 0
 end
 
 -- Whether c and every parent it has are shown.

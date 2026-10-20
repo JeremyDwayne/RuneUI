@@ -180,7 +180,7 @@ function view.targetFrame(root, tooltip, debuffInfo)
 
   local function showTooltip(i)
     local slot = debuffs[i]
-    local sprite = current and not current.hidden and current.debuffs[i]
+    local sprite = current ~= nil and not current.hidden and current.debuffs[i] or nil
     if sprite == nil then
       tooltip.hide()
       return
