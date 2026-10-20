@@ -95,6 +95,19 @@ describe("view", function()
     end
   end)
 
+  it("draws a missing Keep up tile dim with a dashed outline and no time, steady after", function()
+    local row = auraRow()
+    local missing = { { sprite = 30093, missing = true, highlight = false } }
+    row.update(missing, false)
+    local icon = fake.find(function(_, d) return d.sprite == 30093 end)
+    assert.are.equal(0.35, icon.alpha)
+    assert.is_not_nil(fake.find(function(_, d) return d.width == 42 and d.height == 42 end))
+    assert.is_nil(fake.find(function(_, d) return d.parent == row.layer and (d.content or "") ~= "" end))
+    fake.writes = 0
+    row.update(missing, false)
+    assert.are.equal(0, fake.writes)
+  end)
+
   it("bounds an aura row by its shown icons and at least one, reporting when they change", function()
     local row = auraRow()
     assert.are.same({ x = 174, y = 3, w = 36, h = 36 }, row.bounds)

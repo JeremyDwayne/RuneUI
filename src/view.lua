@@ -435,6 +435,8 @@ local AURA_MARGIN = 3
 local AURA_BAR, AURA_BAR_SPACE = 4, 5
 -- Bar stripes in the refresh window: white and black runs across the bar.
 local STRIPE, STRIPE_GAP = 3, 2
+-- A missing Keep up buff's icon alpha.
+local MISSING_ALPHA = 0.35
 
 -- Builds one aura tile's components as a draw.group. The bar's cover moves on its own, so it sits outside
 -- the group.
@@ -474,16 +476,18 @@ local function auraTile(layer, style)
   return parts
 end
 
--- Shows a src/auras model on parts at x, y. bars draws the bar and the bars-mode highlight.
+-- Shows a src/auras model on parts at x, y. bars draws the bar and the bars-mode highlight. A missing Keep
+-- up buff draws dim inside the dashed outline, with no time.
 local function showAura(parts, model, x, y, size, bars)
   parts.group.place(x, y)
   local timed = model.left ~= nil
-  local ring, dashed = model.highlight and not bars, model.highlight and bars
+  local ring, dashed = model.highlight and not bars, model.highlight and bars or model.missing == true
   draw.hideAll(parts.ring, not ring)
   set(parts.dashed, "hidden", not dashed)
   set(parts.edge, "hidden", false)
   set(parts.icon, "hidden", false)
   set(parts.icon, "sprite", model.sprite)
+  set(parts.icon, "alpha", model.missing and MISSING_ALPHA or 1)
   set(parts.plate, "hidden", not ring)
   set(parts.time, "hidden", model.text == nil)
   set(parts.time, "content", model.text or "")
