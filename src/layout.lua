@@ -24,7 +24,7 @@ local function aligned(align, start, length, size)
 end
 
 -- x and y of a w by h child placed by anchor against target, a rect.
-local function place(anchor, target, w, h)
+function layout.place(anchor, target, w, h)
   local side, gap, offset = anchor.side, anchor.gap, anchor.offset
   if side == "left" or side == "right" then
     local x = side == "left" and target.x - gap - w or target.x + target.w + gap
@@ -49,7 +49,7 @@ function layout.resolve(positions, anchors, bounds)
     visiting[name] = true
     local target = layout.rect(resolveOne(anchor.target), bounds[anchor.target])
     local b = bounds[name]
-    local x, y = place(anchor, target, b.w, b.h)
+    local x, y = layout.place(anchor, target, b.w, b.h)
     out[name] = { x = x - b.x, y = y - b.y, anchorX = 0.5, anchorY = 1 }
     return out[name]
   end
@@ -61,7 +61,7 @@ end
 -- The { side, align, gap, offset } that resolve turns back into child, a rect, against target, a rect.
 function layout.capture(child, target, side, align)
   local anchor = { side = side, align = align, gap = 0, offset = 0 }
-  local x, y = place(anchor, target, child.w, child.h)
+  local x, y = layout.place(anchor, target, child.w, child.h)
   if side == "left" then
     anchor.gap, anchor.offset = x - child.x, child.y - y
   elseif side == "right" then

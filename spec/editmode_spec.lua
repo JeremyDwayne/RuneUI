@@ -10,7 +10,7 @@ local function fakeStore()
 end
 
 -- Edit mode over every HUD element with default settings, entered from the options window. Returns the
--- elements by name.
+-- elements by name and the settings.
 local function enterEditMode()
   local root = fake.component()
   local tooltip = view.tooltip(root)
@@ -21,14 +21,14 @@ local function enterEditMode()
     rotation = view.cooldownGroup(root, view.TILE_STYLES.rotation, tooltip),
     cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns, tooltip),
   }
+  local saved = settings.load(fakeStore())
   options.create(root, {
-    saved = settings.load(fakeStore()), tracker = cooldowns.tracker(), elements = elements, view = view,
-    refresh = function() end,
+    saved = saved, tracker = cooldowns.tracker(), elements = elements, view = view, refresh = function() end,
   })
   fake.fire("ContentLayerReady", { component = fake.component() })
   fake.press("Open RuneUI options")
   fake.press("Edit mode off")
-  return elements
+  return elements, saved
 end
 
 local function logicTick()
@@ -40,6 +40,21 @@ local function overlayOf(element)
   return fake.find(function(c, d)
     return fake.hasHook(c, "ONRELEASE") and d.width == element.width and d.height == element.height
   end)
+end
+
+local function shows(content)
+  return fake.find(function(_, d) return d.content == content end) ~= nil
+end
+
+-- Hovers each spot in the open anchor menu until its name reads label, then clicks it.
+local function chooseSpot(label)
+  for _, c in ipairs(fake.created) do
+    if fake.shown(c) and fake.hasHook(c, "ONMOUSEOVER") and fake.hasHook(c, "ONCLICK") then
+      fake.hook(c, "ONMOUSEOVER")
+      if shows(label) then return fake.hook(c, "ONCLICK") end
+    end
+  end
+  error("no spot " .. label)
 end
 
 -- Presses element's overlay with the cursor at 300, 300.
@@ -101,13 +116,87 @@ describe("edit mode", function()
     assert.are.equal(x + 50, layer.x)
   end)
 
-  it("makes no client writes while a move is held still", function()
+  it("makes no client writes on an idle logic tick or while a move is held still", function()
     local elements = enterEditMode()
+    fake.writes = 0
+    logicTick()
+    assert.are.equal(0, fake.writes)
     grab(elements.player)
     fake.mouse.x = 350
     logicTick()
     fake.writes = 0
     logicTick()
     assert.are.equal(0, fake.writes)
+  end)
+
+  it("anchors an element to the side and alignment chosen in the pick, flush against it", function()
+    local elements, saved = enterEditMode()
+    fake.press("Rotation, left, bottom")
+    fake.press("Anchor")
+    assert.is_true(shows("Click the element to anchor Player to"))
+    fake.hook(overlayOf(elements.rotation), "ONCLICK")
+    assert.is_true(shows("Anchor Player to Rotation"))
+    chooseSpot("Left side, top")
+
+    assert.are.same({ target = "rotation", side = "left", align = "top", gap = 0, offset = 0 }, saved.anchors().player)
+    local rotation = elements.rotation.layer
+    assert.are.same({ rotation.x - 250, rotation.y }, { elements.player.layer.x, elements.player.layer.y })
+    assert.is_true(shows("Rotation, left, top"))
+    assert.is_false(shows("Anchor Player to Rotation"))
+  end)
+
+  it("cancels a pick on Esc and saves nothing", function()
+    local elements, saved = enterEditMode()
+    fake.press("Anchor")
+    fake.hook(overlayOf(elements.player), "ONCLICK")
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.is_nil(saved.anchors().rotation)
+    assert.is_false(shows("Anchor Rotation to Player"))
+    assert.is_false(shows("Click the element to anchor Rotation to"))
+    assert.is_true(shows("Edit mode"))
+  end)
+
+  it("refuses a target anchored to the picking element and says why", function()
+    local elements, saved = enterEditMode()
+    fake.press("Anchor")
+    fake.hook(overlayOf(elements.cooldowns), "ONCLICK")
+    assert.is_true(shows("Cooldowns is anchored to Rotation"))
+    assert.is_false(shows("Anchor Rotation to Cooldowns"))
+    assert.is_nil(saved.anchors().rotation)
+  end)
+
+  it("removes an anchor when its button is pressed, leaving the element where it is", function()
+    local elements, saved = enterEditMode()
+    local x, y = elements.player.layer.x, elements.player.layer.y
+    fake.press("Rotation, left, bottom")
+    assert.is_nil(saved.anchors().player)
+    assert.are.same({ x = x, y = y, anchorX = 0.5, anchorY = 1 }, saved.positions().player)
+    assert.are.same({ x, y }, { elements.player.layer.x, elements.player.layer.y })
+    assert.is_false(shows("Rotation, left, bottom"))
+  end)
+
+  it("drags an element's whole chain and saves only the dragged position", function()
+    local elements, saved = enterEditMode()
+    local before = {}
+    for name, element in pairs(elements) do before[name] = element.layer.x end
+    local tint = grab(elements.rotation)
+    fake.mouse.x = 350
+    logicTick()
+    for name, element in pairs(elements) do assert.are.equal(before[name] + 50, element.layer.x, name) end
+    fake.hook(tint, "ONRELEASE")
+
+    assert.are.equal(settings.DEFAULT_POSITIONS.rotation.x + 50, saved.positions().rotation.x)
+    assert.are.same(settings.DEFAULT_POSITIONS.player, saved.positions().player)
+    assert.are.same(settings.DEFAULT_ANCHORS, saved.anchors())
+  end)
+
+  it("saves a dragged anchored element's new gap and offset", function()
+    local elements, saved = enterEditMode()
+    local tint = grab(elements.player)
+    fake.mouse.x, fake.mouse.y = 280, 310
+    logicTick()
+    fake.hook(tint, "ONRELEASE")
+    assert.are.same({ target = "rotation", side = "left", align = "bottom", gap = 28, offset = 5 },
+      saved.anchors().player)
   end)
 end)

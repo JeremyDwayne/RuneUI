@@ -40,6 +40,9 @@ draw.COLOURS = {
   accentText = 0x0b0a08,
   mutedText = 0x9c9b99,
   editorTile = 0x2a2620,
+  -- Edit mode: anchored buttons and the hovered anchor spot, and the other spots' edges.
+  chip = 0xdfe4ea,
+  spotEdge = 0x6b645c,
 }
 
 local warned = {}
@@ -154,7 +157,7 @@ local scale = 1
 
 function draw.pressAt(c, x)
   local g, mx = c.xyGlobal, Mouse.GetX()
-  if g ~= nil and mx ~= nil and g.x + x > 0 then scale = mx / (g.x + x) end
+  scale = g ~= nil and mx ~= nil and g.x + x > 0 and mx / (g.x + x) or 1
 end
 
 function draw.cursor()
@@ -240,6 +243,23 @@ function draw.placeOutline(box, x, y, w, h)
   draw.size(box[3], t, h)
   draw.pos(box[4], x + w, y)
   draw.size(box[4], t, h)
+end
+
+local DASH, DASH_GAP = 6, 4
+
+-- Redraws canvas as a w by h box outline of dashes thickness wide, inside its edges. rgba is 0xRRGGBBAA.
+function draw.dashedBox(canvas, w, h, thickness, rgba)
+  canvas:Clear()
+  for x = 0, w - 1, DASH + DASH_GAP do
+    local length = math.min(DASH, w - x)
+    canvas:AddRectangle(x, 0, length, thickness, rgba)
+    canvas:AddRectangle(x, h - thickness, length, thickness, rgba)
+  end
+  for y = 0, h - 1, DASH + DASH_GAP do
+    local length = math.min(DASH, h - y)
+    canvas:AddRectangle(0, y, thickness, length, rgba)
+    canvas:AddRectangle(w - thickness, y, thickness, length, rgba)
+  end
 end
 
 -- Gradient ends as fractions toward white and black.

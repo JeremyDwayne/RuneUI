@@ -25,6 +25,7 @@ local elements = {
   cooldowns = view.cooldownGroup(hud, view.TILE_STYLES.cooldowns, tooltip),
 }
 local tracker = cooldowns.tracker()
+local optionsWindow
 tracker.seed(saved.known())
 -- Struct ids scanned per tick while a debuff icon is unnamed, about 48 seconds for a full scan.
 local ICON_SCAN_BUDGET = 1000
@@ -53,10 +54,10 @@ local function refresh()
   local rotationMoved = elements.rotation.update(tracker.tiles(groups.rotation, keybinds), accent)
   local cooldownsMoved = elements.cooldowns.update(tracker.tiles(groups.cooldowns, keybinds), accent)
   -- Anchored elements follow a row whose shown tiles changed.
-  if rotationMoved or cooldownsMoved then view.arrange(elements, saved.positions(), saved.anchors()) end
+  if rotationMoved or cooldownsMoved then optionsWindow.placeAll() end
 end
 
-local optionsWindow = options.create(top, {
+optionsWindow = options.create(top, {
   saved = saved, tracker = tracker, elements = elements, view = view, refresh = refresh,
 })
 

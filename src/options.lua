@@ -32,7 +32,8 @@ local PICKER_TAB_LIST = {
 local MARKER_STEP = 5
 
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
--- view = src/view, refresh = function redrawing the HUD }. Returns { shutdown }.
+-- view = src/view, refresh = function redrawing the HUD }. Returns { placeAll, shutdown }; placeAll places
+-- the HUD and edit mode's overlays from the saved positions and anchors.
 function options.create(root, deps)
   local saved, tracker, elements = deps.saved, deps.tracker, deps.elements
 
@@ -641,6 +642,7 @@ function options.create(root, deps)
   closePopups()
 
   return {
+    placeAll = editMode.placeAll,
     shutdown = function()
       window:Destroy()
       editMode.shutdown()
