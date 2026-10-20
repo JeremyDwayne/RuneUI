@@ -131,6 +131,8 @@ end
 local FRAME_WIDTH = 250
 local HEALTH_HEIGHT = 46
 local POWER_HEIGHT = 6
+-- Both unit frames share one box height, whether or not a power bar shows in it.
+local FRAME_HEIGHT = HEALTH_HEIGHT + POWER_HEIGHT + 3
 
 -- A unit frame bar with the name on the left and the value on the right; returns its update(model) and
 -- the draw.bar under it.
@@ -150,7 +152,7 @@ end
 
 -- 250x55: 46px health bar with name and "13.1K | 78%", 6px prayer bar below.
 function view.playerFrame(root)
-  local height = HEALTH_HEIGHT + POWER_HEIGHT + 3
+  local height = FRAME_HEIGHT
   local prayerY = HEALTH_HEIGHT + 2
   local layer = ui.Layer.new(root)
   layer:SetSize(FRAME_WIDTH, height)
@@ -182,13 +184,15 @@ local DEBUFF_SIZE = 26
 local MAX_DEBUFFS = 8
 local DEBUFF_ROW = DEBUFF_SIZE + 4
 
--- 250x78: a right-aligned row of debuff icons above a 46px health bar with name and "6,800 | 58%".
+-- 250x85: a right-aligned row of debuff icons above a 53px health bar with name and "6,800 | 58%", the same
+-- box height as the player frame.
 -- Hovering a debuff shows its name and info from debuffInfo(sprite), which returns { name, info } or nil.
 function view.targetFrame(root, tooltip, debuffInfo)
+  local height = DEBUFF_ROW + FRAME_HEIGHT
   local layer = ui.Layer.new(root)
-  layer:SetSize(FRAME_WIDTH, DEBUFF_ROW + HEALTH_HEIGHT + 2)
-  rect(layer, COLOURS.border, 0, DEBUFF_ROW, FRAME_WIDTH, HEALTH_HEIGHT + 2)
-  local updateHealth, health = unitBar(layer, COLOURS.target, DEBUFF_ROW + 1, HEALTH_HEIGHT)
+  layer:SetSize(FRAME_WIDTH, height)
+  rect(layer, COLOURS.border, 0, DEBUFF_ROW, FRAME_WIDTH, FRAME_HEIGHT)
+  local updateHealth, health = unitBar(layer, COLOURS.target, DEBUFF_ROW + 1, FRAME_HEIGHT - 2)
 
   local debuffs = {}
   for i = 1, MAX_DEBUFFS do
@@ -241,8 +245,8 @@ function view.targetFrame(root, tooltip, debuffInfo)
 
   return {
     layer = layer, update = update, setTexture = health.setTexture,
-    width = FRAME_WIDTH, height = DEBUFF_ROW + HEALTH_HEIGHT + 2,
-    bounds = { x = 0, y = 0, w = FRAME_WIDTH, h = DEBUFF_ROW + HEALTH_HEIGHT + 2 },
+    width = FRAME_WIDTH, height = height,
+    bounds = { x = 0, y = 0, w = FRAME_WIDTH, h = height },
   }
 end
 

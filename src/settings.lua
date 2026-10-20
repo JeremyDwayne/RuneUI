@@ -10,7 +10,7 @@ local settings = {}
 -- side of the rotation row with their bottoms level, and the bars stack flush and centered above it.
 settings.DEFAULT_POSITIONS = {
   player = { x = -469, y = -404, anchorX = 0.5, anchorY = 1 },
-  target = { x = 219, y = -427, anchorX = 0.5, anchorY = 1 },
+  target = { x = 219, y = -434, anchorX = 0.5, anchorY = 1 },
   resource = { x = -139, y = -443, anchorX = 0.5, anchorY = 1 },
   rotation = { x = -219, y = -396, anchorX = 0.5, anchorY = 1 },
   cooldowns = { x = -189, y = -484, anchorX = 0.5, anchorY = 1 },
