@@ -9,13 +9,17 @@ local function fakeStore()
   return { get = function(key) return data[key] end, set = function(key, value) data[key] = value end }
 end
 
--- The options window over a player frame and a cooldowns row holding one known ability, opened from the
--- ribbon. Returns the HUD elements.
+-- The options window over a player frame, a cooldowns row holding Sunshine, and a rotation row holding Soul
+-- Sap and then Wild Magic, so magic is the current style. Opened from the ribbon. Returns the HUD elements.
 local function openWindow()
   local root = fake.component()
   local tracker = cooldowns.tracker()
   tracker.onVar("COMBATV2_COOLDOWN_MAGIC_SUNSHINE_START", 0, 1000)
   tracker.onVar("COMBATV2_COOLDOWN_MAGIC_SUNSHINE_END", 0, 1100)
+  tracker.onVar("COMBATV2_COOLDOWN_NECROMANCY_SOUL_SAP_START", 0, 1000)
+  tracker.onVar("COMBATV2_COOLDOWN_NECROMANCY_SOUL_SAP_END", 0, 1005)
+  tracker.onVar("COMBATV2_COOLDOWN_MAGIC_WILD_MAGIC_START", 0, 1001)
+  tracker.onVar("COMBATV2_COOLDOWN_MAGIC_WILD_MAGIC_END", 0, 1010)
   local elements = {
     player = view.playerFrame(root),
     cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns, view.tooltip(root)),
@@ -79,6 +83,17 @@ describe("options", function()
 
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
     assert.are.same({ x, y }, { tile.x, tile.y })
+  end)
+
+  it("opens the picker on the current combat style's tab and switches style by tab", function()
+    openWindow()
+    fake.press("+")
+    local function listed(name) return fake.find(function(_, d) return d.content == name end) ~= nil end
+    assert.are.same({ true, false }, { listed("Wild Magic"), listed("Soul Sap") })
+    fake.press("Necromancy")
+    assert.are.same({ false, true }, { listed("Wild Magic"), listed("Soul Sap") })
+    fake.press("All")
+    assert.are.same({ true, true }, { listed("Wild Magic"), listed("Soul Sap") })
   end)
 
   it("puts a moved element back on Esc in edit mode", function()

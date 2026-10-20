@@ -9,6 +9,11 @@ local LONG_COOLDOWN_TICKS = 50
 -- STRENGTH_DESTROY; DEFENCE and CONSTITUTION abilities belong to no style.
 local STYLES = { MAGIC = "magic", NECROMANCY = "necromancy", RANGED = "ranged", ATTACK = "melee", STRENGTH = "melee" }
 
+-- "MAGIC_SUNSHINE" -> "magic": the combat style a cooldown key belongs to, or nil for a style-free one.
+function cooldowns.styleOf(key)
+  return STYLES[key:match("^(%u+)_")]
+end
+
 -- "MAGIC_DRAGON_BREATH" -> "Dragon Breath": drops the combat style and title-cases the rest.
 local function nameFromKey(key)
   local words = {}
@@ -64,7 +69,7 @@ function cooldowns.tracker()
       ability(key).start = new
       now = new
       startedThisTick[#startedThisTick + 1] = key
-      style = STYLES[key:match("^(%u+)_")] or style
+      style = cooldowns.styleOf(key) or style
     elseif edge == "END" then
       ability(key).finish = new
     end

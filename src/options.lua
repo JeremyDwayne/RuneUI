@@ -19,7 +19,13 @@ local PAGE_W = WIDTH - PAGE_X - 1
 local DRAG_START = 3
 local MAX_TILES = 10
 local GAP = 2
-local PICKER_WIDTH, PICKER_ROW = 230, 26
+local PICKER_WIDTH, PICKER_ROW, PICKER_TABS = 340, 26, 34
+-- Picker tabs left to right; style nil lists every style.
+local PICKER_TAB_LIST = {
+  { label = "All", width = 34 }, { label = "Necromancy", style = "necromancy", width = 100 },
+  { label = "Magic", style = "magic", width = 58 }, { label = "Ranged", style = "ranged", width = 66 },
+  { label = "Melee", style = "melee", width = 58 },
+}
 local MARKER_STEP = 5
 -- HUD elements in edit mode stacking order, later ones on top.
 local ELEMENTS = {
@@ -343,16 +349,34 @@ function options.create(root, deps)
     changed()
   end
 
-  -- Picker: known abilities under a row's "+" tile, in sections. It stays open for several adds.
+  -- Picker: known abilities under a row's "+" tile, in sections, one combat style tab at a time. It opens
+  -- on the current style and stays open for several adds.
   local picker = ui.Layer.new(page)
-  local pickerRows = {}
-  local pickerFor = nil
-  local MAX_PICKER_ROWS = 16
-  picker:SetSize(PICKER_WIDTH, MAX_PICKER_ROWS * PICKER_ROW + 2)
+  local pickerRows, pickerTabs = {}, {}
+  local pickerFor, pickerStyle = nil, nil
+  local MAX_PICKER_ROWS = 14
+  picker:SetSize(PICKER_WIDTH, PICKER_TABS + MAX_PICKER_ROWS * PICKER_ROW + 2)
   local pickerEdge = hitArea(rect(picker, COLOURS.border, 0, 0, PICKER_WIDTH, 0))
   local pickerBg = rect(picker, COLOURS.popup, 1, 1, PICKER_WIDTH - 2, 0)
+  rect(picker, COLOURS.line, 1, PICKER_TABS, PICKER_WIDTH - 2, 1)
+  local tabX = 10
+  for _, tab in ipairs(PICKER_TAB_LIST) do
+    local hit = hitArea(rect(picker, COLOURS.popup, tabX, 1, tab.width, PICKER_TABS - 1))
+    local t = {
+      style = tab.style,
+      label = text(picker, FONTS.body, ui.AlignMode.CENTRE, tabX, 1, tab.width, PICKER_TABS - 3),
+      underline = rect(picker, COLOURS.accent, tabX, PICKER_TABS - 2, tab.width, 2),
+    }
+    set(t.label, "content", tab.label)
+    on(hit, "ONCLICK", function()
+      pickerStyle = t.style
+      fillPicker()
+    end)
+    pickerTabs[#pickerTabs + 1] = t
+    tabX = tabX + tab.width
+  end
   for i = 1, MAX_PICKER_ROWS do
-    local ry = 1 + (i - 1) * PICKER_ROW
+    local ry = PICKER_TABS + 1 + (i - 1) * PICKER_ROW
     local r = {
       bg = hitArea(rect(picker, COLOURS.popup, 1, ry, PICKER_WIDTH - 2, PICKER_ROW)),
       hover = rect(picker, COLOURS.buttonHover, 1, ry, PICKER_WIDTH - 2, PICKER_ROW),
@@ -390,9 +414,14 @@ function options.create(root, deps)
   end
 
   function fillPicker()
+    for _, t in ipairs(pickerTabs) do
+      set(t.label, "rgb", t.style == pickerStyle and COLOURS.text or COLOURS.mutedText)
+      set(t.underline, "hidden", t.style ~= pickerStyle)
+    end
     local keys, models = allKnownKeys()
     local entries = {}
-    for _, section in ipairs(editor.pickerSections(pickerFor.name, saved.groups() or tracker.defaultGroups(), keys)) do
+    local groupsNow = saved.groups() or tracker.defaultGroups()
+    for _, section in ipairs(editor.pickerSections(pickerFor.name, groupsNow, keys, pickerStyle)) do
       if #section.keys > 0 then
         entries[#entries + 1] = { title = section.title }
         for _, key in ipairs(section.keys) do entries[#entries + 1] = { key = key, name = models[key].name } end
@@ -413,17 +442,17 @@ function options.create(root, deps)
       end
     end
     local shown = math.min(#entries, MAX_PICKER_ROWS)
-    pickerEdge:SetSize(PICKER_WIDTH, shown * PICKER_ROW + 2)
-    pickerBg:SetSize(PICKER_WIDTH - 2, shown * PICKER_ROW)
+    pickerEdge:SetSize(PICKER_WIDTH, PICKER_TABS + shown * PICKER_ROW + 2)
+    pickerBg:SetSize(PICKER_WIDTH - 2, PICKER_TABS + shown * PICKER_ROW)
   end
 
   function openPicker(row, plus)
     local wasOpen = pickerFor == row
     closePopups()
     if wasOpen then return end
-    pickerFor = row
+    pickerFor, pickerStyle = row, tracker.style()
     fillPicker()
-    picker:SetPos(plus.x, plus.y + row.size + 4)
+    picker:SetPos(math.min(plus.x, PAGE_W - PICKER_WIDTH - 8), plus.y + row.size + 4)
     set(picker, "hidden", false)
   end
 
