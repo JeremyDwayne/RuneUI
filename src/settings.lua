@@ -15,12 +15,17 @@ local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 local GROUP_NAMES = { "rotation", "cooldowns" }
 local POSITION_FIELDS = { "x", "y", "anchorX", "anchorY" }
 
+-- PersistentDB hands numbers back as floats, so -427 returns as -427.0; whole numbers become integers again.
+local function whole(n)
+  return math.tointeger(n) or n
+end
+
 local function copyPosition(pos)
   if type(pos) ~= "table" then return nil end
   local copy = {}
   for _, field in ipairs(POSITION_FIELDS) do
     if type(pos[field]) ~= "number" then return nil end
-    copy[field] = pos[field]
+    copy[field] = whole(pos[field])
   end
   return copy
 end
@@ -62,7 +67,8 @@ local function readKnown(saved)
   if type(saved) ~= "table" then return known end
   for key, info in pairs(saved) do
     if type(key) == "string" and type(info) == "table" then
-      known[key] = { name = type(info.name) == "string" and info.name or nil, icon = info.icon }
+      local icon = type(info.icon) == "number" and whole(info.icon) or nil
+      known[key] = { name = type(info.name) == "string" and info.name or nil, icon = icon }
     end
   end
   return known

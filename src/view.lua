@@ -1,83 +1,13 @@
 -- Draws RuneUI elements on the plugin layer from display models, in a flat dark style.
--- Each constructor returns { layer, update(model) }; place() positions a layer on the game window.
+-- Each constructor returns { layer, update(model), width, height }; place() positions a layer on the game window.
 local view = {}
 
--- Closest client fonts to 13px values, 10px labels and seconds sized to each tile.
-local FONTS = {
-  body = id.Font.MUSEO_SANS_13PT_BOLD,
-  small = id.Font.NOTOSANS_BOLD_10,
-  seconds = id.Font.MUSEO_SANS_17PT_BOLD,
-  smallSeconds = id.Font.MUSEO_SANS_15PT_BOLD,
-}
+local draw = require("src/draw")
+local set, rect, text, setFill = draw.set, draw.rect, draw.text, draw.setFill
+local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
-local COLOURS = {
-  border = 0x000000,
-  track = 0x1a1d21,
-  healthTrack = 0x111111,
-  player = 0x2f63a8,
-  target = 0xa4511c,
-  prayer = 0xdfe4ea,
-  adrenaline = 0xffb000,
-  marker = 0xdfe4ea,
-  text = 0xffffff,
-  darkText = 0x111316,
-  spender = 0xdfe4ea,
-  emptyBlock = 0x22262b,
-  tile = 0x141414,
-  dimText = 0xc7ccd1,
-}
 -- Tile backgrounds are translucent so the game shows through empty tiles.
 local TILE_ALPHA = 0.6
-
-local warned = {}
-
--- Writes a component property, logging the first failure per property instead of erroring.
-local function set(obj, field, value)
-  local ok, err = pcall(function() obj[field] = value end)
-  if not ok and not warned[field] then
-    warned[field] = true
-    log("cannot set " .. field .. ":", err)
-  end
-end
-
-local function rect(parent, rgb, x, y, width, height)
-  local r = ui.Rectangle.new(parent)
-  set(r, "fill", true)
-  set(r, "rgb", rgb)
-  r:SetPos(x, y)
-  r:SetSize(width, height)
-  return r
-end
-
-local alignWarned = false
-
--- The two-axis AlignTo raised a newindex error in the client; fall back to the one-axis form.
-local function align(t, horizontal)
-  local ok, err = pcall(function() t:AlignTo(horizontal, ui.AlignMode.CENTRE) end)
-  if ok then return end
-  if not alignWarned then
-    alignWarned = true
-    log("two-axis AlignTo failed, using one axis:", err)
-  end
-  pcall(function() t:AlignTo(horizontal) end)
-end
-
-local function text(parent, font, horizontal, x, y, width, height)
-  local t = ui.Text.new(parent)
-  set(t, "font", font)
-  set(t, "rgb", COLOURS.text)
-  set(t, "isShadowed", true)
-  align(t, horizontal)
-  t:SetPos(x, y)
-  t:SetSize(width, height)
-  return t
-end
-
--- Sets a bar's width from a 0..1 fill, hiding it when the fill is unknown.
-local function setFill(bar, fill, fullWidth)
-  set(bar, "hidden", fill == nil)
-  if fill ~= nil then bar:SetWidth(math.floor(fullWidth * fill)) end
-end
 
 -- pos: { x, y, anchorX, anchorY }, with anchors as fractions of the game window.
 function view.place(layer, pos)
@@ -121,7 +51,7 @@ function view.playerFrame(root)
     setFill(prayer, model.prayerFill, FRAME_WIDTH - 2)
   end
 
-  return { layer = layer, update = update }
+  return { layer = layer, update = update, width = FRAME_WIDTH, height = height }
 end
 
 local DEBUFF_SIZE = 26
@@ -161,7 +91,7 @@ function view.targetFrame(root)
     end
   end
 
-  return { layer = layer, update = update }
+  return { layer = layer, update = update, width = FRAME_WIDTH, height = DEBUFF_ROW + HEALTH_HEIGHT + 2 }
 end
 
 local BAR_WIDTH = 278
@@ -226,7 +156,7 @@ function view.resourceBar(root)
     updateSpender(model.spender)
   end
 
-  return { layer = layer, update = update }
+  return { layer = layer, update = update, width = BAR_WIDTH, height = 52 }
 end
 
 -- Tile sizes: 42px tiles for the rotation and 36px for cooldowns, 2px apart.
@@ -303,7 +233,7 @@ function view.cooldownGroup(root, style)
     end
   end
 
-  return { layer = layer, update = update }
+  return { layer = layer, update = update, width = width, height = style.size }
 end
 
 return view

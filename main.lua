@@ -4,6 +4,7 @@
 local adapter = require("src/adapter")
 local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
+local options = require("src/options")
 local settings = require("src/settings")
 local view = require("src/view")
 
@@ -17,9 +18,6 @@ local elements = {
   rotation = view.cooldownGroup(root, view.TILE_STYLES.rotation),
   cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns),
 }
-local positions = saved.positions()
-for name, element in pairs(elements) do view.place(element.layer, positions[name]) end
-
 local tracker = cooldowns.tracker()
 tracker.seed(saved.known())
 
@@ -38,6 +36,10 @@ local function refresh()
   elements.cooldowns.update(tracker.tiles(groups.cooldowns, keybinds))
 end
 
+local optionsWindow = options.create(root, {
+  saved = saved, tracker = tracker, elements = elements, view = view, refresh = refresh,
+})
+
 Event.ServerLogic.Subscribe("refresh", function()
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then saved.learn(learned.key, learned.name, learned.icon) end
@@ -46,6 +48,7 @@ end)
 refresh()
 
 function PluginShutdown()
+  optionsWindow.shutdown()
   for _, element in pairs(elements) do element.layer:Destroy() end
 end
 

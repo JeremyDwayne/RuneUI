@@ -94,6 +94,16 @@ describe("settings", function()
     assert.are.same({ threshold = 0, ultimate = 100 }, s.markers())
   end)
 
+  it("restores whole numbers that PersistentDB returns as floats as integers", function()
+    local s = settings.load(fakeStore({
+      layout = { player = { x = -427.0, y = -429.0, anchorX = 0.5, anchorY = 1.0 } },
+      known = { A = { name = "Alpha", icon = 34171.0 } },
+    }))
+    assert.are.equal("integer", math.type(s.positions().player.x))
+    assert.are.equal("integer", math.type(s.known().A.icon))
+    assert.are.equal(0.5, s.positions().player.anchorX)
+  end)
+
   it("ignores unknown keys and malformed values in saved data", function()
     local s = settings.load(fakeStore({
       layout = { player = { x = "far", y = 0 }, target = { x = 5, y = 6, anchorX = 0.5, anchorY = 1 }, bogus = {} },
