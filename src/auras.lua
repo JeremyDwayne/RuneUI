@@ -1,0 +1,123 @@
+-- Tracks buffs and debuffs from the native bars' slot labels and builds the four aura rows.
+-- Pure: main.lua feeds it src/adapter's slot reads once per server tick.
+local auras = {}
+
+-- Buffs with a first time left of at most this many seconds default to the combat row.
+local COMBAT_SECONDS = 60
+local MAX_ICONS = 10
+-- Time is kept in tenths of a second, so a 0.6 s server tick is a whole number.
+local TICK = 6
+local UNITS = { [""] = 1, m = 60, h = 3600 }
+
+-- A slot label such as "20<br>(5)", "20(5)", "6m" or "47%" as { seconds, unit, text, stacks }. seconds is the
+-- top of what the label shows, so "6m" reads 360, and unit is the step the label counts in. A label with no
+-- timer, such as a percent, a count or an empty one, reads {}, with stacks when it shows them.
+function auras.parse(label)
+  if type(label) ~= "string" then return {} end
+  local n, unit, rest = label:match("^(%d+)([mh]?)(.*)$")
+  local stacks = rest and (rest:match("^<br>%((%d+)%)$") or rest:match("^%((%d+)%)$"))
+  if n == nil or (rest ~= "" and stacks == nil) then return {} end
+  local size = UNITS[unit]
+  return { seconds = tonumber(n) * size, unit = size, text = n .. unit, stacks = stacks }
+end
+
+-- The row a buff joins when first seen: "combat", "upkeep", or "hidden" when it has no timer.
+local function category(seconds)
+  if seconds == nil then return "hidden" end
+  return seconds <= COMBAT_SECONDS and "combat" or "upkeep"
+end
+
+-- Returns a tracker. onTick takes { buffs, debuffs }, each a list of { sprite, label } in bar order, once
+-- per server tick, and returns the buffs it saw appear as { sprite, category }. rows builds the display
+-- models.
+function auras.tracker()
+  local tick = 0
+  -- Per bar, { [sprite] = state } for every aura on it last tick, and the sprites in bar order.
+  local bars = { buffs = { states = {}, order = {} }, debuffs = { states = {}, order = {} } }
+
+  -- Moves state to what label shows: a time above the label's last starts the swipe again, a lower one
+  -- resyncs it, and an unchanged one counts down a tick, no further than the bottom of the label's step.
+  local function follow(state, label)
+    if label == state.label then
+      if state.left ~= nil then state.left = math.max(state.left - TICK, (state.seconds - state.unit) * 10) end
+      return
+    end
+    local parsed = auras.parse(label)
+    state.label, state.text, state.stacks = label, parsed.text, parsed.stacks
+    if parsed.seconds == nil then
+      state.seconds, state.left = nil, nil
+      return
+    end
+    local left = parsed.seconds * 10
+    if state.left == nil or parsed.seconds > state.seconds then
+      state.full, state.started = math.max(state.full or 0, left), tick
+    end
+    state.seconds, state.unit, state.left = parsed.seconds, parsed.unit, left
+  end
+
+  local function update(bar, reads, appeared)
+    local states, order = {}, {}
+    for _, read in ipairs(reads) do
+      local state = states[read.sprite]
+      if state == nil then
+        state = bar.states[read.sprite]
+        if state == nil then
+          state = { sprite = read.sprite }
+          follow(state, read.label)
+          state.category = category(state.seconds)
+          if appeared ~= nil then appeared[#appeared + 1] = { sprite = read.sprite, category = state.category } end
+        else
+          follow(state, read.label)
+        end
+        states[read.sprite] = state
+        order[#order + 1] = read.sprite
+      end
+    end
+    bar.states, bar.order = states, order
+  end
+
+  local tracker = {}
+
+  function tracker.onTick(reads)
+    tick = tick + 1
+    local appeared = {}
+    update(bars.buffs, reads.buffs, appeared)
+    update(bars.debuffs, reads.debuffs)
+    return appeared
+  end
+
+  -- { sprite, text, stacks, left, full, started, fill, highlight } for state. left and full are seconds, and
+  -- started changes only when its swipe restarts. A buff with no timer has only sprite, text and stacks.
+  local function model(state)
+    local m = { sprite = state.sprite, text = state.text, stacks = state.stacks, highlight = false }
+    if state.left ~= nil then
+      m.left, m.full, m.started = state.left / 10, state.full / 10, state.started
+      m.fill = state.full > 0 and state.left / state.full or 0
+      m.highlight = state.left * 10 <= state.full
+    end
+    return m
+  end
+
+  local function add(row, item)
+    if #row < MAX_ICONS then row[#row + 1] = item end
+  end
+
+  -- categories: { [tostring(sprite)] = "combat" | "upkeep" | "hidden" } from settings; a buff missing from it
+  -- goes where its first time left put it. targetDebuffs: target debuff sprites. Returns { target, debuffs,
+  -- upkeep, combat }, each a list of up to 10 models in bar order. Target debuffs carry only their sprite.
+  function tracker.rows(categories, targetDebuffs)
+    local rows = { target = {}, debuffs = {}, upkeep = {}, combat = {} }
+    for _, sprite in ipairs(targetDebuffs) do add(rows.target, { sprite = sprite }) end
+    for _, sprite in ipairs(bars.debuffs.order) do add(rows.debuffs, model(bars.debuffs.states[sprite])) end
+    for _, sprite in ipairs(bars.buffs.order) do
+      local state = bars.buffs.states[sprite]
+      local row = rows[categories[tostring(sprite)] or state.category]
+      if row ~= nil then add(row, model(state)) end
+    end
+    return rows
+  end
+
+  return tracker
+end
+
+return auras
