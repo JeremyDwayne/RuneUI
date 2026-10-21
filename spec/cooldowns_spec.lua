@@ -1,4 +1,5 @@
 local cooldowns = require("src/cooldowns")
+local frames = require("src/frames")
 
 local CB = "COMBATV2_COOLDOWN_MAGIC_CONCENTRATED_BLAST"
 local DB = "COMBATV2_COOLDOWN_MAGIC_DRAGON_BREATH"
@@ -347,5 +348,31 @@ describe("cooldowns.tracker charges and recast stages", function()
     assert.is_nil(learned)
     local tile = tracker.tiles({ "MELEE_DISMEMBER" }, {})[1]
     assert.are.same({ "Dismember", 21239 }, { tile.name, tile.icon })
+  end)
+end)
+
+describe("cooldowns.tracker spender tiles", function()
+  local SOULS = "COMBATV2_BUFF_NECROMANCY_RESIDUAL_SOUL_STACKS"
+  local NECROSIS = "COMBATV2_BUFF_NECROMANCY_NECROSIS_STACKS"
+  local KEYS = { "NECROMANCY_VOLLEY_OF_SOULS", "NECROMANCY_FINGER_OF_DEATH" }
+
+  local function tiles(spenders, lantern)
+    local reads = { adrenaline = 0, spenders = spenders, lantern = lantern }
+    local stacks = frames.resource(reads, { threshold = 50, ultimate = 100 }).byAbility
+    return cooldowns.tracker().tiles(KEYS, {}, stacks)
+  end
+
+  it("counts souls on Volley of Souls and necrosis on Finger of Death, with their spender rows", function()
+    local shown = tiles({ [SOULS] = 2, [NECROSIS] = 8 })
+    assert.are.same({ "2", "8" }, { shown[1].count, shown[2].count })
+    assert.are.same({ 3, 0 }, { shown[1].stacks.max, shown[1].stacks.gold })
+    assert.are.same({ 12, 6, 6 }, { shown[2].stacks.max, shown[2].stacks.gold, shown[2].stacks.notch })
+  end)
+
+  it("caps souls at 5 with a Soulbound lantern and shows a count of 0", function()
+    local shown = tiles({ [SOULS] = 5 }, true)
+    assert.are.same({ "5", 5, 5 }, { shown[1].count, shown[1].stacks.max, shown[1].stacks.gold })
+    assert.are.same({ "0", 0 }, { shown[2].count, shown[2].stacks.count })
+    assert.are.equal(3, tiles({ [SOULS] = 5 })[1].stacks.max)
   end)
 end)

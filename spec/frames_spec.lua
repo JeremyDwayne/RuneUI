@@ -75,27 +75,49 @@ describe("frames.resource", function()
 
   it("shows a row of blocks for each spender with stacks, both at once", function()
     local model = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 2, [NECROSIS] = 7 } }, MARKERS)
-    assert.are.same(
-      { { key = "souls", count = 2, max = 3 }, { key = "necrosis", count = 7, max = 12 } },
-      model.spenders
-    )
+    assert.are.same({
+      { key = "souls", count = 2, max = 3, gold = 0 },
+      { key = "necrosis", count = 7, max = 12, gold = 6, notch = 6 },
+    }, model.spenders)
     local empty = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 0, [NECROSIS] = 0 } }, MARKERS)
     assert.are.same({}, empty.spenders)
   end)
 
   it("keeps empty spender rows while a Necromancy weapon is worn", function()
     local model = frames.resource({ adrenaline = 0, spenders = {}, necromancy = true }, MARKERS)
-    assert.are.same(
-      { { key = "souls", count = 0, max = 3 }, { key = "necrosis", count = 0, max = 12 } },
-      model.spenders
-    )
+    assert.are.same({
+      { key = "souls", count = 0, max = 3, gold = 0 },
+      { key = "necrosis", count = 0, max = 12, gold = 0, notch = 6 },
+    }, model.spenders)
   end)
 
   it("caps souls at 5 with a Soulbound lantern equipped and 3 without", function()
     local with = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 5 }, lantern = true }, MARKERS)
-    assert.are.same({ key = "souls", count = 5, max = 5 }, with.spenders[1])
+    assert.are.same({ key = "souls", count = 5, max = 5, gold = 5 }, with.spenders[1])
     local without = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 5 } }, MARKERS)
-    assert.are.same({ key = "souls", count = 3, max = 3 }, without.spenders[1])
+    assert.are.same({ key = "souls", count = 3, max = 3, gold = 3 }, without.spenders[1])
+  end)
+
+  it("turns each full cast's worth of stacks gold, a full soul row or six necrosis", function()
+    local function gold(spenders, lantern)
+      local model = frames.resource({ adrenaline = 0, spenders = spenders, lantern = lantern }, MARKERS)
+      local out = {}
+      for _, row in ipairs(model.spenders) do
+        out[#out + 1] = row.gold
+      end
+      return out
+    end
+    assert.are.same({ 6 }, gold({ [NECROSIS] = 8 }))
+    assert.are.same({ 12 }, gold({ [NECROSIS] = 12 }))
+    assert.are.same({ 0 }, gold({ [SOULS] = 4 }, true))
+    assert.are.same({ 5 }, gold({ [SOULS] = 5 }, true))
+  end)
+
+  it("lists every spender by the ability that spends it, shown or not", function()
+    local model = frames.resource({ adrenaline = 0, spenders = { [NECROSIS] = 8 } }, MARKERS)
+    assert.are.equal(1, #model.spenders)
+    assert.are.equal(model.spenders[1], model.byAbility.NECROMANCY_FINGER_OF_DEATH)
+    assert.are.same({ key = "souls", count = 0, max = 3, gold = 0 }, model.byAbility.NECROMANCY_VOLLEY_OF_SOULS)
   end)
 end)
 

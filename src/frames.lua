@@ -10,11 +10,24 @@ frames.LIFEPOINTS = {
   { id = "percent", label = "78%" },
 }
 
--- Spender resources shown as rows of blocks above the resource bar, read by their VarPlayer name.
+-- Spender resources shown as rows of blocks above the resource bar, read by their VarPlayer name, with the
+-- cooldown key of the ability that spends them and the stacks it spends per cast, its cap when nil.
 -- Residual souls cap at 3, or 5 with a Soulbound lantern equipped.
 frames.SPENDERS = {
-  { key = "souls", var = "COMBATV2_BUFF_NECROMANCY_RESIDUAL_SOUL_STACKS", max = 3, lanternMax = 5 },
-  { key = "necrosis", var = "COMBATV2_BUFF_NECROMANCY_NECROSIS_STACKS", max = 12 },
+  {
+    key = "souls",
+    var = "COMBATV2_BUFF_NECROMANCY_RESIDUAL_SOUL_STACKS",
+    max = 3,
+    lanternMax = 5,
+    ability = "NECROMANCY_VOLLEY_OF_SOULS",
+  },
+  {
+    key = "necrosis",
+    var = "COMBATV2_BUFF_NECROMANCY_NECROSIS_STACKS",
+    max = 12,
+    ability = "NECROMANCY_FINGER_OF_DEATH",
+    perCast = 6,
+  },
 }
 
 local function clamp01(x)
@@ -129,7 +142,8 @@ end
 -- reads: { adrenaline = SA_ENERGY in tenths of a percent, spenders = { [varName] = count },
 --         lantern = whether a Soulbound lantern is equipped, necromancy = whether a Necromancy weapon is worn }
 -- Each spender with stacks gets a row, and every one does while a Necromancy weapon is worn, so the rows and the
--- elements they push stay put between casts.
+-- elements they push stay put between casts. A row's gold counts the stacks in whole casts, and notch marks one
+-- cast when a row holds more. byAbility holds every spender's row, shown or not, by its ability's cooldown key.
 -- markers: { threshold = percent, ultimate = percent }
 function frames.resource(reads, markers)
   if reads.adrenaline == nil then
@@ -142,12 +156,23 @@ function frames.resource(reads, markers)
     text = percentText(reads.adrenaline, 1000),
     markers = { { at = clamp01(markers.threshold / 100) }, { at = clamp01(markers.ultimate / 100) } },
     spenders = {},
+    byAbility = {},
   }
   for _, spender in ipairs(frames.SPENDERS) do
     local count = reads.spenders[spender.var] or 0
+    local max = reads.lantern and spender.lanternMax or spender.max
+    local perCast = spender.perCast or max
+    count = math.min(count, max)
+    local row = {
+      key = spender.key,
+      count = count,
+      max = max,
+      gold = count // perCast * perCast,
+      notch = perCast < max and perCast or nil,
+    }
+    model.byAbility[spender.ability] = row
     if count > 0 or reads.necromancy then
-      local max = reads.lantern and spender.lanternMax or spender.max
-      model.spenders[#model.spenders + 1] = { key = spender.key, count = math.min(count, max), max = max }
+      model.spenders[#model.spenders + 1] = row
     end
   end
   return model

@@ -90,9 +90,10 @@ Event.Draw.Subscribe("castBar", adapter.keepCastBarHidden)
 
 -- Event.Logic runs 50 times a second, so each of its ticks is 0.02 s.
 local LOGIC_SECONDS = 0.02
--- Logic ticks since the last server tick, and the action bar slots read on it.
+-- Logic ticks since the last server tick, and the action bar slots and spender rows read on it.
 local logicTicks = 0
 local slots = {}
+local stacks = nil
 
 -- Shows each group's tiles for the worn weapon's style. Returns whether a group's bounds changed.
 local function updateGroups()
@@ -106,7 +107,7 @@ local function updateGroups()
     if group ~= nil and element.configure(group) then
       moved = true
     end
-    if element.update(tracker.tiles(saved.keys(name, style) or {}, slots), since) then
+    if element.update(tracker.tiles(saved.keys(name, style) or {}, slots, stacks), since) then
       moved = true
     end
   end
@@ -162,6 +163,7 @@ local function refresh()
   local reads = adapter.resourceReads(frames.SPENDERS)
   reads.necromancy = tracker.style() == "necromancy"
   local resource = frames.resource(reads, saved.markers())
+  stacks = resource.byAbility
   if elements.resource.update(resource) then
     moved = true
   end

@@ -21,6 +21,7 @@ cooldowns.ATTACK_STYLES =
   { [1] = "magic", [5] = "melee", [6] = "melee", [8] = "ranged", [9] = "ranged", [10] = "ranged", [37] = "necromancy" }
 local BARE_HANDED = 7
 local NO_FORMS = {}
+local NO_STACKS = {}
 
 -- Just-used struct keys shared by many abilities, which lend their icon but not their name: every weapon
 -- special reports the special attack, whose icon its action bar slot shows.
@@ -251,8 +252,10 @@ function cooldowns.tracker()
   -- A tile with no matching slot counts as usable. A charge ability's tile is ready while a charge is left,
   -- with count its charges left and, below two, recharge = { remaining, length } in seconds for the next
   -- charge. A recast ability's tile counts down its stage lockout while a stage is open, with count such as
-  -- "2/3".
-  function tracker.tiles(keys, slots)
+  -- "2/3". stacks: a src/frames resource model's byAbility, whose row a spender ability's tile shows as count
+  -- and stacks.
+  function tracker.tiles(keys, slots, stacks)
+    stacks = stacks or NO_STACKS
     local tiles = {}
     for _, key in ipairs(keys) do
       local a = abilities[key] or {}
@@ -262,7 +265,10 @@ function cooldowns.tracker()
       local cooldown = (a.start ~= nil and a.finish ~= nil) and secondsLeft(a.finish - a.start) or nil
       local count = nil
       local recharge = nil
-      if CHARGES[key] then
+      local spender = stacks[key]
+      if spender ~= nil then
+        count = tostring(spender.count)
+      elseif CHARGES[key] then
         local second = ticksTo(a.charged)
         local charges = 2
         if left > 0 then
@@ -301,6 +307,7 @@ function cooldowns.tracker()
         cooldown = cooldown,
         count = count,
         recharge = recharge,
+        stacks = spender,
       }
     end
     return tiles
