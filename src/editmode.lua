@@ -6,22 +6,42 @@ local layout = require("src/layout")
 
 local editmode = {}
 
-local set, rect, text, outline, placeOutline = draw.set, draw.rect, draw.text, draw.outline, draw.placeOutline
-local hitArea, on, button, pressAt, cursor = draw.hitArea, draw.on, draw.button, draw.pressAt, draw.cursor
+local set = draw.set
+local rect = draw.rect
+local text = draw.text
+local outline = draw.outline
+local placeOutline = draw.placeOutline
+local hitArea = draw.hitArea
+local on = draw.on
+local button = draw.button
+local pressAt = draw.pressAt
+local cursor = draw.cursor
 local hideAll = draw.hideAll
-local FONTS, COLOURS = draw.FONTS, draw.COLOURS
+local FONTS = draw.FONTS
+local COLOURS = draw.COLOURS
 
 -- HUD elements in stacking order, later ones on top. Cooldown groups take their label from deps.label.
 local ELEMENTS = {
-  { name = "player", label = "Player" }, { name = "target", label = "Target" },
-  { name = "resource", label = "Resource bar" }, { name = "castbar", label = "Cast bar" },
-  { name = "major" }, { name = "rotation" }, { name = "utility" },
-  { name = "custom1" }, { name = "custom2" }, { name = "custom3" }, { name = "custom4" },
-  { name = "targetDebuffs", label = "Target debuffs" }, { name = "playerDebuffs", label = "Player debuffs" },
-  { name = "upkeepBuffs", label = "Upkeep buffs" }, { name = "combatBuffs", label = "Combat buffs" },
+  { name = "player", label = "Player" },
+  { name = "target", label = "Target" },
+  { name = "resource", label = "Resource bar" },
+  { name = "castbar", label = "Cast bar" },
+  { name = "major" },
+  { name = "rotation" },
+  { name = "utility" },
+  { name = "custom1" },
+  { name = "custom2" },
+  { name = "custom3" },
+  { name = "custom4" },
+  { name = "targetDebuffs", label = "Target debuffs" },
+  { name = "playerDebuffs", label = "Player debuffs" },
+  { name = "upkeepBuffs", label = "Upkeep buffs" },
+  { name = "combatBuffs", label = "Combat buffs" },
 }
 local LABELS = {}
-for _, entry in ipairs(ELEMENTS) do LABELS[entry.name] = entry.label end
+for _, entry in ipairs(ELEMENTS) do
+  LABELS[entry.name] = entry.label
+end
 
 -- Rough width of a small-font character, for sizing tags to their text.
 local CHAR_W = 6
@@ -29,11 +49,17 @@ local TAG_H = 16
 -- Elements shorter than this, or narrower than their tag and button, show both above their outline, and only
 -- from hovering them until another element is hovered.
 local HEADER_INSIDE_H = 40
-local TOOLBAR_W, TOOLBAR_H = 600, 44
-local MENU_W, MENU_H = 220, 166
+local TOOLBAR_W = 600
+local TOOLBAR_H = 44
+local MENU_W = 220
+local MENU_H = 166
 -- The target's sketch in the anchor menu, and the 24 by 16 spots around it.
-local SKETCH_X, SKETCH_Y, SKETCH_W, SKETCH_H = 60, 46, 100, 56
-local SPOT_W, SPOT_H = 24, 16
+local SKETCH_X = 60
+local SKETCH_Y = 46
+local SKETCH_W = 100
+local SKETCH_H = 56
+local SPOT_W = 24
+local SPOT_H = 16
 local SIDE_LABELS = { left = "Left side", right = "Right side", top = "Top side", bottom = "Bottom side" }
 
 -- Menu spots: a column of three beside each of the sketch's left and right sides, a row of three above and
@@ -57,8 +83,10 @@ local WHITE = draw.opaque(COLOURS.highlight)
 -- Pixels within which a drag snaps, and the grid it falls back to, drawn with brighter lines every 64 px and a
 -- teal line up the window's center. Canvas colours are 0xRRGGBBAA.
 local SNAP_RANGE = 6
-local GRID, GRID_MAJOR = 16, 64
-local GRID_RGBA, GRID_MAJOR_RGBA = 0xFFFFFF12, 0xFFFFFF24
+local GRID = 16
+local GRID_MAJOR = 64
+local GRID_RGBA = 0xFFFFFF12
+local GRID_MAJOR_RGBA = 0xFFFFFF24
 local GRID_CENTER_RGBA = (COLOURS.accent << 8) | 0x73
 
 -- deps: { saved = src/settings, elements = src/view elements by name, view = src/view, label = function
@@ -67,7 +95,8 @@ local GRID_CENTER_RGBA = (COLOURS.accent << 8) | 0x73
 -- handles Esc while editing. An element whose inUse is false, such as a custom group not added, gets no
 -- overlay while editing.
 function editmode.create(root, deps)
-  local saved, elements = deps.saved, deps.elements
+  local saved = deps.saved
+  local elements = deps.elements
 
   local function labelOf(name)
     return LABELS[name] or (deps.label and deps.label(name)) or name
@@ -81,21 +110,27 @@ function editmode.create(root, deps)
   local resolved = saved.positions()
   local overlays = {}
   -- move: the element being dragged; pick: { name, hover, target } while choosing what name anchors to.
-  local move, pick = nil, nil
+  local move = nil
+  local pick = nil
   -- The small element whose tag and button the shared header shows, or nil.
   local floatOwner = nil
   local refreshOverlays, pressOverlay, releaseOverlay, pressButton, hoverOverlay, dragTo
   -- The window's size in UI units, read on entering edit mode.
-  local screenW, screenH = 0, 0
+  local screenW = 0
+  local screenH = 0
 
   -- The grid, drawn on entering edit mode with snapping on, and redrawn only when the window size changed.
   local grid = ui.Canvas.new(root)
   set(grid, "hidden", true)
-  local gridW, gridH = nil, nil
+  local gridW = nil
+  local gridH = nil
 
   local function drawGrid()
-    if gridW == screenW and gridH == screenH then return end
-    gridW, gridH = screenW, screenH
+    if gridW == screenW and gridH == screenH then
+      return
+    end
+    gridW = screenW
+    gridH = screenH
     grid:SetPos(0, 0)
     grid:SetSize(screenW, screenH)
     grid:Clear()
@@ -142,18 +177,30 @@ function editmode.create(root, deps)
     o.header = { o.tagBg, o.tag, o.button, o.buttonText }
     o.buttonW = #"Anchor" * CHAR_W + 12
     showLabel(o)
-    on(o.tint, "ONCLICK", function(_, x) pressOverlay(o, x) end)
-    on(o.tint, "ONRELEASE", function() releaseOverlay(o) end)
-    on(o.tint, "ONMOUSEOVER", function() hoverOverlay(o, true) end)
-    on(o.tint, "ONMOUSELEAVE", function() hoverOverlay(o, false) end)
-    on(o.button, "ONCLICK", function() pressButton(o) end)
+    on(o.tint, "ONCLICK", function(_, x)
+      pressOverlay(o, x)
+    end)
+    on(o.tint, "ONRELEASE", function()
+      releaseOverlay(o)
+    end)
+    on(o.tint, "ONMOUSEOVER", function()
+      hoverOverlay(o, true)
+    end)
+    on(o.tint, "ONMOUSELEAVE", function()
+      hoverOverlay(o, false)
+    end)
+    on(o.button, "ONCLICK", function()
+      pressButton(o)
+    end)
     set(o.layer, "hidden", true)
     return o
   end
 
   for _, entry in ipairs(ELEMENTS) do
     local element = elements[entry.name]
-    if element ~= nil then overlays[entry.name] = overlay(entry, element) end
+    if element ~= nil then
+      overlays[entry.name] = overlay(entry, element)
+    end
   end
 
   -- One header for small elements, built after every overlay so it draws above them all and its button takes
@@ -165,7 +212,9 @@ function editmode.create(root, deps)
   set(floatTag, "isShadowed", false)
   local floatButton = hitArea(rect(float, COLOURS.panel, 0, 0, 0, TAG_H))
   local floatButtonText = text(float, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, 200, TAG_H)
-  on(floatButton, "ONCLICK", function() pressButton(floatOwner) end)
+  on(floatButton, "ONCLICK", function()
+    pressButton(floatOwner)
+  end)
   set(float, "hidden", true)
 
   -- Shows the shared header above floatOwner when it is small and placed, with its tag and button text.
@@ -173,7 +222,9 @@ function editmode.create(root, deps)
     local o = floatOwner
     local shown = o ~= nil and o.small and o.at ~= nil
     set(float, "hidden", not shown)
-    if not shown then return end
+    if not shown then
+      return
+    end
     local b = o.element.bounds
     draw.place(float, o.at.x + b.x, o.at.y + b.y - TAG_H - 2, o.at.anchorX, o.at.anchorY)
     draw.size(float, o.tagW + o.buttonW, TAG_H)
@@ -221,7 +272,9 @@ function editmode.create(root, deps)
     draw.size(o.tint, b.w, b.h)
     placeOutline(o.edge, 2, 2, math.max(0, b.w - 4), math.max(0, b.h - 4))
     hideAll(o.header, o.small)
-    if o == floatOwner then placeFloat() end
+    if o == floatOwner then
+      placeFloat()
+    end
   end
 
   -- Places every element and overlay at r, positions by name.
@@ -250,8 +303,12 @@ function editmode.create(root, deps)
   -- cursor. main.lua calls it on a tick where a cooldown row's bounds changed.
   function mode.placeAll()
     resolved = deps.view.arrange(elements, saved.positions(), saved.anchors())
-    for name, o in pairs(overlays) do placeOverlay(o, resolved[name]) end
-    if move ~= nil and move.to ~= nil then dragTo(move.cursorX, move.cursorY) end
+    for name, o in pairs(overlays) do
+      placeOverlay(o, resolved[name])
+    end
+    if move ~= nil and move.to ~= nil then
+      dragTo(move.cursorX, move.cursorY)
+    end
     if pick ~= nil then
       local r = rectOf(pick.name)
       dashedAt(pickOutline, r.x, r.y, r.w, r.h)
@@ -284,7 +341,9 @@ function editmode.create(root, deps)
     setEditing(false)
     deps.done()
   end)
-  local cancel = button(toolbar, "Cancel", TOOLBAR_W - 91, 7, 84, 30, false, function() cancelPick() end)
+  local cancel = button(toolbar, "Cancel", TOOLBAR_W - 91, 7, 84, 30, false, function()
+    cancelPick()
+  end)
 
   local function showToolbar()
     local picking = pick ~= nil
@@ -300,7 +359,9 @@ function editmode.create(root, deps)
     set(snapLabel, "content", snap and "Snap on" or "Snap off")
     set(snapLabel, "rgb", snap and COLOURS.accentText or COLOURS.text)
     set(snapLabel, "isShadowed", not snap)
-    if snap and editing then drawGrid() end
+    if snap and editing then
+      drawGrid()
+    end
     set(grid, "hidden", not (snap and editing))
   end
 
@@ -329,7 +390,9 @@ function editmode.create(root, deps)
   local function closeMenu()
     set(menu, "hidden", true)
     set(landing, "hidden", true)
-    if pick ~= nil then pick.target = nil end
+    if pick ~= nil then
+      pick.target = nil
+    end
   end
 
   local function hoverSpot(spot, hovered)
@@ -340,23 +403,33 @@ function editmode.create(root, deps)
     end
     set(spotName, "content", hovered and spot.label or "")
     set(landing, "hidden", not hovered)
-    if not hovered or pick == nil or pick.target == nil then return end
+    if not hovered or pick == nil or pick.target == nil then
+      return
+    end
     local b = elements[pick.name].bounds
-    local x, y = layout.place({ side = spot.side, align = spot.align, gap = 0, offset = 0 }, rectOf(pick.target),
-      b.w, b.h)
+    local x, y =
+      layout.place({ side = spot.side, align = spot.align, gap = 0, offset = 0 }, rectOf(pick.target), b.w, b.h)
     dashedAt(landing, x, y, b.w, b.h)
   end
 
   for _, spot in ipairs(SPOTS) do
     local s = {
-      label = spot.label, side = spot.side, align = spot.align,
+      label = spot.label,
+      side = spot.side,
+      align = spot.align,
       edge = hitArea(rect(menu, COLOURS.spotEdge, spot.x, spot.y, SPOT_W, SPOT_H)),
       fill = rect(menu, COLOURS.button, spot.x + 1, spot.y + 1, SPOT_W - 2, SPOT_H - 2),
     }
-    on(s.edge, "ONMOUSEOVER", function() hoverSpot(s, true) end)
-    on(s.edge, "ONMOUSELEAVE", function() hoverSpot(s, false) end)
+    on(s.edge, "ONMOUSEOVER", function()
+      hoverSpot(s, true)
+    end)
+    on(s.edge, "ONMOUSELEAVE", function()
+      hoverSpot(s, false)
+    end)
     on(s.edge, "ONCLICK", function()
-      if pick == nil or pick.target == nil then return end
+      if pick == nil or pick.target == nil then
+        return
+      end
       saved.setAnchor(pick.name, { target = pick.target, side = s.side, align = s.align, gap = 0, offset = 0 })
       cancelPick()
       mode.placeAll()
@@ -370,7 +443,8 @@ function editmode.create(root, deps)
     set(sketchName, "content", labelOf(target))
     hoverSpot(nil, false)
     local mx, my = cursor()
-    local w, h = tonumber(root.width), tonumber(root.height)
+    local w = tonumber(root.width)
+    local h = tonumber(root.height)
     if mx ~= nil and w ~= nil and h ~= nil then
       menu:SetPos(math.max(0, math.min(mx, w - MENU_W)), math.max(0, math.min(my, h - MENU_H)))
     end
@@ -385,23 +459,38 @@ function editmode.create(root, deps)
       local isPicking = pick ~= nil and pick.name == name
       local hovered = pick ~= nil and pick.hover == name
       set(o.tint, "rgb", (isPicking or hovered) and COLOURS.highlight or COLOURS.accent)
-      set(o.tint, "alpha", isPicking and 0.08 or hovered and 0.14 or 0.15)
-      hideAll(o.edge, isPicking)
-      for _, side in ipairs(o.edge) do set(side, "rgb", hovered and COLOURS.highlight or COLOURS.accent) end
-      local content, fill = "Anchor", COLOURS.panel
+      local alpha = 0.15
       if isPicking then
-        content, fill = "Picking", COLOURS.highlight
+        alpha = 0.08
+      elseif hovered then
+        alpha = 0.14
+      end
+      set(o.tint, "alpha", alpha)
+      hideAll(o.edge, isPicking)
+      for _, side in ipairs(o.edge) do
+        set(side, "rgb", hovered and COLOURS.highlight or COLOURS.accent)
+      end
+      local content = "Anchor"
+      local fill = COLOURS.panel
+      if isPicking then
+        content = "Picking"
+        fill = COLOURS.highlight
       elseif anchors[name] ~= nil then
-        content, fill = anchorText(anchors[name]), COLOURS.chip
+        content = anchorText(anchors[name])
+        fill = COLOURS.chip
       end
       showLabel(o)
       set(o.buttonText, "content", content)
       set(o.buttonText, "rgb", fill == COLOURS.panel and COLOURS.text or COLOURS.accentText)
       set(o.buttonText, "isShadowed", fill == COLOURS.panel)
       set(o.button, "rgb", fill)
-      o.buttonContent, o.buttonFill, o.buttonW = content, fill, #content * CHAR_W + 12
+      o.buttonContent = content
+      o.buttonFill = fill
+      o.buttonW = #content * CHAR_W + 12
       draw.size(o.button, o.buttonW, TAG_H)
-      if resolved[name] ~= nil then placeOverlay(o, resolved[name]) end
+      if resolved[name] ~= nil then
+        placeOverlay(o, resolved[name])
+      end
     end
   end
 
@@ -417,7 +506,9 @@ function editmode.create(root, deps)
   end
 
   function cancelPick()
-    if pick == nil then return end
+    if pick == nil then
+      return
+    end
     closeMenu()
     pick = nil
     hideAll({ dim, pickOutline }, true)
@@ -439,7 +530,11 @@ function editmode.create(root, deps)
 
   function pressButton(o)
     if pick ~= nil then
-      if pick.name == o.name then cancelPick() else choose(o) end
+      if pick.name == o.name then
+        cancelPick()
+      else
+        choose(o)
+      end
     elseif saved.anchors()[o.name] ~= nil then
       saved.setPosition(o.name, resolved[o.name])
       saved.removeAnchor(o.name)
@@ -454,7 +549,9 @@ function editmode.create(root, deps)
       floatOwner = o
       placeFloat()
     end
-    if pick == nil or pick.name == o.name then return end
+    if pick == nil or pick.name == o.name then
+      return
+    end
     if hovered then
       pick.hover = o.name
     elseif pick.hover == o.name then
@@ -472,27 +569,47 @@ function editmode.create(root, deps)
     end
     pressAt(o.tint, x)
     local mx, my = cursor()
-    if mx == nil then return end
-    local positions, free, bounds = {}, {}, {}
-    for name, pos in pairs(resolved) do positions[name] = pos end
+    if mx == nil then
+      return
+    end
+    local positions = {}
+    local free = {}
+    local bounds = {}
+    for name, pos in pairs(resolved) do
+      positions[name] = pos
+    end
     for name, anchor in pairs(saved.anchors()) do
-      if name ~= o.name then free[name] = anchor end
+      if name ~= o.name then
+        free[name] = anchor
+      end
     end
     local rects = {}
     for name, element in pairs(elements) do
       bounds[name] = element.bounds
-      if element.inUse ~= false then rects[name] = rectOf(name) end
+      if element.inUse ~= false then
+        rects[name] = rectOf(name)
+      end
     end
     -- The window snaps like an element, so its edges and center lines win over the grid.
     local targets = layout.snapTargets(rects, saved.anchors(), o.name)
     targets[#targets + 1] = { x = -screenW // 2, y = -screenH, w = screenW, h = screenH }
-    move = { name = o.name, startX = mx, startY = my, from = resolved[o.name], positions = positions, free = free,
-      bounds = bounds, targets = targets }
+    move = {
+      name = o.name,
+      startX = mx,
+      startY = my,
+      from = resolved[o.name],
+      positions = positions,
+      free = free,
+      bounds = bounds,
+      targets = targets,
+    }
   end
 
   -- Ends a move without saving, putting everything back where it was.
   local function cancelMove()
-    if move == nil then return end
+    if move == nil then
+      return
+    end
     move = nil
     showGuides(nil, nil)
     mode.placeAll()
@@ -500,14 +617,19 @@ function editmode.create(root, deps)
 
   -- Dropping saves the dragged element's position, or its new gap and offset when it is anchored.
   function releaseOverlay(o)
-    if move == nil or move.name ~= o.name then return end
-    local to, anchor = move.to, saved.anchors()[o.name]
+    if move == nil or move.name ~= o.name then
+      return
+    end
+    local to = move.to
+    local anchor = saved.anchors()[o.name]
     move = nil
     showGuides(nil, nil)
-    if to == nil then return end
+    if to == nil then
+      return
+    end
     if anchor ~= nil then
-      local captured = layout.capture(layout.rect(to, o.element.bounds), rectOf(anchor.target), anchor.side,
-        anchor.align)
+      local captured =
+        layout.capture(layout.rect(to, o.element.bounds), rectOf(anchor.target), anchor.side, anchor.align)
       captured.target = anchor.target
       saved.setAnchor(o.name, captured)
     else
@@ -522,48 +644,70 @@ function editmode.create(root, deps)
       cancelPick()
       cancelMove()
     end
-    for _, o in pairs(overlays) do set(o.layer, "hidden", not enabled or o.element.inUse == false) end
+    for _, o in pairs(overlays) do
+      set(o.layer, "hidden", not enabled or o.element.inUse == false)
+    end
     floatOwner = nil
     placeFloat()
     set(toolbar, "hidden", not enabled)
     if enabled then
-      screenW, screenH = tonumber(root.width) or 0, tonumber(root.height) or 0
+      screenW = tonumber(root.width) or 0
+      screenH = tonumber(root.height) or 0
       showToolbar()
       refreshOverlays()
     end
     showSnap()
   end
 
-  function mode.open() setEditing(true) end
-  function mode.close() setEditing(false) end
-  function mode.editing() return editing end
+  function mode.open()
+    setEditing(true)
+  end
+  function mode.close()
+    setEditing(false)
+  end
+  function mode.editing()
+    return editing
+  end
 
   -- Esc cancels a pick, or leaves edit mode.
   function mode.escape()
-    if pick ~= nil then cancelPick() else setEditing(false) end
+    if pick ~= nil then
+      cancelPick()
+    else
+      setEditing(false)
+    end
   end
 
   -- Shift as its key events report it; Keyboard.IsShiftDown reads false inside Event.Logic.
   local shiftHeld = false
   Event.KeyDown.Subscribe("runeuiEditModeShift", function(e)
-    if e.gameKey == GameKey.SHIFT then shiftHeld = true end
+    if e.gameKey == GameKey.SHIFT then
+      shiftHeld = true
+    end
   end)
   Event.KeyUp.Subscribe("runeuiEditModeShift", function(e)
-    if e.gameKey == GameKey.SHIFT then shiftHeld = false end
+    if e.gameKey == GameKey.SHIFT then
+      shiftHeld = false
+    end
   end)
 
   -- Places the dragged element for the cursor at mx, my in whole UI units with its chain, snapping unless
   -- snapping is off or Shift is held.
   function dragTo(mx, my)
-    move.cursorX, move.cursorY = mx, my
+    move.cursorX = mx
+    move.cursorY = my
     local from = move.from
     local x = math.floor(from.x + mx - move.startX + 0.5)
     local y = math.floor(from.y + my - move.startY + 0.5)
-    local lineX, lineY = nil, nil
+    local lineX = nil
+    local lineY = nil
     if saved.snap() and not shiftHeld then
       local b = move.bounds[move.name]
       local snapped = layout.snap({ x = x + b.x, y = y + b.y, w = b.w, h = b.h }, move.targets, SNAP_RANGE, GRID)
-      x, y, lineX, lineY = snapped.x - b.x, snapped.y - b.y, snapped.guideX, snapped.guideY
+      x = snapped.x - b.x
+      y = snapped.y - b.y
+      lineX = snapped.guideX
+      lineY = snapped.guideY
     end
     showGuides(lineX, lineY)
     move.to = { x = x, y = y, anchorX = from.anchorX, anchorY = from.anchorY }
@@ -574,12 +718,18 @@ function editmode.create(root, deps)
   -- Moves the drag with the cursor. It runs every frame through Event.Draw so a move keeps up with the mouse,
   -- and on Event.Logic as well in case Draw does not fire. It returns before reading the mouse unless a move is
   -- under way, and before drawing unless the cursor moved.
-  local lastX, lastY = nil, nil
+  local lastX = nil
+  local lastY = nil
   local function followCursor()
-    if move == nil then return end
+    if move == nil then
+      return
+    end
     local mx, my = cursor()
-    if mx == nil or (mx == lastX and my == lastY) then return end
-    lastX, lastY = mx, my
+    if mx == nil or (mx == lastX and my == lastY) then
+      return
+    end
+    lastX = mx
+    lastY = my
     dragTo(mx, my)
   end
   Event.Draw.Subscribe("runeuiEditMode", followCursor)
@@ -594,7 +744,9 @@ function editmode.create(root, deps)
     guideX:Destroy()
     guideY:Destroy()
     landing:Destroy()
-    for _, o in pairs(overlays) do o.layer:Destroy() end
+    for _, o in pairs(overlays) do
+      o.layer:Destroy()
+    end
     float:Destroy()
   end
 

@@ -6,14 +6,19 @@ local cooldowns = {}
 -- STRENGTH_DESTROY, and Dismember's cooldown is MELEE_DISMEMBER; DEFENCE and CONSTITUTION abilities belong to
 -- no style.
 local STYLES = {
-  MAGIC = "magic", NECROMANCY = "necromancy", RANGED = "ranged", ATTACK = "melee", STRENGTH = "melee", MELEE = "melee",
+  MAGIC = "magic",
+  NECROMANCY = "necromancy",
+  RANGED = "ranged",
+  ATTACK = "melee",
+  STRENGTH = "melee",
+  MELEE = "melee",
 }
 
 -- Combat style by COMBATV2_MAINHAND_STYLE, the main-hand weapon's attack type: 1 magic, 5 and 6 melee, 8 to 10
 -- ranged, 37 necromancy. 7, an empty main hand, keeps the current style, since it shows for a tick between two
 -- weapons.
-cooldowns.ATTACK_STYLES = { [1] = "magic", [5] = "melee", [6] = "melee", [8] = "ranged", [9] = "ranged",
-  [10] = "ranged", [37] = "necromancy" }
+cooldowns.ATTACK_STYLES =
+  { [1] = "magic", [5] = "melee", [6] = "melee", [8] = "ranged", [9] = "ranged", [10] = "ranged", [37] = "necromancy" }
 local BARE_HANDED = 7
 local NO_FORMS = {}
 
@@ -29,7 +34,9 @@ end
 -- "MAGIC_DRAGON_BREATH" -> "Dragon Breath": drops the combat style and title-cases the rest.
 local function nameFromKey(key)
   local words = {}
-  for word in key:gmatch("[^_]+") do words[#words + 1] = word:sub(1, 1) .. word:sub(2):lower() end
+  for word in key:gmatch("[^_]+") do
+    words[#words + 1] = word:sub(1, 1) .. word:sub(2):lower()
+  end
   table.remove(words, 1)
   return table.concat(words, " ")
 end
@@ -39,9 +46,13 @@ end
 local initialsOf = {}
 local function initials(name)
   local cached = initialsOf[name]
-  if cached ~= nil then return cached end
+  if cached ~= nil then
+    return cached
+  end
   local letters = {}
-  for word in name:gmatch("%S+") do letters[#letters + 1] = word:match("%a") end
+  for word in name:gmatch("%S+") do
+    letters[#letters + 1] = word:match("%a")
+  end
   cached = table.concat(letters):sub(1, 3):upper()
   initialsOf[name] = cached
   return cached
@@ -63,7 +74,8 @@ function cooldowns.tracker()
   local justUsedChanged = false
   local changed = false
   -- The style of the latest styled cooldown to start, and of the worn main-hand weapon.
-  local abilityStyle, weaponStyle = nil, nil
+  local abilityStyle = nil
+  local weaponStyle = nil
 
   local fired = {}
 
@@ -82,13 +94,17 @@ function cooldowns.tracker()
   -- specials such as Instability use COMBATV2_ABILITY_WEAPON_COOLDOWN_<NAME> vars and take the key
   -- WEAPON_<NAME>. COMBATV2_MAINHAND_STYLE sets the weapon's style.
   function tracker.onVar(name, old, new)
-    if old == new then return end
+    if old == new then
+      return
+    end
     if name == "COMBATV2_JUST_USED_ABILITY" then
       justUsedChanged = true
       return
     end
     if name == "COMBATV2_MAINHAND_STYLE" then
-      if new ~= BARE_HANDED then weaponStyle = cooldowns.ATTACK_STYLES[new] end
+      if new ~= BARE_HANDED then
+        weaponStyle = cooldowns.ATTACK_STYLES[new]
+      end
       changed = true
       return
     end
@@ -97,7 +113,9 @@ function cooldowns.tracker()
       key, edge = name:match("^COMBATV2_ABILITY_WEAPON_COOLDOWN_(.+)_(%u+)$")
       key = key and "WEAPON_" .. key
     end
-    if edge == "START" or edge == "END" then changed = true end
+    if edge == "START" or edge == "END" then
+      changed = true
+    end
     if edge == "START" then
       ability(key).start = new
       now = new
@@ -111,9 +129,13 @@ function cooldowns.tracker()
   -- The cooldown that started this tick for the just-used ability: the only one, or the one whose key
   -- matches the struct's when an ability starts several, such as a conjure and its command.
   local function startedBy(info)
-    if #startedThisTick == 1 then return startedThisTick[1] end
+    if #startedThisTick == 1 then
+      return startedThisTick[1]
+    end
     for _, key in ipairs(startedThisTick) do
-      if key == info.key then return key end
+      if key == info.key then
+        return key
+      end
     end
   end
 
@@ -126,13 +148,17 @@ function cooldowns.tracker()
     local learned = nil
     if key ~= nil then
       local a = abilities[key]
-      if not GENERIC_STRUCTS[info.key] then a.name = info.name end
+      if not GENERIC_STRUCTS[info.key] then
+        a.name = info.name
+      end
       a.icon = info.icon
       learned = { key = key, name = a.name, icon = a.icon }
     end
     startedThisTick = {}
     justUsedChanged = false
-    if now ~= nil then now = now + 1 end
+    if now ~= nil then
+      now = now + 1
+    end
     return learned
   end
 
@@ -155,7 +181,9 @@ function cooldowns.tracker()
     for key, info in pairs(saved) do
       local a = abilities[key] or {}
       abilities[key] = a
-      a.name, a.icon, a.forms = info.name or a.name, info.icon or a.icon, info.forms or a.forms
+      a.name = info.name or a.name
+      a.icon = info.icon or a.icon
+      a.forms = info.forms or a.forms
     end
   end
 
@@ -171,12 +199,15 @@ function cooldowns.tracker()
     local tiles = {}
     for _, key in ipairs(keys) do
       local a = abilities[key] or {}
-      local name, icon = a.name or nameFromKey(key), a.icon
+      local name = a.name or nameFromKey(key)
+      local icon = a.icon
       local left = (now ~= nil and a.finish ~= nil) and a.finish - now or 0
       local slot = icon and slots[icon]
       for _, form in ipairs(slot == nil and a.forms or NO_FORMS) do
         if slots[form.icon] ~= nil then
-          name, icon, slot = form.name, form.icon, slots[form.icon]
+          name = form.name
+          icon = form.icon
+          slot = slots[form.icon]
           break
         end
       end

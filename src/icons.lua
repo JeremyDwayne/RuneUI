@@ -10,8 +10,15 @@ icons.STRUCT_COUNT = 80000
 
 -- Combat style words that spriteLabel drops from the start of a label.
 local STYLES = {
-  ATTACK = true, COMBAT = true, CONSTITUTION = true, DEFENCE = true, MAGIC = true, MELEE = true,
-  NECROMANCY = true, RANGED = true, STRENGTH = true,
+  ATTACK = true,
+  COMBAT = true,
+  CONSTITUTION = true,
+  DEFENCE = true,
+  MAGIC = true,
+  MELEE = true,
+  NECROMANCY = true,
+  RANGED = true,
+  STRENGTH = true,
 }
 
 -- A sprite config name as a title case label of the words after its first ICON, or nil when nothing is
@@ -21,7 +28,9 @@ function icons.spriteLabel(configName)
   local rest = configName:match("_ICON_(.*)$") or configName
   local words = {}
   for word in rest:gmatch("[^_]+") do
-    if #words > 0 or not STYLES[word] then words[#words + 1] = word:sub(1, 1) .. word:sub(2):lower() end
+    if #words > 0 or not STYLES[word] then
+      words[#words + 1] = word:sub(1, 1) .. word:sub(2):lower()
+    end
   end
   return #words > 0 and table.concat(words, " ") or nil
 end
@@ -32,19 +41,26 @@ local NO_NAME = {}
 -- Lowercase words of a sprite config name, as a set: DEBUFF_ICON_POISONED gives debuff, icon and poisoned.
 local function spriteWords(configName)
   local words = {}
-  for word in configName:lower():gmatch("[^_]+") do words[word] = true end
+  for word in configName:lower():gmatch("[^_]+") do
+    words[word] = true
+  end
   return words
 end
 
 -- How well struct fits a sprite with words, lower is better: 1 when every word of its name is a sprite word,
 -- as "Poisoned" for DEBUFF_ICON_POISONED, 2 for a debuff struct, 3 for any other.
 local function rank(struct, words)
-  local any, all = false, true
+  local any = false
+  local all = true
   for word in tostring(struct.name):lower():gmatch("%a+") do
     any = true
-    if not words[word] then all = false end
+    if not words[word] then
+      all = false
+    end
   end
-  if any and all then return 1 end
+  if any and all then
+    return 1
+  end
   return struct.configName:sub(1, 16) == "COMBATV2_DEBUFF_" and 2 or 3
 end
 
@@ -97,7 +113,9 @@ function icons.index(saved, client, count)
       local configName = client.spriteName(sprite) or ""
       local label = icons.spriteLabel(configName)
       labels[sprite] = label ~= nil and { name = label } or false
-      if not unmatched[sprite] then wanted[sprite] = { left = count, words = spriteWords(configName) } end
+      if not unmatched[sprite] then
+        wanted[sprite] = { left = count, words = spriteWords(configName) }
+      end
     end
     return labels[sprite] or (unmatched[sprite] and NO_NAME) or nil
   end
@@ -111,11 +129,15 @@ function icons.index(saved, client, count)
 
   function index.step(lookup, budget)
     local found = {}
-    if next(wanted) == nil then return found end
+    if next(wanted) == nil then
+      return found
+    end
     -- Scan no further than the icon with the most ids left needs. Ids past an icon's own full cycle are ones
     -- it already saw, so they leave its match unchanged.
     local scan = 0
-    for _, w in pairs(wanted) do scan = math.max(scan, w.left) end
+    for _, w in pairs(wanted) do
+      scan = math.max(scan, w.left)
+    end
     scan = math.min(scan, budget)
     for _ = 1, scan do
       local id = nextID
@@ -127,10 +149,14 @@ function icons.index(saved, client, count)
         if r == 1 then
           found[#found + 1] = name(struct.icon, struct, id)
         elseif want.best == nil or r < want.bestRank or (r == want.bestRank and id < want.bestID) then
-          want.best, want.bestRank, want.bestID = struct, r, id
+          want.best = struct
+          want.bestRank = r
+          want.bestID = id
         end
       end
-      if next(wanted) == nil then break end
+      if next(wanted) == nil then
+        break
+      end
     end
     for sprite, w in pairs(wanted) do
       w.left = w.left - scan

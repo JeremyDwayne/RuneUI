@@ -5,9 +5,19 @@ local adapter = require("src/adapter")
 -- The worn inventory as the client returns it: valid reads nil and slots hold ObjType proxies.
 local function wearing(...)
   local slots = {}
-  for i, name in ipairs({ ... }) do slots[i] = { obj = { name = name }, count = 1 } end
+  for i, name in ipairs({ ... }) do
+    slots[i] = { obj = { name = name }, count = 1 }
+  end
   slots[#slots + 1] = { obj = { name = "" }, count = 0 }
-  _G.Inventory = { Find = function() return { GetSlots = function() return slots end } end }
+  _G.Inventory = {
+    Find = function()
+      return {
+        GetSlots = function()
+          return slots
+        end,
+      }
+    end,
+  }
 end
 
 describe("adapter.resourceReads", function()
@@ -31,15 +41,36 @@ local function loadTargetPanel()
   local panel = {
     [0] = { alpha = 1 },
     [21] = { alpha = 1 },
-    [25] = { alpha = 1, IterateDynamicComponents = function(_, fn) fn(background) end },
-    [26] = { alpha = 0.5, IterateDynamicComponents = function(_, fn) fn(border) end },
+    [25] = {
+      alpha = 1,
+      IterateDynamicComponents = function(_, fn)
+        fn(background)
+      end,
+    },
+    [26] = {
+      alpha = 0.5,
+      IterateDynamicComponents = function(_, fn)
+        fn(border)
+      end,
+    },
   }
-  _G.ui = { Interfaces = { lookups = 0, GetComponent = function(self, interfaceID, staticID, categoryID)
-    self.lookups = self.lookups + 1
-    if interfaceID ~= 1490 then return nil end
-    if categoryID == nil then return panel[staticID] end
-    if staticID == 25 then return background end
-  end } }
+  _G.ui = {
+    Interfaces = {
+      lookups = 0,
+      GetComponent = function(self, interfaceID, staticID, categoryID)
+        self.lookups = self.lookups + 1
+        if interfaceID ~= 1490 then
+          return nil
+        end
+        if categoryID == nil then
+          return panel[staticID]
+        end
+        if staticID == 25 then
+          return background
+        end
+      end,
+    },
+  }
   local function rebuild()
     border = { alpha = 1, categoryID = 0, dynamicID = 0 }
     background = { alpha = 1, categoryID = 0, dynamicID = 0 }
@@ -79,8 +110,13 @@ describe("adapter.hideTargetPanel", function()
 
   it("hides a dynamic child whose ids cannot be read", function()
     local panel, border = loadTargetPanel()
-    setmetatable(border, { __index = function(_, field) error("no field " .. field) end })
-    border.categoryID, border.dynamicID = nil, nil
+    setmetatable(border, {
+      __index = function(_, field)
+        error("no field " .. field)
+      end,
+    })
+    border.categoryID = nil
+    border.dynamicID = nil
     adapter.hideTargetPanel(true)
     assert.are.equal(0, border.alpha)
     adapter.hideTargetPanel(false)
@@ -91,9 +127,15 @@ end)
 -- Interface 764 as the client builds it: the root, the time label :5 and the spark's glow :19.
 local function loadCastBar()
   local bar = { [0] = { alpha = 1 }, [5] = { alpha = 1 }, [19] = { alpha = 1, hidden = false } }
-  _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID, categoryID)
-    if interfaceID == 764 and categoryID == nil then return bar[staticID] end
-  end } }
+  _G.ui = {
+    Interfaces = {
+      GetComponent = function(_, interfaceID, staticID, categoryID)
+        if interfaceID == 764 and categoryID == nil then
+          return bar[staticID]
+        end
+      end,
+    },
+  }
   return bar
 end
 
@@ -118,19 +160,33 @@ describe("adapter.targetReads", function()
       [44] = { spriteID = 30098, visibleGlobal = true },
       [47] = { spriteID = -1, visibleGlobal = false },
     }
-    _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID)
-      if interfaceID == 1490 then return slots[staticID] end
-    end } }
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function(_, interfaceID, staticID)
+          if interfaceID == 1490 then
+            return slots[staticID]
+          end
+        end,
+      },
+    }
     assert.are.same({ 30097, 30098 }, adapter.targetReads().debuffs)
   end)
 end)
 
 describe("adapter.spriteName", function()
   it("names a sprite by id, and reads nil when the client has no name or raises", function()
-    _G.id = { Sprite = { FromID = function(sprite)
-      if sprite == 30212 then return "DEBUFF_ICON_NECROMANCY_HAUNTED" end
-      if sprite == -2 then error("bad id") end
-    end } }
+    _G.id = {
+      Sprite = {
+        FromID = function(sprite)
+          if sprite == 30212 then
+            return "DEBUFF_ICON_NECROMANCY_HAUNTED"
+          end
+          if sprite == -2 then
+            error("bad id")
+          end
+        end,
+      },
+    }
     assert.are.equal("DEBUFF_ICON_NECROMANCY_HAUNTED", adapter.spriteName(30212))
     assert.is_nil(adapter.spriteName(30098))
     assert.is_nil(adapter.spriteName(-2))
@@ -142,15 +198,26 @@ describe("adapter.auraReads", function()
     -- { sprite, label, label visibleGlobal } per 284 slot from :19. Visibility comes from the label, since
     -- RuneUI hides the icons themselves.
     local slots = {
-      [19] = { 30093, "6m", true }, [20] = { -1, "5m", true }, [21] = { 18857, "", false },
-      [22] = { 14766, "20<br>(5)", true }, [27] = { 27432, "9", true },
+      [19] = { 30093, "6m", true },
+      [20] = { -1, "5m", true },
+      [21] = { 18857, "", false },
+      [22] = { 14766, "20<br>(5)", true },
+      [27] = { 27432, "9", true },
     }
-    _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID, _, dynamicID)
-      local slot = interfaceID == 284 and slots[staticID]
-      if not slot then return nil end
-      if dynamicID == 0 then return { spriteID = slot[1], visibleGlobal = false } end
-      return { content = slot[2], visibleGlobal = slot[3] }
-    end } }
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function(_, interfaceID, staticID, _, dynamicID)
+          local slot = interfaceID == 284 and slots[staticID]
+          if not slot then
+            return nil
+          end
+          if dynamicID == 0 then
+            return { spriteID = slot[1], visibleGlobal = false }
+          end
+          return { content = slot[2], visibleGlobal = slot[3] }
+        end,
+      },
+    }
     assert.are.same({
       buffs = { { sprite = 30093, label = "6m" }, { sprite = 14766, label = "20<br>(5)" } },
       debuffs = {},
@@ -165,21 +232,36 @@ local function loadBuffBar()
   local statics = { [0] = bar.root }
   function bar.fill(staticID)
     local children = {}
-    for dynamic = 0, 3 do children[dynamic] = { alpha = 1, hidden = false, categoryID = 0, dynamicID = dynamic } end
+    for dynamic = 0, 3 do
+      children[dynamic] = { alpha = 1, hidden = false, categoryID = 0, dynamicID = dynamic }
+    end
     children[0].spriteID, children[1].content = 30093, "6m"
     bar.slots[staticID] = children
-    statics[staticID] = statics[staticID] or { alpha = 1, IterateDynamicComponents = function(_, fn)
-      for dynamic = 0, 3 do fn(bar.slots[staticID][dynamic]) end
-    end }
+    statics[staticID] = statics[staticID]
+      or {
+        alpha = 1,
+        IterateDynamicComponents = function(_, fn)
+          for dynamic = 0, 3 do
+            fn(bar.slots[staticID][dynamic])
+          end
+        end,
+      }
     return children
   end
   bar.fill(19)
-  bar.interfaces = { lookups = 0, GetComponent = function(self, interfaceID, staticID, _, dynamicID)
-    self.lookups = self.lookups + 1
-    if interfaceID ~= 284 then return nil end
-    if dynamicID == nil then return statics[staticID] end
-    return bar.slots[staticID] and bar.slots[staticID][dynamicID]
-  end }
+  bar.interfaces = {
+    lookups = 0,
+    GetComponent = function(self, interfaceID, staticID, _, dynamicID)
+      self.lookups = self.lookups + 1
+      if interfaceID ~= 284 then
+        return nil
+      end
+      if dynamicID == nil then
+        return statics[staticID]
+      end
+      return bar.slots[staticID] and bar.slots[staticID][dynamicID]
+    end,
+  }
   _G.ui = { Interfaces = bar.interfaces }
   return bar
 end
@@ -189,11 +271,15 @@ describe("adapter.hideBuffBars", function()
     local bar = loadBuffBar()
     adapter.hideBuffBars(true)
     local slot = bar.slots[19]
-    assert.are.same({ 0, true, false, 0, true, 0 },
-      { bar.root.alpha, slot[0].hidden, slot[1].hidden, slot[1].alpha, slot[2].hidden, slot[3].alpha })
+    assert.are.same(
+      { 0, true, false, 0, true, 0 },
+      { bar.root.alpha, slot[0].hidden, slot[1].hidden, slot[1].alpha, slot[2].hidden, slot[3].alpha }
+    )
     adapter.hideBuffBars(false)
-    assert.are.same({ 1, false, 1, false, 1 }, { bar.root.alpha, slot[0].hidden, slot[1].alpha, slot[2].hidden,
-      slot[3].alpha })
+    assert.are.same(
+      { 1, false, 1, false, 1 },
+      { bar.root.alpha, slot[0].hidden, slot[1].alpha, slot[2].hidden, slot[3].alpha }
+    )
   end)
 
   it("leaves an icon the client hid hidden when restoring", function()
@@ -231,7 +317,9 @@ describe("adapter.hideBuffBars", function()
     adapter.keepBuffBarsHidden()
     assert.are.equal(0, bar.interfaces.lookups)
     adapter.hideBuffBars(true)
-    for _ = 1, 20 do adapter.keepBuffBarsHidden() end
+    for _ = 1, 20 do
+      adapter.keepBuffBarsHidden()
+    end
     bar.interfaces.lookups = 0
     adapter.keepBuffBarsHidden()
     assert.are.equal(0, bar.interfaces.lookups)
@@ -243,12 +331,20 @@ describe("adapter.barSlots", function()
   it("reads each slot's keybind, and that its ability can't be cast while the client dims its icon", function()
     -- Main bar 1430: slot 0 Concentrated Blast on Q, slot 1 Wild Magic dimmed with no keybind.
     local components = {
-      [66] = { spriteID = 13309, rgb = 0xffffff }, [73] = { content = "Q" },
-      [79] = { spriteID = 14385, rgb = 0x333333 }, [86] = { content = "" },
+      [66] = { spriteID = 13309, rgb = 0xffffff },
+      [73] = { content = "Q" },
+      [79] = { spriteID = 14385, rgb = 0x333333 },
+      [86] = { content = "" },
     }
-    _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID)
-      if interfaceID == 1430 then return components[staticID] end
-    end } }
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function(_, interfaceID, staticID)
+          if interfaceID == 1430 then
+            return components[staticID]
+          end
+        end,
+      },
+    }
     assert.are.same({ [13309] = { keybind = "Q", usable = true }, [14385] = { usable = false } }, adapter.barSlots())
   end)
 end)
@@ -256,13 +352,19 @@ end)
 describe("adapter.iconStruct", function()
   it("reads combat and spell structs with an icon and a name, and skips other structs", function()
     local params = {
-      COMBATV2_ABILITY_ICON = { id = 1 }, COMBATV2_ABILITY_NAME = { id = 2 }, COMBATV2_ABILITY_INFO = { id = 3 },
+      COMBATV2_ABILITY_ICON = { id = 1 },
+      COMBATV2_ABILITY_NAME = { id = 2 },
+      COMBATV2_ABILITY_INFO = { id = 3 },
     }
     local function struct(configName, values)
       return {
         configName = configName,
-        HasParam = function(_, p) return values[p.id] ~= nil end,
-        GetParamValue = function(_, p) return values[p.id] end,
+        HasParam = function(_, p)
+          return values[p.id] ~= nil
+        end,
+        GetParamValue = function(_, p)
+          return values[p.id]
+        end,
       }
     end
     local structs = {
@@ -270,7 +372,14 @@ describe("adapter.iconStruct", function()
       [2] = struct("COMBATV2_STUNNED_DUMMY_ABILITY", { 26103, "Stunned" }),
       [3] = struct("QUEST_REWARD", { 99, "Lamp" }),
     }
-    _G.config = { Param = params, Struct = { FromID = function(structID) return structs[structID] end } }
+    _G.config = {
+      Param = params,
+      Struct = {
+        FromID = function(structID)
+          return structs[structID]
+        end,
+      },
+    }
     assert.are.same({ configName = "MAGIC_VULNERABILITY", icon = 14395, name = "Vulnerability" }, adapter.iconStruct(1))
     assert.are.equal("Stunned", adapter.iconStruct(2).name)
     assert.is_nil(adapter.iconStruct(3))
@@ -283,10 +392,16 @@ describe("adapter.auraReads", function()
       [19] = { icon = { spriteID = 30099 }, label = { content = "" } },
       [20] = { icon = { spriteID = -1, associatedObjectID = 49039 }, label = { content = "5m" } },
     }
-    _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID, _, dynamicID)
-      local slot = interfaceID == 284 and slots[staticID]
-      if slot then return dynamicID == 0 and slot.icon or slot.label end
-    end } }
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function(_, interfaceID, staticID, _, dynamicID)
+          local slot = interfaceID == 284 and slots[staticID]
+          if slot then
+            return dynamicID == 0 and slot.icon or slot.label
+          end
+        end,
+      },
+    }
     assert.are.same({ { sprite = 30099 }, { sprite = -49039, label = "5m" } }, adapter.auraReads().buffs)
   end)
 end)
@@ -296,12 +411,18 @@ describe("adapter.structInfo", function()
     local info = { id = 3 }
     local function struct(text)
       return {
-        HasParam = function(_, p) return p == info and text ~= nil end,
-        GetParamValue = function() return text end,
+        HasParam = function(_, p)
+          return p == info and text ~= nil
+        end,
+        GetParamValue = function()
+          return text
+        end,
       }
     end
     local structs = { [1] = struct("Swollen."), [2] = struct(nil) }
-    local function fromID(structID) return structs[structID] end
+    local function fromID(structID)
+      return structs[structID]
+    end
     _G.config = { Param = { COMBATV2_ABILITY_INFO = info }, Struct = { FromID = fromID } }
     assert.are.same({ "Swollen.", nil, nil }, { adapter.structInfo(1), adapter.structInfo(2), adapter.structInfo(9) })
   end)
@@ -310,7 +431,12 @@ end)
 describe("adapter.itemName", function()
   it("names an item by id", function()
     local salve = { name = "Elder overload salve (6)" }
-    _G.config = { Obj = { FromID = function(objID) return objID == 49039 and salve or nil end } }
+    _G.config =
+      { Obj = {
+        FromID = function(objID)
+          return objID == 49039 and salve or nil
+        end,
+      } }
     assert.are.same({ "Elder overload salve (6)", nil }, { adapter.itemName(49039), adapter.itemName(1) })
   end)
 end)

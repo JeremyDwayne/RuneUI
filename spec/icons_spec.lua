@@ -16,11 +16,18 @@ local function lookup(id)
 end
 
 local SPRITES = {
-  [30098] = "BUFF_ICON_NECROMANCY_BLOATED", [26104] = "COMBAT_ICON_BUFF_11", [14766] = "BUFF_ICON_INCITE_FEAR",
-  [30097] = "DEBUFF_ICON_POISONED", [17606] = "BUFF_ICON_MAGIC_ASPHYXIATE",
+  [30098] = "BUFF_ICON_NECROMANCY_BLOATED",
+  [26104] = "COMBAT_ICON_BUFF_11",
+  [14766] = "BUFF_ICON_INCITE_FEAR",
+  [30097] = "DEBUFF_ICON_POISONED",
+  [17606] = "BUFF_ICON_MAGIC_ASPHYXIATE",
 }
-local function spriteName(sprite) return SPRITES[sprite] end
-local function noName() return nil end
+local function spriteName(sprite)
+  return SPRITES[sprite]
+end
+local function noName()
+  return nil
+end
 local described = 0
 local function structInfo(structID)
   described = described + 1
@@ -49,7 +56,9 @@ describe("icons.index", function()
     assert.is_nil(index.info(26104))
     local learned = {}
     for _ = 1, 4 do
-      for _, found in ipairs(index.step(lookup, 3)) do learned[found.sprite] = found end
+      for _, found in ipairs(index.step(lookup, 3)) do
+        learned[found.sprite] = found
+      end
     end
     assert.are.same({ name = "Bloated", info = "Swollen." }, index.info(30098))
     assert.are.same({ name = "Stun Immune" }, index.info(26104))
@@ -75,7 +84,9 @@ describe("icons.index", function()
   end)
 
   it("names an item icon from its item without its dose, scanning nothing", function()
-    local function itemName(objID) return objID == 49039 and "Elder overload salve (6)" or nil end
+    local function itemName(objID)
+      return objID == 49039 and "Elder overload salve (6)" or nil
+    end
     local index = icons.index({}, { spriteName = spriteName, itemName = itemName, describe = structInfo }, 10)
     looked = 0
     assert.are.same({ name = "Elder overload salve" }, index.info(-49039))
@@ -86,7 +97,9 @@ describe("icons.index", function()
   it("shows an icon's sprite label until the scan names it", function()
     local index = icons.index({}, client(), 10)
     assert.are.same({ name = "Buff 11" }, index.info(26104))
-    for _ = 1, 4 do index.step(lookup, 3) end
+    for _ = 1, 4 do
+      index.step(lookup, 3)
+    end
     assert.are.same({ name = "Stun Immune" }, index.info(26104))
   end)
 
@@ -95,7 +108,9 @@ describe("icons.index", function()
     index.info(14766)
     local found = {}
     for _ = 1, 4 do
-      for _, f in ipairs(index.step(lookup, 3)) do found[#found + 1] = f end
+      for _, f in ipairs(index.step(lookup, 3)) do
+        found[#found + 1] = f
+      end
     end
     assert.are.same({ { sprite = 14766 } }, found)
 
@@ -109,7 +124,9 @@ describe("icons.index", function()
   it("stops reporting a lookup for an unmatched icon with no sprite label", function()
     local index = icons.index({}, client(true), 10)
     assert.is_nil(index.info(14766))
-    for _ = 1, 4 do index.step(lookup, 3) end
+    for _ = 1, 4 do
+      index.step(lookup, 3)
+    end
     assert.are.same({}, index.info(14766))
   end)
 
@@ -117,7 +134,9 @@ describe("icons.index", function()
     local index = icons.index({}, client(), 10)
     index.info(30097)
     index.info(17606)
-    for _ = 1, 4 do index.step(lookup, 3) end
+    for _ = 1, 4 do
+      index.step(lookup, 3)
+    end
     assert.are.same({ "Poisoned", "Channelled Might" }, { index.info(30097).name, index.info(17606).name })
   end)
 end)

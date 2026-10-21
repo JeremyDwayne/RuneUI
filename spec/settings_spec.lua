@@ -4,7 +4,9 @@ local settings = require("src/settings")
 -- An in-memory stand-in for src/adapter's PersistentDB store that counts writes.
 local function fakeStore(data)
   local store = { data = data or {}, writes = 0 }
-  function store.get(key) return store.data[key] end
+  function store.get(key)
+    return store.data[key]
+  end
   function store.set(key, value)
     store.writes = store.writes + 1
     store.data[key] = value
@@ -16,7 +18,16 @@ end
 local CURRENT = { layout = settings.LAYOUT_VERSION }
 
 -- Saved groups that every style and Utility have been seeded into from src/presets.
-local SEEDED = { utility = true, necromancy = true, magic = true, ranged = true, melee = true }
+-- The position of key in list, or nil.
+local function indexOfKey(list, key)
+  for i, k in ipairs(list) do
+    if k == key then
+      return i
+    end
+  end
+end
+
+local SEEDED = { utility = true, defensives = true, necromancy = true, magic = true, ranged = true, melee = true }
 
 -- A store whose seeded groups hold groups, { [name] = saved group }.
 local function seededStore(groups)
@@ -63,14 +74,21 @@ describe("settings", function()
     local s = settings.load(store)
     assert.are.same({ { "A" }, {} }, { s.keys("rotation", "magic"), s.keys("major", "magic") })
     assert.are.same(presets.STYLES.ranged.rotation, s.keys("rotation", "ranged"))
-    for _, key in ipairs(presets.STYLES.ranged.rotation) do s.remove(key, "ranged") end
+    for _, key in ipairs(presets.STYLES.ranged.rotation) do
+      s.remove(key, "ranged")
+    end
     assert.are.same({}, settings.load(store).keys("rotation", "ranged"))
   end)
 
   it("leaves a preset ability out of a style where another list already shows it", function()
-    local s = settings.load(fakeStore({ cooldownGroups = { seeded = { utility = true }, groups = {
-      utility = { keys = { "MAGIC_SUNSHINE" } },
-    } } }))
+    local s = settings.load(fakeStore({
+      cooldownGroups = {
+        seeded = { utility = true },
+        groups = {
+          utility = { keys = { "MAGIC_SUNSHINE" } },
+        },
+      },
+    }))
     local major = { table.unpack(presets.STYLES.magic.major, 2) }
     assert.are.equal("MAGIC_SUNSHINE", presets.STYLES.magic.major[1])
     assert.are.same(major, s.keys("major", "magic"))
@@ -105,7 +123,8 @@ describe("settings", function()
     local s = settings.load(store)
     s.setAnchor("player", { target = "target", side = "top", align = "left", gap = 4, offset = -3 })
     local saved = store.data.anchors.player
-    saved.gap, saved.offset = 4.0, -3.0
+    saved.gap = 4.0
+    saved.offset = -3.0
     local anchor = settings.load(store).anchors().player
     assert.are.same({ target = "target", side = "top", align = "left", gap = 4, offset = -3 }, anchor)
     assert.are.equal("integer", math.type(anchor.gap))
@@ -132,14 +151,17 @@ describe("settings", function()
   end)
 
   it("drops saved anchors with unknown elements, sides or alignments, and cycles", function()
-    local s = settings.load(fakeStore({ version = CURRENT, anchors = {
-      player = { target = "rotation", side = "left", align = "left", gap = 0, offset = 0 },
-      rotation = { target = "player", side = "under", align = "top", gap = 0, offset = 0 },
-      target = { target = "target", side = "left", align = "top", gap = 0, offset = 0 },
-      resource = { target = "nowhere", side = "top", align = "center", gap = 0, offset = 0 },
-      major = { target = "resource", side = "top", align = "center", gap = 2.0, offset = 0 },
-      bogus = { target = "player", side = "left", align = "top", gap = 0, offset = 0 },
-    } }))
+    local s = settings.load(fakeStore({
+      version = CURRENT,
+      anchors = {
+        player = { target = "rotation", side = "left", align = "left", gap = 0, offset = 0 },
+        rotation = { target = "player", side = "under", align = "top", gap = 0, offset = 0 },
+        target = { target = "target", side = "left", align = "top", gap = 0, offset = 0 },
+        resource = { target = "nowhere", side = "top", align = "center", gap = 0, offset = 0 },
+        major = { target = "resource", side = "top", align = "center", gap = 2.0, offset = 0 },
+        bogus = { target = "player", side = "left", align = "top", gap = 0, offset = 0 },
+      },
+    }))
     local anchors = s.anchors()
     assert.are.same({ target = "resource", side = "top", align = "center", gap = 2, offset = 0 }, anchors.major)
     assert.is_nil(anchors.player or anchors.rotation or anchors.target or anchors.resource or anchors.bogus)
@@ -183,7 +205,9 @@ describe("settings", function()
 
   it("refuses an ability once a list holds 20", function()
     local s = edited()
-    for i = 1, 17 do assert.is_true(s.add("rotation", "magic", "K" .. i)) end
+    for i = 1, 17 do
+      assert.is_true(s.add("rotation", "magic", "K" .. i))
+    end
     assert.is_false(s.add("rotation", "magic", "X"))
     assert.are.same({ "X", "Y" }, s.keys("major", "magic"))
   end)
@@ -226,11 +250,26 @@ describe("settings", function()
     assert.are.equal("integer", math.type(major.size))
   end)
 
-  it("adds up to four custom groups, renames them, and deletes only custom ones", function()
+  it("leaves out of Defensives a defensive another style's list already holds", function()
+    local seeded = { utility = true, necromancy = true, magic = true, ranged = true, melee = true }
+    local s = settings.load(fakeStore({
+      version = CURRENT,
+      cooldownGroups = {
+        seeded = seeded,
+        groups = {
+          rotation = { styles = { magic = { "DEFENCE_FREEDOM" } } },
+        },
+      },
+    }))
+    assert.is_nil(indexOfKey(s.group("custom1").keys, "DEFENCE_FREEDOM"))
+    assert.are.equal(#presets.DEFENSIVES - 1, #s.group("custom1").keys)
+  end)
+
+  it("starts with Defensives as the first custom group, adds up to three more, and deletes only custom ones", function()
     local store = fakeStore()
     local s = settings.load(store)
-    assert.are.same({ "custom1", "custom2", "custom3", "custom4" }, { s.addGroup(), s.addGroup(), s.addGroup(),
-      s.addGroup() })
+    assert.are.same({ "Defensives", presets.DEFENSIVES }, { s.group("custom1").title, s.group("custom1").keys })
+    assert.are.same({ "custom2", "custom3", "custom4" }, { s.addGroup(), s.addGroup(), s.addGroup() })
     assert.is_nil(s.addGroup())
     s.setGroup("custom2", "title", "Defensives and more than twenty")
     s.deleteGroup("custom1")
@@ -243,10 +282,12 @@ describe("settings", function()
   end)
 
   it("splits groups saved by the older version across styles", function()
-    local store = fakeStore({ groups = {
-      rotation = { "MAGIC_WRACK", "NECROMANCY_TOUCH_OF_DEATH", "DEFENCE_FREEDOM" },
-      cooldowns = { "MAGIC_SUNSHINE", "WEAPON_INSTABILITY" },
-    } })
+    local store = fakeStore({
+      groups = {
+        rotation = { "MAGIC_WRACK", "NECROMANCY_TOUCH_OF_DEATH", "DEFENCE_FREEDOM" },
+        cooldowns = { "MAGIC_SUNSHINE", "WEAPON_INSTABILITY" },
+      },
+    })
     local s = settings.load(store)
     assert.are.same({ "MAGIC_WRACK" }, s.keys("rotation", "magic"))
     assert.are.same({ "NECROMANCY_TOUCH_OF_DEATH" }, s.keys("rotation", "necromancy"))
@@ -265,7 +306,8 @@ describe("settings", function()
 
   it("keeps aura names with their struct id and unmatched icons across loads, dropping malformed entries", function()
     local store = fakeStore({
-      namesVersion = { version = 3 }, debuffs = { ["1"] = "broken", ["2"] = { name = "Old", struct = "x" } },
+      namesVersion = { version = 3 },
+      debuffs = { ["1"] = "broken", ["2"] = { name = "Old", struct = "x" } },
     })
     local saved = settings.load(store)
     saved.learnDebuff(30098, "Bloated", 5401.0)
@@ -295,21 +337,127 @@ describe("settings", function()
 
   it("keeps bars flat until a known texture is chosen, and saves the choice", function()
     local store = fakeStore()
-    assert.are.equal("flat", settings.load(store).texture())
-    settings.load(store).setTexture("vertical")
-    assert.are.equal("vertical", settings.load(store).texture())
-    assert.are.equal("flat", settings.load(fakeStore({ appearance = { texture = "plaid" } })).texture())
+    assert.are.equal("flat", settings.load(store).appearance().texture)
+    settings.load(store).setAppearance("texture", "vertical")
+    assert.are.equal("vertical", settings.load(store).appearance().texture)
+    assert.are.equal("flat", settings.load(fakeStore({ appearance = { texture = "plaid" } })).appearance().texture)
+  end)
+
+  it("reads today's look until the new appearance fields are chosen, and saves each one", function()
+    local store = fakeStore({
+      appearance = {
+        texture = "vertical",
+        hideTargetPanel = true,
+        hideCastBar = false,
+        hideBuffBars = true,
+        auraBars = true,
+      },
+    })
+    local s = settings.load(store)
+    assert.are.same({
+      texture = "vertical",
+      hideTargetPanel = true,
+      hideCastBar = false,
+      hideBuffBars = true,
+      auraBars = true,
+      font = "museo",
+      textStep = 0,
+      edge = "shadow",
+      textColour = "auto",
+      playerColour = "runeui",
+      targetColour = "runeui",
+      border = "runeui",
+      lifepoints = "short",
+      frameWidth = 250,
+      frameHeight = 55,
+      barWidth = 278,
+      barHeight = 20,
+      castWidth = 278,
+      castHeight = 22,
+      castMatchWidth = false,
+      castColour = "ability",
+      castFont = "hud",
+      castTextSize = "hud",
+      spenders = "below",
+    }, s.appearance())
+    local chosen = {
+      font = "cinzel",
+      textStep = -3,
+      edge = "outlineShadow",
+      textColour = "yellow",
+      playerColour = 0x123456,
+      targetColour = "equipped",
+      border = "game",
+      lifepoints = "percent",
+      frameWidth = 400,
+      frameHeight = 30,
+      barWidth = 333,
+      barHeight = 13,
+      castWidth = 410,
+      castHeight = 30,
+      castMatchWidth = true,
+      castColour = "necro",
+      castFont = "cinzel",
+      castTextSize = 16,
+    }
+    for field, value in pairs(chosen) do
+      s.setAppearance(field, value)
+    end
+    local reloaded = settings.load(store).appearance()
+    for field, value in pairs(chosen) do
+      assert.are.equal(value, reloaded[field])
+    end
+  end)
+
+  it("reads unknown and malformed appearance values as their defaults", function()
+    local s = settings.load(fakeStore({
+      appearance = {
+        font = "comic",
+        textStep = 7,
+        edge = 2,
+        textColour = "plaid",
+        playerColour = "teal",
+        targetColour = 0x1000000,
+        border = "gold",
+        lifepoints = "all",
+        frameWidth = 175,
+        frameHeight = 100,
+      },
+    }))
+    local a = s.appearance()
+    assert.are.same({ "museo", 0, "shadow", "auto", "runeui", "runeui", "runeui", "short", 250, 55 }, {
+      a.font,
+      a.textStep,
+      a.edge,
+      a.textColour,
+      a.playerColour,
+      a.targetColour,
+      a.border,
+      a.lifepoints,
+      a.frameWidth,
+      a.frameHeight,
+    })
+  end)
+
+  it("reads a saved hex colour and size back as whole numbers, and counts appearance changes", function()
+    local s = settings.load(fakeStore({ appearance = { playerColour = 1193046.0, frameWidth = 300.0 } }))
+    assert.are.equal(math.type(1193046), math.type(s.appearance().playerColour))
+    assert.are.equal(math.type(300), math.type(s.appearance().frameWidth))
+    local start = s.appearanceVersion()
+    s.setAppearance("edge", "outline")
+    s.setAppearance("texture", "horizontal")
+    assert.are.equal(start + 2, s.appearanceVersion())
   end)
 
   it("shows the default target panel until hiding is chosen, keeping the texture beside it", function()
     local store = fakeStore()
-    assert.is_false(settings.load(store).hideTargetPanel())
+    assert.is_false(settings.load(store).appearance().hideTargetPanel)
     local s = settings.load(store)
-    s.setTexture("horizontal")
-    s.setHideTargetPanel(true)
+    s.setAppearance("texture", "horizontal")
+    s.setAppearance("hideTargetPanel", true)
     local reloaded = settings.load(store)
-    assert.is_true(reloaded.hideTargetPanel())
-    assert.are.equal("horizontal", reloaded.texture())
+    assert.is_true(reloaded.appearance().hideTargetPanel)
+    assert.are.equal("horizontal", reloaded.appearance().texture)
   end)
 
   it("keeps the first category learned for each buff icon across loads, dropping malformed entries", function()
@@ -323,9 +471,9 @@ describe("settings", function()
 
   it("hides the game's cast bar until showing it is chosen", function()
     local store = fakeStore()
-    assert.is_true(settings.load(store).hideCastBar())
-    settings.load(store).setHideCastBar(false)
-    assert.is_false(settings.load(store).hideCastBar())
+    assert.is_true(settings.load(store).appearance().hideCastBar)
+    settings.load(store).setAppearance("hideCastBar", false)
+    assert.is_false(settings.load(store).appearance().hideCastBar)
   end)
 
   it("moves a buff between rows and marks Keep up across loads, dropping malformed entries", function()
@@ -364,7 +512,10 @@ describe("settings", function()
       trackedTarget = { abc = true, ["30098"] = "seen" },
     }))
     assert.are.same({
-      { ["30098"] = { name = "Bloated" } }, { ["-49039"] = "upkeep" }, { ["-49039"] = true }, { ["30098"] = "seen" },
+      { ["30098"] = { name = "Bloated" } },
+      { ["-49039"] = "upkeep" },
+      { ["-49039"] = true },
+      { ["30098"] = "seen" },
     }, { s.debuffs(), s.auras(), s.keepUp(), s.tracked("target") })
   end)
 
@@ -399,11 +550,11 @@ describe("settings", function()
   it("shows the game's buff bars and plain aura icons until chosen otherwise", function()
     local store = fakeStore()
     local s = settings.load(store)
-    assert.are.same({ false, false }, { s.hideBuffBars(), s.auraBars() })
-    s.setHideBuffBars(true)
-    s.setAuraBars(true)
+    assert.are.same({ false, false }, { s.appearance().hideBuffBars, s.appearance().auraBars })
+    s.setAppearance("hideBuffBars", true)
+    s.setAppearance("auraBars", true)
     local reloaded = settings.load(store)
-    assert.are.same({ true, true }, { reloaded.hideBuffBars(), reloaded.auraBars() })
+    assert.are.same({ true, true }, { reloaded.appearance().hideBuffBars, reloaded.appearance().auraBars })
   end)
 
   it("restores whole numbers that PersistentDB returns as floats as integers", function()
@@ -423,10 +574,15 @@ describe("settings", function()
     local s = settings.load(fakeStore({
       version = CURRENT,
       layout = { player = { x = "far", y = 0 }, target = { x = 5, y = 6, anchorX = 0.5, anchorY = 1 }, bogus = {} },
-      cooldownGroups = { seeded = SEEDED, groups = {
-        rotation = { styles = { magic = { "A", 7 }, ranged = "nope" }, size = "big", grow = "sideways" },
-        major = "broken", custom2 = 5, extra = { keys = { "Z" } },
-      } },
+      cooldownGroups = {
+        seeded = SEEDED,
+        groups = {
+          rotation = { styles = { magic = { "A", 7 }, ranged = "nope" }, size = "big", grow = "sideways" },
+          major = "broken",
+          custom2 = 5,
+          extra = { keys = { "Z" } },
+        },
+      },
       markers = { threshold = "high", ultimate = 90 },
       known = { A = { name = "Alpha", icon = 1 }, B = "broken" },
       editMode = 5,
@@ -436,7 +592,7 @@ describe("settings", function()
     assert.is_nil(s.positions().bogus)
     assert.are.same({ "A" }, s.keys("rotation", "magic"))
     assert.are.same({}, s.keys("rotation", "ranged"))
-    assert.are.same({ 36, "down" }, { s.group("rotation").size, s.group("rotation").grow })
+    assert.are.same({ 45, "down" }, { s.group("rotation").size, s.group("rotation").grow })
     assert.are.same({ "major", "rotation", "utility" }, s.groupNames())
     assert.are.same({ threshold = 50, ultimate = 90 }, s.markers())
     assert.are.same({ A = { name = "Alpha", icon = 1 } }, s.known())

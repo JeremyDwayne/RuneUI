@@ -28,6 +28,14 @@ describe("frames.player", function()
     assert.is_near(13158 / 16845, model.fill, 1e-9)
   end)
 
+  it("writes lifepoints in each frames.LIFEPOINTS format", function()
+    local texts = {}
+    for _, format in ipairs({ "short", "full", "amount", "percent" }) do
+      texts[#texts + 1] = frames.player(reads, format).valueText
+    end
+    assert.are.same({ "13.1K | 78%", "13,158 / 16,845", "13.1K", "78%" }, texts)
+  end)
+
   it("shows only current lifepoints when the max label is missing", function()
     local model = frames.player({ available = true, name = "J", lifepoints = 6800 })
     assert.are.equal("6,800", model.valueText)
@@ -67,10 +75,20 @@ describe("frames.resource", function()
 
   it("shows a row of blocks for each spender with stacks, both at once", function()
     local model = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 2, [NECROSIS] = 7 } }, MARKERS)
-    assert.are.same({ { key = "souls", count = 2, max = 3 }, { key = "necrosis", count = 7, max = 12 } },
-      model.spenders)
+    assert.are.same(
+      { { key = "souls", count = 2, max = 3 }, { key = "necrosis", count = 7, max = 12 } },
+      model.spenders
+    )
     local empty = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 0, [NECROSIS] = 0 } }, MARKERS)
     assert.are.same({}, empty.spenders)
+  end)
+
+  it("keeps empty spender rows while a Necromancy weapon is worn", function()
+    local model = frames.resource({ adrenaline = 0, spenders = {}, necromancy = true }, MARKERS)
+    assert.are.same(
+      { { key = "souls", count = 0, max = 3 }, { key = "necrosis", count = 0, max = 12 } },
+      model.spenders
+    )
   end)
 
   it("caps souls at 5 with a Soulbound lantern equipped and 3 without", function()
@@ -96,6 +114,26 @@ describe("frames.target", function()
     assert.are.equal("6,800 | 58%", model.valueText)
     assert.is_near(0.58, model.fill, 1e-9)
     assert.are.same({ 26104, 17255 }, model.debuffs)
+  end)
+
+  it("writes the exact lifepoints in full, as the target has no max, and the amount or percent alone", function()
+    assert.are.equal("6,800 | 58%", frames.target(reads, "full").valueText)
+    assert.are.equal(
+      "12,242 | 58%",
+      frames.target({ target = 1, lifepointsLabel = "12,242", healthPercent = 58 }, "full").valueText
+    )
+    assert.are.equal(
+      "12.2K | 58%",
+      frames.target({ target = 1, lifepointsLabel = "12,242", healthPercent = 58 }, "short").valueText
+    )
+    assert.are.equal("6,800", frames.target(reads, "amount").valueText)
+    assert.are.equal("58%", frames.target(reads, "percent").valueText)
+  end)
+
+  it("falls back to the part it can read in any format", function()
+    local unloaded = { target = 25128, healthPercent = 95, debuffs = {} }
+    assert.are.equal("95%", frames.target(unloaded, "amount").valueText)
+    assert.are.equal("6,800", frames.target({ target = 1, lifepointsLabel = "6,800" }, "percent").valueText)
   end)
 
   it("hides with no target or when the panel reads N/A", function()

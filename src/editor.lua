@@ -12,8 +12,12 @@ function editor.dropTarget(row, x)
   local index = 1
   for i = 1, row.count do
     local centre = row.offset + (i - 1) * row.step + row.size / 2
-    if math.abs(x - centre) <= row.size * SWAP_ZONE then return { kind = "swap", index = i } end
-    if x > centre then index = i + 1 end
+    if math.abs(x - centre) <= row.size * SWAP_ZONE then
+      return { kind = "swap", index = i }
+    end
+    if x > centre then
+      index = i + 1
+    end
   end
   return { kind = "insert", index = index }
 end
@@ -32,7 +36,9 @@ end
 
 local function indexOf(list, key)
   for i, k in ipairs(list) do
-    if k == key then return i end
+    if k == key then
+      return i
+    end
   end
 end
 
@@ -42,13 +48,19 @@ end
 function editor.dropAction(list, key, target)
   if target.kind == "swap" then
     local other = list[target.index]
-    if other == nil or other == key then return nil end
+    if other == nil or other == key then
+      return nil
+    end
     return { op = "swap", other = other }
   end
   local index = target.index
   local from = indexOf(list, key)
-  if from ~= nil and from < index then index = index - 1 end
-  if index == from then return nil end
+  if from ~= nil and from < index then
+    index = index - 1
+  end
+  if index == from then
+    return nil
+  end
   return { op = "move", index = index }
 end
 
@@ -59,9 +71,12 @@ end
 function editor.pickerSections(groupName, groups, keys, style)
   local holder = {}
   for _, group in ipairs(groups) do
-    for _, key in ipairs(group.keys) do holder[key] = group.name end
+    for _, key in ipairs(group.keys) do
+      holder[key] = group.name
+    end
   end
-  local notShown, held = {}, {}
+  local notShown = {}
+  local held = {}
   for _, key in ipairs(keys) do
     local keyStyle = style and cooldowns.styleOf(key)
     if keyStyle == nil or keyStyle == style then

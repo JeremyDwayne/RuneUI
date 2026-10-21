@@ -9,37 +9,64 @@ local editor = require("src/editor")
 
 local buffspage = {}
 
-local set, rect, text, hitArea, on = draw.set, draw.rect, draw.text, draw.hitArea, draw.on
-local FONTS, COLOURS = draw.FONTS, draw.COLOURS
-local SIZE, GAP = 30, 3
+local set = draw.set
+local rect = draw.rect
+local text = draw.windowText
+local hitArea = draw.hitArea
+local on = draw.on
+local FONTS = draw.FONTS
+local COLOURS = draw.WINDOW
+local SIZE = 30
+local GAP = 3
 local STEP = SIZE + GAP
 -- Icons a tab can show, and Keep up marks the upkeep group can show.
-local TILES, KEEP_MARKS = 120, 24
+local TILES = 120
+local KEEP_MARKS = 24
 local MARK = 11
 -- Untracked and hidden icons draw dim inside a dashed box.
 local DIM = 0.38
-local MARGIN, TAB_Y, TAB_H, TAB_W = 24, 14, 28, 130
+local MARGIN = 24
+local TAB_Y = 14
+local TAB_H = 28
+local TAB_W = 130
 local HEADER = 20
 local PAD = 6
-local MENU_W, MENU_ROW = 160, 28
+local MENU_W = 160
+local MENU_ROW = 28
 
 -- Each group lists the sprites groups(...) files under kind and value: a buff row, or a debuff kind's
 -- tracked or untracked list.
 local TABS = {
-  { id = "buffs", label = "Buffs", groups = {
-    { label = "Combat buffs", note = "Above the cooldowns row", kind = "buff", value = "combat" },
-    { label = "Upkeep buffs", note = "Below the player frame. K keeps a tile while missing", kind = "buff",
-      value = "upkeep" },
-    { label = "Hidden", note = "Never shown", kind = "buff", value = "hidden", dim = true },
-  } },
-  { id = "target", label = "Target debuffs", groups = {
-    { label = "Tracked", note = "Shown above the target frame", kind = "target", value = true },
-    { label = "Not tracked", note = "Seen but not shown", kind = "target", value = false, dim = true },
-  } },
-  { id = "player", label = "Your debuffs", groups = {
-    { label = "Tracked", note = "Shown above the player frame", kind = "player", value = true },
-    { label = "Not tracked", note = "Seen but not shown", kind = "player", value = false, dim = true },
-  } },
+  {
+    id = "buffs",
+    label = "Buffs",
+    groups = {
+      { label = "Combat buffs", note = "Above the cooldowns row", kind = "buff", value = "combat" },
+      {
+        label = "Upkeep buffs",
+        note = "Below the player frame. K keeps a tile while missing",
+        kind = "buff",
+        value = "upkeep",
+      },
+      { label = "Hidden", note = "Never shown", kind = "buff", value = "hidden", dim = true },
+    },
+  },
+  {
+    id = "target",
+    label = "Target debuffs",
+    groups = {
+      { label = "Tracked", note = "Shown above the target frame", kind = "target", value = true },
+      { label = "Not tracked", note = "Seen but not shown", kind = "target", value = false, dim = true },
+    },
+  },
+  {
+    id = "player",
+    label = "Your debuffs",
+    groups = {
+      { label = "Tracked", note = "Shown above the player frame", kind = "player", value = true },
+      { label = "Not tracked", note = "Seen but not shown", kind = "player", value = false, dim = true },
+    },
+  },
   { id = "display", label = "Display" },
 }
 local MAX_GROUPS = 3
@@ -59,18 +86,12 @@ function buffspage.create(page, width, height, deps)
 
   local tabParts = {}
   for i, def in ipairs(TABS) do
-    local x = MARGIN + (i - 1) * (TAB_W + 2)
-    local parts = {
-      bg = hitArea(rect(page, COLOURS.button, x, TAB_Y, TAB_W, TAB_H)),
-      label = text(page, FONTS.body, ui.AlignMode.CENTRE, x, TAB_Y, TAB_W, TAB_H),
-    }
-    set(parts.label, "content", def.label)
-    on(parts.bg, "ONCLICK", function()
+    local x = MARGIN + (i - 1) * (TAB_W + 6)
+    tabParts[def.id] = draw.option(page, def.label, x, TAB_Y, TAB_W, TAB_H, function()
       closeMenu()
       tab = def.id
       redraw()
     end)
-    tabParts[def.id] = parts
   end
 
   local top = TAB_Y + TAB_H + 12
@@ -85,7 +106,7 @@ function buffspage.create(page, width, height, deps)
     local slot = {
       label = text(page, FONTS.body, ui.AlignMode.TOPLEFT, MARGIN, 0, 200, 18),
       note = text(page, FONTS.small, ui.AlignMode.TOPLEFT, MARGIN + 140, 0, width - 2 * MARGIN - 140, 18),
-      box = rect(page, COLOURS.sidebar, MARGIN, 0, width - 2 * MARGIN, 0),
+      box = rect(page, COLOURS.row, MARGIN, 0, width - 2 * MARGIN, 0),
       dashes = ui.Canvas.new(page),
     }
     set(slot.note, "rgb", COLOURS.mutedText)
@@ -129,7 +150,9 @@ function buffspage.create(page, width, height, deps)
   local orders = {}
 
   local function sprites(groups, def)
-    if def.kind == "buff" then return groups[def.value] end
+    if def.kind == "buff" then
+      return groups[def.value]
+    end
     return def.value and groups[def.kind].tracked or groups[def.kind].untracked
   end
 
@@ -152,9 +175,13 @@ function buffspage.create(page, width, height, deps)
   local function place(t, slot, target)
     local kind = kindOf(t.def)
     local moved = auralists.drop(orders[kind], slot.list, t.sprite, target)
-    if moved == nil then return end
+    if moved == nil then
+      return
+    end
     if slot.def ~= t.def then
-      if moved.other ~= nil then assign(t.def, moved.other) end
+      if moved.other ~= nil then
+        assign(t.def, moved.other)
+      end
       assign(slot.def, t.sprite)
     end
     saved.setOrder(kind, moved.order)
@@ -164,21 +191,25 @@ function buffspage.create(page, width, height, deps)
 
   -- Draws the page, unless an icon is being dragged, so a refresh cannot move the grab area.
   function redraw()
-    if drag ~= nil and drag.dragging() then return end
+    if drag ~= nil and drag.dragging() then
+      return
+    end
     local choices = { target = saved.tracked("target"), player = saved.tracked("player") }
     local groups = auralists.groups(saved.auras(), choices, saved.orders())
     orders = groups.order
     local current = nil
     for _, def in ipairs(TABS) do
       local active = def.id == tab
-      if active then current = def end
-      set(tabParts[def.id].bg, "rgb", active and COLOURS.accent or COLOURS.button)
-      set(tabParts[def.id].label, "rgb", active and COLOURS.accentText or COLOURS.text)
-      set(tabParts[def.id].label, "isShadowed", not active)
+      if active then
+        current = def
+      end
+      draw.showOption(tabParts[def.id], active)
     end
     set(display, "hidden", current.groups ~= nil)
     local keepUp = saved.keepUp()
-    local y, used, marked = top, 0, 0
+    local y = top
+    local used = 0
+    local marked = 0
     for i, slot in ipairs(slots) do
       local def = current.groups and current.groups[i]
       draw.hideAll({ slot.label, slot.note, slot.box, slot.dashes }, def == nil)
@@ -194,13 +225,20 @@ function buffspage.create(page, width, height, deps)
         draw.pos(slot.note, MARGIN + 140, y + 2)
         draw.pos(slot.box, MARGIN, boxY)
         draw.size(slot.box, width - 2 * MARGIN, boxH)
-        slot.top, slot.bottom, slot.list, slot.lines = boxY, boxY + boxH, list, lines
+        slot.top = boxY
+        slot.bottom = boxY + boxH
+        slot.list = list
+        slot.lines = lines
         local shown = 0
         for k, sprite in ipairs(list) do
-          if used >= TILES then break end
-          used, shown = used + 1, k
+          if used >= TILES then
+            break
+          end
+          used = used + 1
+          shown = k
           local t = tiles[used]
-          t.sprite, t.def = sprite, def
+          t.sprite = sprite
+          t.def = def
           t.x = MARGIN + PAD + ((k - 1) % cols) * STEP
           t.y = boxY + PAD + ((k - 1) // cols) * STEP
           draw.pos(t.edge, t.x, t.y)
@@ -236,7 +274,9 @@ function buffspage.create(page, width, height, deps)
       tiles[i].sprite, tiles[i].def = nil, nil
       draw.hideAll({ tiles[i].edge, tiles[i].icon }, true)
     end
-    for i = marked + 1, KEEP_MARKS do draw.hideAll({ marks[i].bg, marks[i].label }, true) end
+    for i = marked + 1, KEEP_MARKS do
+      draw.hideAll({ marks[i].bg, marks[i].label }, true)
+    end
   end
 
   -- Menu ------------------------------------------------------------------------------------------------
@@ -251,9 +291,12 @@ function buffspage.create(page, width, height, deps)
       label = text(menu, FONTS.body, ui.AlignMode.TOPLEFT, 12, 1 + (i - 1) * MENU_ROW, MENU_W - 20, MENU_ROW),
     }
     on(r.bg, "ONCLICK", function()
-      local action, t = r.action, menuTile
+      local action = r.action
+      local t = menuTile
       closeMenu()
-      if action ~= nil and t ~= nil and t.sprite ~= nil then action(t) end
+      if action ~= nil and t ~= nil and t.sprite ~= nil then
+        action(t)
+      end
     end)
     menuRows[i] = r
   end
@@ -271,12 +314,21 @@ function buffspage.create(page, width, height, deps)
       local def = slot.def
       if def ~= nil then
         local current = def == t.def
-        entries[#entries + 1] = {
-          label = def.kind == "buff" and def.label or (def.value and "Track" or "Stop tracking"),
-          current = current,
-          action = not current and function(tile) place(tile, slot, { kind = "insert", index = #slot.list + 1 }) end
-            or nil,
-        }
+        local label
+        if def.kind == "buff" then
+          label = def.label
+        elseif def.value then
+          label = "Track"
+        else
+          label = "Stop tracking"
+        end
+        local action = nil
+        if not current then
+          action = function(tile)
+            place(tile, slot, { kind = "insert", index = #slot.list + 1 })
+          end
+        end
+        entries[#entries + 1] = { label = label, current = current, action = action }
       end
     end
     if t.def.value == "upkeep" then
@@ -293,7 +345,9 @@ function buffspage.create(page, width, height, deps)
     if t.def.kind ~= "buff" then
       local kept = {}
       for _, e in ipairs(entries) do
-        if not e.current then kept[#kept + 1] = e end
+        if not e.current then
+          kept[#kept + 1] = e
+        end
       end
       entries = kept
     end
@@ -335,25 +389,36 @@ function buffspage.create(page, width, height, deps)
     end
   end
 
-  local dropSlot, dropTarget = nil, nil
+  local dropSlot = nil
+  local dropTarget = nil
   drag = dragdrop.create(page, SIZE // 2, {
     press = function(t)
-      if t.sprite == nil then return false end
+      if t.sprite == nil then
+        return false
+      end
       closeMenu()
       deps.tooltip.hide()
       return true
     end,
-    ghost = function(t) return { icon = t.sprite, initials = "" } end,
-    start = function(t) set(t.icon, "alpha", 0.3) end,
+    ghost = function(t)
+      return { icon = t.sprite, initials = "" }
+    end,
+    start = function(t)
+      set(t.icon, "alpha", 0.3)
+    end,
     move = function(_, px, py)
       local slot, target, line = targetAt(px, py)
-      dropSlot, dropTarget = slot, target
+      dropSlot = slot
+      dropTarget = target
       local swap = target ~= nil and target.kind == "swap"
       draw.hideAll(swapBox, not swap)
       set(insertLine, "hidden", target == nil or swap)
-      if target == nil then return end
+      if target == nil then
+        return
+      end
       local column = target.index - 1 - line * cols
-      local x, y = MARGIN + PAD + column * STEP, slot.top + PAD + line * STEP
+      local x = MARGIN + PAD + column * STEP
+      local y = slot.top + PAD + line * STEP
       if swap then
         draw.placeOutline(swapBox, x, y, SIZE, SIZE)
       else
@@ -361,16 +426,21 @@ function buffspage.create(page, width, height, deps)
       end
     end,
     drop = function(t)
-      if dropTarget ~= nil and t.sprite ~= nil then place(t, dropSlot, dropTarget) end
+      if dropTarget ~= nil and t.sprite ~= nil then
+        place(t, dropSlot, dropTarget)
+      end
     end,
     click = openMenu,
     finish = function(t)
       set(t.icon, "alpha", t.def.dim and DIM or 1)
       hideDropFeedback()
-      dropSlot, dropTarget = nil, nil
+      dropSlot = nil
+      dropTarget = nil
     end,
   })
-  for _, t in ipairs(tiles) do drag.attach(t) end
+  for _, t in ipairs(tiles) do
+    drag.attach(t)
+  end
 
   -- Tooltip ---------------------------------------------------------------------------------------------
 

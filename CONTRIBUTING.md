@@ -15,7 +15,7 @@ A feature that bends either rule will be turned down, however useful it is.
 
 ## Setup
 
-You need Lua 5.4 and LuaRocks. Install the test and lint tools:
+You need Lua 5.4, LuaRocks and [StyLua](https://github.com/JohnnyMorganz/StyLua), which `brew install stylua` or `cargo install stylua` installs. Install the test and lint tools:
 
 ```sh
 luarocks --local --lua-version 5.4 install busted
@@ -27,12 +27,13 @@ To try your changes in the game, follow the install steps in the README with you
 
 ## Checks
 
-Run all three from the repo root before opening a pull request. CI runs the same three.
+Run all four from the repo root before opening a pull request. CI runs the same four.
 
 ```sh
 busted
 luacheck .
 for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; done
+stylua --check main.lua src spec
 ```
 
 A bug fix starts with a spec that fails without the fix.
@@ -40,8 +41,8 @@ A bug fix starts with a spec that fails without the fix.
 ## How the code is laid out
 
 - `src/adapter.lua` is the only module that reads the game client. It returns plain tables, so everything else can be tested without the game.
-- `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure Lua, each with a spec in `spec/`. `src/presets.lua` is the data the groups start with, covered by `spec/settings_spec.lua`.
-- `src/view.lua` draws the HUD, `src/options.lua` draws the options window, `src/buffspage.lua` its Buffs page, `src/dragdrop.lua` the icon dragging both share, `src/editmode.lua` draws edit mode, and all five build on the helpers in `src/draw.lua`.
+- `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua`, `src/icons.lua` and `src/style.lua` are pure Lua, each with a spec in `spec/`. `src/presets.lua` is the data the groups start with, covered by `spec/settings_spec.lua`.
+- `src/view.lua` draws the HUD, `src/options.lua` draws the options window, `src/appearancepage.lua` its Appearance and Bars pages, `src/buffspage.lua` its Buffs page, `src/dragdrop.lua` the icon dragging the window shares, `src/editmode.lua` draws edit mode, and all six build on the helpers in `src/draw.lua`.
 
 ## Performance
 
@@ -58,7 +59,10 @@ Never carry meaning by colour alone. Avoid relying on red against green, green a
 
 ## Code style
 
-- Follow the style of the file you are in. luacheck enforces the basics, including the 120 character line limit.
+- Run `stylua main.lua src spec` before committing. It formats every file from `.stylua.toml`, including the 120 character line limit, and gives every `if`, `for`, `while` and `function` body its own lines.
+- Declare each local and assign each field on its own line. Only a call that returns several values, such as `local ok, value = pcall(f)`, assigns several names at once.
+- Choose among three or more values with `if` and `elseif`, not a chain of `and` and `or`.
+- Follow the style of the file you are in for everything else. luacheck catches unused and shadowed names.
 - Above each function, write a short comment saying what it does and how it is used. Leave history and the reasons for past decisions to commit messages.
 
 ## Pull requests

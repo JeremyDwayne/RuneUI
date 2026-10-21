@@ -4,14 +4,22 @@ local adapter = {}
 local MAIN_BAR = 1430
 local TARGET_PANEL = 1490
 -- The game's cast bar, with its highest static ID and its time left label.
-local CAST_BAR, CAST_BAR_LAST_STATIC, CAST_BAR_DURATION, CAST_BAR_GLOW = 764, 37, 5, 19
+local CAST_BAR = 764
+local CAST_BAR_LAST_STATIC = 37
+local CAST_BAR_DURATION = 5
+local CAST_BAR_GLOW = 19
 -- Target debuff icon sprites sit every 3 static IDs from :38 to :71. A slot is empty when its sprite is -1
 -- or it reads not visibleGlobal: an expired or switched-away debuff keeps its sprite while invisible.
-local DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP = 38, 71, 3
+local DEBUFF_FIRST = 38
+local DEBUFF_LAST = 71
+local DEBUFF_STEP = 3
 -- Native action bars: first slot background ID per interface. Slots are 13 IDs apart, with the icon
 -- sprite at +2 and the keybind label at +9. The client tints the icon SLOT_DIM while its ability can't be cast.
 local BAR_FIRST_SLOTS = { [1430] = 64, [1670] = 19, [1671] = 17, [1672] = 14, [1673] = 14 }
-local SLOTS_PER_BAR, SLOT_STRIDE, SLOT_ICON, SLOT_KEYBIND = 14, 13, 2, 9
+local SLOTS_PER_BAR = 14
+local SLOT_STRIDE = 13
+local SLOT_ICON = 2
+local SLOT_KEYBIND = 9
 local SLOT_DIM = 0x333333
 -- The target panel's static IDs run to :71; dynamic children of some hold its border and background.
 local TARGET_LAST_STATIC = 80
@@ -46,13 +54,17 @@ end
 -- building a closure per read.
 local function read(obj, field)
   local ok, value = pcall(index, obj, field)
-  if ok then return value end
+  if ok then
+    return value
+  end
   return nil
 end
 
 local function varValue(domain, name)
   local v = read(var[domain], name)
-  if v ~= nil then return read(v, "value") end
+  if v ~= nil then
+    return read(v, "value")
+  end
 end
 
 -- Text of a label component, or nil when it is missing or empty.
@@ -64,7 +76,9 @@ local function labelText(interfaceID, staticID, categoryID, dynamicID)
     c = ui.Interfaces:GetComponent(interfaceID, staticID)
   end
   local text = c and read(c, "content")
-  if type(text) == "string" and text ~= "" then return text end
+  if type(text) == "string" and text ~= "" then
+    return text
+  end
 end
 
 function adapter.playerReads()
@@ -83,12 +97,16 @@ end
 -- With no target, returns { target } alone and skips the panel's components.
 function adapter.targetReads()
   local target = varValue("VarPlayer", "NPCTARGET")
-  if target == nil or target == -1 then return { target = target } end
+  if target == nil or target == -1 then
+    return { target = target }
+  end
   local debuffs = {}
   for staticID = DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP do
     local c = ui.Interfaces:GetComponent(TARGET_PANEL, staticID)
     local sprite = c and read(c, "spriteID")
-    if sprite ~= nil and sprite ~= -1 and read(c, "visibleGlobal") ~= false then debuffs[#debuffs + 1] = sprite end
+    if sprite ~= nil and sprite ~= -1 and read(c, "visibleGlobal") ~= false then
+      debuffs[#debuffs + 1] = sprite
+    end
   end
   return {
     target = target,
@@ -102,22 +120,31 @@ end
 -- { sprite, label } for each shown icon on bar, a BUFF_BARS entry, stopping after EMPTY_RUN empty slots.
 -- A slot that shows an item, as an overload's does, reads as minus the item id.
 local function barReads(bar)
-  local list, empty, filled = {}, 0, bar.first - 1
+  local list = {}
+  local empty = 0
+  local filled = bar.first - 1
   for staticID = bar.first, bar.last do
     local icon = ui.Interfaces:GetComponent(bar.id, staticID, 0, 0)
     local sprite = icon and read(icon, "spriteID")
     if sprite == -1 then
       local objID = read(icon, "associatedObjectID")
-      if objID ~= nil and objID >= 0 then sprite = -objID end
+      if objID ~= nil and objID >= 0 then
+        sprite = -objID
+      end
     end
     local label = ui.Interfaces:GetComponent(bar.id, staticID, 0, 1)
     local text = label and read(label, "content")
-    if type(text) ~= "string" or text == "" then text = nil end
+    if type(text) ~= "string" or text == "" then
+      text = nil
+    end
     if (sprite == nil or sprite == -1) and text == nil then
       empty = empty + 1
-      if empty >= EMPTY_RUN then break end
+      if empty >= EMPTY_RUN then
+        break
+      end
     else
-      empty, filled = 0, staticID
+      empty = 0
+      filled = staticID
       if sprite ~= nil and sprite ~= -1 and read(label, "visibleGlobal") ~= false then
         list[#list + 1] = { sprite = sprite, label = text }
       end
@@ -141,16 +168,24 @@ end
 -- without "COMBATV2_ABILITY_", matching the cooldown var keys in src/cooldowns.
 local function abilityInfo(struct)
   local params = struct and read(struct, "params")
-  if params == nil then return nil end
+  if params == nil then
+    return nil
+  end
   local info = { key = (tostring(read(struct, "configName")):gsub("^COMBATV2_ABILITY_", "")) }
   for _, param in ipairs(params) do
     local field = STRUCT_FIELDS[read(param, "configName")]
     if field ~= nil then
-      local ok, value = pcall(function() return struct:GetParamValue(param) end)
-      if ok then info[field] = value end
+      local ok, value = pcall(function()
+        return struct:GetParamValue(param)
+      end)
+      if ok then
+        info[field] = value
+      end
     end
   end
-  if info.name ~= nil or info.icon ~= nil then return info end
+  if info.name ~= nil or info.icon ~= nil then
+    return info
+  end
 end
 
 -- The struct in COMBATV2_JUST_USED_ABILITY as abilityInfo describes it.
@@ -184,9 +219,13 @@ end
 -- PersistentDB as a src/settings store, one structured table per key.
 function adapter.store()
   return {
-    get = function(key) return PersistentDB:GetStructuredData(key) end,
+    get = function(key)
+      return PersistentDB:GetStructuredData(key)
+    end,
     set = function(key, value)
-      if PersistentDB:SetStructuredData(key, value) == false then log("could not save", key) end
+      if PersistentDB:SetStructuredData(key, value) == false then
+        log("could not save", key)
+      end
     end,
   }
 end
@@ -198,10 +237,14 @@ local equipmentWarned = false
 local function lanternEquipped()
   local ok, result = pcall(function()
     local inv = Inventory.Find(WORN_INV)
-    if inv == nil then return false end
+    if inv == nil then
+      return false
+    end
     for _, slot in ipairs(inv:GetSlots() or {}) do
       local name = read(slot.obj, "name")
-      if type(name) == "string" and name:lower():find("soulbound lantern", 1, true) then return true end
+      if type(name) == "string" and name:lower():find("soulbound lantern", 1, true) then
+        return true
+      end
     end
     return false
   end)
@@ -219,12 +262,16 @@ local lantern = nil
 -- An inventory without a readable id also rescans, so a misread never leaves the cache stale.
 function adapter.inventoryChanged(e)
   local id = read(e.inv, "id")
-  if id == nil or id == WORN_INV then lantern = nil end
+  if id == nil or id == WORN_INV then
+    lantern = nil
+  end
 end
 
 -- Whether c reads an alpha above 0.
 local function opaque(c)
-  if c == nil then return false end
+  if c == nil then
+    return false
+  end
   local alpha = read(c, "alpha")
   return alpha ~= nil and alpha > 0
 end
@@ -248,8 +295,10 @@ local function transparency(interfaceID, lastStatic, watched, animated)
         fn(tostring(staticID), c)
         pcall(function()
           c:IterateDynamicComponents(function(child)
-            fn(staticID .. ":" .. tostring(read(child, "categoryID")) .. ":" .. tostring(read(child, "dynamicID")),
-              child)
+            fn(
+              staticID .. ":" .. tostring(read(child, "categoryID")) .. ":" .. tostring(read(child, "dynamicID")),
+              child
+            )
             return false
           end)
         end)
@@ -259,16 +308,28 @@ local function transparency(interfaceID, lastStatic, watched, animated)
 
   local function setAlpha(transparent)
     each(function(key, c)
-      if transparent and originals[key] == nil then originals[key] = read(c, "alpha") or 1 end
-      local alpha = transparent and 0 or originals[key] or 1
-      pcall(function() c.alpha = alpha end)
+      if transparent and originals[key] == nil then
+        originals[key] = read(c, "alpha") or 1
+      end
+      local alpha = 0
+      if not transparent then
+        alpha = originals[key] or 1
+      end
+      pcall(function()
+        c.alpha = alpha
+      end)
     end)
     for _, staticID in ipairs(animated or {}) do
-      local c, key = ui.Interfaces:GetComponent(interfaceID, staticID), "hidden " .. staticID
+      local c = ui.Interfaces:GetComponent(interfaceID, staticID)
+      local key = "hidden " .. staticID
       if c ~= nil and (transparent or originals[key] ~= nil) then
-        if transparent and originals[key] == nil then originals[key] = read(c, "hidden") == true end
+        if transparent and originals[key] == nil then
+          originals[key] = read(c, "hidden") == true
+        end
         local hidden = transparent or originals[key]
-        pcall(function() c.hidden = hidden end)
+        pcall(function()
+          c.hidden = hidden
+        end)
       end
     end
   end
@@ -276,7 +337,9 @@ local function transparency(interfaceID, lastStatic, watched, animated)
   local t = {}
 
   function t.keep()
-    if originals == nil then return end
+    if originals == nil then
+      return
+    end
     for _, at in ipairs(watched) do
       local c
       if at[2] ~= nil then
@@ -328,7 +391,8 @@ adapter.hideCastBar = castBar.hide
 
 -- Original alpha of each buff bar component while RuneUI hides the bars, keyed "bar:static" or
 -- "bar:static:category:dynamic", and the keys of the icons it set hidden.
-local barAlpha, barHidden = nil, nil
+local barAlpha = nil
+local barHidden = nil
 -- Rendered frames since the last server tick, counted up to FILL_FRAMES.
 local framesSinceTick = FILL_FRAMES
 
@@ -337,13 +401,21 @@ local framesSinceTick = FILL_FRAMES
 -- alpha 0, which the client resets every few frames on an icon but not on these.
 local function hideBarComponent(key, c, icon)
   if icon then
-    if read(c, "hidden") ~= false then return end
+    if read(c, "hidden") ~= false then
+      return
+    end
     barHidden[key] = true
-    pcall(function() c.hidden = true end)
+    pcall(function()
+      c.hidden = true
+    end)
     return
   end
-  if barAlpha[key] == nil then barAlpha[key] = read(c, "alpha") or 1 end
-  pcall(function() c.alpha = 0 end)
+  if barAlpha[key] == nil then
+    barAlpha[key] = read(c, "alpha") or 1
+  end
+  pcall(function()
+    c.alpha = 0
+  end)
 end
 
 -- Calls fn(key, child, icon) for each dynamic child of bar's static staticID.
@@ -351,9 +423,13 @@ local function eachSlotChild(bar, staticID, c, fn)
   local slot = staticID >= bar.first and staticID <= bar.last
   pcall(function()
     c:IterateDynamicComponents(function(child)
-      local category, dynamic = read(child, "categoryID"), read(child, "dynamicID")
-      fn(bar.id .. ":" .. staticID .. ":" .. tostring(category) .. ":" .. tostring(dynamic), child,
-        slot and category == 0 and (dynamic == 0 or dynamic == 2))
+      local category = read(child, "categoryID")
+      local dynamic = read(child, "dynamicID")
+      fn(
+        bar.id .. ":" .. staticID .. ":" .. tostring(category) .. ":" .. tostring(dynamic),
+        child,
+        slot and category == 0 and (dynamic == 0 or dynamic == 2)
+      )
       return false
     end)
   end)
@@ -377,7 +453,9 @@ end
 -- reads the icon of each slot up to watchLast, and hides a slot again once the client fills it, which
 -- shows its icon and makes its label and frame opaque. No reads otherwise.
 function adapter.keepBuffBarsHidden()
-  if barAlpha == nil or framesSinceTick >= FILL_FRAMES then return end
+  if barAlpha == nil or framesSinceTick >= FILL_FRAMES then
+    return
+  end
   framesSinceTick = framesSinceTick + 1
   for _, bar in pairs(BUFF_BARS) do
     for staticID = bar.first, bar.watchLast or bar.last do
@@ -395,7 +473,8 @@ function adapter.hideBuffBars(hidden)
   if hidden then
     framesSinceTick = 0
     if barAlpha == nil then
-      barAlpha, barHidden = {}, {}
+      barAlpha = {}
+      barHidden = {}
       eachBarComponent(hideBarComponent)
       return
     end
@@ -409,28 +488,42 @@ function adapter.hideBuffBars(hidden)
     end
   elseif barAlpha ~= nil then
     eachBarComponent(function(key, c)
-      if barHidden[key] then pcall(function() c.hidden = false end) end
+      if barHidden[key] then
+        pcall(function()
+          c.hidden = false
+        end)
+      end
       local alpha = barAlpha[key]
-      if alpha ~= nil then pcall(function() c.alpha = alpha end) end
+      if alpha ~= nil then
+        pcall(function()
+          c.alpha = alpha
+        end)
+      end
     end)
-    barAlpha, barHidden = nil, nil
+    barAlpha = nil
+    barHidden = nil
   end
 end
 
 local iconParams = nil
 
 local function readIconStruct(structID)
-  iconParams = iconParams or {
-    icon = config.Param.COMBATV2_ABILITY_ICON,
-    name = config.Param.COMBATV2_ABILITY_NAME,
-  }
+  iconParams = iconParams
+    or {
+      icon = config.Param.COMBATV2_ABILITY_ICON,
+      name = config.Param.COMBATV2_ABILITY_NAME,
+    }
   local struct = config.Struct.FromID(structID)
-  if struct == nil then return nil end
+  if struct == nil then
+    return nil
+  end
   local configName = struct.configName
   if type(configName) ~= "string" or not (configName:sub(1, 9) == "COMBATV2_" or configName:sub(1, 6) == "MAGIC_") then
     return nil
   end
-  if not struct:HasParam(iconParams.icon) or not struct:HasParam(iconParams.name) then return nil end
+  if not struct:HasParam(iconParams.icon) or not struct:HasParam(iconParams.name) then
+    return nil
+  end
   return {
     configName = configName,
     icon = struct:GetParamValue(iconParams.icon),
@@ -453,7 +546,9 @@ end
 local function readStructInfo(structID)
   local param = config.Param.COMBATV2_ABILITY_INFO
   local struct = config.Struct.FromID(structID)
-  if struct ~= nil and struct:HasParam(param) then return struct:GetParamValue(param) end
+  if struct ~= nil and struct:HasParam(param) then
+    return struct:GetParamValue(param)
+  end
 end
 
 -- src/icons descriptions: the COMBATV2_ABILITY_INFO text of the struct at structID, or nil.
@@ -484,7 +579,9 @@ function adapter.resourceReads(spenders)
   for _, spender in ipairs(spenders) do
     counts[spender.var] = varValue("VarPlayer", spender.var)
   end
-  if lantern == nil then lantern = lanternEquipped() end
+  if lantern == nil then
+    lantern = lanternEquipped()
+  end
   return { adrenaline = varValue("VarPlayer", "SA_ENERGY"), spenders = counts, lantern = lantern }
 end
 

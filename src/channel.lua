@@ -5,7 +5,8 @@ local cooldowns = require("src/cooldowns")
 local channel = {}
 
 -- END_REASON while a channel runs, and once it finished on its last hit. Any other value, such as 2, cancelled it.
-local RUNNING, FINISHED = -1, 1
+local RUNNING = -1
+local FINISHED = 1
 -- Vars a new channel sends no change for when it repeats the last channel's value.
 local HELD = { "COMBATV2_CHANNEL_ABILITY_STRUCT", "COMBATV2_CHANNEL_ABILITY_ITERATIONS" }
 
@@ -19,21 +20,31 @@ local HELD = { "COMBATV2_CHANNEL_ABILITY_STRUCT", "COMBATV2_CHANNEL_ABILITY_ITER
 -- after up to END, or nil when the iterations are unknown. On the tick a channel is cancelled, model() returns
 -- { start, cancelled = true }.
 function channel.tracker()
-  local start, finish, struct, iterations, reason = nil, nil, nil, nil, nil
+  local start = nil
+  local finish = nil
+  local struct = nil
+  local iterations = nil
+  local reason = nil
   -- Server ticks since START, and the count when the channel was cancelled. The channel's vars arrive right after
   -- the server tick of START.
-  local elapsed, cancelledAt = 0, nil
+  local elapsed = 0
+  local cancelledAt = nil
   local changed = false
   -- The ability's info and combat style, read once per channel: the struct changes on some channels' last hit.
-  local info, infoStart, style = nil, nil, nil
+  local info = nil
+  local infoStart = nil
+  local style = nil
 
   local tracker = {}
 
   -- START and END hold the channel's first and last server tick and change together when one starts.
   function tracker.onVar(name, old, new)
-    if old == new then return end
+    if old == new then
+      return
+    end
     if name == "COMBATV2_CHANNEL_START" then
-      start, elapsed = new, 0
+      start = new
+      elapsed = 0
     elseif name == "COMBATV2_CHANNEL_END" then
       finish = new
     elseif name == "COMBATV2_CHANNEL_ABILITY_STRUCT" then
@@ -50,7 +61,9 @@ function channel.tracker()
   end
 
   function tracker.seed(read)
-    for _, name in ipairs(HELD) do tracker.onVar(name, nil, read(name)) end
+    for _, name in ipairs(HELD) do
+      tracker.onVar(name, nil, read(name))
+    end
   end
 
   function tracker.onTick()
@@ -75,22 +88,32 @@ function channel.tracker()
 
   -- Seconds after START of each of iterations + 1 hits spread evenly over ticks, or nil.
   local function hitTimes(ticks)
-    if iterations == nil or iterations < 1 then return nil end
+    if iterations == nil or iterations < 1 then
+      return nil
+    end
     local times = {}
-    for k = 0, iterations do times[k + 1] = k * ticks * 6 / (iterations * 10) end
+    for k = 0, iterations do
+      times[k + 1] = k * ticks * 6 / (iterations * 10)
+    end
     return times
   end
 
   -- An END from the previous channel sits before the new START until the new END arrives. The game finishes a
   -- channel on its last hit, at END, and its cast bar shows 0.6s for one more tick.
   function tracker.model()
-    if start == nil then return nil end
+    if start == nil then
+      return nil
+    end
     if cancelledAt ~= nil then
       return cancelledAt == elapsed and { start = start, cancelled = true } or nil
     end
-    if (reason ~= RUNNING and reason ~= FINISHED) or finish == nil or finish <= start then return nil end
+    if (reason ~= RUNNING and reason ~= FINISHED) or finish == nil or finish <= start then
+      return nil
+    end
     local total = finish - start + 1
-    if elapsed >= total then return nil end
+    if elapsed >= total then
+      return nil
+    end
     local found = infoStart == start and info or nil
     return {
       start = start,

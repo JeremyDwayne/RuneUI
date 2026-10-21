@@ -1,7 +1,13 @@
 local auralists = require("src/auralists")
 
-local BLOATED, STUN_IMMUNE, STUNNED, BONE_SHIELD, ANTIFIRE = 30098, 26104, 26103, 30099, 30093
-local VULNERABILITY, DEATH_MARK, HAUNTED = 14395, 30100, 30212
+local BLOATED = 30098
+local STUN_IMMUNE = 26104
+local STUNNED = 26103
+local BONE_SHIELD = 30099
+local ANTIFIRE = 30093
+local VULNERABILITY = 14395
+local DEATH_MARK = 30100
+local HAUNTED = 30212
 
 describe("auralists.tracked", function()
   it("tracks a default debuff with no saved choice and leaves others untracked", function()
@@ -22,7 +28,9 @@ describe("auralists.groups", function()
   it("lists buffs by row and each debuff kind by tracked or not, with defaults once", function()
     local groups = auralists.groups(
       { [tostring(ANTIFIRE)] = "upkeep", [tostring(BONE_SHIELD)] = "hidden", ["14766"] = "combat" },
-      { target = { [tostring(STUN_IMMUNE)] = "seen", [tostring(BLOATED)] = true }, player = { ["555"] = "seen" } }, {})
+      { target = { [tostring(STUN_IMMUNE)] = "seen", [tostring(BLOATED)] = true }, player = { ["555"] = "seen" } },
+      {}
+    )
     assert.are.same({ { 14766 }, { ANTIFIRE }, { BONE_SHIELD } }, { groups.combat, groups.upkeep, groups.hidden })
     assert.are.same({ STUN_IMMUNE }, groups.target.untracked)
     assert.are.equal(#auralists.TARGET_DEFAULTS, #groups.target.tracked)
@@ -42,7 +50,10 @@ describe("auralists.groups", function()
 end)
 
 describe("auralists.drop", function()
-  local A, B, C, D = 1, 2, 3, 4
+  local A = 1
+  local B = 2
+  local C = 3
+  local D = 4
 
   it("inserts an icon between two others in its own group", function()
     local moved = auralists.drop({ A, B, C, D }, { A, B, C }, A, { kind = "insert", index = 3 })
@@ -56,8 +67,10 @@ describe("auralists.drop", function()
   end)
 
   it("swaps an icon with the one it is dropped on, and ignores a drop on itself", function()
-    assert.are.same({ order = { C, B, A, D }, other = C },
-      auralists.drop({ A, B, C, D }, { C, D }, A, { kind = "swap", index = 1 }))
+    assert.are.same(
+      { order = { C, B, A, D }, other = C },
+      auralists.drop({ A, B, C, D }, { C, D }, A, { kind = "swap", index = 1 })
+    )
     assert.is_nil(auralists.drop({ A, B }, { A, B }, A, { kind = "swap", index = 1 }))
   end)
 

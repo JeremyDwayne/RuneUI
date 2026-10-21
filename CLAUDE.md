@@ -1,6 +1,6 @@
 # RuneUI for coding agents
 
-RuneUI is a combat HUD plugin for RuneScape 3, written in Lua 5.4 and loaded by the game client. Read `CONTRIBUTING.md` first. It holds the moderation rules, setup, the three checks, the module layout, and the performance, accessibility and style rules. This file adds what an agent needs on top of it.
+RuneUI is a combat HUD plugin for RuneScape 3, written in Lua 5.4 and loaded by the game client. Read `CONTRIBUTING.md` first. It holds the moderation rules, setup, the four checks, the module layout, and the performance, accessibility and style rules. This file adds what an agent needs on top of it.
 
 ## Priorities
 
@@ -13,7 +13,7 @@ When goals conflict, settle them in this order:
 
 ## Working rules
 
-- Done means the three checks from `CONTRIBUTING.md` pass: `busted`, `luacheck .` and `luac5.4 -p` on every file. Report their output, not "should pass".
+- Done means the four checks from `CONTRIBUTING.md` pass: `busted`, `luacheck .`, `luac5.4 -p` on every file and `stylua --check main.lua src spec`. Report their output, not "should pass".
 - A bug fix starts with a spec that fails without the fix. View and options specs drive real modules through `spec/support/fake_ui.lua`.
 - Specs prove logic and write counts, not what the client draws. Anything visible is done when it has been seen in the game after `prl runeui`. Say which in-game checks are still open.
 - Before building a visible change, agree on the look with a mockup or screenshot.
@@ -25,8 +25,8 @@ When goals conflict, settle them in this order:
 ## Architecture
 
 - `src/adapter.lua` is the only module that calls the client. Every read goes through `pcall` and comes back as a plain table, and a read can always be nil: interfaces unload, and vars are nil before login.
-- `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua`, `src/icons.lua` and `src/presets.lua` are pure. Keep client globals out of them.
-- `src/view.lua`, `src/options.lua`, `src/buffspage.lua`, `src/dragdrop.lua` and `src/editmode.lua` draw through `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values.
+- `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua`, `src/icons.lua`, `src/style.lua` and `src/presets.lua` are pure. Keep client globals out of them.
+- `src/view.lua`, `src/options.lua`, `src/appearancepage.lua`, `src/buffspage.lua`, `src/dragdrop.lua` and `src/editmode.lua` draw through `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values.
 - `main.lua` wires events: `VarTransmit` feeds the cooldown and channel trackers, `ServerLogic` reads the adapter and redraws, `Logic` redraws the cast bar and cooldown groups after their vars change and counts them down, and `PluginShutdown` destroys every component.
 
 ## Hot path
@@ -45,14 +45,15 @@ Handlers run inside the player's frame. The rates are measured, not documented.
 The client API is thinly documented, and these facts came from probing it in the game. When code depends on behaviour not listed here, confirm it in the game with a small throwaway plugin before relying on it. Add what you learn to this list and, where specs can model it, to `spec/support/fake_ui.lua`.
 
 - `MoveToFront` on a hidden component, or on a layer holding one, stops it drawing for good, even after it is shown. Raise only while visible, as the tooltip does on its first show.
-- Stacking follows creation order. Build what must sit on top last.
+- Stacking follows creation order, for labels as for rects. Build what must sit on top last.
+- `ONSCROLLWHEEL` fires dozens of times per scroll with deltas from 1 to 14, so scale the delta by pixels.
 - `ONRELEASE` fires as soon as the cursor leaves the pressed component, with the button still held. A drag keeps the pressed component under the cursor until release. A 30px hit area that follows the cursor loses fast moves; `src/dragdrop.lua` grows it into a transparent 160px square centred on the cursor, which holds the press even under components created after it.
 - A component hidden during its own press gets no `ONRELEASE`.
 - Hooks cannot tell mouse buttons apart, so a right click fires `ONCLICK` too. A destructive action needs a second step.
 - `Mouse.GetX` and `GetY` report physical pixels, twice the UI units on a Retina display. Convert with the ratio taken in a press hook, as `pressAt` in `src/draw.lua` does.
 - Plain components start with `enabled = false` and `clickthrough = true`. Hover still fires on them. Each clickable thing has one hit area with both flipped, drawn under its label.
 - Alpha 0 is not hidden. Treat a transparent component as still taking clicks.
-- `ui.Text` draws nothing until `font` is set. A `ui.InputField` draws no text without a `stylesheetID`, such as `id.StyleSheet.INPUT_SEARCHBOX_24PX`. Its `ONCONTENTCHANGED` fires on each keystroke, and again on Enter, Esc and focus loss, possibly after its popup has closed.
+- `ui.Text` draws nothing until `font` is set. A `ui.InputField` draws no text without a `stylesheetID`: `id.StyleSheet.INPUT_DEFAULT` draws a plain field and `INPUT_SEARCHBOX_24PX` a search box. No call gives a field focus, so it takes keys only once clicked. Its `ONCONTENTCHANGED` fires on each keystroke, and again on Enter, Esc and focus loss, possibly after its popup has closed.
 - Children of `TOPLEVEL_V2__GAME_AREA` draw under game windows such as the bank, so the HUD lives there. Children of `TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP` draw over everything, so the options window lives there. Both span the window.
 - A layer anchored with `SetPos(x, y, px, py)` reports its resolved position in `x` and `y`. `xyGlobal` holds absolute screen coordinates.
 - PersistentDB returns every number as a float, so convert with `math.tointeger` before indexing. A structured value of 400 entries of about 70 bytes saved and 800 failed, with the setter returning `false`, so check its result.
@@ -64,6 +65,12 @@ The client API is thinly documented, and these facts came from probing it in the
 - On the buff bars 284 and 291, the client sets each filled slot's icon `:0:0` and `:0:2` opaque several times a tick, so alpha 0 does not hold there. Hiding those two keeps the label counting and the slot filling, and the client shows them again only when it fills the slot. A hidden icon reads `visibleGlobal` false, so read a slot's visibility from its label `:0:1`.
 - A buff bar slot can show an item instead of a sprite: an overload's icon reads `spriteID` -1 with `associatedObjectID` set to the item. `src/adapter.lua` reads such a slot as minus the item id, and `draw.icon` shows it with `SetAssociatedObject`.
 - Moving a native interface off screen freezes it: its labels stop counting and new icons wait until it returns.
+- A layer clips its children: a child reaching past its edge draws only the part inside, which edit mode's overlays depend on. A click hook on a part-clipped child reports y from the child's own top, clipped part included. Whether a clipped part takes clicks is unconfirmed, so `src/appearancepage.lua` checks each click lands where its row shows.
+- A layer's `alpha` reads back but does not fade its children. Fade each component instead.
+- A gradient with a transparent end blends over a canvas's earlier elements, so a filled rect, a white-to-clear `AddGradientH` and a clear-to-black `AddGradientV` draw a shade square.
+- A label's shadow colour cannot be set: writing `shadowRGBA` or `shadowColour` raises. `isShadowed` works.
+- No game font draws the check mark U+2713; each draws `?`. Mark a chosen option by fill and ring instead.
+- `NOTO_SANS_11PT_BOLD_OUTLINE`, `_13PT_` and `_21PT_` draw white text with a dark outline that reads on white.
 - The global `os` is nil, so there is no `os.clock` for timing. The two root layers report the whole window in UI units, such as 1710 by 1041 on a Retina Mac.
 
 ## Moderation
