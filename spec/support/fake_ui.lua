@@ -106,6 +106,7 @@ _G.ui = {
   InputField = constructor,
   TextContentVisibilityMode = { VISIBLE = 0 },
   InputFieldFilterMode = { NONE = 0 },
+  InputFieldActionResult = { NONE = 0, CONTENT_CHANGE = 2, SUBMIT = 3, SUBMIT_ON_FOCUS_LOSS = 5 },
   Hook = setmetatable({}, { __index = function(_, name) return name end }),
   AlignMode = { TOPLEFT = 0, CENTRE = 1, BOTTOMRIGHT = 2 },
 }

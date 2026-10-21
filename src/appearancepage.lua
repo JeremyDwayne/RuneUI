@@ -260,28 +260,31 @@ function appearancepage.create(page, width, height, deps)
     return buttons
   end
 
-  -- A - value + stepper moving field by step from low to high, showing format(value).
-  local function stepperRow(label, field, step, low, high, format)
+  -- A - number + stepper moving field by 1 from low to high, its number typed. The number shown is the saved
+  -- value plus offset, so Text size reads in points.
+  local function stepperRow(label, field, low, high, offset)
     local row = settingRow(label)
     local by = (ROW_H - OPTION_H) // 2
-    local value = text(row.layer, FONTS.body, ui.AlignMode.CENTRE, rowRight - 92, 0, 64, ROW_H)
+    local function save(n)
+      if n ~= saved.appearance()[field] then choose(field, n) end
+    end
+    local value = draw.numberField(row.layer, rowRight - 92, (ROW_H - HEX_H) // 2, 56, HEX_H, low + offset,
+      high + offset, function(n) save(n - offset) end)
     local function move(delta)
       return function(_, y)
         if not shows(row, by + y) then return end
-        local next = saved.appearance()[field] + delta
-        if next >= low and next <= high then choose(field, next) end
+        save(math.max(low, math.min(high, saved.appearance()[field] + delta)))
       end
     end
-    wheel(draw.button(row.layer, "-", rowRight - 124, by, 28, OPTION_H, "dark", move(-step)).bg)
-    wheel(draw.button(row.layer, "+", rowRight - 28, by, 28, OPTION_H, "dark", move(step)).bg)
-    steppers[#steppers + 1] = function(appearance) set(value, "content", format(appearance[field])) end
+    wheel(draw.button(row.layer, "-", rowRight - 124, by, 28, OPTION_H, "dark", move(-1)).bg)
+    wheel(draw.button(row.layer, "+", rowRight - 28, by, 28, OPTION_H, "dark", move(1)).bg)
+    steppers[#steppers + 1] = function(appearance) value.show(appearance[field] + offset) end
   end
 
   heading("Text")
   local fonts = scrolledChoices("Font", style.FAMILIES, "font", 112)
   for _, family in ipairs(style.FAMILIES) do set(fonts[family.id].label, "font", id.Font[family.sizes[13]]) end
-  stepperRow("Text size", "textStep", 1, settings.TEXT_STEP_MIN, settings.TEXT_STEP_MAX,
-    function(step) return (style.ROLES.body + step) .. " pt" end)
+  stepperRow("Text size", "textStep", settings.TEXT_STEP_MIN, settings.TEXT_STEP_MAX, style.ROLES.body)
   scrolledChoices("Text edge", style.EDGES, "edge", 124)
   scrolledChoices("Text colour", style.TEXT_COLOURS, "textColour", 112)
 
@@ -425,11 +428,8 @@ function appearancepage.create(page, width, height, deps)
   scrolledChoices("Bar texture", TEXTURES, "texture", 112)
   scrolledChoices("Frame border", style.BORDERS, "border", 112)
   scrolledChoices("Lifepoints text", frames.LIFEPOINTS, "lifepoints", 118)
-  local px = function(n) return n .. " px" end
-  stepperRow("Frame width", "frameWidth", settings.FRAME_WIDTH.step, settings.FRAME_WIDTH.min,
-    settings.FRAME_WIDTH.max, px)
-  stepperRow("Frame height", "frameHeight", settings.FRAME_HEIGHT.step, settings.FRAME_HEIGHT.min,
-    settings.FRAME_HEIGHT.max, px)
+  stepperRow("Frame width", "frameWidth", settings.FRAME_WIDTH.min, settings.FRAME_WIDTH.max, 0)
+  stepperRow("Frame height", "frameHeight", settings.FRAME_HEIGHT.min, settings.FRAME_HEIGHT.max, 0)
 
   heading("Game interfaces")
   scrolledChoices("Default target panel", SHOW_HIDE, "hideTargetPanel", 90)

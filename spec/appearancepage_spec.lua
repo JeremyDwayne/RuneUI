@@ -27,6 +27,13 @@ local function label(content)
   return fake.find(function(_, d) return d.content == content end)
 end
 
+-- The player colour's hex field, the first field showing a #RRGGBB code.
+local function hexField()
+  return fake.find(function(c, d)
+    return fake.hasHook(c, "ONCONTENTCHANGED") and type(d.content) == "string" and d.content:sub(1, 1) == "#"
+  end)
+end
+
 -- The settings' viewport, content layer and the row holding the label reading content, shown or not.
 local function scrollParts(content)
   for _, c in ipairs(fake.created) do
@@ -67,7 +74,7 @@ describe("appearance page", function()
     assert.are.equal(5, copies)
     fake.press("+")
     assert.are.equal(1, saved.appearance().textStep)
-    assert.is_not_nil(label("14 pt"))
+    assert.is_not_nil(label("14"))
   end)
 
   it("scrolls by the wheel and stops with 32 px below the last row", function()
@@ -116,6 +123,24 @@ describe("appearance page", function()
     assert.are.equal("noto", saved.appearance().font)
   end)
 
+  it("saves a typed number once it is in range, and on Enter saves it clamped and shows what it saved", function()
+    local _, saved = open()
+    local field = fake.find(function(c, d) return fake.hasHook(c, "ONCONTENTCHANGED") and d.content == "13" end)
+    -- The client holds the typed text in the field before it reports it.
+    local function type_(reason, contents)
+      field.content = contents
+      fake.hook(field, "ONCONTENTCHANGED", ui.InputFieldActionResult[reason], contents)
+    end
+    type_("CONTENT_CHANGE", "1")
+    assert.are.equal(0, saved.appearance().textStep)
+    type_("CONTENT_CHANGE", "16")
+    assert.are.equal(3, saved.appearance().textStep)
+    type_("SUBMIT", "40")
+    assert.are.same({ 6, "19" }, { saved.appearance().textStep, field.content })
+    type_("SUBMIT", "big")
+    assert.are.same({ 6, "19" }, { saved.appearance().textStep, field.content })
+  end)
+
   -- A swatch's name draws over four outline copies, so its label is the fifth shown text reading it.
   local SWATCH_LABEL = 5
 
@@ -123,13 +148,13 @@ describe("appearance page", function()
     local _, saved = open()
     fake.press("Game green", SWATCH_LABEL)
     assert.are.equal("gameGreen", saved.appearance().playerColour)
-    local field = fake.find(function(c) return fake.hasHook(c, "ONCONTENTCHANGED") end)
+    local field = hexField()
     assert.are.equal("#2B8A1E", field.content)
   end)
 
   it("saves a valid typed hex colour and ignores an invalid one", function()
     local _, saved, refreshed = open()
-    local field = fake.find(function(c) return fake.hasHook(c, "ONCONTENTCHANGED") end)
+    local field = hexField()
     fake.hook(field, "ONCONTENTCHANGED", 0, "#12345")
     fake.hook(field, "ONCONTENTCHANGED", 0, "#12345G")
     assert.are.same({ "runeui", 0 }, { saved.appearance().playerColour, refreshed.count })

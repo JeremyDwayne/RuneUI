@@ -295,11 +295,9 @@ function view.targetFrame(root)
   return unitFrame(root, "target", false)
 end
 
-local BAR_WIDTH = 278
 local SPENDER_ROW = 8
 -- Spender rows stack upward from just above the bar, one per spender with stacks.
 local BAR_Y = 2 * (SPENDER_ROW + 2)
-local BAR_HEIGHT = 20
 local SPENDER_COLOURS = { souls = COLOURS.spender, necrosis = COLOURS.necrosis }
 -- Fill fraction at which the centred percent label sits entirely on the fill.
 local PERCENT_ON_FILL = 0.56
@@ -331,34 +329,33 @@ local function shadeMark(mark, passed)
   set(mark, "alpha", passed and MARK_DARK_ALPHA or MARK_LIGHT_ALPHA)
 end
 
--- 278 wide: up to two rows of spender blocks and the adrenaline bar with its percent and a bar mark at each of
--- its two markers.
+-- look.barWidth wide: up to two rows of spender blocks and a look.barHeight adrenaline bar with its percent and a
+-- bar mark at each of its two markers.
 function view.resourceBar(root)
-  local height = BAR_Y + BAR_HEIGHT
   local layer = ui.Layer.new(root)
-  layer:SetSize(BAR_WIDTH, height)
 
-  -- One canvas per spender row, redrawn only when its spender, count or max changes.
+  -- One canvas per spender row, redrawn only when its spender, count, max or width changes.
   local rows = {}
   for r = 1, #frames.SPENDERS do
-    local canvas = ui.Canvas.new(layer)
-    canvas:SetSize(BAR_WIDTH, SPENDER_ROW)
-    rows[r] = { canvas = canvas }
+    rows[r] = { canvas = ui.Canvas.new(layer) }
   end
 
-  rect(layer, COLOURS.border, 0, BAR_Y, BAR_WIDTH, BAR_HEIGHT)
-  rect(layer, COLOURS.track, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
-  local fill = draw.bar(layer, COLOURS.adrenaline, COLOURS.track, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
-  local markers = { barMark(layer, 0, BAR_Y + 1, BAR_HEIGHT - 2), barMark(layer, 0, BAR_Y + 1, BAR_HEIGHT - 2) }
-  local percent = draw.edgedText(layer, FONTS.body, ui.AlignMode.CENTRE, 0, BAR_Y + 1, BAR_WIDTH, BAR_HEIGHT - 2)
-  -- The look shown, whether it wants dark text once the fill passes the label, and the fill shown.
-  local shown, bright, fillShown = nil, false, 0
+  local border = rect(layer, COLOURS.border, 0, BAR_Y, 0, 0)
+  local track = rect(layer, COLOURS.track, 1, BAR_Y + 1, 0, 0)
+  local fill = draw.bar(layer, COLOURS.adrenaline, COLOURS.track, 1, BAR_Y + 1, 0, 0)
+  local markers = { barMark(layer, 0, BAR_Y + 1, 0), barMark(layer, 0, BAR_Y + 1, 0) }
+  local percent = draw.edgedText(layer, FONTS.body, ui.AlignMode.CENTRE, 0, BAR_Y + 1, 0, 0)
+  local bounds = { x = 0, y = 0, w = 0, h = 0 }
+  local bar = { layer = layer, bounds = bounds }
+  -- The look shown, whether it wants dark text once the fill passes the label, the fill shown, and the model
+  -- shown, redrawn after a resize.
+  local shown, bright, fillShown, last = nil, false, 0, nil
 
   -- Black-edged blocks, filled up to the spender's count.
   local function drawBlocks(canvas, spender)
     canvas:Clear()
     local edge = draw.opaque(COLOURS.border)
-    for i, span in ipairs(blockSpans(spender.max, BAR_WIDTH)) do
+    for i, span in ipairs(blockSpans(spender.max, bounds.w)) do
       local rgb = i <= spender.count and SPENDER_COLOURS[spender.key] or COLOURS.emptyBlock
       canvas:AddRectangle(span.x, 0, span.w, SPENDER_ROW, edge)
       canvas:AddRectangle(span.x + 1, 1, span.w - 2, SPENDER_ROW - 2, draw.opaque(rgb))
@@ -371,8 +368,8 @@ function view.resourceBar(root)
       set(row.canvas, "hidden", spender == nil)
       if spender ~= nil then
         pos(row.canvas, 0, BAR_Y - (#spenders - r + 1) * (SPENDER_ROW + 2))
-        if row.key ~= spender.key or row.count ~= spender.count or row.max ~= spender.max then
-          row.key, row.count, row.max = spender.key, spender.count, spender.max
+        if row.key ~= spender.key or row.count ~= spender.count or row.max ~= spender.max or row.w ~= bounds.w then
+          row.key, row.count, row.max, row.w = spender.key, spender.count, spender.max, bounds.w
           drawBlocks(row.canvas, spender)
         end
       end
@@ -384,32 +381,49 @@ function view.resourceBar(root)
   end
 
   local function update(model)
+    last = model
     set(layer, "hidden", model.hidden)
     if model.hidden then return end
+    local w = bounds.w
     fill.setFill(model.fill)
     set(percent, "content", model.text)
     fillShown = model.fill
     stylePercent()
     for i, marker in ipairs(model.markers) do
-      pos(markers[i], math.min(math.floor(marker.at * (BAR_WIDTH - 2)), BAR_WIDTH - 3) + 1, BAR_Y + 1)
+      pos(markers[i], math.min(math.floor(marker.at * (w - 2)), w - 3) + 1, BAR_Y + 1)
       shadeMark(markers[i], model.fill >= marker.at)
     end
     updateSpenders(model.spenders)
   end
 
-  local function setLook(look)
-    if look == shown then return false end
-    shown, bright = look, look.auto and style.dark(COLOURS.adrenaline)
-    fill.setTexture(look.texture)
-    stylePercent()
-    return false
+  local function resize(w, h)
+    local height = BAR_Y + h
+    bar.width, bar.height, bounds.w, bounds.h = w, height, w, height
+    draw.size(layer, w, height)
+    for _, row in ipairs(rows) do draw.size(row.canvas, w, SPENDER_ROW) end
+    draw.size(border, w, h)
+    draw.size(track, w - 2, h - 2)
+    fill.setBox(1, BAR_Y + 1, w - 2, h - 2)
+    for _, mark in ipairs(markers) do draw.size(mark, 1, h - 2) end
+    draw.size(percent, w, h - 2)
+    if last ~= nil then update(last) end
   end
 
-  setLook(DEFAULT_LOOK)
-  return {
-    layer = layer, update = update, setLook = setLook, width = BAR_WIDTH, height = height,
-    bounds = { x = 0, y = 0, w = BAR_WIDTH, h = height },
-  }
+  -- Restyles the bar for a src/style look, returning at once for the look it shows. Returns whether its bounds
+  -- changed.
+  function bar.setLook(look)
+    if look == shown then return false end
+    shown, bright = look, look.auto and style.dark(COLOURS.adrenaline)
+    local moved = bounds.w ~= look.barWidth or bounds.h ~= BAR_Y + look.barHeight
+    if moved then resize(look.barWidth, look.barHeight) end
+    fill.setTexture(look.texture)
+    stylePercent()
+    return moved
+  end
+
+  bar.update = update
+  bar.setLook(DEFAULT_LOOK)
+  return bar
 end
 
 local TILE_GAP = 2

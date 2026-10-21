@@ -59,10 +59,12 @@ settings.LAYOUT_VERSION = 2
 local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 -- Bar fills: one flat colour, or a gradient from top to bottom or across the bar.
 settings.TEXTURES = { "flat", "vertical", "horizontal" }
--- Points every HUD text role moves from its size, and unit frame sizes.
+-- Points every HUD text role moves from its size, unit frame sizes and adrenaline bar sizes.
 settings.TEXT_STEP_MIN, settings.TEXT_STEP_MAX = -3, 6
-settings.FRAME_WIDTH = { min = 180, max = 400, step = 10 }
-settings.FRAME_HEIGHT = { min = 30, max = 80, step = 5 }
+settings.FRAME_WIDTH = { min = 180, max = 400 }
+settings.FRAME_HEIGHT = { min = 30, max = 80 }
+settings.BAR_WIDTH = { min = 120, max = 500 }
+settings.BAR_HEIGHT = { min = 12, max = 40 }
 
 -- Combat styles a cooldown group keeps a separate ability list for, and the directions a group grows in.
 settings.STYLES = { "necromancy", "magic", "ranged", "melee" }
@@ -312,16 +314,16 @@ local function readMarkers(saved)
   return markers
 end
 
--- Whether value is a whole number from low to high, a multiple of step above low.
-local function inSteps(value, low, high, step)
+-- Whether value is a whole number from low to high.
+local function wholeIn(value, low, high)
   value = type(value) == "number" and whole(value)
-  return math.type(value) == "integer" and value >= low and value <= high and (value - low) % step == 0
+  return math.type(value) == "integer" and value >= low and value <= high
 end
 
 -- A saved frame colour: a src/style preset id or a 0xRRGGBB number.
 local function isColour(value)
   if type(value) == "string" then return styling.find(styling.PRESETS, value) ~= nil end
-  return inSteps(value, 0, 0xFFFFFF, 1)
+  return wholeIn(value, 0, 0xFFFFFF)
 end
 
 local function option(list)
@@ -337,8 +339,8 @@ local function oneOf(list)
   end
 end
 
-local function steps(low, high, step)
-  return function(value) return inSteps(value, low, high, step) end
+local function range(low, high)
+  return function(value) return wholeIn(value, low, high) end
 end
 
 local function isBoolean(value) return type(value) == "boolean" end
@@ -351,15 +353,17 @@ local APPEARANCE = {
   hideCastBar = { true, isBoolean },
   auraBars = { false, isBoolean },
   font = { "museo", option(styling.FAMILIES) },
-  textStep = { 0, steps(settings.TEXT_STEP_MIN, settings.TEXT_STEP_MAX, 1) },
+  textStep = { 0, range(settings.TEXT_STEP_MIN, settings.TEXT_STEP_MAX) },
   edge = { "shadow", option(styling.EDGES) },
   textColour = { "auto", option(styling.TEXT_COLOURS) },
   playerColour = { "runeui", isColour },
   targetColour = { "runeui", isColour },
   border = { "runeui", option(styling.BORDERS) },
   lifepoints = { "short", option(frames.LIFEPOINTS) },
-  frameWidth = { 250, steps(settings.FRAME_WIDTH.min, settings.FRAME_WIDTH.max, settings.FRAME_WIDTH.step) },
-  frameHeight = { 55, steps(settings.FRAME_HEIGHT.min, settings.FRAME_HEIGHT.max, settings.FRAME_HEIGHT.step) },
+  frameWidth = { 250, range(settings.FRAME_WIDTH.min, settings.FRAME_WIDTH.max) },
+  frameHeight = { 55, range(settings.FRAME_HEIGHT.min, settings.FRAME_HEIGHT.max) },
+  barWidth = { 278, range(settings.BAR_WIDTH.min, settings.BAR_WIDTH.max) },
+  barHeight = { 20, range(settings.BAR_HEIGHT.min, settings.BAR_HEIGHT.max) },
 }
 
 -- A saved appearance field's value, or its default when unknown or malformed.
@@ -684,7 +688,8 @@ function settings.load(store, windowHeight)
   end
 
   -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars, font, textStep, edge, textColour,
-  -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight }. The game's own cast bar is
+  -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight, barWidth, barHeight }. The game's own
+  -- cast bar is
   -- hidden until chosen otherwise, since RuneUI draws one; auraBars draws a draining bar under each aura icon.
   -- Read-only.
   function s.appearance()

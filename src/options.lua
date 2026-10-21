@@ -1,6 +1,6 @@
 -- The options window and its ribbon button: a sidebar of pages, a cooldown manager with combat style tabs, a
 -- group list with New group, and the chosen group's display settings and abilities with a "+" picker, drag to
--- swap or insert and a Remove menu; the src/buffspage Buffs page, marker steppers, appearance choices, the reset
+-- swap or insert and a Remove menu; the src/buffspage Buffs page, resource bar steppers, appearance choices, the reset
 -- dialog, and a footer toggle into src/editmode.
 local appearancepage = require("src/appearancepage")
 local buffspage = require("src/buffspage")
@@ -46,7 +46,6 @@ local PICKER_TAB_LIST = {
   { label = "Magic", style = "magic", width = 58 }, { label = "Ranged", style = "ranged", width = 66 },
   { label = "Melee", style = "melee", width = 58 },
 }
-local MARKER_STEP = 5
 
 local function indexOf(list, value)
   for i, v in ipairs(list) do
@@ -233,23 +232,28 @@ function options.create(root, deps)
     changed()
   end)
 
-  -- A row's - value + stepper changing field by delta; returns a function showing a group's value.
-  local function stepper(i, field, delta, suffix)
-    local value = text(page, FONTS.body, ui.AlignMode.CENTRE, detailRight - 92, rowY(i), 56, SETTING_H)
-    local function step(d)
+  -- A row's - number + stepper moving field by 1 from low to high, its number typed; returns a function showing
+  -- a group's value.
+  local function stepper(i, field, low, high)
+    local function choose(n)
       local group = saved.group(selected)
-      if group == nil then return end
-      saved.setGroup(selected, field, group[field] + d)
+      if group == nil or n == group[field] then return end
+      saved.setGroup(selected, field, n)
       changed()
     end
-    button(page, "-", detailRight - 124, rowY(i) + 9, 28, 28, "dark", function() step(-delta) end)
-    button(page, "+", detailRight - 28, rowY(i) + 9, 28, 28, "dark", function() step(delta) end)
-    return function(group) set(value, "content", group[field] .. suffix) end
+    local value = draw.numberField(page, detailRight - 92, rowY(i) + 11, 56, 24, low, high, choose)
+    local function step(d)
+      local group = saved.group(selected)
+      if group ~= nil then choose(math.max(low, math.min(high, group[field] + d))) end
+    end
+    button(page, "-", detailRight - 124, rowY(i) + 9, 28, 28, "dark", function() step(-1) end)
+    button(page, "+", detailRight - 28, rowY(i) + 9, 28, 28, "dark", function() step(1) end)
+    return function(group) value.show(group[field]) end
   end
   settingLabel(2, "Icon size")
-  local showSize = stepper(2, "size", 2, " px")
+  local showSize = stepper(2, "size", settings.SIZE_MIN, settings.SIZE_MAX)
   local perRowLabel = settingLabel(3, "Icons per row")
-  local showPerRow = stepper(3, "perRow", 1, "")
+  local showPerRow = stepper(3, "perRow", 1, settings.MAX_GROUP_KEYS)
 
   -- Rows of right-aligned draw.option buttons that save one display setting.
   local settingChoices = {}
@@ -639,23 +643,34 @@ function options.create(root, deps)
 
   -- Resource bar page ---------------------------------------------------------------------------------
 
-  local markerPage = pages.resource
-  local markerValues = {}
-  for i, entry in ipairs({ { id = "threshold", label = "Threshold" }, { id = "ultimate", label = "Ultimate" } }) do
+  -- Each row a - number + stepper from low to high reading value() and saving through save(n).
+  local resourcePage = pages.resource
+  local resourceRows = {}
+  local function resourceRow(i, label, low, high, value, save)
     local ry = 18 + (i - 1) * 50
-    rect(markerPage, i % 2 == 1 and COLOURS.row or COLOURS.rowAlt, 24, ry, PAGE_W - 48, 50)
-    local label = text(markerPage, FONTS.body, ui.AlignMode.TOPLEFT, 40, ry, 200, 50)
-    set(label, "content", entry.label .. " marker")
+    rect(resourcePage, i % 2 == 1 and COLOURS.row or COLOURS.rowAlt, 24, ry, PAGE_W - 48, 50)
+    set(text(resourcePage, FONTS.body, ui.AlignMode.TOPLEFT, 40, ry, 200, 50), "content", label)
     local right = PAGE_W - 40
-    local value = text(markerPage, FONTS.body, ui.AlignMode.CENTRE, right - 104, ry, 56, 50)
-    markerValues[entry.id] = value
-    local function step(delta)
-      saved.setMarker(entry.id, saved.markers()[entry.id] + delta)
-      set(value, "content", saved.markers()[entry.id] .. "%")
+    local field
+    local function choose(n)
+      if n == value() then return end
+      save(n)
+      field.show(value())
       deps.refresh()
     end
-    button(markerPage, "-", right - 136, ry + 11, 28, 28, "dark", function() step(-MARKER_STEP) end)
-    button(markerPage, "+", right - 44, ry + 11, 28, 28, "dark", function() step(MARKER_STEP) end)
+    field = draw.numberField(resourcePage, right - 104, ry + 13, 56, 24, low, high, choose)
+    button(resourcePage, "-", right - 136, ry + 11, 28, 28, "dark", function() choose(math.max(low, value() - 1)) end)
+    button(resourcePage, "+", right - 44, ry + 11, 28, 28, "dark", function() choose(math.min(high, value() + 1)) end)
+    resourceRows[#resourceRows + 1] = function() field.show(value()) end
+  end
+  for i, entry in ipairs({ { id = "threshold", label = "Threshold" }, { id = "ultimate", label = "Ultimate" } }) do
+    resourceRow(i, entry.label .. " marker", 0, 100, function() return saved.markers()[entry.id] end,
+      function(n) saved.setMarker(entry.id, n) end)
+  end
+  for i, entry in ipairs({ { field = "barWidth", label = "Bar width", range = settings.BAR_WIDTH },
+    { field = "barHeight", label = "Bar height", range = settings.BAR_HEIGHT } }) do
+    resourceRow(i + 2, entry.label, entry.range.min, entry.range.max,
+      function() return saved.appearance()[entry.field] end, function(n) saved.setAppearance(entry.field, n) end)
   end
 
   -- Appearance page ----------------------------------------------------------------------------------
@@ -753,7 +768,7 @@ function options.create(root, deps)
   button(window, "Done", WIDTH - 24 - 90, footerY + 12, 90, 32, "gold", closeWindow)
 
   function openWindow()
-    for id_, value in pairs(markerValues) do set(value, "content", saved.markers()[id_] .. "%") end
+    for _, show in ipairs(resourceRows) do show() end
     appearance.open()
     editStyle = tracker.style() or editStyle
     rebuildEditor()

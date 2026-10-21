@@ -488,6 +488,19 @@ describe("view", function()
     assert.are.equal(0, fake.writes)
   end)
 
+  it("resizes the adrenaline bar, placing its markers across the new width", function()
+    local elements = shownHud()
+    local bar = elements.resource
+    bar.update({ hidden = false, fill = 0.4, text = "40%", markers = { { at = 0.5 }, { at = 1 } }, spenders = {} })
+    assert.is_true(setLook(elements, look({ barWidth = 402, barHeight = 30 })))
+    assert.are.same({ 402, 50, 402, 50 }, { bar.layer.width, bar.layer.height, bar.bounds.w, bar.bounds.h })
+    local xs = {}
+    for _, c in ipairs(fake.created) do
+      if c.parent == bar.layer and c.width == 1 and c.height == 28 then xs[#xs + 1] = c.x end
+    end
+    assert.are.same({ 201, 400 }, xs)
+  end)
+
   it("draws Auto text dark over a bright fill only", function()
     local elements = shownHud()
     setLook(elements, look({ targetColour = 0xffea00 }))

@@ -157,7 +157,7 @@ end
 
 -- The look every element's setLook takes, from src/settings appearance and the worn weapon's combat style:
 -- { fonts = { [role] = font name }, outline, shadow, auto, text, player, target, texture, border, frameWidth,
--- frameHeight }. Build it only when one of them changes, as setLook skips a look it already shows.
+-- frameHeight, barWidth, barHeight }. Build it only when one of them changes, as setLook skips a look it already shows.
 function style.look(appearance, equippedStyle)
   local fonts = {}
   for role in pairs(style.ROLES) do fonts[role] = style.font(appearance.font, role, appearance.textStep) end
@@ -174,6 +174,8 @@ function style.look(appearance, equippedStyle)
     border = appearance.border,
     frameWidth = appearance.frameWidth,
     frameHeight = appearance.frameHeight,
+    barWidth = appearance.barWidth,
+    barHeight = appearance.barHeight,
   }
 end
 

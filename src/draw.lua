@@ -274,6 +274,38 @@ function draw.button(parent, label, x, y, w, h, fill, onClick)
   return { bg = bg, label = t, group = group }
 end
 
+-- A typed whole number from low to high in a w by h field at x, y. A keystroke leaving a number in range calls
+-- onChoose(n); Enter, Esc or focus loss calls it with the typed number clamped, then shows the chosen value
+-- again, so the field never keeps text it did not take. Returns { field, show(n) }.
+function draw.numberField(parent, x, y, w, h, low, high, onChoose)
+  local field = ui.InputField.new(parent)
+  draw.pos(field, x, y)
+  draw.size(field, w, h)
+  field:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, #tostring(high))
+  local sheet = id.StyleSheet.INPUT_SEARCHBOX_24PX
+  if sheet ~= nil then draw.set(field, "stylesheetID", sheet) end
+  local number = { field = field }
+  local shown
+
+  function number.show(n)
+    shown = n
+    draw.set(field, "content", tostring(n))
+  end
+
+  draw.on(field, "ONCONTENTCHANGED", function(_, reason, contents)
+    local n = math.tointeger(tonumber(contents:match("^%s*(%d+)%s*$")))
+    if reason == ui.InputFieldActionResult.CONTENT_CHANGE then
+      if n ~= nil and n >= low and n <= high then onChoose(n) end
+      return
+    end
+    if n ~= nil then onChoose(math.max(low, math.min(high, n))) end
+    if shown == nil then return end
+    writtenFor(field).content = nil
+    draw.set(field, "content", tostring(shown))
+  end)
+  return number
+end
+
 -- An options window choice button at x, y sized w by h: dark with a bronze edge, or once draw.showOption marks
 -- it chosen, gold with dark text and a 2px white ring outside its box. onClick takes the click's x and y inside
 -- the button. Returns { ring, bg, face, label }; bg is the hit area, which onClick and hover hang from.
