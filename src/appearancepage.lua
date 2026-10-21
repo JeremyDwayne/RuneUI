@@ -21,6 +21,12 @@ local BACKDROPS = {
 local ROW_H, HEADING_H, END_SPACE, MARGIN = 50, 40, 32, 16
 local SCROLLBAR_W, WHEEL_STEP = 10, 40
 local OPTION_H = 28
+-- Colour rows: two lines of swatches and the hex field, and the picker's shade square and hue strip under them.
+local SWATCH_W, SWATCH_GAP, HEX_W, HEX_H = 84, 4, 86, 24
+local COLOUR_ROW_H = 10 + 2 * OPTION_H + 8 + 10
+local PICKER_W, PICKER_H, HUE_W, PICKER_SPACE = 180, 110, 18, 12
+-- The hue strip's colours from top to bottom, at hues 360 down to 0.
+local HUE_STOPS = { 0xFF0000FF, 0xFF00FFFF, 0x0000FFFF, 0x00FFFFFF, 0x00FF00FF, 0xFFFF00FF, 0xFF0000FF }
 
 -- Sample models the preview draws: tiles with keybinds on light and dark icons, one cooling, an aura with its
 -- timer, and the two unit frames.
@@ -76,9 +82,10 @@ function appearancepage.create(page, width, height, deps)
     deps.refresh()
   end
 
-  -- A row's background, which takes clicks, and its label on parent at x, y, w wide. Returns the background.
-  local function rowBox(parent, x, y, w, label, shade)
-    local bg = hitArea(rect(parent, shade and COLOURS.rowAlt or COLOURS.row, x, y, w, ROW_H))
+  -- A row's background, which takes clicks, and its label on parent at x, y, w wide and h tall, ROW_H when nil.
+  -- Returns the background.
+  local function rowBox(parent, x, y, w, label, shade, h)
+    local bg = hitArea(rect(parent, shade and COLOURS.rowAlt or COLOURS.row, x, y, w, h or ROW_H))
     local t = text(parent, FONTS.body, ui.AlignMode.TOPLEFT, x + 16, y, 200, ROW_H)
     set(t, "content", label)
     return bg
@@ -133,8 +140,8 @@ function appearancepage.create(page, width, height, deps)
     end)
   end
 
-  local function drawPreview(appearance)
-    view.setLook(previewElements, style.look(appearance, deps.tracker.style()))
+  local function drawPreview(look, appearance)
+    view.setLook(previewElements, look)
     tiles.update(SAMPLE_TILES, 0)
     aura.update(SAMPLE_AURAS, false)
     player.update(frames.player(SAMPLE_PLAYER, appearance.lifepoints))
@@ -159,7 +166,7 @@ function appearancepage.create(page, width, height, deps)
   local rowRight = MARGIN + rowW - 12
   local track = hitArea(rect(viewport, COLOURS.sidebar, width - SCROLLBAR_W - 4, 0, SCROLLBAR_W, viewH))
   local thumb = rect(viewport, COLOURS.bronze, width - SCROLLBAR_W - 3, 0, SCROLLBAR_W - 2, 0)
-  -- Rows by top: { layer, y, h }, the content's height and how far it is scrolled.
+  -- Rows from the top: { layer, y, h }, the content's height and how far it is scrolled.
   local rows, contentH, scroll = {}, 0, 0
 
   local function maxScroll() return math.max(0, contentH - viewH) end
@@ -190,14 +197,25 @@ function appearancepage.create(page, width, height, deps)
     if y < ty then scrollTo(scroll - viewH) elseif y > ty + th then scrollTo(scroll + viewH) end
   end)
 
-  -- A layer in the content at its current end, h tall, which hides once scrolled wholly out of view.
+  -- A layer at the content's end, h tall, which hides once scrolled wholly out of view. relayout places it.
   local function addRow(h)
-    local row = { layer = ui.Layer.new(content), y = contentH, h = h }
-    draw.pos(row.layer, 0, row.y)
-    draw.size(row.layer, width, h)
+    local row = { layer = ui.Layer.new(content), h = h }
     rows[#rows + 1] = row
-    contentH = contentH + h
     return row
+  end
+
+  -- Stacks the rows at their heights, with END_SPACE below the last, and keeps the scroll in range.
+  local function relayout()
+    local y = 0
+    for _, row in ipairs(rows) do
+      row.y = y
+      draw.pos(row.layer, 0, y)
+      draw.size(row.layer, width, row.h)
+      y = y + row.h
+    end
+    contentH = y + END_SPACE
+    draw.size(content, width, contentH)
+    scrollTo(scroll)
   end
 
   -- Whether a click at y inside row's layer lands where the viewport shows it.
@@ -216,10 +234,11 @@ function appearancepage.create(page, width, height, deps)
     shade = false
   end
 
-  -- A settings row with its label; its background takes the wheel.
-  local function settingRow(label)
-    local row = addRow(ROW_H)
-    wheel(rowBox(row.layer, MARGIN, 0, rowW, label, shade))
+  -- A settings row with its label, h tall or ROW_H; its background, row.bg, takes the wheel.
+  local function settingRow(label, h)
+    local row = addRow(h or ROW_H)
+    row.bg = rowBox(row.layer, MARGIN, 0, rowW, label, shade, h)
+    wheel(row.bg)
     shade = not shade
     return row
   end
@@ -256,7 +275,143 @@ function appearancepage.create(page, width, height, deps)
   scrolledChoices("Text edge", style.EDGES, "edge", 124)
   scrolledChoices("Text colour", style.TEXT_COLOURS, "textColour", 112)
 
+  -- A preset swatch on parent at x, y in its colour with its name on it, a white ring when chosen.
+  local function swatch(parent, x, y, label, onClick)
+    local sw = {
+      ring = rect(parent, COLOURS.ring, x - 2, y - 2, SWATCH_W + 4, OPTION_H + 4),
+      bg = hitArea(rect(parent, COLOURS.border, x, y, SWATCH_W, OPTION_H)),
+      label = draw.edgedText(parent, FONTS.small, ui.AlignMode.CENTRE, x, y, SWATCH_W, OPTION_H),
+    }
+    set(sw.label, "content", label)
+    set(sw.label, "isShadowed", false)
+    draw.setEdge(sw.label, COLOURS.border)
+    on(sw.bg, "ONCLICK", function(_, _, cy) onClick(y + cy) end)
+    wheel(sw.bg)
+    return sw
+  end
+
+  -- Each colour row's redraw, given the appearance.
+  local colourRows = {}
+
+  -- A frame colour row choosing field for frame, "player" or "target": a swatch per src/style preset, Custom,
+  -- and a hex field taking "#RRGGBB". Custom opens a shade square and hue strip under them, built on first open.
+  local function colourRow(label, field, frame)
+    local row = settingRow(label, COLOUR_ROW_H)
+    local function allowed(y) return shows(row, y) end
+    local lineY = { 10, 10 + OPTION_H + 8 }
+    local swatches, perLine = {}, 5
+    for i, preset in ipairs(style.PRESETS) do
+      local line, slot = (i - 1) // perLine + 1, (i - 1) % perLine
+      local x = rowRight - perLine * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP + slot * (SWATCH_W + SWATCH_GAP)
+      swatches[preset.id] = swatch(row.layer, x, lineY[line], preset.label, function(y)
+        if allowed(y) then choose(field, preset.id) end
+      end)
+    end
+    local customX = rowRight - 2 * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP
+    local hexX = rowRight - HEX_W
+    local hex = ui.InputField.new(row.layer)
+    draw.pos(hex, hexX, lineY[2] + (OPTION_H - HEX_H) // 2)
+    draw.size(hex, HEX_W, HEX_H)
+    hex:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, 7)
+    if id.StyleSheet.INPUT_SEARCHBOX_24PX ~= nil then set(hex, "stylesheetID", id.StyleSheet.INPUT_SEARCHBOX_24PX) end
+    -- The field also reports its contents on Enter, Esc and focus loss, so an unchanged colour is skipped.
+    on(hex, "ONCONTENTCHANGED", function(_, _, contents)
+      local rgb = style.parseHex(contents)
+      if rgb ~= nil and rgb ~= saved.appearance()[field] then choose(field, rgb) end
+    end)
+
+    -- The picker, built on first open: { square, hue, mark, hueMark, hue value }.
+    local picker, open = nil, false
+    local pickerY = COLOUR_ROW_H
+    local squareX = rowRight - PICKER_W - HUE_W - 8
+
+    local function paintSquare(hue)
+      picker.square:Clear()
+      picker.square:AddRectangle(0, 0, PICKER_W, PICKER_H, draw.opaque(style.rgb(hue, 1, 1)))
+      picker.square:AddGradientH(0, 0, PICKER_W, PICKER_H, 0xFFFFFFFF, 0xFFFFFF00)
+      picker.square:AddGradientV(0, 0, PICKER_W, PICKER_H, 0x00000000, 0x000000FF)
+    end
+
+    local function showPicker(rgb)
+      local h, sat, v = style.hsv(rgb)
+      if sat == 0 or v == 0 then h = picker.hueValue end
+      if h ~= picker.painted then
+        picker.painted = h
+        paintSquare(h)
+      end
+      picker.hueValue = h
+      draw.pos(picker.mark, squareX + math.floor(sat * PICKER_W) - 3, pickerY + math.floor((1 - v) * PICKER_H) - 3)
+      draw.pos(picker.hueMark, squareX + PICKER_W + 6, pickerY + math.floor((1 - h / 360) * PICKER_H) - 2)
+    end
+
+    -- Saves the colour picked at x, y on the shade square, or at y on the hue strip when onHue.
+    local function pick(x, y, onHue)
+      local _, sat, v = style.hsv(colourRows[field].rgb)
+      local h, fy = picker.hueValue, math.max(0, math.min(1, y / PICKER_H))
+      if onHue then
+        h = (1 - fy) * 360 % 360
+      else
+        sat, v = math.max(0, math.min(1, x / PICKER_W)), 1 - fy
+      end
+      picker.hueValue = h
+      choose(field, style.rgb(h, sat, v))
+    end
+
+    local function build()
+      picker = { hueValue = 0 }
+      picker.square = hitArea(ui.Canvas.new(row.layer))
+      draw.pos(picker.square, squareX, pickerY)
+      draw.size(picker.square, PICKER_W, PICKER_H)
+      picker.hue = hitArea(ui.Canvas.new(row.layer))
+      draw.pos(picker.hue, squareX + PICKER_W + 8, pickerY)
+      draw.size(picker.hue, HUE_W, PICKER_H)
+      local segment = PICKER_H / (#HUE_STOPS - 1)
+      for i = 1, #HUE_STOPS - 1 do
+        local top = math.floor((i - 1) * segment)
+        picker.hue:AddGradientV(0, top, HUE_W, math.floor(i * segment) - top, HUE_STOPS[i], HUE_STOPS[i + 1])
+      end
+      picker.mark = rect(row.layer, COLOURS.ring, 0, 0, 6, 6)
+      picker.hueMark = rect(row.layer, COLOURS.ring, 0, 0, HUE_W + 4, 4)
+      for _, part in ipairs({ picker.square, picker.hue }) do wheel(part) end
+      on(picker.square, "ONCLICK", function(_, x, y)
+        if allowed(pickerY + y) then pick(x, y, false) end
+      end)
+      on(picker.hue, "ONCLICK", function(_, x, y)
+        if allowed(pickerY + y) then pick(x, y, true) end
+      end)
+    end
+
+    local custom = draw.option(row.layer, "Custom", customX, lineY[2], SWATCH_W, OPTION_H, function(_, y)
+      if not allowed(lineY[2] + y) then return end
+      open = not open
+      if open and picker == nil then build() end
+      draw.hideAll({ picker.square, picker.hue, picker.mark, picker.hueMark }, not open)
+      row.h = COLOUR_ROW_H + (open and PICKER_H + PICKER_SPACE or 0)
+      draw.size(row.bg, rowW, row.h)
+      relayout()
+      if open then showPicker(colourRows[field].rgb) end
+    end)
+    wheel(custom.bg)
+
+    colourRows[field] = { draw = function(look, appearance)
+      local rgb = look[frame]
+      colourRows[field].rgb = rgb
+      local chosen = appearance[field]
+      for presetID, sw in pairs(swatches) do
+        set(sw.bg, "rgb", presetID == "runeui" and style.FRAME_COLOURS[frame]
+          or presetID == "equipped" and (style.STYLE_COLOURS[deps.tracker.style()] or style.FRAME_COLOURS[frame])
+          or style.find(style.PRESETS, presetID).rgb)
+        set(sw.ring, "hidden", presetID ~= chosen)
+      end
+      draw.showOption(custom, type(chosen) == "number")
+      if style.parseHex(hex.content) ~= rgb then hex.content = style.formatHex(rgb) end
+      if open then showPicker(rgb) end
+    end }
+  end
+
   heading("Unit frames")
+  colourRow("Player colour", "playerColour", "player")
+  colourRow("Target colour", "targetColour", "target")
   scrolledChoices("Bar texture", TEXTURES, "texture", 112)
   scrolledChoices("Frame border", style.BORDERS, "border", 112)
   scrolledChoices("Lifepoints text", frames.LIFEPOINTS, "lifepoints", 118)
@@ -270,11 +425,13 @@ function appearancepage.create(page, width, height, deps)
   heading("Game interfaces")
   scrolledChoices("Default target panel", SHOW_HIDE, "hideTargetPanel", 90)
   scrolledChoices("Game cast bar", SHOW_HIDE, "hideCastBar", 90)
-  contentH = contentH + END_SPACE
-  draw.size(content, width, contentH)
+  relayout()
 
   function redraw()
-    drawPreview(saved.appearance())
+    local appearance = saved.appearance()
+    local look = style.look(appearance, deps.tracker.style())
+    drawPreview(look, appearance)
+    for _, row in pairs(colourRows) do row.draw(look, appearance) end
     showChoices()
   end
 

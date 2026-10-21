@@ -72,7 +72,7 @@ describe("options", function()
       rows[#rows + 1] = fake.find(function(_, d) return d.content == label end).y
     end
     for i = 2, #rows do assert.is_true(rows[i] > rows[i - 1]) end
-    assert.is_true(shows("Bar texture"))
+    assert.is_true(shows("Font"))
     assert.is_false(shows("New group"))
   end)
 
