@@ -8,6 +8,8 @@ auralists.TARGET_DEFAULTS = {
   [30098] = true, -- Bloated
   [30212] = true, -- Haunted
   [14771] = true, -- Smoke Cloud
+  [14395] = true, -- Vulnerability
+  [14371] = true, -- Enfeeble
   [21239] = true, -- Dismember
   [21362] = true, [14213] = true, -- Slaughter
   [21296] = true, [14217] = true, -- Massacre
