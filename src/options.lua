@@ -266,6 +266,8 @@ function options.create(root, deps)
       set(b.label, "content", option.label)
       on(b.bg, "ONCLICK", function()
         if saved.group(selected) == nil then return end
+        -- Switching lists is an edit, so the automatically filled lists are kept for switching back.
+        if field == "shared" then adopt() end
         saved.setGroup(selected, field, option.value)
         changed()
       end)
