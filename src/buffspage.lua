@@ -136,7 +136,7 @@ function buffspage.create(page, width, height, deps)
   function redraw()
     if drag ~= nil and drag.dragging() then return end
     local choices = { target = saved.tracked("target"), player = saved.tracked("player") }
-    local groups = auralists.groups(saved.auras(), choices)
+    local groups = auralists.groups(saved.auras(), choices, {})
     local current = nil
     for _, def in ipairs(TABS) do
       local active = def.id == tab
