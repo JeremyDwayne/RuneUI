@@ -5,7 +5,8 @@ local function asphyxiate(structID)
   if structID == CHOKE then return { name = "Asphyxiate", icon = 14660 } end
 end
 
--- Starts Asphyxiate's channel on server ticks 227269 to 227275, 3 iterations 2 ticks apart, as the game sets it.
+-- Starts Asphyxiate's channel on server ticks 227269 to 227275, 3 iterations 2 ticks apart, as the game sets it
+-- right after the server tick of START.
 local function startAsphyxiate(tracker)
   tracker.onVar("COMBATV2_CHANNEL_END_REASON", 1, -1)
   tracker.onVar("COMBATV2_CHANNEL_ABILITY_ITERATIONS", 2, 3)
@@ -17,6 +18,7 @@ end
 describe("channel.tracker", function()
   it("shows nothing before a channel starts", function()
     local tracker = channel.tracker()
+    tracker.onTick()
     tracker.read(asphyxiate)
     assert.is_nil(tracker.model())
   end)
@@ -26,10 +28,17 @@ describe("channel.tracker", function()
       local tracker = channel.tracker()
       startAsphyxiate(tracker)
       tracker.read(asphyxiate)
-      local expected = { start = 227269, name = "Asphyxiate", icon = 14660, duration = 4.2 }
+      local expected = { start = 227269, name = "Asphyxiate", icon = 14660, duration = 4.2, ticksLeft = 7 }
       expected.hits = { 0, 1.2, 2.4, 3.6 }
       assert.are.same(expected, tracker.model())
     end)
+
+  it("counts the ticks left down on each server tick after START, as the game's label steps", function()
+    local tracker = channel.tracker()
+    startAsphyxiate(tracker)
+    tracker.onTick()
+    assert.are.equal(6, tracker.model().ticksLeft)
+  end)
 
   it("reports a change once after channel vars change, and not after other vars", function()
     local tracker = channel.tracker()
@@ -75,11 +84,21 @@ describe("channel.tracker", function()
     assert.are.equal("Asphyxiate", tracker.model().name)
   end)
 
-  it("ends when the game marks the channel finished", function()
+  it("keeps a finished channel until its last tick passes, as the game's cast bar shows 0.6s on", function()
     local tracker = channel.tracker()
     startAsphyxiate(tracker)
-    tracker.read(asphyxiate)
+    for _ = 1, 6 do tracker.onTick() end
     tracker.onVar("COMBATV2_CHANNEL_END_REASON", -1, 1)
+    assert.are.equal(1, tracker.model().ticksLeft)
+    tracker.onTick()
+    assert.is_nil(tracker.model())
+  end)
+
+  it("ends a cancelled channel at once", function()
+    local tracker = channel.tracker()
+    startAsphyxiate(tracker)
+    tracker.onTick()
+    tracker.onVar("COMBATV2_CHANNEL_END_REASON", -1, 2)
     assert.is_nil(tracker.model())
   end)
 end)

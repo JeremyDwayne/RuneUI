@@ -33,9 +33,10 @@ local function hud()
   return elements
 end
 
--- The src/channel model of Asphyxiate with seconds left.
-local function asphyxiate(start)
-  return { start = start or 227269, name = "Asphyxiate", icon = 14660, duration = 4.2, hits = { 0, 1.2, 2.4, 3.6 } }
+-- The src/channel model of Asphyxiate, 7 ticks long, with ticksLeft of them left.
+local function asphyxiate(start, ticksLeft)
+  return { start = start or 227269, name = "Asphyxiate", icon = 14660, duration = 4.2, ticksLeft = ticksLeft or 7,
+    hits = { 0, 1.2, 2.4, 3.6 } }
 end
 
 -- Shown 1px bar marks, as tall as the cast bar's fill unless height is given: { dark ones over the fill, light
@@ -255,16 +256,21 @@ describe("view", function()
     assert.are.same({ x = 0, y = 0, w = 278, h = 22 }, bar.bounds)
   end)
 
-  it("counts the channel down each step without restarting it on update, and ends it at 0", function()
+  it("fills each step up to the next tick, steps its time with the ticks as the game does, and ends at 0", function()
     local bar = view.castBar(fake.component())
     bar.update(asphyxiate())
     local fill = fake.find(function(_, d) return d.rgb == draw.COLOURS.cast end)
     local width = fill.width
     bar.step(0.3)
     bar.update(asphyxiate())
-    assert.is_not_nil(fake.find(function(_, d) return d.content == "3.9s" end))
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "4.2s" end))
     assert.is_true(fill.width > width)
-    bar.step(4)
+    bar.update(asphyxiate(nil, 5))
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "3s" end))
+    bar.step(5)
+    assert.is_false(bar.layer.hidden)
+    bar.update(asphyxiate(nil, 1))
+    bar.step(0.7)
     assert.is_true(bar.layer.hidden)
     bar.update(asphyxiate())
     assert.is_true(bar.layer.hidden)
@@ -276,7 +282,7 @@ describe("view", function()
     local bar = view.castBar(fake.component())
     bar.update(asphyxiate())
     assert.are.same({ 0, 3 }, marks())
-    bar.step(1.3)
+    bar.update(asphyxiate(nil, 5))
     assert.are.same({ 1, 2 }, marks())
     fake.writes = 0
     bar.step(0.02)

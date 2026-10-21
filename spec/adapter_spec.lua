@@ -88,6 +88,27 @@ describe("adapter.hideTargetPanel", function()
   end)
 end)
 
+-- Interface 764 as the client builds it: the root, the time label :5 and the spark's glow :19.
+local function loadCastBar()
+  local bar = { [0] = { alpha = 1 }, [5] = { alpha = 1 }, [19] = { alpha = 1, hidden = false } }
+  _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID, categoryID)
+    if interfaceID == 764 and categoryID == nil then return bar[staticID] end
+  end } }
+  return bar
+end
+
+describe("adapter.hideCastBar", function()
+  it("hides the spark's glow, whose alpha the client animates, and restores it", function()
+    local bar = loadCastBar()
+    adapter.hideCastBar(true)
+    bar[19].alpha = 1
+    adapter.keepCastBarHidden()
+    assert.are.same({ 0, true }, { bar[0].alpha, bar[19].hidden })
+    adapter.hideCastBar(false)
+    assert.are.same({ 1, false }, { bar[0].alpha, bar[19].hidden })
+  end)
+end)
+
 describe("adapter.targetReads", function()
   it("lists only the debuff slots the panel shows, since expired slots keep their icon while invisible", function()
     _G.var = { VarPlayer = { NPCTARGET = { value = 25126 } }, VarClient = {} }

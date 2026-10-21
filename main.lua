@@ -121,6 +121,7 @@ optionsWindow = options.create(top, {
 
 Event.ServerLogic.Subscribe("refresh", function()
   logicTicks = 0
+  channelTracker.onTick()
   channelTracker.read(adapter.iconStruct)
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then saved.learn(learned.key, learned.name, learned.icon) end

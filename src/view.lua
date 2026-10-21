@@ -490,11 +490,19 @@ local CAST_WIDTH, CAST_HEIGHT, CAST_ICON = 278, 22, 20
 local MAX_HITS = 12
 local NO_HITS = {}
 
+-- Ticks left as the game's cast bar writes them: "4.2s", "3s".
+local function castSeconds(ticks)
+  local tenths = ticks * 6
+  if tenths % 10 == 0 then return (tenths // 10) .. "s" end
+  return string.format("%d.%ds", tenths // 10, tenths % 10)
+end
+
 -- 278x22, as wide as the resource bar: the channelled ability's icon, its name, and its time left as "1.2s" over
 -- a fill of the time spent, with a bar mark at each hit that lands inside the bar rather than at its ends.
--- update takes a src/channel model, or nil to hide the bar while
--- keeping its bounds, so anchored elements stay put. A model with a new start begins the countdown at its
--- duration. step(seconds) counts the shown channel down and hides it at 0, and does nothing between channels.
+-- update takes a src/channel model, or nil to hide the bar while keeping its bounds, so anchored elements stay
+-- put. The time steps with the model's ticks left, as the game's label does, and each new count sets the fill to
+-- that tick. step(seconds) moves the fill on smoothly up to the next tick, hides the bar once its last tick runs
+-- out, and does nothing between channels.
 function view.castBar(root)
   local layer = ui.Layer.new(root)
   layer:SetSize(CAST_WIDTH, CAST_HEIGHT)
@@ -515,13 +523,15 @@ function view.castBar(root)
   local name = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, barX + 5, 1, 180, CAST_HEIGHT - 2)
   local time = text(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, CAST_WIDTH - 78, 1, 72, CAST_HEIGHT - 2)
   set(layer, "hidden", true)
-  -- The shown channel's model and seconds left, nil once it ends, and the start of the latest channel shown.
-  local current, left, shownStart, shownTenths = nil, nil, nil, nil
-  -- Seconds into the channel of each shown mark, the hits they were placed for, and how many the fill has passed.
-  local markAt, placedFor, placed, passedShown = {}, nil, 0, nil
+  -- The shown channel's model and seconds left, nil once it ends, the start of the latest channel shown and the
+  -- ticks left its label shows.
+  local current, left, shownStart, shownTicks = nil, nil, nil, nil
+  -- Seconds into the channel of each shown mark, the start and hit count they were placed for, and how many the
+  -- fill has passed.
+  local markAt, placedFor, placedHits, placed, passedShown = {}, nil, nil, 0, nil
 
   local function placeMarks(model)
-    placedFor, placed, passedShown = model.hits, 0, nil
+    placedFor, placedHits, placed, passedShown = model.start, model.hits and #model.hits, 0, nil
     for _, at in ipairs(model.hits or NO_HITS) do
       if at > 0 and at < model.duration and placed < MAX_HITS then
         placed = placed + 1
@@ -543,20 +553,19 @@ function view.castBar(root)
     for i = 1, placed do shadeMark(marks[i], i <= passed) end
   end
 
-  -- Fills the bar to the share of the channel spent, shades the marks it passed and shows remaining seconds to a
-  -- tenth, rounded up, formatting the label only when its tenth changes.
+  -- Fills the bar to the share of the channel spent and shades the marks it passed.
   local function show(remaining)
     fill.setFill(1 - remaining / current.duration)
     shadeMarks(current.duration - remaining)
-    local tenths = math.ceil(remaining * 10 - 1e-6)
-    if tenths == shownTenths then return end
-    shownTenths = tenths
-    set(time, "content", string.format("%.1fs", tenths / 10))
   end
 
   local function update(model)
     if model ~= nil and model.start ~= shownStart then
-      shownStart, left = model.start, model.duration
+      shownStart, left, shownTicks = model.start, model.duration, nil
+    end
+    if model ~= nil and left ~= nil and model.ticksLeft ~= shownTicks then
+      shownTicks, left = model.ticksLeft, model.ticksLeft * 6 / 10
+      set(time, "content", castSeconds(shownTicks))
     end
     current = left ~= nil and model or nil
     set(layer, "hidden", current == nil)
@@ -568,13 +577,13 @@ function view.castBar(root)
     set(icon, "hidden", model.icon == nil)
     if model.icon ~= nil then set(icon, "sprite", model.icon) end
     set(name, "content", model.name or "")
-    if model.hits ~= placedFor then placeMarks(model) end
+    if model.start ~= placedFor or (model.hits and #model.hits) ~= placedHits then placeMarks(model) end
     show(left)
   end
 
   local function step(seconds)
     if current == nil then return end
-    left = left - seconds
+    left = math.max(left - seconds, (shownTicks - 1) * 6 / 10)
     if left > 0 then
       show(left)
     else
