@@ -12,8 +12,9 @@ end
 
 -- The options window over a player frame and a major group, with groups filled from src/presets, after
 -- Sunshine, Soul Sap and then Wild Magic fired, so magic is the current style unless mainhand gives the worn
--- weapon's style. Opened from the ribbon on the Major group. Returns the settings.
-local function openWindow(mainhand)
+-- weapon's style. Opened from the ribbon, then on the Cooldown manager's Major group unless page names another
+-- menu row to stay on. Returns the settings.
+local function openWindow(mainhand, page)
   local root = fake.component()
   local tracker = cooldowns.tracker()
   if mainhand ~= nil then tracker.onVar("COMBATV2_MAINHAND_STYLE", nil, mainhand) end
@@ -31,6 +32,7 @@ local function openWindow(mainhand)
   options.create(root, { saved = saved, tracker = tracker, elements = elements, view = view, refresh = function() end })
   fake.fire("ContentLayerReady", { component = fake.component() })
   fake.press("Open RuneUI options")
+  fake.press(page or "Cooldown manager")
   return saved
 end
 
@@ -62,6 +64,17 @@ end
 
 describe("options", function()
   before_each(fake.reset)
+
+  it("lists Appearance first in the menu and opens on it", function()
+    openWindow(nil, "Appearance")
+    local rows = {}
+    for _, label in ipairs({ "Appearance", "Cooldown manager", "Buffs", "Resource bar" }) do
+      rows[#rows + 1] = fake.find(function(_, d) return d.content == label end).y
+    end
+    for i = 2, #rows do assert.is_true(rows[i] > rows[i - 1]) end
+    assert.is_true(shows("Bar texture"))
+    assert.is_false(shows("New group"))
+  end)
 
   it("cancels a tile drag on Esc, restoring the tile and leaving the logic tick idle", function()
     openWindow()

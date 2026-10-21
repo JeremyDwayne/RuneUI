@@ -28,7 +28,7 @@ draw.COLOURS = {
   tooltipEdge = 0x3a3632,
   highlight = 0xffffff,
   debuff = 0xff8a1f,
-  -- Options window palette: warm near-black panels and a teal accent.
+  -- Edit mode and tooltip palette: warm near-black panels and a teal accent.
   panel = 0x110f0c,
   sidebar = 0x0b0a08,
   popup = 0x1a1816,
@@ -43,6 +43,15 @@ draw.COLOURS = {
   -- Edit mode: anchored buttons and the hovered anchor spot, and the other spots' edges.
   chip = 0xdfe4ea,
   spotEdge = 0x6b645c,
+}
+
+-- Options window palette: black panels, parchment text, and gold for what is chosen, with a white ring and dark
+-- text. Its keys name the same roles as draw.COLOURS, so window code reads one palette or the other.
+draw.WINDOW = {
+  border = 0x000000, edge = 0x5a4b33, panel = 0x0c0b09, sidebar = 0x000000, row = 0x17140f, rowAlt = 0x201c16,
+  line = 0x3a3326, popup = 0x17140f, button = 0x2b261f, buttonHover = 0x3d362c, bronze = 0x7a6a4c,
+  accent = 0xf2c66d, accentHover = 0xf7d891, accentText = 0x140e03, ring = 0xffffff, text = 0xf4ead2,
+  mutedText = 0xe0d3b2, dimText = 0xe0d3b2, darkText = 0x140e03, highlight = 0xffffff, editorTile = 0x2a2620,
 }
 
 local warned = {}
@@ -197,6 +206,13 @@ function draw.setEdge(label, rgb)
   end
 end
 
+-- draw.text in the options window's parchment.
+function draw.windowText(parent, font, horizontal, x, y, width, height)
+  local t = draw.text(parent, font, horizontal, x, y, width, height)
+  draw.set(t, "rgb", draw.WINDOW.text)
+  return t
+end
+
 -- Makes c take clicks and stop them, like a button: plain components start enabled = false and
 -- clickthrough = true, so a click reaches everything beneath and the game world. Each clickable thing has
 -- one hit area at the bottom; components drawn over it keep the defaults and pass clicks down to it.
@@ -225,29 +241,72 @@ function draw.cursor()
   return mx / scale, my / scale
 end
 
--- Button fills: normal and hover colours, and dark text for the bright ones.
+-- Button fills: normal and hover colours, dark text for the bright ones, and an edge colour for the edged ones.
+-- plain, accent and light suit edit mode; dark and gold suit the options window.
 local FILLS = {
   plain = { draw.COLOURS.button, draw.COLOURS.buttonHover },
-  accent = { draw.COLOURS.accent, draw.COLOURS.accentHover, dark = true },
-  light = { draw.COLOURS.highlight, draw.COLOURS.dimText, dark = true },
+  accent = { draw.COLOURS.accent, draw.COLOURS.accentHover, dark = draw.COLOURS.accentText },
+  light = { draw.COLOURS.highlight, draw.COLOURS.dimText, dark = draw.COLOURS.accentText },
+  dark = { draw.WINDOW.button, draw.WINDOW.buttonHover, edge = draw.WINDOW.bronze, text = draw.WINDOW.text },
+  gold = { draw.WINDOW.accent, draw.WINDOW.accentHover, dark = draw.WINDOW.accentText },
 }
 
--- A flat button with a centred label that lightens on hover. fill names a FILLS entry, plain when nil.
--- Returns { bg, label }.
+-- A flat button with a centred label that lightens on hover. fill names a FILLS entry, plain when nil. An edged
+-- fill draws a 1px edge inside the button's box. Returns { bg, label, group }: bg is the hit area, and group, a
+-- draw.group of every part, moves and hides the button.
 function draw.button(parent, label, x, y, w, h, fill, onClick)
   local colours = FILLS[fill or "plain"]
   local normal, hover = colours[1], colours[2]
-  local bg = draw.hitArea(draw.rect(parent, normal, x, y, w, h))
-  local t = draw.text(parent, draw.FONTS.body, ui.AlignMode.CENTRE, x, y, w, h)
+  local group = draw.group()
+  local bg = group.add(draw.hitArea(draw.rect(parent, colours.edge or normal, x, y, w, h)), 0, 0)
+  local face = colours.edge and group.add(draw.rect(parent, normal, x + 1, y + 1, w - 2, h - 2), 1, 1) or bg
+  local t = group.add(draw.text(parent, draw.FONTS.body, ui.AlignMode.CENTRE, x, y, w, h), 0, 0)
   draw.set(t, "content", label)
+  if colours.text then draw.set(t, "rgb", colours.text) end
   if colours.dark then
-    draw.set(t, "rgb", draw.COLOURS.accentText)
+    draw.set(t, "rgb", colours.dark)
     draw.set(t, "isShadowed", false)
   end
-  draw.on(bg, "ONMOUSEOVER", function() draw.set(bg, "rgb", hover) end)
-  draw.on(bg, "ONMOUSELEAVE", function() draw.set(bg, "rgb", normal) end)
+  draw.on(bg, "ONMOUSEOVER", function() draw.set(face, "rgb", hover) end)
+  draw.on(bg, "ONMOUSELEAVE", function() draw.set(face, "rgb", normal) end)
   draw.on(bg, "ONCLICK", function() onClick() end)
-  return { bg = bg, label = t }
+  group.x, group.y = x, y
+  return { bg = bg, label = t, group = group }
+end
+
+-- An options window choice button at x, y sized w by h: dark with a bronze edge, or once draw.showOption marks
+-- it chosen, gold with dark text and a 2px white ring outside its box. Returns { ring, bg, face, label }; bg is
+-- the hit area, which onClick and hover hang from.
+function draw.option(parent, label, x, y, w, h, onClick)
+  local W = draw.WINDOW
+  local o = {
+    ring = draw.rect(parent, W.ring, x - 2, y - 2, w + 4, h + 4),
+    bg = draw.hitArea(draw.rect(parent, W.bronze, x, y, w, h)),
+    face = draw.rect(parent, W.button, x + 1, y + 1, w - 2, h - 2),
+    label = draw.windowText(parent, draw.FONTS.body, ui.AlignMode.CENTRE, x, y, w, h),
+    chosen = false,
+  }
+  draw.set(o.ring, "hidden", true)
+  draw.set(o.label, "content", label)
+  draw.on(o.bg, "ONMOUSEOVER", function()
+    if not o.chosen then draw.set(o.face, "rgb", W.buttonHover) end
+  end)
+  draw.on(o.bg, "ONMOUSELEAVE", function()
+    if not o.chosen then draw.set(o.face, "rgb", W.button) end
+  end)
+  draw.on(o.bg, "ONCLICK", function() onClick() end)
+  return o
+end
+
+-- Marks a draw.option chosen or not.
+function draw.showOption(o, chosen)
+  local W = draw.WINDOW
+  o.chosen = chosen
+  draw.set(o.ring, "hidden", not chosen)
+  draw.set(o.bg, "rgb", chosen and W.accent or W.bronze)
+  draw.set(o.face, "rgb", chosen and W.accent or W.button)
+  draw.set(o.label, "rgb", chosen and W.accentText or W.text)
+  draw.set(o.label, "isShadowed", not chosen)
 end
 
 function draw.hideAll(components, hidden)

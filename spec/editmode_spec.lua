@@ -49,7 +49,7 @@ local function enterEditMode()
   })
   fake.fire("ContentLayerReady", { component = fake.component() })
   fake.press("Open RuneUI options")
-  fake.press("Edit mode off")
+  fake.press("Edit mode")
   return elements, saved, window
 end
 
@@ -198,7 +198,7 @@ describe("edit mode", function()
     local elements, saved = enterEditMode()
     saved.setGroup("utility", "title", "Defensives")
     fake.press("Done")
-    fake.press("Edit mode off")
+    fake.press("Edit mode")
     fake.hook(overlayOf(elements.utility), "ONMOUSEOVER")
     assert.is_true(fake.shown(fake.find(function(_, d) return d.content == "Defensives" end)))
     local custom = fake.find(function(_, d) return d.content == "Group 1" end)

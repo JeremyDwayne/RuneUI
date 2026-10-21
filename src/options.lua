@@ -12,13 +12,14 @@ local settings = require("src/settings")
 
 local options = {}
 
-local set, rect, text, outline, placeOutline = draw.set, draw.rect, draw.text, draw.outline, draw.placeOutline
+local set, rect, text, outline, placeOutline = draw.set, draw.rect, draw.windowText, draw.outline, draw.placeOutline
 local hideAll, hitArea, on, button = draw.hideAll, draw.hitArea, draw.on, draw.button
-local FONTS, COLOURS = draw.FONTS, draw.COLOURS
+local FONTS, COLOURS = draw.FONTS, draw.WINDOW
 
 local WIDTH, HEIGHT = 900, 620
-local SIDEBAR, HEADER, FOOTER = 200, 64, 56
-local PAGE_X, PAGE_Y = SIDEBAR + 1, HEADER + 1
+-- The sidebar's brand sits above its menu rows; pages take the window's full height above the footer.
+local SIDEBAR, BRAND, NAV_ROW, FOOTER = 200, 64, 42, 56
+local PAGE_X, PAGE_Y = SIDEBAR + 1, 1
 local PAGE_W = WIDTH - PAGE_X - 1
 local PAGE_H = HEIGHT - PAGE_Y - FOOTER - 1
 local GAP = 2
@@ -64,15 +65,14 @@ function options.create(root, deps)
   window:SetPos(-WIDTH // 2, -HEIGHT // 2, 0.5, 0.5)
   set(window, "hidden", true)
 
-  rect(window, COLOURS.border, 0, 0, WIDTH, HEIGHT)
+  rect(window, COLOURS.edge, 0, 0, WIDTH, HEIGHT)
   hitArea(rect(window, COLOURS.panel, 1, 1, WIDTH - 2, HEIGHT - 2))
   rect(window, COLOURS.sidebar, 1, 1, SIDEBAR - 1, HEIGHT - 2)
   rect(window, COLOURS.line, SIDEBAR, 1, 1, HEIGHT - 2)
-  rect(window, COLOURS.line, PAGE_X, HEADER, PAGE_W, 1)
   rect(window, COLOURS.line, PAGE_X, HEIGHT - FOOTER - 1, PAGE_W, 1)
-  local brand = text(window, FONTS.seconds, ui.AlignMode.TOPLEFT, 18, 1, SIDEBAR - 20, HEADER)
+  local brand = text(window, id.Font.CINZEL_18PT_BOLD, ui.AlignMode.TOPLEFT, 18, 1, SIDEBAR - 20, BRAND)
   set(brand, "content", "RuneUI")
-  local title = text(window, FONTS.seconds, ui.AlignMode.TOPLEFT, PAGE_X + 24, 1, PAGE_W - 48, HEADER)
+  set(brand, "rgb", COLOURS.accent)
 
   local closePopups, rebuildEditor, fillPicker, openPicker, buffsPage, editorDrag
 
@@ -85,10 +85,10 @@ function options.create(root, deps)
 
   local pages, navRows = {}, {}
   local PAGE_LIST = {
+    { id = "appearance", label = "Appearance" },
     { id = "cooldowns", label = "Cooldown manager" },
     { id = "buffs", label = "Buffs" },
     { id = "resource", label = "Resource bar" },
-    { id = "appearance", label = "Appearance" },
   }
 
   local currentPage = nil
@@ -103,18 +103,18 @@ function options.create(root, deps)
       local row = navRows[entry.id]
       set(row.bg, "hidden", not active)
       set(row.bar, "hidden", not active)
-      set(row.label, "rgb", active and COLOURS.text or COLOURS.mutedText)
-      if active then set(title, "content", entry.label) end
+      set(row.label, "rgb", active and COLOURS.accent or COLOURS.text)
     end
   end
 
+  -- Menu rows: the chosen one has a lighter fill, gold text and a gold bar on its left.
   for i, entry in ipairs(PAGE_LIST) do
-    local y = HEADER + (i - 1) * 40
+    local y = BRAND + (i - 1) * NAV_ROW
     local row = {
-      hit = hitArea(rect(window, COLOURS.sidebar, 1, y, SIDEBAR - 1, 40)),
-      bg = rect(window, COLOURS.line, 1, y, SIDEBAR - 1, 40),
-      bar = rect(window, COLOURS.accent, 1, y, 3, 40),
-      label = text(window, FONTS.body, ui.AlignMode.TOPLEFT, 18, y, SIDEBAR - 24, 40),
+      hit = hitArea(rect(window, COLOURS.sidebar, 1, y, SIDEBAR - 1, NAV_ROW)),
+      bg = rect(window, COLOURS.rowAlt, 1, y, SIDEBAR - 1, NAV_ROW),
+      bar = rect(window, COLOURS.accent, 1, y, 4, NAV_ROW),
+      label = text(window, FONTS.body, ui.AlignMode.TOPLEFT, 18, y, SIDEBAR - 24, NAV_ROW),
     }
     set(row.label, "content", entry.label)
     on(row.hit, "ONCLICK", function() showPage(entry.id) end)
@@ -179,7 +179,7 @@ function options.create(root, deps)
     end)
     listRows[i] = r
   end
-  local newGroup = button(page, "New group", 16, 0, LIST_W - 32, 32, false, function()
+  local newGroup = button(page, "New group", 16, 0, LIST_W - 32, 32, "dark", function()
     local name = saved.addGroup()
     if name == nil then return end
     selected, confirmDelete = name, false
@@ -191,7 +191,7 @@ function options.create(root, deps)
   local function rowY(i) return LIST_Y + (i - 1) * SETTING_H end
   local detailRight = DETAIL_X + DETAIL_W - 16
   for i = 1, SETTING_ROWS do
-    rect(page, i % 2 == 1 and COLOURS.sidebar or COLOURS.panel, DETAIL_X, rowY(i), DETAIL_W, SETTING_H)
+    rect(page, i % 2 == 1 and COLOURS.row or COLOURS.rowAlt, DETAIL_X, rowY(i), DETAIL_W, SETTING_H)
   end
   local function settingLabel(i, content)
     local label = text(page, FONTS.body, ui.AlignMode.TOPLEFT, DETAIL_X + 16, rowY(i), 150, SETTING_H)
@@ -218,7 +218,7 @@ function options.create(root, deps)
     if saved.group(nameFor).title ~= before then changed() end
   end)
   local deleteButton
-  deleteButton = button(page, "Delete", detailRight - 120, rowY(1) + 9, 120, 28, false, function()
+  deleteButton = button(page, "Delete", detailRight - 120, rowY(1) + 9, 120, 28, "dark", function()
     if saved.group(selected) == nil then return end
     if not confirmDelete then
       confirmDelete = true
@@ -239,8 +239,8 @@ function options.create(root, deps)
       saved.setGroup(selected, field, group[field] + d)
       changed()
     end
-    button(page, "-", detailRight - 124, rowY(i) + 9, 28, 28, false, function() step(-delta) end)
-    button(page, "+", detailRight - 28, rowY(i) + 9, 28, 28, false, function() step(delta) end)
+    button(page, "-", detailRight - 124, rowY(i) + 9, 28, 28, "dark", function() step(-delta) end)
+    button(page, "+", detailRight - 28, rowY(i) + 9, 28, 28, "dark", function() step(delta) end)
     return function(group) set(value, "content", group[field] .. suffix) end
   end
   settingLabel(2, "Icon size")
@@ -248,23 +248,18 @@ function options.create(root, deps)
   local perRowLabel = settingLabel(3, "Icons per row")
   local showPerRow = stepper(3, "perRow", 1, "")
 
-  -- Rows of right-aligned option buttons that save one display setting; the chosen one takes the accent.
+  -- Rows of right-aligned draw.option buttons that save one display setting.
   local settingChoices = {}
   local function settingChoice(i, field, choices, width)
     local row = { field = field, buttons = {} }
     for k, option in ipairs(choices) do
       local x = detailRight - (#choices - k + 1) * (width + 4) + 4
-      local b = {
-        value = option.value,
-        bg = hitArea(rect(page, COLOURS.button, x, rowY(i) + 9, width, 28)),
-        label = text(page, FONTS.body, ui.AlignMode.CENTRE, x, rowY(i) + 9, width, 28),
-      }
-      set(b.label, "content", option.label)
-      on(b.bg, "ONCLICK", function()
+      local b = draw.option(page, option.label, x, rowY(i) + 9, width, 28, function()
         if saved.group(selected) == nil then return end
         saved.setGroup(selected, field, option.value)
         changed()
       end)
+      b.value = option.value
       row.buttons[#row.buttons + 1] = b
     end
     settingChoices[#settingChoices + 1] = row
@@ -315,15 +310,10 @@ function options.create(root, deps)
     return tracker.tiles(keys, {})
   end
 
-  -- Sets each choice row's colours from group: the chosen option lit, the rest plain.
+  -- Marks each choice row's option for group's value chosen.
   local function showSettingChoices(group)
     for _, row in ipairs(settingChoices) do
-      for _, b in ipairs(row.buttons) do
-        local chosen = b.value == group[row.field]
-        set(b.bg, "rgb", chosen and COLOURS.accent or COLOURS.button)
-        set(b.label, "rgb", chosen and COLOURS.accentText or COLOURS.text)
-        set(b.label, "isShadowed", not chosen)
-      end
+      for _, b in ipairs(row.buttons) do draw.showOption(b, b.value == group[row.field]) end
     end
   end
 
@@ -351,11 +341,8 @@ function options.create(root, deps)
         set(r.count, "content", tostring(#saved.keys(name, editStyle)))
       end
     end
-    local full = #names >= #listRows
-    hideAll({ newGroup.bg, newGroup.label }, full)
-    local newY = LIST_Y + #names * LIST_ROW + 12
-    draw.pos(newGroup.bg, 16, newY)
-    draw.pos(newGroup.label, 16, newY)
+    newGroup.group.set("hidden", #names >= #listRows)
+    newGroup.group.place(16, LIST_Y + #names * LIST_ROW + 12)
 
     local group = saved.group(selected)
     local custom = indexOf(settings.CUSTOM_GROUPS, selected) ~= nil
@@ -367,7 +354,7 @@ function options.create(root, deps)
       nameField.content = group.title
     end
     if not custom then nameFor = nil end
-    hideAll({ deleteButton.bg, deleteButton.label }, not custom)
+    deleteButton.group.set("hidden", not custom)
     set(deleteButton.label, "content", confirmDelete and "Click to delete" or "Delete")
     showSize(group)
     showPerRow(group)
@@ -437,7 +424,7 @@ function options.create(root, deps)
   menu:SetSize(140, 30)
   hitArea(rect(menu, COLOURS.border, 0, 0, 140, 30))
   local menuKey = nil
-  button(menu, "Remove", 1, 1, 138, 28, false, function()
+  button(menu, "Remove", 1, 1, 138, 28, "dark", function()
     if menuKey ~= nil then
       saved.remove(menuKey, editStyle)
       closePopups()
@@ -652,7 +639,7 @@ function options.create(root, deps)
   local markerValues = {}
   for i, entry in ipairs({ { id = "threshold", label = "Threshold" }, { id = "ultimate", label = "Ultimate" } }) do
     local ry = 18 + (i - 1) * 50
-    rect(markerPage, i % 2 == 1 and COLOURS.sidebar or COLOURS.panel, 24, ry, PAGE_W - 48, 50)
+    rect(markerPage, i % 2 == 1 and COLOURS.row or COLOURS.rowAlt, 24, ry, PAGE_W - 48, 50)
     local label = text(markerPage, FONTS.body, ui.AlignMode.TOPLEFT, 40, ry, 200, 50)
     set(label, "content", entry.label .. " marker")
     local right = PAGE_W - 40
@@ -663,8 +650,8 @@ function options.create(root, deps)
       set(value, "content", saved.markers()[entry.id] .. "%")
       deps.refresh()
     end
-    button(markerPage, "-", right - 136, ry + 11, 28, 28, false, function() step(-MARKER_STEP) end)
-    button(markerPage, "+", right - 44, ry + 11, 28, 28, false, function() step(MARKER_STEP) end)
+    button(markerPage, "-", right - 136, ry + 11, 28, 28, "dark", function() step(-MARKER_STEP) end)
+    button(markerPage, "+", right - 44, ry + 11, 28, 28, "dark", function() step(MARKER_STEP) end)
   end
 
   -- Appearance page ----------------------------------------------------------------------------------
@@ -674,41 +661,28 @@ function options.create(root, deps)
   -- Choice rows built so far on each parent, which sets the next row's position.
   local rowCounts = {}
 
-  -- The chosen option takes the accent fill and dark text; the others are plain buttons.
+  -- Marks each row's option for the saved value chosen.
   local function showChoices()
     for _, row in ipairs(choiceRows) do
-      for value, choice in pairs(row.choices) do
-        local chosen = value == row.current()
-        set(choice.bg, "rgb", chosen and COLOURS.accent or COLOURS.button)
-        set(choice.label, "rgb", chosen and COLOURS.accentText or COLOURS.text)
-        set(choice.label, "isShadowed", not chosen)
-      end
+      for value, choice in pairs(row.choices) do draw.showOption(choice, value == row.current()) end
     end
   end
 
-  -- A labelled row of right-aligned option buttons on parent, below its earlier rows, choosing the saved
+  -- A labelled row of right-aligned draw.option buttons on parent, below its earlier rows, choosing the saved
   -- appearance field. choices: { { value, label } }.
   local function choiceRow(parent, label, choices, field)
     local function current() return saved.appearance()[field] end
     local n = rowCounts[parent] or 0
     rowCounts[parent] = n + 1
     local ry = 18 + n * 50
-    rect(parent, n % 2 == 0 and COLOURS.sidebar or COLOURS.panel, 24, ry, PAGE_W - 48, 50)
+    rect(parent, n % 2 == 0 and COLOURS.row or COLOURS.rowAlt, 24, ry, PAGE_W - 48, 50)
     local rowLabel = text(parent, FONTS.body, ui.AlignMode.TOPLEFT, 40, ry, 200, 50)
     set(rowLabel, "content", label)
     local row = { choices = {}, current = current }
     choiceRows[#choiceRows + 1] = row
     for i, option in ipairs(choices) do
       local x = PAGE_W - 40 - (#choices - i + 1) * (CHOICE_W + 4) + 4
-      local bg = hitArea(rect(parent, COLOURS.button, x, ry + 11, CHOICE_W, 28))
-      local optionLabel = text(parent, FONTS.body, ui.AlignMode.CENTRE, x, ry + 11, CHOICE_W, 28)
-      set(optionLabel, "content", option.label)
-      row.choices[option.value] = { bg = bg, label = optionLabel }
-      on(bg, "ONMOUSEOVER", function()
-        if option.value ~= current() then set(bg, "rgb", COLOURS.buttonHover) end
-      end)
-      on(bg, "ONMOUSELEAVE", showChoices)
-      on(bg, "ONCLICK", function()
+      row.choices[option.value] = draw.option(parent, option.label, x, ry + 11, CHOICE_W, 28, function()
         saved.setAppearance(field, option.value)
         showChoices()
         deps.refresh()
@@ -767,8 +741,8 @@ function options.create(root, deps)
   closeDialog()
 
   local buttonsY = dialogY + DIALOG_H - 44
-  button(dialog, "Cancel", dialogX + DIALOG_W - 264, buttonsY, 90, 32, nil, closeDialog)
-  button(dialog, "Reset positions", dialogX + DIALOG_W - 166, buttonsY, 150, 32, "light", function()
+  button(dialog, "Cancel", dialogX + DIALOG_W - 264, buttonsY, 90, 32, "dark", closeDialog)
+  button(dialog, "Reset positions", dialogX + DIALOG_W - 166, buttonsY, 150, 32, "gold", function()
     closeDialog()
     saved.resetPositions()
     editMode.placeAll()
@@ -794,26 +768,27 @@ function options.create(root, deps)
 
   -- Footer --------------------------------------------------------------------------------------------
 
+  -- An unticked Edit mode checkbox: edit mode hides the window, which covers the HUD, and its toolbar's Done
+  -- returns to the window.
   local footerY = HEIGHT - FOOTER
-  local toggleHit = hitArea(rect(window, COLOURS.panel, PAGE_X + 16, footerY, 180, FOOTER))
-  rect(window, COLOURS.button, PAGE_X + 24, footerY + 18, 40, 20)
-  rect(window, COLOURS.text, PAGE_X + 26, footerY + 20, 16, 16)
-  local toggleLabel = text(window, FONTS.body, ui.AlignMode.TOPLEFT, PAGE_X + 72, footerY, 120, FOOTER)
-  set(toggleLabel, "content", "Edit mode off")
-  -- Edit mode hides the window, which covers the HUD; its toolbar's Done returns to the window.
+  local toggleHit = hitArea(rect(window, COLOURS.panel, PAGE_X + 16, footerY, 130, FOOTER))
+  rect(window, COLOURS.bronze, PAGE_X + 24, footerY + 20, 16, 16)
+  rect(window, COLOURS.sidebar, PAGE_X + 25, footerY + 21, 14, 14)
+  local toggleLabel = text(window, FONTS.body, ui.AlignMode.TOPLEFT, PAGE_X + 50, footerY, 90, FOOTER)
+  set(toggleLabel, "content", "Edit mode")
   on(toggleHit, "ONCLICK", function()
     closeWindow()
     editMode.open()
   end)
-  button(window, "Reset positions", PAGE_X + 200, footerY + 12, 140, 32, false, resetPositions)
-  button(window, "Done", WIDTH - 24 - 90, footerY + 12, 90, 32, "accent", closeWindow)
+  button(window, "Reset positions", PAGE_X + 160, footerY + 12, 140, 32, "dark", resetPositions)
+  button(window, "Done", WIDTH - 24 - 90, footerY + 12, 90, 32, "gold", closeWindow)
 
   function openWindow()
     for id_, value in pairs(markerValues) do set(value, "content", saved.markers()[id_] .. "%") end
     showChoices()
     editStyle = tracker.style() or editStyle
     rebuildEditor()
-    showPage("cooldowns")
+    showPage("appearance")
     windowOpen = true
     set(window, "hidden", false)
   end

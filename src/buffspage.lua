@@ -9,8 +9,8 @@ local editor = require("src/editor")
 
 local buffspage = {}
 
-local set, rect, text, hitArea, on = draw.set, draw.rect, draw.text, draw.hitArea, draw.on
-local FONTS, COLOURS = draw.FONTS, draw.COLOURS
+local set, rect, text, hitArea, on = draw.set, draw.rect, draw.windowText, draw.hitArea, draw.on
+local FONTS, COLOURS = draw.FONTS, draw.WINDOW
 local SIZE, GAP = 30, 3
 local STEP = SIZE + GAP
 -- Icons a tab can show, and Keep up marks the upkeep group can show.
@@ -59,18 +59,12 @@ function buffspage.create(page, width, height, deps)
 
   local tabParts = {}
   for i, def in ipairs(TABS) do
-    local x = MARGIN + (i - 1) * (TAB_W + 2)
-    local parts = {
-      bg = hitArea(rect(page, COLOURS.button, x, TAB_Y, TAB_W, TAB_H)),
-      label = text(page, FONTS.body, ui.AlignMode.CENTRE, x, TAB_Y, TAB_W, TAB_H),
-    }
-    set(parts.label, "content", def.label)
-    on(parts.bg, "ONCLICK", function()
+    local x = MARGIN + (i - 1) * (TAB_W + 6)
+    tabParts[def.id] = draw.option(page, def.label, x, TAB_Y, TAB_W, TAB_H, function()
       closeMenu()
       tab = def.id
       redraw()
     end)
-    tabParts[def.id] = parts
   end
 
   local top = TAB_Y + TAB_H + 12
@@ -85,7 +79,7 @@ function buffspage.create(page, width, height, deps)
     local slot = {
       label = text(page, FONTS.body, ui.AlignMode.TOPLEFT, MARGIN, 0, 200, 18),
       note = text(page, FONTS.small, ui.AlignMode.TOPLEFT, MARGIN + 140, 0, width - 2 * MARGIN - 140, 18),
-      box = rect(page, COLOURS.sidebar, MARGIN, 0, width - 2 * MARGIN, 0),
+      box = rect(page, COLOURS.row, MARGIN, 0, width - 2 * MARGIN, 0),
       dashes = ui.Canvas.new(page),
     }
     set(slot.note, "rgb", COLOURS.mutedText)
@@ -172,9 +166,7 @@ function buffspage.create(page, width, height, deps)
     for _, def in ipairs(TABS) do
       local active = def.id == tab
       if active then current = def end
-      set(tabParts[def.id].bg, "rgb", active and COLOURS.accent or COLOURS.button)
-      set(tabParts[def.id].label, "rgb", active and COLOURS.accentText or COLOURS.text)
-      set(tabParts[def.id].label, "isShadowed", not active)
+      draw.showOption(tabParts[def.id], active)
     end
     set(display, "hidden", current.groups ~= nil)
     local keepUp = saved.keepUp()
