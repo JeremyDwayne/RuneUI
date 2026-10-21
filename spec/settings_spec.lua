@@ -16,7 +16,7 @@ end
 local CURRENT = { layout = settings.LAYOUT_VERSION }
 
 -- Saved groups that every style and Utility have been seeded into from src/presets.
-local SEEDED = { utility = true, necromancy = true, magic = true, ranged = true, melee = true }
+local SEEDED = { utility = true, defensives = true, necromancy = true, magic = true, ranged = true, melee = true }
 
 -- A store whose seeded groups hold groups, { [name] = saved group }.
 local function seededStore(groups)
@@ -226,11 +226,11 @@ describe("settings", function()
     assert.are.equal("integer", math.type(major.size))
   end)
 
-  it("adds up to four custom groups, renames them, and deletes only custom ones", function()
+  it("starts with Defensives as the first custom group, adds up to three more, and deletes only custom ones", function()
     local store = fakeStore()
     local s = settings.load(store)
-    assert.are.same({ "custom1", "custom2", "custom3", "custom4" }, { s.addGroup(), s.addGroup(), s.addGroup(),
-      s.addGroup() })
+    assert.are.same({ "Defensives", presets.DEFENSIVES }, { s.group("custom1").title, s.group("custom1").keys })
+    assert.are.same({ "custom2", "custom3", "custom4" }, { s.addGroup(), s.addGroup(), s.addGroup() })
     assert.is_nil(s.addGroup())
     s.setGroup("custom2", "title", "Defensives and more than twenty")
     s.deleteGroup("custom1")
@@ -478,7 +478,7 @@ describe("settings", function()
     assert.is_nil(s.positions().bogus)
     assert.are.same({ "A" }, s.keys("rotation", "magic"))
     assert.are.same({}, s.keys("rotation", "ranged"))
-    assert.are.same({ 36, "down" }, { s.group("rotation").size, s.group("rotation").grow })
+    assert.are.same({ 45, "down" }, { s.group("rotation").size, s.group("rotation").grow })
     assert.are.same({ "major", "rotation", "utility" }, s.groupNames())
     assert.are.same({ threshold = 50, ultimate = 90 }, s.markers())
     assert.are.same({ A = { name = "Alpha", icon = 1 } }, s.known())

@@ -174,7 +174,7 @@ describe("edit mode", function()
 
   it("anchors an element to the side and alignment chosen in the pick, flush against it", function()
     local elements, saved = enterEditMode()
-    fake.press("Major, left, top")
+    fake.press("Rotation, left, center")
     fake.press("Anchor")
     assert.is_true(shows("Click the element to anchor Player to"))
     fake.hook(overlayOf(elements.rotation), "ONCLICK")
@@ -190,22 +190,22 @@ describe("edit mode", function()
 
   it("cancels a pick on Esc and saves nothing", function()
     local elements, saved = enterEditMode()
-    pickSmall(elements.resource)
+    pickSmall(elements.major)
     fake.hook(overlayOf(elements.player), "ONCLICK")
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
-    assert.is_nil(saved.anchors().resource)
-    assert.is_false(shows("Anchor Resource bar to Player"))
-    assert.is_false(shows("Click the element to anchor Resource bar to"))
+    assert.is_nil(saved.anchors().major)
+    assert.is_false(shows("Anchor Major to Player"))
+    assert.is_false(shows("Click the element to anchor Major to"))
     assert.is_true(shows("Edit mode"))
   end)
 
   it("refuses a target anchored to the picking element and says why", function()
     local elements, saved = enterEditMode()
-    pickSmall(elements.resource)
-    fake.hook(overlayOf(elements.major), "ONCLICK")
-    assert.is_true(shows("Major is anchored to Resource bar"))
-    assert.is_false(shows("Anchor Resource bar to Major"))
-    assert.is_nil(saved.anchors().resource)
+    pickSmall(elements.major)
+    fake.hook(overlayOf(elements.rotation), "ONCLICK")
+    assert.is_true(shows("Rotation is anchored to Major"))
+    assert.is_false(shows("Anchor Major to Rotation"))
+    assert.is_nil(saved.anchors().major)
   end)
 
   it("labels a cooldown group by its title and gives a custom group not in use no overlay", function()
@@ -231,7 +231,7 @@ describe("edit mode", function()
     local tag = fake.find(function(_, d) return d.content == "Combat buffs" end)
     assert.is_not_nil(tag)
     assert.are.equal(tag.parent.y + 18, combat.parent.y)
-    fake.press("Resource bar, top, center")
+    fake.press("Major, top, center")
     assert.is_nil(saved.anchors().combatBuffs)
 
     fake.hook(overlayOf(elements.player), "ONMOUSEOVER")
@@ -242,24 +242,24 @@ describe("edit mode", function()
   it("removes an anchor when its button is pressed, leaving the element where it is", function()
     local elements, saved = enterEditMode()
     local x, y = elements.player.layer.x, elements.player.layer.y
-    fake.press("Major, left, top")
+    fake.press("Rotation, left, center")
     assert.is_nil(saved.anchors().player)
     assert.are.same({ x = x, y = y, anchorX = 0.5, anchorY = 1 }, saved.positions().player)
     assert.are.same({ x, y }, { elements.player.layer.x, elements.player.layer.y })
-    assert.is_false(shows("Major, left, top"))
+    assert.is_false(shows("Rotation, left, center"))
   end)
 
   it("drags an element's whole chain and saves only the dragged position", function()
     local elements, saved = enterEditMode()
     local before = {}
     for name, element in pairs(elements) do before[name] = element.layer.x end
-    local tint = grab(elements.resource)
+    local tint = grab(elements.major)
     fake.mouse.x = 350
     logicTick()
     for name, element in pairs(elements) do assert.are.equal(before[name] + 50, element.layer.x, name) end
     fake.hook(tint, "ONRELEASE")
 
-    assert.are.equal(settings.DEFAULT_POSITIONS.resource.x + 50, saved.positions().resource.x)
+    assert.are.equal(settings.DEFAULT_POSITIONS.major.x + 50, saved.positions().major.x)
     assert.are.same(settings.DEFAULT_POSITIONS.player, saved.positions().player)
     assert.are.same(settings.DEFAULT_ANCHORS, saved.anchors())
   end)
@@ -270,22 +270,22 @@ describe("edit mode", function()
     fake.mouse.x, fake.mouse.y = 280, 310
     logicTick()
     fake.hook(tint, "ONRELEASE")
-    assert.are.same({ target = "major", side = "left", align = "top", gap = 24, offset = 10 },
+    assert.are.same({ target = "rotation", side = "left", align = "center", gap = 20, offset = 10 },
       saved.anchors().player)
   end)
 
-  it("snaps a drop 4 px from the frames' shared bottom edge flush with it, unless Shift is held", function()
+  it("snaps a drop 1 px from the rotation row's bottom edge flush with it, unless Shift is held", function()
     for _, held in ipairs({ false, true }) do
       fake.reset()
       local elements, saved = enterEditMode()
-      fake.press("Major, left, top")
+      fake.press("Rotation, left, center")
       local tint = grab(elements.player)
       shift(held)
-      fake.mouse.y = 304
+      fake.mouse.y = 296
       logicTick()
       fake.hook(tint, "ONRELEASE")
       local bottom = saved.positions().player.y + elements.player.height
-      assert.are.equal(held and -344 or -348, bottom)
+      assert.are.equal(held and -311 or -312, bottom)
     end
   end)
 
@@ -302,7 +302,7 @@ describe("edit mode", function()
 
   it("saves whole-unit positions when the cursor scale is fractional", function()
     local elements, saved = enterEditMode()
-    fake.press("Major, left, top")
+    fake.press("Rotation, left, center")
     local tint = overlayOf(elements.player)
     tint.xyGlobal = { x = 149, y = 150 }
     fake.mouse.x, fake.mouse.y = 300, 300
@@ -314,13 +314,13 @@ describe("edit mode", function()
     assert.are.equal("integer", math.type(saved.positions().player.x))
   end)
 
-  it("snaps a dragged bar's center onto the window's center line before a nearer grid line", function()
+  it("snaps a dragged group's center onto the window's center line before a nearer grid line", function()
     local elements = enterEditMode()
-    local tint = overlayOf(elements.resource)
+    local tint = overlayOf(elements.major)
     fake.mouse.x, fake.mouse.y = 300, 300
     fake.hook(tint, "ONCLICK")
     fake.mouse.x = 303
     logicTick()
-    assert.are.equal(-139, elements.resource.layer.x)
+    assert.are.equal(-110, elements.major.layer.x)
   end)
 end)

@@ -379,18 +379,18 @@ describe("view", function()
     assert.are.equal(0, fake.writes)
   end)
 
-  it("moves anchored frames on the tick the major group gains a tile, and makes no writes when steady", function()
+  it("moves anchored frames on the tick the rotation group gains a tile, and makes no writes when steady", function()
     local elements = hud()
     local saved = settings.load({ get = function() end, set = function() end })
     local function tick(count)
-      local moved = elements.major.update(readyTiles(count))
+      local moved = elements.rotation.update(readyTiles(count))
       if moved then view.arrange(elements, saved.positions(), saved.anchors()) end
     end
     view.arrange(elements, saved.positions(), saved.anchors())
     tick(4)
     local x = elements.player.layer.x
     tick(5)
-    assert.are.equal(x - 23, elements.player.layer.x)
+    assert.are.equal(x - 24, elements.player.layer.x)
     fake.writes = 0
     tick(5)
     assert.are.equal(0, fake.writes)
@@ -450,7 +450,7 @@ describe("view", function()
     end
     assert.are.equal(changed, fake.writes)
     assert.are.equal("NOTOSANS_BOLD_13", fake.find(function(_, d) return d.content == "Jeremy" end).font)
-    assert.are.equal("NOTOSANS_BOLD_17", fake.find(function(_, d) return d.content == "8" end).font)
+    assert.are.equal("NOTOSANS_BOLD_15", fake.find(function(_, d) return d.content == "8" end).font)
   end)
 
   it("shows four outline copies under each label while Outline is on, or the native outline font", function()

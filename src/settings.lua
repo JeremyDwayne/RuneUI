@@ -12,50 +12,50 @@ local styling = require("src/style")
 
 local settings = {}
 
--- Offsets from the bottom center of the game window with full first rows: 6 major, 7 rotation, 8 utility and 8
--- custom tiles. The resource bar, cast bar and cooldown groups stack centred, the frames sit either side of the
--- major group with their tops level, and custom groups stack below utility.
+-- Offsets from the bottom center of the game window with full first rows: 6 major, 6 rotation, 8 utility and 8
+-- Defensives tiles, and no spender rows. The major group sits on top, the rotation row under it with a frame either
+-- side, then the adrenaline bar, the cast bar, utility and the custom groups stack centred below.
 settings.DEFAULT_POSITIONS = {
-  player = { x = -391, y = -396, anchorX = 0.5, anchorY = 1 },
-  target = { x = 141, y = -396, anchorX = 0.5, anchorY = 1 },
-  resource = { x = -139, y = -471, anchorX = 0.5, anchorY = 1 },
-  castbar = { x = -139, y = -422, anchorX = 0.5, anchorY = 1 },
-  major = { x = -137, y = -396, anchorX = 0.5, anchorY = 1 },
-  rotation = { x = -132, y = -348, anchorX = 0.5, anchorY = 1 },
-  utility = { x = -127, y = -306, anchorX = 0.5, anchorY = 1 },
-  custom1 = { x = -151, y = -270, anchorX = 0.5, anchorY = 1 },
-  custom2 = { x = -151, y = -228, anchorX = 0.5, anchorY = 1 },
-  custom3 = { x = -151, y = -186, anchorX = 0.5, anchorY = 1 },
-  custom4 = { x = -151, y = -144, anchorX = 0.5, anchorY = 1 },
-  targetDebuffs = { x = 110, y = -429, anchorX = 0.5, anchorY = 1 },
-  playerDebuffs = { x = -394, y = -429, anchorX = 0.5, anchorY = 1 },
-  upkeepBuffs = { x = -394, y = -342, anchorX = 0.5, anchorY = 1 },
-  combatBuffs = { x = -192, y = -516, anchorX = 0.5, anchorY = 1 },
+  major = { x = -110, y = -396, anchorX = 0.5, anchorY = 1 },
+  rotation = { x = -140, y = -357, anchorX = 0.5, anchorY = 1 },
+  player = { x = -390, y = -362, anchorX = 0.5, anchorY = 1 },
+  target = { x = 140, y = -362, anchorX = 0.5, anchorY = 1 },
+  resource = { x = -139, y = -332, anchorX = 0.5, anchorY = 1 },
+  castbar = { x = -139, y = -292, anchorX = 0.5, anchorY = 1 },
+  utility = { x = -127, y = -254, anchorX = 0.5, anchorY = 1 },
+  custom1 = { x = -127, y = -224, anchorX = 0.5, anchorY = 1 },
+  custom2 = { x = -151, y = -188, anchorX = 0.5, anchorY = 1 },
+  custom3 = { x = -151, y = -146, anchorX = 0.5, anchorY = 1 },
+  custom4 = { x = -151, y = -104, anchorX = 0.5, anchorY = 1 },
+  targetDebuffs = { x = 109, y = -395, anchorX = 0.5, anchorY = 1 },
+  playerDebuffs = { x = -393, y = -395, anchorX = 0.5, anchorY = 1 },
+  upkeepBuffs = { x = -393, y = -308, anchorX = 0.5, anchorY = 1 },
+  combatBuffs = { x = -192, y = -445, anchorX = 0.5, anchorY = 1 },
 }
--- src/layout anchors matching DEFAULT_POSITIONS with full rows: the cast bar under the resource bar, the
--- cooldown groups under it, the frames beside the major group, and the aura rows on the frames and above the
--- resource bar. Dragging the resource bar moves them all.
+-- src/layout anchors matching DEFAULT_POSITIONS with full rows: everything hangs off the major group, so
+-- dragging it moves them all. Utility hangs under the cast bar, so spender rows below the adrenaline bar push it
+-- and the custom groups down.
 settings.DEFAULT_ANCHORS = {
-  castbar = { target = "resource", side = "bottom", align = "center", gap = 2, offset = 0 },
-  major = { target = "castbar", side = "bottom", align = "center", gap = 4, offset = 0 },
   rotation = { target = "major", side = "bottom", align = "center", gap = 4, offset = 0 },
-  utility = { target = "rotation", side = "bottom", align = "center", gap = 6, offset = 0 },
-  custom1 = { target = "utility", side = "bottom", align = "center", gap = 6, offset = 0 },
+  player = { target = "rotation", side = "left", align = "center", gap = 0, offset = 0 },
+  target = { target = "rotation", side = "right", align = "center", gap = 0, offset = 0 },
+  resource = { target = "rotation", side = "bottom", align = "center", gap = 0, offset = 0 },
+  castbar = { target = "resource", side = "bottom", align = "center", gap = 0, offset = 0 },
+  utility = { target = "castbar", side = "bottom", align = "center", gap = 16, offset = 0 },
+  custom1 = { target = "utility", side = "bottom", align = "center", gap = 0, offset = 0 },
   custom2 = { target = "custom1", side = "bottom", align = "center", gap = 6, offset = 0 },
   custom3 = { target = "custom2", side = "bottom", align = "center", gap = 6, offset = 0 },
   custom4 = { target = "custom3", side = "bottom", align = "center", gap = 6, offset = 0 },
-  player = { target = "major", side = "left", align = "top", gap = 4, offset = 0 },
-  target = { target = "major", side = "right", align = "top", gap = 4, offset = 0 },
   targetDebuffs = { target = "target", side = "top", align = "right", gap = 4, offset = 0 },
   playerDebuffs = { target = "player", side = "top", align = "left", gap = 4, offset = 0 },
   upkeepBuffs = { target = "player", side = "bottom", align = "left", gap = 2, offset = 0 },
-  combatBuffs = { target = "resource", side = "top", align = "center", gap = 6, offset = 0 },
+  combatBuffs = { target = "major", side = "top", align = "center", gap = 10, offset = 0 },
 }
 -- The default major group's top sits this fraction of the window height above its bottom, below the
 -- player's character, which the camera keeps near the middle of the window at any size.
 local MAJOR_HEIGHT = 0.315
 -- Saved positions and anchors from an older default layout are dropped once, on the first load of this one.
-settings.LAYOUT_VERSION = 2
+settings.LAYOUT_VERSION = 3
 local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 -- Bar fills: one flat colour, or a gradient from top to bottom or across the bar.
 settings.TEXTURES = { "flat", "vertical", "horizontal" }
@@ -78,10 +78,12 @@ local TITLE_MAX = 20
 -- Built-in cooldown groups in list order, with their default title and display settings. A shared group
 -- shows one ability list with every style; the others keep one list per style.
 settings.GROUPS = {
-  { name = "major", title = "Major", size = 44, perRow = 6, grow = "down", shared = false },
-  { name = "rotation", title = "Rotation", size = 36, perRow = 7, grow = "down", shared = false },
+  { name = "major", title = "Major", size = 35, perRow = 6, grow = "down", shared = false },
+  { name = "rotation", title = "Rotation", size = 45, perRow = 6, grow = "down", shared = false },
   { name = "utility", title = "Utility", size = 30, perRow = 8, grow = "down", shared = true },
 }
+-- The first custom group a new install starts with, holding the defensive abilities.
+local DEFENSIVES = { name = "custom1", title = "Defensives", size = 30, perRow = 8, grow = "down", shared = true }
 -- Element names of the groups a player can add, in the order they fill, and a new one's display settings.
 settings.CUSTOM_GROUPS = { "custom1", "custom2", "custom3", "custom4" }
 local CUSTOM_DEFAULT = { size = 36, perRow = 8, grow = "down", shared = true }
@@ -238,9 +240,10 @@ local function held(groups, key, style)
   return false
 end
 
--- Fills each style whose per-style lists are all empty with its src/presets lists, and an empty utility list
--- with the utility preset, once each, skipping keys another list already shows. seeded records which are done,
--- so a list emptied on purpose stays empty. Returns whether anything was done.
+-- Fills each style whose per-style lists are all empty with its src/presets lists, an empty utility list with
+-- the utility preset, and an unused first custom group with the Defensives preset, once each, skipping keys
+-- another list already shows. seeded records which are done, so a list emptied or a group deleted on purpose
+-- stays so. Returns whether anything was done.
 local function seed(groups, seeded)
   local changed = false
   for _, style in ipairs(settings.STYLES) do
@@ -267,6 +270,16 @@ local function seed(groups, seeded)
       if free then append(groups.utility.keys, key) end
     end
   end
+  if not seeded.defensives then
+    seeded.defensives, changed = true, true
+    if groups[DEFENSIVES.name] == nil then
+      local group = readGroup(nil, DEFENSIVES)
+      for _, key in ipairs(presets.DEFENSIVES) do
+        if not held(groups, key, settings.STYLES[1]) then append(group.keys, key) end
+      end
+      groups[DEFENSIVES.name] = group
+    end
+  end
   return changed
 end
 
@@ -288,7 +301,7 @@ local function migrateGroups(old, groups)
   end
 end
 
--- { seeded = { [style or "utility"] = true }, groups = { [name] = group record } } from the saved
+-- { seeded = { [style, "utility" or "defensives"] = true }, groups = { [name] = group record } } from the saved
 -- cooldownGroups, or from groups saved by an older version, then seeded from src/presets, and whether it
 -- changed. Every built-in group is present; a custom one only once added.
 local function readCooldownGroups(saved, old)
@@ -300,7 +313,9 @@ local function readCooldownGroups(saved, old)
   end
   local seeded = {}
   local savedSeeded = type(saved) == "table" and type(saved.seeded) == "table" and saved.seeded or {}
-  for _, name in ipairs({ "utility", table.unpack(settings.STYLES) }) do seeded[name] = savedSeeded[name] == true end
+  for _, name in ipairs({ "utility", "defensives", table.unpack(settings.STYLES) }) do
+    seeded[name] = savedSeeded[name] == true
+  end
   local migrated = type(saved) ~= "table" and type(old) == "table"
   if migrated then migrateGroups(old, groups) end
   local changed = seed(groups, seeded)

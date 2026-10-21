@@ -1,19 +1,19 @@
 local layout = require("src/layout")
 local settings = require("src/settings")
 
--- Shown bounds inside each element's layer with full first rows: 6 major, 7 rotation and 8 utility and custom
--- tiles, and 10 aura tiles.
+-- Shown bounds inside each element's layer with full first rows: 6 major, 6 rotation and 8 utility and custom
+-- tiles, Defensives at 30 px, no spender rows, and 10 aura tiles.
 local function fullBounds()
   local function row(size, count) return layout.grid(count, size, 2, count, "down", 20).bounds end
   return {
     player = { x = 0, y = 0, w = 250, h = 55 },
     target = { x = 0, y = 0, w = 250, h = 55 },
-    resource = { x = 0, y = 0, w = 278, h = 47 },
+    resource = { x = 0, y = 20, w = 278, h = 20 },
     castbar = { x = 0, y = 0, w = 278, h = 22 },
-    major = row(44, 6),
-    rotation = row(36, 7),
+    major = row(35, 6),
+    rotation = row(45, 6),
     utility = row(30, 8),
-    custom1 = row(36, 8), custom2 = row(36, 8), custom3 = row(36, 8), custom4 = row(36, 8),
+    custom1 = row(30, 8), custom2 = row(36, 8), custom3 = row(36, 8), custom4 = row(36, 8),
     targetDebuffs = { x = 3, y = 3, w = 278, h = 26 },
     playerDebuffs = { x = 3, y = 3, w = 278, h = 26 },
     upkeepBuffs = { x = 3, y = 3, w = 278, h = 26 },
@@ -31,21 +31,30 @@ describe("layout", function()
     assert.are.same(settings.DEFAULT_POSITIONS, positions)
   end)
 
-  it("moves the frames in to stay beside 4 shown major tiles", function()
+  it("moves the frames in to stay beside 4 shown rotation tiles", function()
     local bounds = fullBounds()
-    bounds.major = layout.grid(4, 44, 2, 6, "down", 20).bounds
+    bounds.rotation = layout.grid(4, 45, 2, 6, "down", 20).bounds
     local positions = layout.resolve(settings.DEFAULT_POSITIONS, settings.DEFAULT_ANCHORS, bounds)
-    assert.are.equal(-137 + 46 - 4 - 250, positions.player.x)
-    assert.are.equal(-137 + 46 + 182 + 4, positions.target.x)
-    assert.are.equal(-396, positions.player.y)
+    assert.are.equal(-140 + 47 - 250, positions.player.x)
+    assert.are.equal(-140 + 47 + 186, positions.target.x)
+    assert.are.equal(-362, positions.player.y)
   end)
 
-  it("pushes the groups below a major group that wraps to a second row", function()
+  it("pushes everything below a major group that wraps to a second row", function()
     local bounds = fullBounds()
-    bounds.major = layout.grid(8, 44, 2, 6, "down", 20).bounds
+    bounds.major = layout.grid(8, 35, 2, 6, "down", 20).bounds
     local positions = layout.resolve(settings.DEFAULT_POSITIONS, settings.DEFAULT_ANCHORS, bounds)
-    assert.are.equal(settings.DEFAULT_POSITIONS.rotation.y + 46, positions.rotation.y)
-    assert.are.equal(-396, positions.target.y)
+    local defaults = settings.DEFAULT_POSITIONS
+    assert.are.same({ defaults.rotation.y + 37, defaults.target.y + 37, defaults.utility.y + 37 },
+      { positions.rotation.y, positions.target.y, positions.utility.y })
+  end)
+
+  it("pushes utility down by spender rows below the adrenaline bar", function()
+    local bounds = fullBounds()
+    bounds.resource = { x = 0, y = 20, w = 278, h = 40 }
+    local positions = layout.resolve(settings.DEFAULT_POSITIONS, settings.DEFAULT_ANCHORS, bounds)
+    assert.are.same({ settings.DEFAULT_POSITIONS.castbar.y + 20, settings.DEFAULT_POSITIONS.utility.y + 20 },
+      { positions.castbar.y, positions.utility.y })
   end)
 
   it("places a child flush on each side and alignment of its target", function()
@@ -105,13 +114,13 @@ describe("layout", function()
 
   it("lists every descendant in a chain and refuses anchoring into it", function()
     local anchors = settings.DEFAULT_ANCHORS
-    local chain = layout.chain(anchors, "major")
+    local chain = layout.chain(anchors, "resource")
     table.sort(chain)
-    assert.are.same({ "custom1", "custom2", "custom3", "custom4", "player", "playerDebuffs", "rotation", "target",
-      "targetDebuffs", "upkeepBuffs", "utility" }, chain)
+    assert.are.same({ "castbar", "custom1", "custom2", "custom3", "custom4", "utility" }, chain)
     local rotationChain = layout.chain(anchors, "rotation")
     table.sort(rotationChain)
-    assert.are.same({ "custom1", "custom2", "custom3", "custom4", "utility" }, rotationChain)
+    assert.are.same({ "castbar", "custom1", "custom2", "custom3", "custom4", "player", "playerDebuffs", "resource",
+      "target", "targetDebuffs", "upkeepBuffs", "utility" }, rotationChain)
     assert.is_false(layout.canAnchor(anchors, "major", "major"))
     assert.is_false(layout.canAnchor(anchors, "major", "utility"))
     assert.is_true(layout.canAnchor(anchors, "utility", "player"))
@@ -150,7 +159,7 @@ describe("layout", function()
       if not skipped[name] then count = count + 1 end
     end
     assert.are.equal(count, #targets)
-    assert.are.same({}, layout.snapTargets(rects, settings.DEFAULT_ANCHORS, "resource"))
+    assert.are.same({}, layout.snapTargets(rects, settings.DEFAULT_ANCHORS, "major"))
   end)
 
   it("wraps a down group into centred rows below its first", function()
