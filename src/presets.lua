@@ -86,7 +86,7 @@ presets.STYLES = {
       { "STRENGTH_ASSAULT", "Assault", 14261 },
       { "ATTACK_WHIRLWIND", "Hurricane", 14215 },
       { "STRENGTH_DESTROY", "Destroy", 14263 },
-      { "MELEE_DISMEMBER", "Dismember", 21239 },
+      { "MELEE_DISMEMBER", "Dismember", 21239, { { "Dismember", 21362 }, { "Dismember", 21296 } } },
       { "ATTACK_CHARGE", "Barge", 14208, { { "Greater Barge", 840 } } },
       { "ATTACK_FLURRY", "Flurry", 14214, { { "Greater Flurry", 841 } } },
     }),
@@ -96,8 +96,8 @@ presets.STYLES = {
 -- The shared Utility group's keys: movement and the weapon special, the same for every style.
 presets.UTILITY = list({
   { "ATTACK_BLADED_DIVE", "Dive", 23714 },
-  { "MAGIC_SURGE_CHARGE2", "Surge", 14233 },
-  { "RANGED_ESCAPE_CHARGE2", "Escape", 14245 },
+  { "MAGIC_SURGE", "Surge", 14233 },
+  { "RANGED_ESCAPE", "Escape", 14245 },
   { "WEAPON_INSTABILITY", "Weapon Special Attack", 26105 },
 })
 

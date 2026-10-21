@@ -248,6 +248,8 @@ local VALUE_SPACE = 110
 local SPENDER_ROW = 8
 local SPENDER_STEP = SPENDER_ROW + 2
 local SPENDER_COLOURS = { souls = COLOURS.spender, necrosis = COLOURS.necrosis }
+-- Stacks that make a whole cast, on spender rows and tile bars.
+local GOLD = draw.WINDOW.accent
 
 -- Left edges and widths of count blocks spread evenly across width with 2px gaps, using every pixel.
 local function blockSpans(count, width)
@@ -262,7 +264,7 @@ end
 
 -- One row of spender blocks per src/frames spender on layer, hidden. show(spenders, w, y) draws spenders, a
 -- src/frames resource model's list, in rows w wide from y down, each canvas redrawn only when its spender,
--- count, max or width changes, and hides the rest.
+-- count, gold, max or width changes, and hides the rest.
 local function spenderRows(layer)
   local rows = {}
   for r = 1, #frames.SPENDERS do
@@ -270,12 +272,17 @@ local function spenderRows(layer)
     set(rows[r].canvas, "hidden", true)
   end
 
-  -- Black-edged blocks, filled up to the spender's count.
+  -- Black-edged blocks, gold up to the spender's whole casts and filled up to its count.
   local function drawBlocks(canvas, spender, w)
     canvas:Clear()
     local edge = draw.opaque(COLOURS.border)
     for i, span in ipairs(blockSpans(spender.max, w)) do
-      local rgb = i <= spender.count and SPENDER_COLOURS[spender.key] or COLOURS.emptyBlock
+      local rgb = COLOURS.emptyBlock
+      if i <= spender.gold then
+        rgb = GOLD
+      elseif i <= spender.count then
+        rgb = SPENDER_COLOURS[spender.key]
+      end
       canvas:AddRectangle(span.x, 0, span.w, SPENDER_ROW, edge)
       canvas:AddRectangle(span.x + 1, 1, span.w - 2, SPENDER_ROW - 2, draw.opaque(rgb))
     end
@@ -288,9 +295,16 @@ local function spenderRows(layer)
       if spender ~= nil then
         pos(row.canvas, 0, y + (r - 1) * SPENDER_STEP)
         draw.size(row.canvas, w, SPENDER_ROW)
-        if row.key ~= spender.key or row.count ~= spender.count or row.max ~= spender.max or row.w ~= w then
+        if
+          row.key ~= spender.key
+          or row.count ~= spender.count
+          or row.gold ~= spender.gold
+          or row.max ~= spender.max
+          or row.w ~= w
+        then
           row.key = spender.key
           row.count = spender.count
+          row.gold = spender.gold
           row.max = spender.max
           row.w = w
           drawBlocks(row.canvas, spender, w)
@@ -571,6 +585,10 @@ local UNTINTED = 0xffffff
 local BLOCKED_ICON = 0x333333
 local BLOCKED_TEXT = 0xa5a5a5
 local BLOCKED_ALPHA = 0.6
+-- A tile bar's height, and while any of it is gold.
+local TILE_BAR = 3
+local LIT_TILE_BAR = 5
+local COUNT_HEIGHT = 14
 
 -- Builds one cooldown tile's components. placeTile positions and sizes them.
 local function tile(layer)
@@ -580,11 +598,33 @@ local function tile(layer)
     icon = ui.Sprite.new(layer),
     initials = draw.edgedText(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, 0, 12),
     dim = rect(layer, COLOURS.border, 0, 0, 0, 0),
+    track = rect(layer, COLOURS.border, 0, 0, 0, 0),
+    fill = rect(layer, COLOURS.highlight, 0, 0, 0, 0),
+    gold = rect(layer, GOLD, 0, 0, 0, 0),
+    notchEdge = rect(layer, COLOURS.border, 0, 0, 0, 0),
+    notch = rect(layer, COLOURS.highlight, 0, 0, 0, 0),
+    count = draw.edgedText(layer, FONTS.body, ui.AlignMode.TOPLEFT, 0, 0, 0, COUNT_HEIGHT),
     keybind = draw.edgedText(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12),
     seconds = draw.edgedText(layer, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, 0, 0),
   }
-  parts.all = { parts.edge, parts.background, parts.icon, parts.initials, parts.dim, parts.keybind, parts.seconds }
+  parts.bar = { parts.track, parts.fill, parts.gold, parts.notchEdge, parts.notch }
+  parts.all = {
+    parts.edge,
+    parts.background,
+    parts.icon,
+    parts.initials,
+    parts.dim,
+    parts.track,
+    parts.fill,
+    parts.gold,
+    parts.notchEdge,
+    parts.notch,
+    parts.count,
+    parts.keybind,
+    parts.seconds,
+  }
   parts.inner = { parts.background, parts.icon, parts.dim }
+  draw.hideAll(parts.bar, true)
   set(parts.background, "alpha", TILE_ALPHA)
   set(parts.dim, "alpha", COOLING_DIM)
   return parts
@@ -594,6 +634,7 @@ end
 local function placeTile(parts, x, y, size)
   parts.x = x
   parts.y = y
+  parts.size = size
   pos(parts.edge, x, y)
   draw.size(parts.edge, size, size)
   for _, inner in ipairs(parts.inner) do
@@ -619,8 +660,58 @@ local function showSeconds(parts, since)
   return true
 end
 
+-- Width of a recharge bar's white fill, since seconds after the server tick its model was read at.
+local function rechargeWidth(parts, since)
+  local recharge = parts.recharge
+  local done = 1 - (recharge.remaining - since) / recharge.length
+  return math.floor((parts.size - 2) * math.max(0, math.min(1, done)))
+end
+
+-- Draws a tile's bar along its bottom edge: a spender's stacks in its row colour with whole casts gold and a
+-- notch at one cast, or a charge's recharge in white. Returns the bar's height, 0 with none.
+local function showBar(parts, model, since, size)
+  local stacks = model.stacks
+  parts.recharge = model.recharge
+  if stacks == nil and model.recharge == nil then
+    draw.hideAll(parts.bar, true)
+    return 0
+  end
+  local w = size - 2
+  local h = (stacks ~= nil and stacks.gold > 0) and LIT_TILE_BAR or TILE_BAR
+  local x = parts.x + 1
+  local top = parts.y + size - 1 - h
+  set(parts.track, "hidden", false)
+  set(parts.fill, "hidden", false)
+  pos(parts.track, x, top)
+  draw.size(parts.track, w, h)
+  pos(parts.fill, x, top)
+  local notch = stacks and stacks.notch
+  set(parts.gold, "hidden", stacks == nil or stacks.gold == 0)
+  set(parts.notchEdge, "hidden", notch == nil)
+  set(parts.notch, "hidden", notch == nil)
+  if stacks == nil then
+    set(parts.fill, "rgb", COLOURS.highlight)
+    draw.size(parts.fill, rechargeWidth(parts, since), h)
+    return h
+  end
+  set(parts.fill, "rgb", SPENDER_COLOURS[stacks.key])
+  draw.size(parts.fill, w * stacks.count // stacks.max, h)
+  if stacks.gold > 0 then
+    pos(parts.gold, x, top)
+    draw.size(parts.gold, w * stacks.gold // stacks.max, h)
+  end
+  if notch ~= nil then
+    local notchX = x + w * notch // stacks.max - 1
+    pos(parts.notchEdge, notchX - 1, top)
+    draw.size(parts.notchEdge, 4, h)
+    pos(parts.notch, notchX, top)
+    draw.size(parts.notch, 2, h)
+  end
+  return h
+end
+
 -- Shows a src/cooldowns tile model on a size pixel tile's parts in a src/style look, since seconds after the
--- server tick it was read at.
+-- server tick it was read at. A count sits at bottom left, raised over the bar on a tile that can show one.
 local function showTile(parts, model, since, look, size)
   set(parts.edge, "hidden", false)
   set(parts.background, "hidden", false)
@@ -632,6 +723,18 @@ local function showTile(parts, model, since, look, size)
   parts.remaining = model.remaining
   if model.remaining ~= nil then
     showSeconds(parts, since)
+  end
+  local barH = showBar(parts, model, since, size)
+  set(parts.count, "hidden", model.count == nil)
+  if model.count ~= nil then
+    set(parts.count, "content", model.count)
+    local lift = 0
+    if model.charges ~= nil or model.stacks ~= nil then
+      lift = math.max(barH, TILE_BAR) + 1
+    end
+    pos(parts.count, parts.x + 4, parts.y + size - 3 - lift - COUNT_HEIGHT)
+    draw.size(parts.count, size - 8, COUNT_HEIGHT)
+    styleText(parts.count, "body", look, false)
   end
   local usable = model.usable ~= false
   set(parts.icon, "rgb", usable and UNTINTED or BLOCKED_ICON)
@@ -653,7 +756,7 @@ end
 -- { size, perRow, grow }, returns whether it changed, and redraws on the next update. update takes
 -- src/cooldowns tiles and the seconds since the server tick they were read at, and returns whether bounds
 -- changed; bounds spans the shown tiles, and an empty group's sides meet at its axis. step(since) counts the
--- cooling tiles down from that tick, and returns at once when none is cooling. setInUse(false)
+-- cooling tiles down and moves recharge bars from that tick, and returns at once when none moves. setInUse(false)
 -- hides a custom group that is not in use and collapses its bounds. Tiles are built as the group first needs
 -- them, inside its layer, and never destroyed. Ready tiles are bright with their keybind; cooling tiles are
 -- dimmed with whole seconds left; tiles whose ability can't be cast are tinted dark. Hovering a tile shows
@@ -665,9 +768,9 @@ function view.cooldownGroup(root, tooltip)
   local display = nil
   local inUse = true
   local current = {}
-  -- Shown tiles, and how many of them are cooling.
+  -- Shown tiles, and how many of them are cooling or recharging.
   local count = 0
-  local cooling = 0
+  local moving = 0
   -- The look shown and the seconds since the server tick of the models shown.
   local look = DEFAULT_LOOK
   local shownSince = 0
@@ -711,7 +814,7 @@ function view.cooldownGroup(root, tooltip)
     if not inUse then
       current = {}
       count = 0
-      cooling = 0
+      moving = 0
       for _, parts in ipairs(tiles) do
         draw.hideAll(parts.all, true)
       end
@@ -727,7 +830,7 @@ function view.cooldownGroup(root, tooltip)
     current = models
     shownSince = since or 0
     count = math.min(#models, max)
-    cooling = 0
+    moving = 0
     while #tiles < count do
       tiles[#tiles + 1] = tile(layer)
       hover.add(tiles[#tiles])
@@ -745,8 +848,8 @@ function view.cooldownGroup(root, tooltip)
       else
         placeTile(parts, g.tiles[i].x, g.tiles[i].y, display.size)
         showTile(parts, models[i], shownSince, look, display.size)
-        if models[i].remaining ~= nil then
-          cooling = cooling + 1
+        if models[i].remaining ~= nil or models[i].recharge ~= nil then
+          moving = moving + 1
         end
       end
     end
@@ -768,13 +871,16 @@ function view.cooldownGroup(root, tooltip)
   end
 
   function group.step(since)
-    if cooling == 0 then
+    if moving == 0 then
       return
     end
     for i = 1, count do
       local parts = tiles[i]
       if parts.remaining ~= nil and showSeconds(parts, since) and hover.index == i then
         showTooltip(i)
+      end
+      if parts.recharge ~= nil then
+        draw.width(parts.fill, rechargeWidth(parts, since))
       end
     end
   end
