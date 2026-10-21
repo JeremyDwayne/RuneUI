@@ -47,18 +47,21 @@ function frames.formatAmount(n)
   return withCommas(n)
 end
 
--- A unit frame's value text in a frames.LIFEPOINTS format, from its lifepoints with commas, short amount and
--- percent, any of which may be nil. The full format joins lifepoints and max with a slash, or with a bar to the
--- percent when the max is unknown. A format whose part is missing falls back to the parts there are.
-local function valueText(format, exact, amount, percent, max)
-  if format == "full" and exact ~= nil then
-    if max ~= nil then return exact .. " / " .. max end
-    amount = exact
-  elseif format == "amount" and amount ~= nil then
-    return amount
+-- A unit frame's value text in a frames.LIFEPOINTS format from its lifepoints, percent text and max, any of
+-- which may be nil, formatting only what the format shows. The full format joins lifepoints and max with a
+-- slash, or with a bar to the percent when the max is unknown. A format whose part is missing falls back to the
+-- parts there are.
+local function valueText(format, lifepoints, percent, max)
+  if format == "full" and lifepoints ~= nil then
+    if max ~= nil then return withCommas(lifepoints) .. " / " .. withCommas(max) end
+    if percent == nil then return withCommas(lifepoints) end
+    return withCommas(lifepoints) .. " | " .. percent
+  elseif format == "amount" and lifepoints ~= nil then
+    return frames.formatAmount(lifepoints)
   elseif format == "percent" and percent ~= nil then
     return percent
   end
+  local amount = lifepoints and frames.formatAmount(lifepoints)
   if amount ~= nil and percent ~= nil then return amount .. " | " .. percent end
   return amount or percent or ""
 end
@@ -76,8 +79,7 @@ function frames.player(reads, format)
   else
     max = nil
   end
-  model.valueText = valueText(format, withCommas(reads.lifepoints), frames.formatAmount(reads.lifepoints), percent,
-    max and withCommas(max))
+  model.valueText = valueText(format, reads.lifepoints, percent, max)
   if reads.prayerValue ~= nil then
     -- The low 14 bits hold prayer in tenths of a point.
     local points = math.floor((reads.prayerValue % 16384) / 10)
@@ -100,8 +102,7 @@ function frames.target(reads, format)
     model.fill = clamp01(reads.healthPercent / 100)
     percent = percentText(reads.healthPercent, 100)
   end
-  model.valueText = valueText(format, lifepoints and withCommas(lifepoints),
-    lifepoints and frames.formatAmount(lifepoints), percent, nil)
+  model.valueText = valueText(format, lifepoints, percent, nil)
   return model
 end
 
