@@ -109,11 +109,12 @@ Event.InventoryAdded.Subscribe("lantern", adapter.inventoryChanged)
 Event.InventoryUpdated.Subscribe("lantern", adapter.inventoryChanged)
 
 local function refresh()
-  adapter.hideTargetPanel(saved.hideTargetPanel())
-  adapter.hideBuffBars(saved.hideBuffBars())
-  adapter.hideCastBar(saved.hideCastBar())
+  local appearance = saved.appearance()
+  adapter.hideTargetPanel(appearance.hideTargetPanel)
+  adapter.hideBuffBars(appearance.hideBuffBars)
+  adapter.hideCastBar(appearance.hideCastBar)
   for _, element in pairs(elements) do
-    if element.setTexture ~= nil then element.setTexture(saved.texture()) end
+    if element.setTexture ~= nil then element.setTexture(appearance.texture) end
   end
   elements.player.update(frames.player(adapter.playerReads()))
   local target = frames.target(adapter.targetReads())
@@ -125,7 +126,7 @@ local function refresh()
   elements.castbar.update(channelTracker.model())
   slots = adapter.barSlots()
   local moved = updateGroups()
-  local bars = saved.auraBars()
+  local bars = appearance.auraBars
   auraFilters.hasTarget = not target.hidden
   -- Listing each debuff seen puts it on the Buffs page; seeDebuff saves only a new one.
   for _, sprite in ipairs(target.debuffs or {}) do saved.seeDebuff("target", sprite) end

@@ -686,9 +686,10 @@ function options.create(root, deps)
     end
   end
 
-  -- A labelled row of right-aligned option buttons on parent, below its earlier rows. choices:
-  -- { { value, label } }; current() returns the chosen value and choose(value) saves one.
-  local function choiceRow(parent, label, choices, current, choose)
+  -- A labelled row of right-aligned option buttons on parent, below its earlier rows, choosing the saved
+  -- appearance field. choices: { { value, label } }.
+  local function choiceRow(parent, label, choices, field)
+    local function current() return saved.appearance()[field] end
     local n = rowCounts[parent] or 0
     rowCounts[parent] = n + 1
     local ry = 18 + n * 50
@@ -708,7 +709,7 @@ function options.create(root, deps)
       end)
       on(bg, "ONMOUSELEAVE", showChoices)
       on(bg, "ONCLICK", function()
-        choose(option.value)
+        saved.setAppearance(field, option.value)
         showChoices()
         deps.refresh()
       end)
@@ -719,12 +720,12 @@ function options.create(root, deps)
   local textures = {}
   for i, texture in ipairs(settings.TEXTURES) do textures[i] = { value = texture, label = TEXTURE_LABELS[texture] } end
   local showHide = { { value = false, label = "Show" }, { value = true, label = "Hide" } }
-  choiceRow(pages.appearance, "Bar texture", textures, saved.texture, saved.setTexture)
-  choiceRow(pages.appearance, "Default target panel", showHide, saved.hideTargetPanel, saved.setHideTargetPanel)
-  choiceRow(pages.appearance, "Game cast bar", showHide, saved.hideCastBar, saved.setHideCastBar)
-  choiceRow(buffsPage.display, "Game buff bars", showHide, saved.hideBuffBars, saved.setHideBuffBars)
+  choiceRow(pages.appearance, "Bar texture", textures, "texture")
+  choiceRow(pages.appearance, "Default target panel", showHide, "hideTargetPanel")
+  choiceRow(pages.appearance, "Game cast bar", showHide, "hideCastBar")
+  choiceRow(buffsPage.display, "Game buff bars", showHide, "hideBuffBars")
   local auraIcons = { { value = false, label = "Plain" }, { value = true, label = "With bars" } }
-  choiceRow(buffsPage.display, "Aura icons", auraIcons, saved.auraBars, saved.setAuraBars)
+  choiceRow(buffsPage.display, "Aura icons", auraIcons, "auraBars")
 
   -- Edit mode ----------------------------------------------------------------------------------------
 

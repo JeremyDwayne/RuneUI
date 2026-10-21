@@ -622,51 +622,15 @@ function settings.load(store, windowHeight)
     store.set("markers", markers)
   end
 
-  function s.texture()
-    return appearance.texture
+  -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars }. The game's own cast bar is hidden until
+  -- chosen otherwise, since RuneUI draws one; auraBars draws a draining bar under each aura icon. Read-only.
+  function s.appearance()
+    return appearance
   end
 
-  -- texture is one of settings.TEXTURES.
-  function s.setTexture(value)
-    appearance.texture = value
-    store.set("appearance", appearance)
-  end
-
-  function s.hideTargetPanel()
-    return appearance.hideTargetPanel
-  end
-
-  function s.setHideTargetPanel(hidden)
-    appearance.hideTargetPanel = hidden
-    store.set("appearance", appearance)
-  end
-
-  function s.hideBuffBars()
-    return appearance.hideBuffBars
-  end
-
-  function s.setHideBuffBars(hidden)
-    appearance.hideBuffBars = hidden
-    store.set("appearance", appearance)
-  end
-
-  -- Whether the game's own cast bar is hidden, which it is until chosen otherwise, since RuneUI draws one.
-  function s.hideCastBar()
-    return appearance.hideCastBar
-  end
-
-  function s.setHideCastBar(hidden)
-    appearance.hideCastBar = hidden
-    store.set("appearance", appearance)
-  end
-
-  -- Whether aura icons draw a draining bar under them.
-  function s.auraBars()
-    return appearance.auraBars
-  end
-
-  function s.setAuraBars(on)
-    appearance.auraBars = on
+  -- Saves one appearance field. value is one the field's reader accepts, such as one of settings.TEXTURES.
+  function s.setAppearance(field, value)
+    appearance[field] = value
     store.set("appearance", appearance)
   end
 
