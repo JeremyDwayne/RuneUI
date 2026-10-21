@@ -299,7 +299,7 @@ function draw.numberField(parent, x, y, w, h, low, high, onChoose)
   end
 
   draw.on(field, "ONCONTENTCHANGED", function(_, reason, contents)
-    local n = math.tointeger(tonumber(contents:match("^%s*(%d+)%s*$")))
+    local n = math.tointeger(tonumber((contents or ""):match("^%s*(%d+)%s*$")))
     if reason == ui.InputFieldActionResult.CONTENT_CHANGE then
       if n ~= nil and n >= low and n <= high then onChoose(n) end
       return
