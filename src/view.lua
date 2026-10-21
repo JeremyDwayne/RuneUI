@@ -722,7 +722,6 @@ local function auraTile(layer, style)
     },
     edge = group.add(rect(layer, style.debuff and COLOURS.debuff or COLOURS.border, 0, 0, size, size), 0, 0),
     icon = group.add(ui.Sprite.new(layer), 1, 1),
-    plate = group.add(rect(layer, white, 0, 0, size - 8, style.timeHeight + 2), 4, timeY),
     time = group.add(text(layer, style.timeFont, ui.AlignMode.CENTRE, 0, 0, size, style.timeHeight + 2), 0, timeY),
     stacks = group.add(text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 23, 1),
     track = group.add(rect(layer, COLOURS.border, 0, 0, size, AURA_BAR), 0, size + 1),
@@ -752,11 +751,8 @@ local function showAura(parts, model, x, y, size, bars)
   set(parts.edge, "hidden", false)
   set(parts.icon, "hidden", false)
   set(parts.icon, "sprite", model.sprite)
-  set(parts.plate, "hidden", not ring)
   set(parts.time, "hidden", model.text == nil)
   set(parts.time, "content", model.text or "")
-  set(parts.time, "rgb", ring and COLOURS.darkText or COLOURS.text)
-  set(parts.time, "isShadowed", not ring)
   set(parts.stacks, "hidden", model.stacks == nil)
   set(parts.stacks, "content", model.stacks or "")
 
@@ -775,7 +771,7 @@ local function showAura(parts, model, x, y, size, bars)
 end
 
 -- A row of up to 10 aura icons gathered at style.align's end. Each icon shows its time left and stacks, and
--- in its refresh window a highlight: a white ring and the time on a white plate, or with bars on a dashed
+-- in its refresh window a highlight: a white ring, or with bars on a dashed
 -- outline and a striped bar. update takes src/auras models and whether bars
 -- are on, and returns whether bounds changed. bounds spans the shown tiles, at least one, so an empty row
 -- can still be dragged in edit mode. Hovering an icon shows the name and info from info(sprite), which

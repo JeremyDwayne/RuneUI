@@ -10,6 +10,8 @@ local TICK = 6
 local UNITS = { m = 60, h = 3600 }
 -- An icon is highlighted in the last 10% of its full length, and never later than its last 3 seconds.
 local HIGHLIGHT_SECONDS = 3
+-- A seconds label unchanged for this many ticks after it first shows is a count, such as stacks, not a timer.
+local COUNT_REPEATS = 3
 
 -- A slot label such as "20<br>(5)", "20(5)", "6m" or "47%" as { seconds, low, text, stacks }: the most and
 -- least time left the label can mean. The bars show seconds up to 60 and whole minutes above, so "6m" means
@@ -41,14 +43,20 @@ function auras.tracker()
   local bars = { buffs = { states = {}, order = {} }, debuffs = { states = {}, order = {} } }
 
   -- Moves state to what label shows: a new time replaces the count, raising full when it is the longest seen,
-  -- and an unchanged label counts down a tick, no further than the least time the label can mean.
+  -- and an unchanged label counts down a tick, no further than the least time the label can mean. A seconds
+  -- label that holds for COUNT_REPEATS ticks marks the aura a count for good, and fell marks a time that dropped.
   local function follow(state, label)
     if label == state.label then
+      state.still = state.still + 1
+      if state.still >= COUNT_REPEATS and state.seconds ~= nil and state.low == state.seconds - 1 then
+        state.count = true
+      end
       if state.left ~= nil then state.left = math.max(state.left - TICK, state.low * 10) end
       return
     end
     local parsed = auras.parse(label)
-    state.label, state.text, state.stacks = label, parsed.text, parsed.stacks
+    if parsed.seconds ~= nil and state.seconds ~= nil and parsed.seconds < state.seconds then state.fell = true end
+    state.label, state.text, state.stacks, state.still = label, parsed.text, parsed.stacks, 0
     if parsed.seconds == nil then
       state.seconds, state.left = nil, nil
       return
@@ -89,13 +97,14 @@ function auras.tracker()
   end
 
   -- { sprite, text, stacks, left, full, fill, highlight } for state. left and full are seconds, full the
-  -- longest time left seen since the aura appeared. A buff with no timer has only sprite, text and stacks.
+  -- longest time left seen since the aura appeared. A buff with no timer, or a count, has only sprite, text and
+  -- stacks. Only a time seen falling is highlighted.
   local function model(state)
     local m = { sprite = state.sprite, text = state.text, stacks = state.stacks, highlight = false }
-    if state.left ~= nil then
+    if state.left ~= nil and not state.count then
       m.left, m.full = state.left / 10, state.full / 10
       m.fill = state.full > 0 and state.left / state.full or 0
-      m.highlight = state.left * 10 <= state.full or state.left <= HIGHLIGHT_SECONDS * 10
+      m.highlight = state.fell == true and (state.left * 10 <= state.full or state.left <= HIGHLIGHT_SECONDS * 10)
     end
     return m
   end

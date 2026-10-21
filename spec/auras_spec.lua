@@ -1,6 +1,6 @@
 local auras = require("src/auras")
 
-local OVERLOAD, INCITE, SONIC, AFTERSHOCK, STUN = 30093, 14766, 27432, 26466, 14695
+local OVERLOAD, INCITE, SONIC, AFTERSHOCK, STUN, BLOODLUST = 30093, 14766, 27432, 26466, 14695, 23876
 
 local function buffs(...)
   local list = {}
@@ -86,6 +86,27 @@ describe("auras.tracker", function()
     assert.is_true(shown(tracker, "combatBuffs", INCITE).highlight)
     tracker.onTick(buffs(AFTERSHOCK, "47%"))
     assert.is_false(shown(tracker, "combatBuffs", AFTERSHOCK, { [tostring(AFTERSHOCK)] = "combat" }).highlight)
+  end)
+
+  it("highlights a short time only once it has fallen", function()
+    local tracker = auras.tracker()
+    tracker.onTick(buffs(INCITE, "3"))
+    assert.is_false(shown(tracker, "combatBuffs", INCITE).highlight)
+    tracker.onTick(buffs(INCITE, "2"))
+    assert.is_true(shown(tracker, "combatBuffs", INCITE).highlight)
+  end)
+
+  it("shows a seconds label that holds for 4 ticks as a count, with no timer or highlight", function()
+    local tracker = auras.tracker()
+    tracker.onTick(buffs(BLOODLUST, "5"))
+    tracker.onTick(buffs(BLOODLUST, "4"))
+    for _ = 1, 2 do tracker.onTick(buffs(BLOODLUST, "4")) end
+    assert.is_not_nil(shown(tracker, "combatBuffs", BLOODLUST).left)
+    tracker.onTick(buffs(BLOODLUST, "4"))
+    local count = shown(tracker, "combatBuffs", BLOODLUST)
+    assert.are.same({ "4", nil, nil, false }, { count.text, count.left, count.fill, count.highlight })
+    tracker.onTick(buffs(BLOODLUST, "2"))
+    assert.is_nil(shown(tracker, "combatBuffs", BLOODLUST).left)
   end)
 
   it("counts a minute label down by ticks inside its minute and resyncs when the label changes", function()
