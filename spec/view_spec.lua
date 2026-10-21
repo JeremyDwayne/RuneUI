@@ -39,12 +39,12 @@ local function asphyxiate(start, ticksLeft)
     hits = { 0, 1.2, 2.4, 3.6 } }
 end
 
--- Shown 1px bar marks, as tall as the cast bar's fill unless height is given: { dark ones over the fill, light
--- ones ahead of it }.
-local function marks(height)
+-- Shown 1px bar marks on bar, as tall as the cast bar's fill unless height is given: { dark ones over the fill,
+-- light ones ahead of it }.
+local function marks(bar, height)
   local dark, light = 0, 0
   for _, c in ipairs(fake.created) do
-    if fake.shown(c) and c.width == 1 and c.height == (height or 20) then
+    if fake.shown(c) and c.parent == bar.layer and c.width == 1 and c.height == (height or 20) then
       if c.rgb == draw.COLOURS.border then dark = dark + 1 end
       if c.rgb == draw.COLOURS.highlight then light = light + 1 end
     end
@@ -284,7 +284,7 @@ describe("view", function()
     local name = fake.find(function(_, d) return d.content == "Asphyxiate" end)
     bar.update({ start = 227269, cancelled = true })
     assert.is_not_nil(fake.find(function(_, d) return d.content == "Cancelled" end))
-    assert.are.same({ 0, 0 }, marks())
+    assert.are.same({ 0, 0 }, marks(bar))
     bar.update(nil)
     bar.step(0.6)
     assert.are.same({ false, 1 }, { bar.layer.hidden, name.alpha or 1 })
@@ -298,6 +298,36 @@ describe("view", function()
     assert.are.same({ false, 1 }, { bar.layer.hidden, name.alpha })
   end)
 
+  it("colours the fill by the channel's combat style, and teal when it has none", function()
+    local bar = view.castBar(fake.component())
+    local model = asphyxiate()
+    model.style = "necromancy"
+    bar.update(model)
+    assert.is_not_nil(fake.find(function(_, d) return d.rgb == draw.COLOURS.castNecromancy end))
+    bar.update(asphyxiate(227280))
+    assert.is_nil(fake.find(function(_, d) return d.rgb == draw.COLOURS.castNecromancy end))
+    assert.is_not_nil(fake.find(function(_, d) return d.rgb == draw.COLOURS.cast end))
+  end)
+
+  it("keeps a spark at the fill's edge whose glow flashes on each server tick", function()
+    local bar = view.castBar(fake.component())
+    bar.update(asphyxiate())
+    bar.step(0.3)
+    local core = fake.find(function(_, d)
+      return d.rgb == draw.COLOURS.highlight and d.width == 2 and d.height == 20
+    end)
+    local x = core.parent.x
+    bar.step(0.2)
+    assert.is_true(core.parent.x > x)
+    local function glow(alpha)
+      return fake.find(function(_, d) return d.width == 1 and d.height == 20 and d.alpha == alpha end)
+    end
+    bar.update(asphyxiate(nil, 6))
+    assert.is_not_nil(glow(0.9))
+    bar.step(0.3)
+    assert.are.same({ false, true }, { glow(0.9) ~= nil, glow(0.45) ~= nil })
+  end)
+
   it("ignores a cancelled channel it never showed", function()
     local bar = view.castBar(fake.component())
     bar.update({ start = 227269, cancelled = true })
@@ -307,24 +337,24 @@ describe("view", function()
   it("marks each hit inside the cast bar but not at its ends, dark once the fill passes it", function()
     local bar = view.castBar(fake.component())
     bar.update(asphyxiate())
-    assert.are.same({ 0, 3 }, marks())
+    assert.are.same({ 0, 3 }, marks(bar))
     bar.update(asphyxiate(nil, 5))
-    assert.are.same({ 1, 2 }, marks())
+    assert.are.same({ 1, 2 }, marks(bar))
     fake.writes = 0
     bar.step(0.02)
-    assert.are.equal(1, fake.writes)
+    assert.are.equal(2, fake.writes, "the fill and the spark")
     bar.update({ start = 1, name = "Greater Concentrated Blast", duration = 1.8, hits = { 0, 0.6, 1.2 } })
-    assert.are.same({ 0, 2 }, marks())
+    assert.are.same({ 0, 2 }, marks(bar))
     bar.update({ start = 2, name = "Asphyxiate", duration = 3.6 })
-    assert.are.same({ 0, 0 }, marks())
+    assert.are.same({ 0, 0 }, marks(bar))
   end)
 
   it("draws each adrenaline marker as a faint line across the bar, dark once the fill reaches it", function()
     local bar = view.resourceBar(fake.component())
     bar.update({ hidden = false, fill = 0.6, text = "60%", markers = { { at = 0.5 }, { at = 1 } }, spenders = {} })
-    assert.are.same({ 1, 1 }, marks(18))
+    assert.are.same({ 1, 1 }, marks(bar, 18))
     bar.update({ hidden = false, fill = 1, text = "100%", markers = { { at = 0.5 }, { at = 1 } }, spenders = {} })
-    assert.are.same({ 2, 0 }, marks(18))
+    assert.are.same({ 2, 0 }, marks(bar, 18))
   end)
 
   it("makes no writes stepping between channels", function()

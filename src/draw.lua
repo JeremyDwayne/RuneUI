@@ -19,6 +19,10 @@ draw.COLOURS = {
   prayer = 0xdfe4ea,
   adrenaline = 0xffb000,
   cast = 0x23706a,
+  castMagic = 0x2a5fa8,
+  castRanged = 0x2f7a33,
+  castMelee = 0x8e2a26,
+  castNecromancy = 0x6b3fa0,
   marker = 0xdfe4ea,
   text = 0xffffff,
   darkText = 0x111316,
@@ -284,7 +288,8 @@ end
 
 -- A bar fill over its track, flat or with a settings.TEXTURES gradient. The gradient is drawn once per
 -- texture on a canvas, and a track-coloured cover hides the empty part, so a fill change moves one rect.
--- Returns { setFill(fill from 0 to 1, or nil to hide), setTexture(texture), parts }, parts listing its components.
+-- Returns { setFill(fill from 0 to 1, or nil to hide), setTexture(texture), setColour(rgb), parts }, parts listing
+-- its components.
 function draw.bar(parent, rgb, trackRgb, x, y, width, height)
   local solid = draw.rect(parent, rgb, x, y, width, height)
   local canvas = ui.Canvas.new(parent)
@@ -315,9 +320,8 @@ function draw.bar(parent, rgb, trackRgb, x, y, width, height)
     redraw()
   end
 
-  function bar.setTexture(value)
-    if value == texture then return end
-    texture = value
+  -- Draws the gradient for the texture and colour, once per change.
+  local function paint()
     if texture ~= "flat" then
       local light, dark = draw.opaque(mix(rgb, 0xffffff, LIGHTEN)), draw.opaque(mix(rgb, 0x000000, DARKEN))
       canvas:Clear()
@@ -328,6 +332,19 @@ function draw.bar(parent, rgb, trackRgb, x, y, width, height)
       end
     end
     redraw()
+  end
+
+  function bar.setTexture(value)
+    if value == texture then return end
+    texture = value
+    paint()
+  end
+
+  function bar.setColour(value)
+    if value == rgb then return end
+    rgb = value
+    draw.set(solid, "rgb", rgb)
+    paint()
   end
 
   return bar

@@ -2,7 +2,9 @@ local channel = require("src/channel")
 
 local CHOKE = 14731
 local function asphyxiate(structID)
-  if structID == CHOKE then return { name = "Asphyxiate", icon = 14660 } end
+  if structID == CHOKE then
+    return { configName = "COMBATV2_ABILITY_MAGIC_CHOKE", name = "Asphyxiate", icon = 14660 }
+  end
 end
 
 -- Starts Asphyxiate's channel on server ticks 227269 to 227275, 3 iterations 2 ticks apart, as the game sets it
@@ -29,7 +31,7 @@ describe("channel.tracker", function()
       startAsphyxiate(tracker)
       tracker.read(asphyxiate)
       local expected = { start = 227269, name = "Asphyxiate", icon = 14660, duration = 4.2, ticksLeft = 7 }
-      expected.hits = { 0, 1.2, 2.4, 3.6 }
+      expected.hits, expected.style = { 0, 1.2, 2.4, 3.6 }, "magic"
       assert.are.same(expected, tracker.model())
     end)
 
@@ -82,6 +84,18 @@ describe("channel.tracker", function()
     assert.is_nil(tracker.model().name)
     tracker.read(failingOnce)
     assert.are.equal("Asphyxiate", tracker.model().name)
+  end)
+
+  it("keeps the name, icon and style when the channel's struct changes on its last hit", function()
+    local tracker = channel.tracker()
+    startAsphyxiate(tracker)
+    tracker.read(asphyxiate)
+    for _ = 1, 6 do tracker.onTick() end
+    tracker.onVar("COMBATV2_CHANNEL_END_REASON", -1, 1)
+    tracker.onVar("COMBATV2_CHANNEL_ABILITY_STRUCT", CHOKE, 14732)
+    tracker.read(asphyxiate)
+    local model = tracker.model()
+    assert.are.same({ "Asphyxiate", 14660, "magic" }, { model.name, model.icon, model.style })
   end)
 
   it("keeps a finished channel until its last tick passes, as the game's cast bar shows 0.6s on", function()

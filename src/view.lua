@@ -501,9 +501,22 @@ end
 -- in CANCEL_STEPS alpha steps, from 0.8 down to 0.
 local CANCEL_HOLD, CANCEL_FADE, CANCEL_STEPS = 0.6, 0.4, 5
 
+-- Fill colour by the channelled ability's src/cooldowns combat style. A channel with none keeps COLOURS.cast.
+local CAST_COLOURS = {
+  magic = COLOURS.castMagic, ranged = COLOURS.castRanged, melee = COLOURS.castMelee,
+  necromancy = COLOURS.castNecromancy,
+}
+
+-- The spark at the fill's edge: a 2px white core with a glow of SPARK_GLOW 1px white strips behind it, their alpha
+-- rising evenly to GLOW_PEAK by the core, times the glow level. The level sits at GLOW_BASE and flashes on each
+-- server tick, stepping down through FLASH_LEVELS over FLASH seconds, as the game's spark glow does.
+local SPARK_GLOW, SPARK_CORE, GLOW_PEAK = 12, 2, 0.9
+local GLOW_BASE, FLASH, FLASH_LEVELS = 0.5, 0.2, { 1, 0.8, 0.65 }
+
 -- 278x22, as wide as the resource bar: the channelled ability's icon, its name, and its time left as "1.2s" over
--- a fill of the time spent, with a bar mark at each hit that lands inside the bar rather than at its ends. A
--- cancelled channel shows "Cancelled" in place of its time and fades out, whatever updates arrive meanwhile.
+-- a fill of the time spent in its combat style's colour, with a spark at the fill's edge and a bar mark at each
+-- hit that lands inside the bar rather than at its ends. A cancelled channel shows "Cancelled" in place of its
+-- time, hides its spark and marks, and fades out, whatever updates arrive meanwhile.
 -- update takes a src/channel model, or nil to hide the bar while keeping its bounds, so anchored elements stay
 -- put. The time steps with the model's ticks left, as the game's label does, and each new count sets the fill to
 -- that tick. step(seconds) moves the fill on smoothly up to the next tick, hides the bar once its last tick runs
@@ -521,6 +534,16 @@ function view.castBar(root)
     marks[i] = barMark(layer, barX, 1, CAST_HEIGHT - 2)
     set(marks[i], "hidden", true)
   end
+  local sparkWidth = SPARK_GLOW + SPARK_CORE
+  local spark = ui.Layer.new(layer)
+  spark:SetSize(sparkWidth, CAST_HEIGHT - 2)
+  local glow = {}
+  for i = 1, SPARK_GLOW do
+    glow[i] = rect(spark, COLOURS.highlight, i - 1, 0, 1, CAST_HEIGHT - 2)
+  end
+  local core = rect(spark, COLOURS.highlight, sparkWidth - SPARK_CORE, 0, SPARK_CORE, CAST_HEIGHT - 2)
+  -- The glow level shown, and seconds left in a flash.
+  local glowLevel, flashLeft = nil, 0
   local iconBack = rect(layer, COLOURS.tile, 1, 1, CAST_ICON, CAST_ICON)
   local icon = ui.Sprite.new(layer)
   icon:SetPos(1, 1)
@@ -563,9 +586,25 @@ function view.castBar(root)
     for i = 1, placed do shadeMark(marks[i], i <= passed) end
   end
 
-  -- Fills the bar to the share of the channel spent and shades the marks it passed.
+  local function setGlow(level)
+    if level == glowLevel then return end
+    glowLevel = level
+    for i, strip in ipairs(glow) do set(strip, "alpha", GLOW_PEAK * level * i / SPARK_GLOW) end
+  end
+
+  -- Puts the spark's core at edge, hiding any part of it left of the fill.
+  local function placeSpark(edge)
+    local x = edge - sparkWidth
+    pos(spark, x, 1)
+    for i, strip in ipairs(glow) do set(strip, "hidden", x + i - 1 < barX) end
+    set(core, "hidden", edge - SPARK_CORE < barX)
+  end
+
+  -- Fills the bar to the share of the channel spent, moves the spark to its edge and shades the marks it passed.
   local function show(remaining)
-    fill.setFill(1 - remaining / current.duration)
+    local spent = 1 - remaining / current.duration
+    fill.setFill(spent)
+    placeSpark(barX + math.floor(barWidth * spent))
     shadeMarks(current.duration - remaining)
   end
 
@@ -588,6 +627,7 @@ function view.castBar(root)
         cancelLeft = CANCEL_HOLD + CANCEL_FADE
         set(time, "content", "Cancelled")
         draw.hideAll(marks, true)
+        set(spark, "hidden", true)
       else
         finish()
       end
@@ -598,8 +638,9 @@ function view.castBar(root)
       shownStart, left, shownTicks = model.start, model.duration, nil
     end
     if model ~= nil and left ~= nil and model.ticksLeft ~= shownTicks then
-      shownTicks, left = model.ticksLeft, model.ticksLeft * 6 / 10
+      shownTicks, left, flashLeft = model.ticksLeft, model.ticksLeft * 6 / 10, FLASH
       set(time, "content", castSeconds(shownTicks))
+      setGlow(FLASH_LEVELS[1])
     end
     current = left ~= nil and model or nil
     set(layer, "hidden", current == nil)
@@ -611,6 +652,8 @@ function view.castBar(root)
     set(icon, "hidden", model.icon == nil)
     if model.icon ~= nil then set(icon, "sprite", model.icon) end
     set(name, "content", model.name or "")
+    fill.setColour(CAST_COLOURS[model.style] or COLOURS.cast)
+    set(spark, "hidden", false)
     if model.start ~= placedFor or (model.hits and #model.hits) ~= placedHits then placeMarks(model) end
     show(left)
   end
@@ -625,6 +668,11 @@ function view.castBar(root)
         setAlpha((math.ceil(cancelLeft / CANCEL_FADE * CANCEL_STEPS) - 1) / CANCEL_STEPS)
       end
       return
+    end
+    if flashLeft > 0 then
+      flashLeft = flashLeft - seconds
+      local steps = #FLASH_LEVELS
+      setGlow(flashLeft > 0 and FLASH_LEVELS[steps + 1 - math.ceil(flashLeft / FLASH * steps)] or GLOW_BASE)
     end
     left = math.max(left - seconds, (shownTicks - 1) * 6 / 10)
     if left > 0 then
