@@ -33,11 +33,17 @@ local function nameFromKey(key)
   return table.concat(words, " ")
 end
 
--- "Greater Concentrated Blast" -> "GCB", shown on tiles with no icon.
+-- "Greater Concentrated Blast" -> "GCB", shown on tiles with no icon. Cached by name, since tiles rebuild
+-- every tick.
+local initialsOf = {}
 local function initials(name)
+  local cached = initialsOf[name]
+  if cached ~= nil then return cached end
   local letters = {}
   for word in name:gmatch("%S+") do letters[#letters + 1] = word:match("%a") end
-  return table.concat(letters):sub(1, 3):upper()
+  cached = table.concat(letters):sub(1, 3):upper()
+  initialsOf[name] = cached
+  return cached
 end
 
 -- Seconds left, rounded up so a cooling tile never reads 0. Integer maths avoids 0.6 float error.

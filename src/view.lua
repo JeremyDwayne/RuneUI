@@ -324,6 +324,7 @@ local function tile(layer)
     seconds = text(layer, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, 0, 0),
   }
   parts.all = { parts.edge, parts.background, parts.icon, parts.initials, parts.dim, parts.keybind, parts.seconds }
+  parts.inner = { parts.background, parts.icon, parts.dim }
   set(parts.background, "alpha", TILE_ALPHA)
   set(parts.dim, "alpha", COOLING_DIM)
   return parts
@@ -334,7 +335,7 @@ local function placeTile(parts, x, y, size)
   parts.x, parts.y = x, y
   pos(parts.edge, x, y)
   draw.size(parts.edge, size, size)
-  for _, inner in ipairs({ parts.background, parts.icon, parts.dim }) do
+  for _, inner in ipairs(parts.inner) do
     pos(inner, x + 1, y + 1)
     draw.size(inner, size - 2, size - 2)
   end
