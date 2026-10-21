@@ -25,6 +25,8 @@ local SCROLLBAR_W, WHEEL_STEP = 10, 8
 -- Side of the transparent square that holds a thumb drag under the cursor, which a fast move cannot leave.
 local GRAB = 160
 local OPTION_H = 28
+-- Alpha of a stepper whose setting another choice overrides.
+local FADED = 0.45
 -- Colour rows: two lines of swatches and the hex field, and the picker's shade square and hue strip under them.
 local SWATCH_W, SWATCH_GAP, HEX_W, HEX_H = 84, 4, 86, 24
 local COLOUR_ROW_H = 10 + 2 * OPTION_H + 8 + 10
@@ -256,7 +258,7 @@ local function settingsPage(page, width, height, deps, define)
   end
 
   -- A - number + stepper from low to high, its number typed: value(appearance) gives the number shown and
-  -- save(n) takes a new one. Returns the row.
+  -- save(n) takes a new one. Returns the row, whose fade(faded) dims the stepper while the setting has no effect.
   local function numberRow(label, low, high, value, save)
     local row = settingRow(label)
     local by = (ROW_H - OPTION_H) // 2
@@ -266,9 +268,17 @@ local function settingsPage(page, width, height, deps, define)
         if shows(row, by + y) then save(math.max(low, math.min(high, value(saved.appearance()) + delta))) end
       end
     end
-    wheel(draw.button(row.layer, "-", rowRight - 124, by, 28, OPTION_H, "dark", move(-1)).bg)
-    wheel(draw.button(row.layer, "+", rowRight - 28, by, 28, OPTION_H, "dark", move(1)).bg)
+    local minus = draw.button(row.layer, "-", rowRight - 124, by, 28, OPTION_H, "dark", move(-1))
+    local plus = draw.button(row.layer, "+", rowRight - 28, by, 28, OPTION_H, "dark", move(1))
+    wheel(minus.bg)
+    wheel(plus.bg)
     steppers[#steppers + 1] = function(appearance) field.show(value(appearance)) end
+    function row.fade(faded)
+      local alpha = faded and FADED or 1
+      minus.group.set("alpha", alpha)
+      plus.group.set("alpha", alpha)
+      set(field.field, "alpha", alpha)
+    end
     return row
   end
 
@@ -551,7 +561,7 @@ function appearancepage.bars(page, width, height, deps)
 
     b.heading("Cast bar")
     b.choices("Width from", WIDTH_FROM, "castMatchWidth", 160)
-    b.stepper("Width", "castWidth", settings.CAST_WIDTH.min, settings.CAST_WIDTH.max)
+    local widthRow = b.stepper("Width", "castWidth", settings.CAST_WIDTH.min, settings.CAST_WIDTH.max)
     b.stepper("Height", "castHeight", settings.CAST_HEIGHT.min, settings.CAST_HEIGHT.max)
     local function presetRgb(presetID)
       if presetID == "ability" then return style.STYLE_COLOURS[deps.tracker.style()] or style.CAST_COLOUR end
@@ -571,7 +581,9 @@ function appearancepage.bars(page, width, height, deps)
     end)
     b.options(size, b.rowRight - 132, { MATCH_HUD }, "castTextSize", 104)
 
-    return function(look)
+    return function(look, appearance)
+      widthRow.fade(appearance.castMatchWidth)
+      size.fade(appearance.castTextSize == "hud")
       view.setLook({ resource, cast }, look)
       resource.update(frames.resource(SAMPLE_ADRENALINE, saved.markers()))
       cast.update(SAMPLE_CAST)
