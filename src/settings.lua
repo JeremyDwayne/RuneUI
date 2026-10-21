@@ -59,12 +59,14 @@ settings.LAYOUT_VERSION = 2
 local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 -- Bar fills: one flat colour, or a gradient from top to bottom or across the bar.
 settings.TEXTURES = { "flat", "vertical", "horizontal" }
--- Points every HUD text role moves from its size, unit frame sizes and adrenaline bar sizes.
+-- Points every HUD text role moves from its size, and unit frame, adrenaline bar and cast bar sizes.
 settings.TEXT_STEP_MIN, settings.TEXT_STEP_MAX = -3, 6
 settings.FRAME_WIDTH = { min = 180, max = 400 }
 settings.FRAME_HEIGHT = { min = 30, max = 80 }
 settings.BAR_WIDTH = { min = 120, max = 500 }
 settings.BAR_HEIGHT = { min = 12, max = 40 }
+settings.CAST_WIDTH = { min = 150, max = 500 }
+settings.CAST_HEIGHT = { min = 14, max = 40 }
 
 -- Combat styles a cooldown group keeps a separate ability list for, and the directions a group grows in.
 settings.STYLES = { "necromancy", "magic", "ranged", "melee" }
@@ -320,10 +322,12 @@ local function wholeIn(value, low, high)
   return math.type(value) == "integer" and value >= low and value <= high
 end
 
--- A saved frame colour: a src/style preset id or a 0xRRGGBB number.
-local function isColour(value)
-  if type(value) == "string" then return styling.find(styling.PRESETS, value) ~= nil end
-  return wholeIn(value, 0, 0xFFFFFF)
+-- Checks a saved colour: an id from presets or a 0xRRGGBB number.
+local function colour(list)
+  return function(value)
+    if type(value) == "string" then return styling.find(list, value) ~= nil end
+    return wholeIn(value, 0, 0xFFFFFF)
+  end
 end
 
 local function option(list)
@@ -356,14 +360,23 @@ local APPEARANCE = {
   textStep = { 0, range(settings.TEXT_STEP_MIN, settings.TEXT_STEP_MAX) },
   edge = { "shadow", option(styling.EDGES) },
   textColour = { "auto", option(styling.TEXT_COLOURS) },
-  playerColour = { "runeui", isColour },
-  targetColour = { "runeui", isColour },
+  playerColour = { "runeui", colour(styling.PRESETS) },
+  targetColour = { "runeui", colour(styling.PRESETS) },
   border = { "runeui", option(styling.BORDERS) },
   lifepoints = { "short", option(frames.LIFEPOINTS) },
   frameWidth = { 250, range(settings.FRAME_WIDTH.min, settings.FRAME_WIDTH.max) },
   frameHeight = { 55, range(settings.FRAME_HEIGHT.min, settings.FRAME_HEIGHT.max) },
   barWidth = { 278, range(settings.BAR_WIDTH.min, settings.BAR_WIDTH.max) },
   barHeight = { 20, range(settings.BAR_HEIGHT.min, settings.BAR_HEIGHT.max) },
+  castWidth = { 278, range(settings.CAST_WIDTH.min, settings.CAST_WIDTH.max) },
+  castHeight = { 22, range(settings.CAST_HEIGHT.min, settings.CAST_HEIGHT.max) },
+  castMatchWidth = { false, isBoolean },
+  castColour = { "ability", colour(styling.CAST_PRESETS) },
+  castFont = { "hud", function(value) return value == "hud" or styling.find(styling.FAMILIES, value) ~= nil end },
+  castTextSize = { "hud", function(value)
+    return value == "hud" or wholeIn(value, styling.ROLES.body + settings.TEXT_STEP_MIN,
+      styling.ROLES.body + settings.TEXT_STEP_MAX)
+  end },
 }
 
 -- A saved appearance field's value, or its default when unknown or malformed.
@@ -688,8 +701,9 @@ function settings.load(store, windowHeight)
   end
 
   -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars, font, textStep, edge, textColour,
-  -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight, barWidth, barHeight }. The game's own
-  -- cast bar is
+  -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight, barWidth, barHeight, castWidth,
+  -- castHeight, castMatchWidth, castColour, castFont, castTextSize }. castFont and castTextSize are "hud" to
+  -- follow the HUD text or a family id and a size in points. The game's own cast bar is
   -- hidden until chosen otherwise, since RuneUI draws one; auraBars draws a draining bar under each aura icon.
   -- Read-only.
   function s.appearance()

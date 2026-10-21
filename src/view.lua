@@ -611,7 +611,6 @@ function view.cooldownGroup(root, tooltip)
   return group
 end
 
-local CAST_WIDTH, CAST_HEIGHT, CAST_ICON = 278, 22, 20
 -- Hit marks built for the cast bar, more than any channel deals.
 local MAX_HITS = 12
 local NO_HITS = {}
@@ -627,8 +626,11 @@ end
 -- in CANCEL_STEPS alpha steps, from 0.8 down to 0.
 local CANCEL_HOLD, CANCEL_FADE, CANCEL_STEPS = 0.6, 0.4, 5
 
--- Fill colour by the channelled ability's src/cooldowns combat style. A channel with none keeps COLOURS.cast.
+-- Fill colour by the channelled ability's src/cooldowns combat style, for Ability style. A channel with none keeps
+-- the RuneUI fill.
 local CAST_COLOURS = style.STYLE_COLOURS
+-- The time label's width and its gap from the bar's right end.
+local CAST_TIME_W, CAST_TIME_GAP = 72, 6
 
 -- The spark at the fill's edge: a 2px white core with a glow of SPARK_GLOW 1px white strips behind it, their alpha
 -- rising evenly to GLOW_PEAK by the core, times the glow level. The level sits at GLOW_BASE and flashes on each
@@ -636,43 +638,45 @@ local CAST_COLOURS = style.STYLE_COLOURS
 local SPARK_GLOW, SPARK_CORE, GLOW_PEAK = 12, 2, 0.9
 local GLOW_BASE, FLASH, FLASH_LEVELS = 0.5, 0.2, { 1, 0.8, 0.65 }
 
--- 278x22, as wide as the resource bar: the channelled ability's icon, its name, and its time left as "1.2s" over
--- a fill of the time spent in its combat style's colour, with a spark at the fill's edge and a bar mark at each
--- hit that lands inside the bar rather than at its ends. A cancelled channel shows "Cancelled" in place of its
--- time, hides its spark and marks, and fades out, whatever updates arrive meanwhile.
+-- look.castWidth by look.castHeight: the channelled ability's icon, its name, and its time left as "1.2s" over a
+-- fill of the time spent in look.castColour, or its combat style's colour for Ability style, with a spark at the
+-- fill's edge and a bar mark at each hit that lands inside the bar rather than at its ends. A cancelled channel
+-- shows "Cancelled" in place of its time, hides its spark and marks, and fades out, whatever updates arrive
+-- meanwhile.
 -- update takes a src/channel model, or nil to hide the bar while keeping its bounds, so anchored elements stay
 -- put. The time steps with the model's ticks left, as the game's label does, and each new count sets the fill to
 -- that tick. step(seconds) moves the fill on smoothly up to the next tick, hides the bar once its last tick runs
 -- out, and does nothing between channels.
 function view.castBar(root)
   local layer = ui.Layer.new(root)
-  layer:SetSize(CAST_WIDTH, CAST_HEIGHT)
-  local border = rect(layer, COLOURS.border, 0, 0, CAST_WIDTH, CAST_HEIGHT)
-  local track = rect(layer, COLOURS.track, 1, 1, CAST_WIDTH - 2, CAST_HEIGHT - 2)
-  local barX = CAST_ICON + 2
-  local barWidth = CAST_WIDTH - barX - 1
-  local fill = draw.bar(layer, COLOURS.cast, COLOURS.track, barX, 1, barWidth, CAST_HEIGHT - 2)
+  local border = rect(layer, COLOURS.border, 0, 0, 0, 0)
+  local track = rect(layer, COLOURS.track, 1, 1, 0, 0)
+  -- The bar's left edge and width, right of the icon, set by resize.
+  local barX, barWidth = 0, 0
+  local fill = draw.bar(layer, style.CAST_COLOUR, COLOURS.track, 0, 1, 0, 0)
   local marks = {}
   for i = 1, MAX_HITS do
-    marks[i] = barMark(layer, barX, 1, CAST_HEIGHT - 2)
+    marks[i] = barMark(layer, 0, 1, 0)
     set(marks[i], "hidden", true)
   end
   local sparkWidth = SPARK_GLOW + SPARK_CORE
   local spark = ui.Layer.new(layer)
-  spark:SetSize(sparkWidth, CAST_HEIGHT - 2)
   local glow = {}
   for i = 1, SPARK_GLOW do
-    glow[i] = rect(spark, COLOURS.highlight, i - 1, 0, 1, CAST_HEIGHT - 2)
+    glow[i] = rect(spark, COLOURS.highlight, i - 1, 0, 1, 0)
   end
-  local core = rect(spark, COLOURS.highlight, sparkWidth - SPARK_CORE, 0, SPARK_CORE, CAST_HEIGHT - 2)
+  local core = rect(spark, COLOURS.highlight, sparkWidth - SPARK_CORE, 0, SPARK_CORE, 0)
   -- The glow level shown, and seconds left in a flash.
   local glowLevel, flashLeft = nil, 0
-  local iconBack = rect(layer, COLOURS.tile, 1, 1, CAST_ICON, CAST_ICON)
+  local iconBack = rect(layer, COLOURS.tile, 1, 1, 0, 0)
   local icon = ui.Sprite.new(layer)
   icon:SetPos(1, 1)
-  icon:SetSize(CAST_ICON, CAST_ICON)
-  local name = draw.edgedText(layer, FONTS.body, ui.AlignMode.TOPLEFT, barX + 5, 1, 180, CAST_HEIGHT - 2)
-  local time = draw.edgedText(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, CAST_WIDTH - 78, 1, 72, CAST_HEIGHT - 2)
+  local name = draw.edgedText(layer, FONTS.body, ui.AlignMode.TOPLEFT, 0, 1, 0, 0)
+  local time = draw.edgedText(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, 0, 1, CAST_TIME_W, 0)
+  local bounds = { x = 0, y = 0, w = 0, h = 0 }
+  local bar = { layer = layer, bounds = bounds }
+  -- The look shown.
+  local shown = nil
   -- Every component the cancel fade dims. Marks hide on a cancel, so they are left out.
   local faded = { border, track, iconBack, icon, name, time }
   for _, part in ipairs(fill.parts) do faded[#faded + 1] = part end
@@ -775,7 +779,7 @@ function view.castBar(root)
     set(icon, "hidden", model.icon == nil)
     if model.icon ~= nil then set(icon, "sprite", model.icon) end
     set(name, "content", model.name or "")
-    fill.setColour(CAST_COLOURS[model.style] or COLOURS.cast)
+    fill.setColour(shown.castColour or CAST_COLOURS[model.style] or style.CAST_COLOUR)
     set(spark, "hidden", false)
     if model.start ~= placedFor or (model.hits and #model.hits) ~= placedHits then placeMarks(model) end
     show(left)
@@ -805,22 +809,48 @@ function view.castBar(root)
     end
   end
 
-  -- Its fills are all dark, so Auto keeps the text light.
-  local shown = nil
-  local function setLook(look)
-    if look == shown then return false end
-    shown = look
-    fill.setTexture(look.texture)
-    styleText(name, "body", look, false)
-    styleText(time, "body", look, false)
-    return false
+  -- Sizes every part for a w by h bar, the icon a square filling its height, and redraws a running channel.
+  local function resize(w, h)
+    local inner = h - 2
+    bar.width, bar.height, bounds.w, bounds.h = w, h, w, h
+    barX, barWidth = inner + 2, w - inner - 3
+    draw.size(layer, w, h)
+    draw.size(border, w, h)
+    draw.size(track, w - 2, inner)
+    fill.setBox(barX, 1, barWidth, inner)
+    for _, mark in ipairs(marks) do draw.size(mark, 1, inner) end
+    draw.size(spark, sparkWidth, inner)
+    for _, strip in ipairs(glow) do draw.size(strip, 1, inner) end
+    draw.size(core, SPARK_CORE, inner)
+    draw.size(iconBack, inner, inner)
+    draw.size(icon, inner, inner)
+    pos(name, barX + 5, 1)
+    draw.size(name, math.max(0, w - barX - 5 - CAST_TIME_W), inner)
+    pos(time, w - CAST_TIME_W - CAST_TIME_GAP, 1)
+    draw.size(time, CAST_TIME_W, inner)
+    if current ~= nil and cancelLeft == nil then
+      placeMarks(current)
+      show(left)
+    end
   end
 
-  setLook(DEFAULT_LOOK)
-  return {
-    layer = layer, update = update, step = step, setLook = setLook, width = CAST_WIDTH,
-    height = CAST_HEIGHT, bounds = { x = 0, y = 0, w = CAST_WIDTH, h = CAST_HEIGHT },
-  }
+  -- Restyles the bar for a src/style look, returning at once for the look it shows. Returns whether its bounds
+  -- changed. Its fills are all dark, so Auto keeps the text light.
+  function bar.setLook(look)
+    if look == shown then return false end
+    shown = look
+    local moved = bounds.w ~= look.castWidth or bounds.h ~= look.castHeight
+    if moved then resize(look.castWidth, look.castHeight) end
+    fill.setTexture(look.texture)
+    if current ~= nil then fill.setColour(look.castColour or CAST_COLOURS[current.style] or style.CAST_COLOUR) end
+    styleText(name, "cast", look, false)
+    styleText(time, "cast", look, false)
+    return moved
+  end
+
+  bar.update, bar.step = update, step
+  bar.setLook(DEFAULT_LOOK)
+  return bar
 end
 
 -- Aura rows by HUD element: tile size, which end the icons gather at, and whether they are debuffs, which get

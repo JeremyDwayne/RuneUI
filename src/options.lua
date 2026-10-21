@@ -1,7 +1,7 @@
 -- The options window and its ribbon button: a sidebar of pages, a cooldown manager with combat style tabs, a
 -- group list with New group, and the chosen group's display settings and abilities with a "+" picker, drag to
--- swap or insert and a Remove menu; the src/buffspage Buffs page, resource bar steppers, appearance choices, the reset
--- dialog, and a footer toggle into src/editmode.
+-- swap or insert and a Remove menu; the src/buffspage Buffs page, the src/appearancepage Appearance and Bars
+-- pages, the reset dialog, and a footer toggle into src/editmode.
 local appearancepage = require("src/appearancepage")
 local buffspage = require("src/buffspage")
 local dragdrop = require("src/dragdrop")
@@ -89,15 +89,18 @@ function options.create(root, deps)
     { id = "appearance", label = "Appearance" },
     { id = "cooldowns", label = "Cooldown manager" },
     { id = "buffs", label = "Buffs" },
-    { id = "resource", label = "Resource bar" },
+    { id = "bars", label = "Bars" },
   }
 
   local currentPage = nil
+  -- The src/appearancepage pages, built once the Buffs page's tooltip exists.
+  local appearance, bars
 
   local function showPage(pageID)
     closePopups()
     currentPage = pageID
     if pageID == "buffs" then buffsPage.redraw() end
+    if pageID == "appearance" then appearance.open() elseif pageID == "bars" then bars.open() end
     for _, entry in ipairs(PAGE_LIST) do
       local active = entry.id == pageID
       set(pages[entry.id], "hidden", not active)
@@ -123,7 +126,9 @@ function options.create(root, deps)
     local page = ui.Layer.new(window)
     page:SetSize(PAGE_W, PAGE_H)
     page:SetPos(PAGE_X, PAGE_Y)
-    if entry.id ~= "appearance" then hitArea(rect(page, COLOURS.panel, 0, 0, PAGE_W, PAGE_H)) end
+    if entry.id ~= "appearance" and entry.id ~= "bars" then
+      hitArea(rect(page, COLOURS.panel, 0, 0, PAGE_W, PAGE_H))
+    end
     pages[entry.id] = page
   end
 
@@ -631,44 +636,14 @@ function options.create(root, deps)
     refresh = deps.refresh,
   })
 
-  -- Resource bar page ---------------------------------------------------------------------------------
-
-  -- Each row a - number + stepper from low to high reading value() and saving through save(n).
-  local resourcePage = pages.resource
-  local resourceRows = {}
-  local function resourceRow(i, label, low, high, value, save)
-    local ry = 18 + (i - 1) * 50
-    rect(resourcePage, i % 2 == 1 and COLOURS.row or COLOURS.rowAlt, 24, ry, PAGE_W - 48, 50)
-    set(text(resourcePage, FONTS.body, ui.AlignMode.TOPLEFT, 40, ry, 200, 50), "content", label)
-    local right = PAGE_W - 40
-    local field
-    local function choose(n)
-      if n == value() then return end
-      save(n)
-      field.show(value())
-      deps.refresh()
-    end
-    field = draw.numberField(resourcePage, right - 104, ry + 13, 56, 24, low, high, choose)
-    button(resourcePage, "-", right - 136, ry + 11, 28, 28, "dark", function() choose(math.max(low, value() - 1)) end)
-    button(resourcePage, "+", right - 44, ry + 11, 28, 28, "dark", function() choose(math.min(high, value() + 1)) end)
-    resourceRows[#resourceRows + 1] = function() field.show(value()) end
-  end
-  for i, entry in ipairs({ { id = "threshold", label = "Threshold" }, { id = "ultimate", label = "Ultimate" } }) do
-    resourceRow(i, entry.label .. " marker", 0, 100, function() return saved.markers()[entry.id] end,
-      function(n) saved.setMarker(entry.id, n) end)
-  end
-  for i, entry in ipairs({ { field = "barWidth", label = "Bar width", range = settings.BAR_WIDTH },
-    { field = "barHeight", label = "Bar height", range = settings.BAR_HEIGHT } }) do
-    resourceRow(i + 2, entry.label, entry.range.min, entry.range.max,
-      function() return saved.appearance()[entry.field] end, function(n) saved.setAppearance(entry.field, n) end)
-  end
-
   -- Appearance page ----------------------------------------------------------------------------------
 
-  local appearance = appearancepage.create(pages.appearance, PAGE_W, PAGE_H, {
+  local pageDeps = {
     saved = saved, view = deps.view, tooltip = buffsTooltip, auraInfo = deps.auraInfo, tracker = tracker,
     refresh = deps.refresh,
-  })
+  }
+  appearance = appearancepage.create(pages.appearance, PAGE_W, PAGE_H, pageDeps)
+  bars = appearancepage.bars(pages.bars, PAGE_W, PAGE_H, pageDeps)
   local showHide = { { id = false, label = "Show" }, { id = true, label = "Hide" } }
   appearance.choiceRow(buffsPage.display, 24, 18, PAGE_W - 48, "Game buff bars", showHide, "hideBuffBars", 120)
   local auraIcons = { { id = false, label = "Plain" }, { id = true, label = "With bars" } }
@@ -727,6 +702,7 @@ function options.create(root, deps)
     closeDialog()
     editorDrag.cancel()
     appearance.cancel()
+    bars.cancel()
     closePopups()
     confirmDelete = false
     windowOpen = false
@@ -758,8 +734,6 @@ function options.create(root, deps)
   button(window, "Done", WIDTH - 24 - 90, footerY + 12, 90, 32, "gold", closeWindow)
 
   function openWindow()
-    for _, show in ipairs(resourceRows) do show() end
-    appearance.open()
     editStyle = tracker.style() or editStyle
     rebuildEditor()
     showPage("appearance")
@@ -776,6 +750,7 @@ function options.create(root, deps)
     buffsPage.follow()
     editorDrag.follow()
     appearance.follow()
+    bars.follow()
   end
   Event.Draw.Subscribe("runeuiOptions", followCursor)
   Event.Logic.Subscribe("runeuiOptions", followCursor)

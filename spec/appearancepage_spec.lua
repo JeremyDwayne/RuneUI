@@ -27,6 +27,18 @@ local function label(content)
   return fake.find(function(_, d) return d.content == content end)
 end
 
+-- An open Bars page on a 698 by 562 page layer. Returns its settings.
+local function openBars()
+  local root = fake.component()
+  local saved = settings.load(fakeStore())
+  local page = appearancepage.bars(root, 698, 562, {
+    saved = saved, view = view, tooltip = view.tooltip(root), auraInfo = function() end,
+    tracker = cooldowns.tracker(), refresh = function() end,
+  })
+  page.open()
+  return saved
+end
+
 -- The player colour's hex field, the first field showing a #RRGGBB code.
 local function hexField()
   return fake.find(function(c, d)
@@ -174,5 +186,18 @@ describe("appearance page", function()
     local viewport, content, last = scrollParts("Game cast bar")
     wheel(-1, 200)
     assert.are.equal(viewport.height - 32, last.y + last.height + content.y)
+  end)
+
+  it("lets the cast bar take the adrenaline bar's width, and its own text size until Match HUD", function()
+    local saved = openBars()
+    wheel(-1, 200)
+    fake.press("Same as adrenaline")
+    assert.is_true(saved.appearance().castMatchWidth)
+    local size = fake.find(function(c, d) return fake.hasHook(c, "ONCONTENTCHANGED") and d.content == "13" end)
+    size.content = "16"
+    fake.hook(size, "ONCONTENTCHANGED", ui.InputFieldActionResult.SUBMIT, "16")
+    assert.are.equal(16, saved.appearance().castTextSize)
+    fake.press("Match HUD", 2)
+    assert.are.same({ "hud", "13" }, { saved.appearance().castTextSize, size.content })
   end)
 end)

@@ -273,7 +273,7 @@ describe("view", function()
   it("fills each step up to the next tick, steps its time with the ticks as the game does, and ends at 0", function()
     local bar = view.castBar(fake.component())
     bar.update(asphyxiate())
-    local fill = fake.find(function(_, d) return d.rgb == draw.COLOURS.cast end)
+    local fill = fake.find(function(_, d) return d.rgb == style.CAST_COLOUR end)
     local width = fill.width
     bar.step(0.3)
     bar.update(asphyxiate())
@@ -320,7 +320,7 @@ describe("view", function()
     assert.is_not_nil(fake.find(function(_, d) return d.rgb == style.STYLE_COLOURS.necromancy end))
     bar.update(asphyxiate(227280))
     assert.is_nil(fake.find(function(_, d) return d.rgb == style.STYLE_COLOURS.necromancy end))
-    assert.is_not_nil(fake.find(function(_, d) return d.rgb == draw.COLOURS.cast end))
+    assert.is_not_nil(fake.find(function(_, d) return d.rgb == style.CAST_COLOUR end))
   end)
 
   it("keeps a spark at the fill's edge whose glow flashes on each server tick", function()
@@ -499,6 +499,30 @@ describe("view", function()
       if c.parent == bar.layer and c.width == 1 and c.height == 28 then xs[#xs + 1] = c.x end
     end
     assert.are.same({ 201, 400 }, xs)
+  end)
+
+  it("resizes the cast bar, keeping its icon and its backing a square as tall as the bar inside its border", function()
+    local elements = shownHud()
+    local bar = elements.castbar
+    assert.is_true(setLook(elements, look({ castWidth = 400, castHeight = 34 })))
+    assert.are.same({ 400, 34, 400, 34 }, { bar.layer.width, bar.layer.height, bar.bounds.w, bar.bounds.h })
+    local squares = 0
+    for _, c in ipairs(fake.created) do
+      if c.parent == bar.layer and c.width == 32 and c.height == 32 then squares = squares + 1 end
+    end
+    assert.are.equal(2, squares)
+  end)
+
+  it("fills the cast bar in a chosen colour over its ability's colour, and back", function()
+    local elements = shownHud()
+    local function filled(rgb)
+      return fake.find(function(c, d) return c.parent == elements.castbar.layer and d.rgb == rgb end) ~= nil
+    end
+    assert.is_true(filled(style.CAST_COLOUR))
+    setLook(elements, look({ castColour = 0x123456 }))
+    assert.are.same({ true, false }, { filled(0x123456), filled(style.CAST_COLOUR) })
+    setLook(elements, look({ castColour = "ability" }))
+    assert.is_true(filled(style.CAST_COLOUR))
   end)
 
   it("draws Auto text dark over a bright fill only", function()

@@ -1,5 +1,6 @@
 -- Resolves the saved appearance settings into the look every HUD element draws with: font names per text
--- role, text edge and colour, unit frame colours, border and frame size. Also parses and formats hex colours
+-- role, text edge and colour, unit frame colours, border and frame size, the bars' sizes and the cast bar's
+-- colour. Also parses and formats hex colours
 -- and converts them to and from hue, saturation and value for the colour picker.
 -- Pure: fonts are client font names, which src/view turns into ids.
 local style = {}
@@ -55,6 +56,21 @@ style.PRESETS = {
   { id = "melee", label = "Melee", rgb = style.STYLE_COLOURS.melee },
   { id = "necro", label = "Necro", rgb = style.STYLE_COLOURS.necromancy },
   { id = "equipped", label = "Equipped" },
+}
+
+-- The cast bar's RuneUI fill, for a channel with no combat style.
+style.CAST_COLOUR = 0x23706a
+
+-- Cast bar colour presets. Ability style has no rgb: the bar takes each channel's combat style colour.
+style.CAST_PRESETS = {
+  { id = "ability", label = "Ability style" },
+  { id = "runeui", label = "RuneUI", rgb = style.CAST_COLOUR },
+  { id = "gameGreen", label = "Game green", rgb = 0x2b8a1e },
+  { id = "gameRed", label = "Game red", rgb = 0xc8281c },
+  { id = "magic", label = "Magic", rgb = style.STYLE_COLOURS.magic },
+  { id = "ranged", label = "Ranged", rgb = style.STYLE_COLOURS.ranged },
+  { id = "melee", label = "Melee", rgb = style.STYLE_COLOURS.melee },
+  { id = "necro", label = "Necro", rgb = style.STYLE_COLOURS.necromancy },
 }
 
 style.BORDERS = {
@@ -155,12 +171,25 @@ local function frameColour(saved, frame, equippedStyle)
   return preset and preset.rgb or style.FRAME_COLOURS[frame]
 end
 
+-- A saved cast bar colour as rgb, or nil for Ability style.
+local function castColour(saved)
+  if type(saved) == "number" then return saved end
+  local preset = style.find(style.CAST_PRESETS, saved)
+  return preset and preset.rgb
+end
+
 -- The look every element's setLook takes, from src/settings appearance and the worn weapon's combat style:
 -- { fonts = { [role] = font name }, outline, shadow, auto, text, player, target, texture, border, frameWidth,
--- frameHeight, barWidth, barHeight }. Build it only when one of them changes, as setLook skips a look it already shows.
+-- frameHeight, barWidth, barHeight, castWidth, castHeight, castColour }. fonts.cast is the cast bar's body font,
+-- the HUD's unless the cast bar has its own font or size; castColour is nil for Ability style. Build it only when
+-- one of them changes, as setLook skips a look it already shows.
 function style.look(appearance, equippedStyle)
   local fonts = {}
   for role in pairs(style.ROLES) do fonts[role] = style.font(appearance.font, role, appearance.textStep) end
+  local castFamily = appearance.castFont == "hud" and appearance.font or appearance.castFont
+  local castStep = appearance.castTextSize == "hud" and appearance.textStep
+    or appearance.castTextSize - style.ROLES.body
+  fonts.cast = style.font(castFamily, "body", castStep)
   local edge, textColour = appearance.edge, style.find(style.TEXT_COLOURS, appearance.textColour)
   return {
     fonts = fonts,
@@ -176,6 +205,9 @@ function style.look(appearance, equippedStyle)
     frameHeight = appearance.frameHeight,
     barWidth = appearance.barWidth,
     barHeight = appearance.barHeight,
+    castWidth = appearance.castMatchWidth and appearance.barWidth or appearance.castWidth,
+    castHeight = appearance.castHeight,
+    castColour = castColour(appearance.castColour),
   }
 end
 

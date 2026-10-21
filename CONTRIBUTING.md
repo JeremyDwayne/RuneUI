@@ -41,7 +41,7 @@ A bug fix starts with a spec that fails without the fix.
 
 - `src/adapter.lua` is the only module that reads the game client. It returns plain tables, so everything else can be tested without the game.
 - `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua`, `src/icons.lua` and `src/style.lua` are pure Lua, each with a spec in `spec/`. `src/presets.lua` is the data the groups start with, covered by `spec/settings_spec.lua`.
-- `src/view.lua` draws the HUD, `src/options.lua` draws the options window, `src/appearancepage.lua` its Appearance page, `src/buffspage.lua` its Buffs page, `src/dragdrop.lua` the icon dragging the window shares, `src/editmode.lua` draws edit mode, and all six build on the helpers in `src/draw.lua`.
+- `src/view.lua` draws the HUD, `src/options.lua` draws the options window, `src/appearancepage.lua` its Appearance and Bars pages, `src/buffspage.lua` its Buffs page, `src/dragdrop.lua` the icon dragging the window shares, `src/editmode.lua` draws edit mode, and all six build on the helpers in `src/draw.lua`.
 
 ## Performance
 

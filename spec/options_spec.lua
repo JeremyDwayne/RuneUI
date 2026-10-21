@@ -68,7 +68,7 @@ describe("options", function()
   it("lists Appearance first in the menu and opens on it", function()
     openWindow(nil, "Appearance")
     local rows = {}
-    for _, label in ipairs({ "Appearance", "Cooldown manager", "Buffs", "Resource bar" }) do
+    for _, label in ipairs({ "Appearance", "Cooldown manager", "Buffs", "Bars" }) do
       rows[#rows + 1] = fake.find(function(_, d) return d.content == label end).y
     end
     for i = 2, #rows do assert.is_true(rows[i] > rows[i - 1]) end
@@ -76,8 +76,8 @@ describe("options", function()
     assert.is_false(shows("New group"))
   end)
 
-  it("steps the adrenaline bar width by 1 px on the Resource bar page and takes a typed one", function()
-    local saved = openWindow(nil, "Resource bar")
+  it("steps the adrenaline bar width by 1 px on the Bars page and takes a typed one", function()
+    local saved = openWindow(nil, "Bars")
     fake.press("+", 3)
     assert.are.equal(279, saved.appearance().barWidth)
     local field = fake.find(function(_, d) return d.content == "279" end)

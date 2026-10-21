@@ -1,7 +1,8 @@
--- The options window's Appearance page: a preview strip of HUD elements, drawn by src/view from sample models
--- over a Dark, Light or Game backdrop, fixed above the Text, Unit frames and Game interfaces settings. The
--- settings scroll by pixels inside a clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view
--- hide, and a click lands only where its row shows. Every change saves, then redraws the preview and the HUD.
+-- The options window's Appearance and Bars pages. Each has a preview strip of HUD elements, drawn by src/view
+-- from sample models over a Dark, Light or Game backdrop, fixed above its settings: Text, Unit frames and Game
+-- interfaces on Appearance, the adrenaline bar and the cast bar on Bars. The settings scroll by pixels inside a
+-- clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, and a click lands only where
+-- its row shows. Every change saves, then redraws the preview and the HUD.
 local draw = require("src/draw")
 local frames = require("src/frames")
 local settings = require("src/settings")
@@ -45,19 +46,26 @@ local SAMPLE_PLAYER = { available = true, name = "Player", lifepoints = 12242, l
   prayerValue = 640, prayerLabel = "64/99" }
 local SAMPLE_TARGET = { target = 1, name = "Rasial", lifepointsLabel = "58,000", healthPercent = 58 }
 local TILE_SIZE, PREVIEW_X, PREVIEW_Y, PREVIEW_GAP = 36, 20, 14, 6
+-- The Bars preview: adrenaline at 89% and a channel two ticks from its end with two hits ahead.
+local SAMPLE_ADRENALINE = { adrenaline = 890, spenders = {} }
+local SAMPLE_CAST = { start = 1, name = "Greater Concentrated Blast", icon = 13310, style = "magic", duration = 3.6,
+  ticksLeft = 2, hits = { 0, 1.2, 2.4 } }
 
 local TEXTURES = { { id = "flat", label = "Flat" }, { id = "vertical", label = "Vertical" },
   { id = "horizontal", label = "Horizontal" } }
 local SHOW_HIDE = { { id = false, label = "Show" }, { id = true, label = "Hide" } }
+local WIDTH_FROM = { { id = false, label = "Own width" }, { id = true, label = "Same as adrenaline" } }
+local MATCH_HUD = { id = "hud", label = "Match HUD" }
 
--- page: the options window's page layer, width by height. deps: { saved = src/settings, view = src/view,
--- tooltip = view.tooltip, auraInfo(sprite), tracker = src/cooldowns tracker for the equipped style, refresh()
--- redrawing the HUD }. Returns { open, choiceRow, follow, cancel }: open redraws the page from settings,
+-- A settings page on page, width by height. deps: { saved = src/settings, view = src/view, tooltip =
+-- view.tooltip, auraInfo(sprite), tracker = src/cooldowns tracker for the equipped style, refresh() redrawing the
+-- HUD }. define(b) builds the preview's elements on b.preview and the rows through b, and returns
+-- drawPreview(look, appearance). Returns { open, choiceRow, follow, cancel }: open redraws the page from settings,
 -- choiceRow(parent, x, y, w, label, choices, field, optionW) builds a row of option buttons on another page,
 -- such as the Buffs page's Display tab, follow runs every frame to move a held scrollbar thumb, and cancel ends
 -- one.
-function appearancepage.create(page, width, height, deps)
-  local saved, view = deps.saved, deps.view
+local function settingsPage(page, width, height, deps, define)
+  local saved = deps.saved
   local redraw
 
   -- Option rows -------------------------------------------------------------------------------------------
@@ -114,11 +122,6 @@ function appearancepage.create(page, width, height, deps)
   local backdrop = hitArea(rect(page, COLOURS.panel, 0, 0, width, STRIP_H))
   local preview = ui.Layer.new(page)
   preview:SetSize(width, STRIP_H)
-  local tiles = view.cooldownGroup(preview, deps.tooltip)
-  tiles.configure({ size = TILE_SIZE, perRow = #SAMPLE_TILES, grow = "down" })
-  local aura = view.auraRow(preview, view.AURA_STYLES.combatBuffs, deps.tooltip, deps.auraInfo)
-  local player, target = view.playerFrame(preview), view.targetFrame(preview)
-  local previewElements = { tiles, aura, player, target }
   rect(page, COLOURS.border, 0, STRIP_H, width, 1)
   local backdropChoice = "light"
   local backdropOptions = {}
@@ -135,20 +138,6 @@ function appearancepage.create(page, width, height, deps)
       backdropChoice = entry.id
       showBackdrop()
     end)
-  end
-
-  local function drawPreview(look, appearance)
-    view.setLook(previewElements, look)
-    tiles.update(SAMPLE_TILES, 0)
-    aura.update(SAMPLE_AURAS, false)
-    player.update(frames.player(SAMPLE_PLAYER, appearance.lifepoints))
-    target.update(frames.target(SAMPLE_TARGET, appearance.lifepoints))
-    local tilesW = #SAMPLE_TILES * (TILE_SIZE + 2) - 2
-    draw.pos(tiles.layer, PREVIEW_X, PREVIEW_Y)
-    draw.pos(aura.layer, PREVIEW_X + tilesW + 2 * PREVIEW_GAP - aura.bounds.x, PREVIEW_Y - aura.bounds.y)
-    local framesY = PREVIEW_Y + TILE_SIZE + 2 * PREVIEW_GAP
-    draw.pos(player.layer, PREVIEW_X, framesY)
-    draw.pos(target.layer, PREVIEW_X + player.width + PREVIEW_GAP, framesY)
   end
 
   -- Scrolling settings ------------------------------------------------------------------------------------
@@ -253,40 +242,40 @@ function appearancepage.create(page, width, height, deps)
     return row
   end
 
-  local function scrolledChoices(label, choices, field, optionW)
-    local row = settingRow(label)
-    local buttons = options(row.layer, rowRight, 0, choices, field, optionW, function(y) return shows(row, y) end)
+  -- Option buttons on row's layer ending at right, choosing field from choices; returns the buttons by id.
+  local function rowOptions(row, right, choices, field, optionW)
+    local buttons = options(row.layer, right, 0, choices, field, optionW, function(y) return shows(row, y) end)
     for _, option in pairs(buttons) do wheel(option.bg) end
     return buttons
   end
 
-  -- A - number + stepper moving field by 1 from low to high, its number typed. The number shown is the saved
-  -- value plus offset, so Text size reads in points.
-  local function stepperRow(label, field, low, high, offset)
+  local function scrolledChoices(label, choices, field, optionW)
+    return rowOptions(settingRow(label), rowRight, choices, field, optionW)
+  end
+
+  -- A - number + stepper from low to high, its number typed: value(appearance) gives the number shown and
+  -- save(n) takes a new one. Returns the row.
+  local function numberRow(label, low, high, value, save)
     local row = settingRow(label)
     local by = (ROW_H - OPTION_H) // 2
-    local function save(n)
-      if n ~= saved.appearance()[field] then choose(field, n) end
-    end
-    local value = draw.numberField(row.layer, rowRight - 92, (ROW_H - HEX_H) // 2, 56, HEX_H, low + offset,
-      high + offset, function(n) save(n - offset) end)
+    local field = draw.numberField(row.layer, rowRight - 92, (ROW_H - HEX_H) // 2, 56, HEX_H, low, high, save)
     local function move(delta)
       return function(_, y)
-        if not shows(row, by + y) then return end
-        save(math.max(low, math.min(high, saved.appearance()[field] + delta)))
+        if shows(row, by + y) then save(math.max(low, math.min(high, value(saved.appearance()) + delta))) end
       end
     end
     wheel(draw.button(row.layer, "-", rowRight - 124, by, 28, OPTION_H, "dark", move(-1)).bg)
     wheel(draw.button(row.layer, "+", rowRight - 28, by, 28, OPTION_H, "dark", move(1)).bg)
-    steppers[#steppers + 1] = function(appearance) value.show(appearance[field] + offset) end
+    steppers[#steppers + 1] = function(appearance) field.show(value(appearance)) end
+    return row
   end
 
-  heading("Text")
-  local fonts = scrolledChoices("Font", style.FAMILIES, "font", 112)
-  for _, family in ipairs(style.FAMILIES) do set(fonts[family.id].label, "font", id.Font[family.sizes[13]]) end
-  stepperRow("Text size", "textStep", settings.TEXT_STEP_MIN, settings.TEXT_STEP_MAX, style.ROLES.body)
-  scrolledChoices("Text edge", style.EDGES, "edge", 124)
-  scrolledChoices("Text colour", style.TEXT_COLOURS, "textColour", 112)
+  -- A number row for the appearance field, from low to high.
+  local function stepperRow(label, field, low, high)
+    return numberRow(label, low, high, function(appearance) return appearance[field] end, function(n)
+      if n ~= saved.appearance()[field] then choose(field, n) end
+    end)
+  end
 
   -- A preset swatch on parent at x, y in its colour with its name on it, a white ring when chosen.
   local function swatch(parent, x, y, label, onClick)
@@ -306,14 +295,15 @@ function appearancepage.create(page, width, height, deps)
   -- Each colour row's redraw, given the appearance.
   local colourRows = {}
 
-  -- A frame colour row choosing field for frame, "player" or "target": a swatch per src/style preset, Custom,
-  -- and a hex field taking "#RRGGBB". Custom opens a shade square and hue strip under them, built on first open.
-  local function colourRow(label, field, frame)
+  -- A colour row choosing field: a swatch per preset, { id, label }, in presetRgb(id), Custom, and a hex field
+  -- taking "#RRGGBB". shownRgb(look) is the colour the field draws in. Custom opens a shade square and hue strip
+  -- under them, built on first open.
+  local function colourRow(label, field, presets, presetRgb, shownRgb)
     local row = settingRow(label, COLOUR_ROW_H)
     local function allowed(y) return shows(row, y) end
     local lineY = { 10, 10 + OPTION_H + 8 }
     local swatches, perLine = {}, 5
-    for i, preset in ipairs(style.PRESETS) do
+    for i, preset in ipairs(presets) do
       local line, slot = (i - 1) // perLine + 1, (i - 1) % perLine
       local x = rowRight - perLine * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP + slot * (SWATCH_W + SWATCH_GAP)
       swatches[preset.id] = swatch(row.layer, x, lineY[line], preset.label, function(y)
@@ -403,13 +393,11 @@ function appearancepage.create(page, width, height, deps)
     wheel(custom.bg)
 
     colourRows[field] = { draw = function(look, appearance)
-      local rgb = look[frame]
+      local rgb = shownRgb(look)
       colourRows[field].rgb = rgb
       local chosen = appearance[field]
       for presetID, sw in pairs(swatches) do
-        set(sw.bg, "rgb", presetID == "runeui" and style.FRAME_COLOURS[frame]
-          or presetID == "equipped" and (style.STYLE_COLOURS[deps.tracker.style()] or style.FRAME_COLOURS[frame])
-          or style.find(style.PRESETS, presetID).rgb)
+        set(sw.bg, "rgb", presetRgb(presetID))
         set(sw.ring, "hidden", presetID ~= chosen)
       end
       draw.showOption(custom, type(chosen) == "number")
@@ -418,18 +406,15 @@ function appearancepage.create(page, width, height, deps)
     end }
   end
 
-  heading("Unit frames")
-  colourRow("Player colour", "playerColour", "player")
-  colourRow("Target colour", "targetColour", "target")
-  scrolledChoices("Bar texture", TEXTURES, "texture", 112)
-  scrolledChoices("Frame border", style.BORDERS, "border", 112)
-  scrolledChoices("Lifepoints text", frames.LIFEPOINTS, "lifepoints", 118)
-  stepperRow("Frame width", "frameWidth", settings.FRAME_WIDTH.min, settings.FRAME_WIDTH.max, 0)
-  stepperRow("Frame height", "frameHeight", settings.FRAME_HEIGHT.min, settings.FRAME_HEIGHT.max, 0)
-
-  heading("Game interfaces")
-  scrolledChoices("Default target panel", SHOW_HIDE, "hideTargetPanel", 90)
-  scrolledChoices("Game cast bar", SHOW_HIDE, "hideCastBar", 90)
+  local drawPreview = define({
+    preview = preview, rowRight = rowRight, heading = heading, choices = scrolledChoices, options = rowOptions,
+    number = numberRow, stepper = stepperRow, colour = colourRow, choose = choose,
+    -- Redraws the page and the HUD after a change saved outside the appearance, such as a marker.
+    changed = function()
+      redraw()
+      deps.refresh()
+    end,
+  })
 
   grip = hitArea(rect(page, COLOURS.panel, 0, 0, 0, 0))
   set(grip, "alpha", 0)
@@ -482,6 +467,115 @@ function appearancepage.create(page, width, height, deps)
       placeGrip()
     end,
   }
+end
+
+-- The Appearance page; see settingsPage.
+function appearancepage.create(page, width, height, deps)
+  local view = deps.view
+  return settingsPage(page, width, height, deps, function(b)
+    local tiles = view.cooldownGroup(b.preview, deps.tooltip)
+    tiles.configure({ size = TILE_SIZE, perRow = #SAMPLE_TILES, grow = "down" })
+    local aura = view.auraRow(b.preview, view.AURA_STYLES.combatBuffs, deps.tooltip, deps.auraInfo)
+    local player, target = view.playerFrame(b.preview), view.targetFrame(b.preview)
+    local elements = { tiles, aura, player, target }
+
+    b.heading("Text")
+    local fonts = b.choices("Font", style.FAMILIES, "font", 112)
+    for _, family in ipairs(style.FAMILIES) do set(fonts[family.id].label, "font", id.Font[family.sizes[13]]) end
+    b.number("Text size", style.ROLES.body + settings.TEXT_STEP_MIN, style.ROLES.body + settings.TEXT_STEP_MAX,
+      function(appearance) return style.ROLES.body + appearance.textStep end, function(n)
+        if n - style.ROLES.body ~= deps.saved.appearance().textStep then b.choose("textStep", n - style.ROLES.body) end
+      end)
+    b.choices("Text edge", style.EDGES, "edge", 124)
+    b.choices("Text colour", style.TEXT_COLOURS, "textColour", 112)
+
+    b.heading("Unit frames")
+    for _, frame in ipairs({ "player", "target" }) do
+      local function presetRgb(presetID)
+        if presetID == "runeui" then return style.FRAME_COLOURS[frame] end
+        if presetID == "equipped" then
+          return style.STYLE_COLOURS[deps.tracker.style()] or style.FRAME_COLOURS[frame]
+        end
+        return style.find(style.PRESETS, presetID).rgb
+      end
+      b.colour(frame == "player" and "Player colour" or "Target colour", frame .. "Colour", style.PRESETS, presetRgb,
+        function(look) return look[frame] end)
+    end
+    b.choices("Bar texture", TEXTURES, "texture", 112)
+    b.choices("Frame border", style.BORDERS, "border", 112)
+    b.choices("Lifepoints text", frames.LIFEPOINTS, "lifepoints", 118)
+    b.stepper("Frame width", "frameWidth", settings.FRAME_WIDTH.min, settings.FRAME_WIDTH.max)
+    b.stepper("Frame height", "frameHeight", settings.FRAME_HEIGHT.min, settings.FRAME_HEIGHT.max)
+
+    b.heading("Game interfaces")
+    b.choices("Default target panel", SHOW_HIDE, "hideTargetPanel", 90)
+    b.choices("Game cast bar", SHOW_HIDE, "hideCastBar", 90)
+
+    return function(look, appearance)
+      view.setLook(elements, look)
+      tiles.update(SAMPLE_TILES, 0)
+      aura.update(SAMPLE_AURAS, false)
+      player.update(frames.player(SAMPLE_PLAYER, appearance.lifepoints))
+      target.update(frames.target(SAMPLE_TARGET, appearance.lifepoints))
+      local tilesW = #SAMPLE_TILES * (TILE_SIZE + 2) - 2
+      draw.pos(tiles.layer, PREVIEW_X, PREVIEW_Y)
+      draw.pos(aura.layer, PREVIEW_X + tilesW + 2 * PREVIEW_GAP - aura.bounds.x, PREVIEW_Y - aura.bounds.y)
+      local framesY = PREVIEW_Y + TILE_SIZE + 2 * PREVIEW_GAP
+      draw.pos(player.layer, PREVIEW_X, framesY)
+      draw.pos(target.layer, PREVIEW_X + player.width + PREVIEW_GAP, framesY)
+    end
+  end)
+end
+
+-- The Bars page: the adrenaline bar's markers and size, and the cast bar's width, height, colour, font and text
+-- size; see settingsPage.
+function appearancepage.bars(page, width, height, deps)
+  local view, saved = deps.view, deps.saved
+  return settingsPage(page, width, height, deps, function(b)
+    local resource, cast = view.resourceBar(b.preview), view.castBar(b.preview)
+
+    b.heading("Adrenaline bar")
+    for _, marker in ipairs({ { id = "threshold", label = "Threshold marker" },
+      { id = "ultimate", label = "Ultimate marker" } }) do
+      b.number(marker.label, 0, 100, function() return saved.markers()[marker.id] end, function(n)
+        if n == saved.markers()[marker.id] then return end
+        saved.setMarker(marker.id, n)
+        b.changed()
+      end)
+    end
+    b.stepper("Bar width", "barWidth", settings.BAR_WIDTH.min, settings.BAR_WIDTH.max)
+    b.stepper("Bar height", "barHeight", settings.BAR_HEIGHT.min, settings.BAR_HEIGHT.max)
+
+    b.heading("Cast bar")
+    b.choices("Width from", WIDTH_FROM, "castMatchWidth", 160)
+    b.stepper("Width", "castWidth", settings.CAST_WIDTH.min, settings.CAST_WIDTH.max)
+    b.stepper("Height", "castHeight", settings.CAST_HEIGHT.min, settings.CAST_HEIGHT.max)
+    local function presetRgb(presetID)
+      if presetID == "ability" then return style.STYLE_COLOURS[deps.tracker.style()] or style.CAST_COLOUR end
+      return style.find(style.CAST_PRESETS, presetID).rgb
+    end
+    b.colour("Colour", "castColour", style.CAST_PRESETS, presetRgb,
+      function(look) return look.castColour or presetRgb("ability") end)
+    local fontChoices = { MATCH_HUD }
+    for _, family in ipairs(style.FAMILIES) do fontChoices[#fontChoices + 1] = family end
+    local fonts = b.choices("Font", fontChoices, "castFont", 104)
+    for _, family in ipairs(style.FAMILIES) do set(fonts[family.id].label, "font", id.Font[family.sizes[13]]) end
+    local low, high = style.ROLES.body + settings.TEXT_STEP_MIN, style.ROLES.body + settings.TEXT_STEP_MAX
+    local size = b.number("Text size", low, high, function(appearance)
+      return appearance.castTextSize == "hud" and style.ROLES.body + appearance.textStep or appearance.castTextSize
+    end, function(n)
+      if n ~= saved.appearance().castTextSize then b.choose("castTextSize", n) end
+    end)
+    b.options(size, b.rowRight - 132, { MATCH_HUD }, "castTextSize", 104)
+
+    return function(look)
+      view.setLook({ resource, cast }, look)
+      resource.update(frames.resource(SAMPLE_ADRENALINE, saved.markers()))
+      cast.update(SAMPLE_CAST)
+      draw.pos(resource.layer, PREVIEW_X, PREVIEW_Y)
+      draw.pos(cast.layer, PREVIEW_X, PREVIEW_Y + resource.height + PREVIEW_GAP)
+    end
+  end)
 end
 
 return appearancepage

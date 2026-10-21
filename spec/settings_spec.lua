@@ -309,11 +309,14 @@ describe("settings", function()
       texture = "vertical", hideTargetPanel = true, hideCastBar = false, hideBuffBars = true, auraBars = true,
       font = "museo", textStep = 0, edge = "shadow", textColour = "auto", playerColour = "runeui",
       targetColour = "runeui", border = "runeui", lifepoints = "short", frameWidth = 250, frameHeight = 55,
-      barWidth = 278, barHeight = 20,
+      barWidth = 278, barHeight = 20, castWidth = 278, castHeight = 22, castMatchWidth = false,
+      castColour = "ability", castFont = "hud", castTextSize = "hud",
     }, s.appearance())
     local chosen = { font = "cinzel", textStep = -3, edge = "outlineShadow", textColour = "yellow",
       playerColour = 0x123456, targetColour = "equipped", border = "game", lifepoints = "percent",
-      frameWidth = 400, frameHeight = 30, barWidth = 333, barHeight = 13 }
+      frameWidth = 400, frameHeight = 30, barWidth = 333, barHeight = 13,
+      castWidth = 410, castHeight = 30, castMatchWidth = true, castColour = "necro", castFont = "cinzel",
+      castTextSize = 16 }
     for field, value in pairs(chosen) do s.setAppearance(field, value) end
     local reloaded = settings.load(store).appearance()
     for field, value in pairs(chosen) do assert.are.equal(value, reloaded[field]) end

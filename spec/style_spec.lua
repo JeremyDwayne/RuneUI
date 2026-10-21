@@ -3,6 +3,8 @@ local style = require("src/style")
 local DEFAULTS = {
   font = "museo", textStep = 0, edge = "shadow", textColour = "auto", playerColour = "runeui",
   targetColour = "runeui", border = "runeui", texture = "flat", frameWidth = 250, frameHeight = 55,
+  barWidth = 278, barHeight = 20, castWidth = 278, castHeight = 22, castMatchWidth = false, castColour = "ability",
+  castFont = "hud", castTextSize = "hud",
 }
 
 local function appearance(changes)
@@ -79,12 +81,21 @@ describe("style.look", function()
   it("resolves today's look from the defaults", function()
     local look = style.look(appearance(), nil)
     assert.are.same({ body = "MUSEO_SANS_13PT_BOLD", small = "NOTOSANS_BOLD_10", seconds = "MUSEO_SANS_17PT_BOLD",
-      smallSeconds = "MUSEO_SANS_15PT_BOLD" }, look.fonts)
+      smallSeconds = "MUSEO_SANS_15PT_BOLD", cast = "MUSEO_SANS_13PT_BOLD" }, look.fonts)
     assert.are.same({ 0x2f63a8, 0xa4511c }, { look.player, look.target })
     assert.is_true(look.shadow)
     assert.is_false(look.outline)
     assert.is_true(look.auto)
     assert.are.equal(0xffffff, look.text)
+  end)
+
+  it("gives the cast bar the HUD's text until it has its own font or size, and the adrenaline bar's width", function()
+    local follows = style.look(appearance({ font = "noto", textStep = 2 }), nil)
+    assert.are.same({ "NOTOSANS_BOLD_15", 278, 22 }, { follows.fonts.cast, follows.castWidth, follows.castHeight })
+    assert.is_nil(follows.castColour)
+    local own = style.look(appearance({ font = "noto", textStep = 2, castFont = "cinzel", castTextSize = 18,
+      castColour = "necro", castMatchWidth = true, barWidth = 333 }), nil)
+    assert.are.same({ "CINZEL_18PT_BOLD", 333, 0x6b3fa0 }, { own.fonts.cast, own.castWidth, own.castColour })
   end)
 
   it("colours a frame from a preset, the equipped style or a hex number", function()
