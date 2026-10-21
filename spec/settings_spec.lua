@@ -148,14 +148,17 @@ describe("settings", function()
     assert.are.same({ "X", "A" }, s.groups().cooldowns)
   end)
 
-  it("keeps aura names and unmatched icons by icon across loads, dropping malformed entries", function()
-    local store = fakeStore({ debuffs = { ["1"] = "broken" } })
+  it("keeps aura names with their struct id and unmatched icons across loads, dropping malformed entries", function()
+    local store = fakeStore({
+      namesVersion = { version = 3 }, debuffs = { ["1"] = "broken", ["2"] = { name = "Old", struct = "x" } },
+    })
     local saved = settings.load(store)
-    saved.learnDebuff(30098, "Bloated", "Swollen from the inside.")
+    saved.learnDebuff(30098, "Bloated", 5401.0)
     saved.learnDebuff(14766)
     assert.are.same({
-      ["30098"] = { name = "Bloated", info = "Swollen from the inside." },
+      ["30098"] = { name = "Bloated", struct = 5401 },
       ["14766"] = { unmatched = true },
+      ["2"] = { name = "Old" },
     }, settings.load(store).debuffs())
   end)
 
@@ -232,7 +235,7 @@ describe("settings", function()
 
   it("drops icon keys that are not whole numbers from every icon map, keeping item icons", function()
     local s = settings.load(fakeStore({
-      namesVersion = { version = 2 },
+      namesVersion = { version = 3 },
       debuffs = { abc = { name = "Broken" }, ["30098"] = { name = "Bloated" } },
       auras = { abc = "upkeep", ["-49039"] = "upkeep" },
       keepUp = { ["1.5"] = true, ["-49039"] = true },
@@ -243,8 +246,17 @@ describe("settings", function()
     }, { s.debuffs(), s.auras(), s.keepUp(), s.tracked("target") })
   end)
 
+  it("keeps each kind's icon order across loads, dropping entries that are not whole numbers", function()
+    local store = fakeStore({ orderTarget = { 30098.0, "x", 1.5, 14395 } })
+    local s = settings.load(store)
+    s.setOrder("buffs", { 27432, -49039 })
+    local reloaded = settings.load(store)
+    assert.are.same({ { 27432, -49039 }, { 30098, 14395 }, {} },
+      { reloaded.order("buffs"), reloaded.order("target"), reloaded.order("player") })
+  end)
+
   it("drops aura names saved before the current naming rule once", function()
-    local store = fakeStore({ debuffs = { ["30097"] = { name = "Delirium" } } })
+    local store = fakeStore({ namesVersion = { version = 2 }, debuffs = { ["30097"] = { name = "Delirium" } } })
     assert.are.same({}, settings.load(store).debuffs())
     settings.load(store).learnDebuff(30097, "Poisoned")
     assert.are.same({ ["30097"] = { name = "Poisoned" } }, settings.load(store).debuffs())

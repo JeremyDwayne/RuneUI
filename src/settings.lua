@@ -1,7 +1,7 @@
 -- Saved settings: element positions and anchors, cooldown groups, marker percents, appearance (bar texture,
 -- aura bars, and whether the default target panel and buff bars are hidden), edit mode snapping, learned
 -- ability names and icons, aura names by icon, the aura row each buff icon belongs to, which debuffs each
--- debuff row tracks, and the upkeep buffs kept up.
+-- debuff row tracks, the upkeep buffs kept up, and the order of each kind of aura icon.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local layout = require("src/layout")
 
@@ -44,8 +44,10 @@ local GROUP_NAMES = { "rotation", "cooldowns" }
 local AURA_CATEGORIES = { combat = true, upkeep = true, hidden = true }
 -- Saved keys of each debuff row's tracked choices, by kind.
 local TRACKED_KEYS = { target = "trackedTarget", player = "trackedPlayer" }
+-- Saved keys of each aura kind's icon order.
+local ORDER_KEYS = { buffs = "orderBuffs", target = "orderTarget", player = "orderPlayer" }
 -- The rule src/icons names auras by; saved names from an older rule are dropped once on load.
-local NAMES_VERSION = 2
+local NAMES_VERSION = 3
 local POSITION_FIELDS = { "x", "y", "anchorX", "anchorY" }
 
 -- PersistentDB hands numbers back as floats, so -427 returns as -427.0; whole numbers become integers again.
@@ -168,7 +170,7 @@ local function readDebuffs(saved)
     local key = iconKey(sprite)
     if key ~= nil and type(entry) == "table" then
       if type(entry.name) == "string" then
-        debuffs[key] = { name = entry.name, info = type(entry.info) == "string" and entry.info or nil }
+        debuffs[key] = { name = entry.name, struct = math.tointeger(entry.struct) }
       elseif entry.unmatched == true then
         debuffs[key] = { unmatched = true }
       end
@@ -184,6 +186,20 @@ local function readTracked(saved)
   for sprite, choice in pairs(saved) do
     local key = iconKey(sprite)
     if key ~= nil and (type(choice) == "boolean" or choice == "seen") then out[key] = choice end
+  end
+  return out
+end
+
+-- An icon order: a list of whole numbers, each once.
+local function readOrder(saved)
+  local out, seen = {}, {}
+  if type(saved) ~= "table" then return out end
+  for _, sprite in ipairs(saved) do
+    local n = math.tointeger(sprite)
+    if n ~= nil and not seen[n] then
+      seen[n] = true
+      out[#out + 1] = n
+    end
   end
   return out
 end
@@ -264,6 +280,8 @@ function settings.load(store, windowHeight)
   local tracked = {}
   for kind, key in pairs(TRACKED_KEYS) do tracked[kind] = readTracked(store.get(key)) end
   local keepUp = readKeepUp(store.get("keepUp"))
+  local orders = {}
+  for kind, key in pairs(ORDER_KEYS) do orders[kind] = readOrder(store.get(key)) end
 
   local function saveGroups() store.set("groups", groups) end
 
@@ -439,6 +457,16 @@ function settings.load(store, windowHeight)
     store.set(TRACKED_KEYS[kind], tracked[kind])
   end
 
+  -- The icons of kind, "buffs", "target" or "player", in the order sorted on the Buffs page.
+  function s.order(kind)
+    return orders[kind]
+  end
+
+  function s.setOrder(kind, list)
+    orders[kind] = list
+    store.set(ORDER_KEYS[kind], list)
+  end
+
   -- { [tostring(sprite)] = true } for each upkeep buff that keeps a tile while missing.
   function s.keepUp()
     return keepUp
@@ -449,15 +477,16 @@ function settings.load(store, windowHeight)
     store.set("keepUp", keepUp)
   end
 
-  -- { [tostring(sprite)] = { name, info } } for every aura icon src/icons has named, and
+  -- { [tostring(sprite)] = { name, struct } } for every aura icon src/icons has named, and
   -- { unmatched = true } for each one it found no struct for.
   function s.debuffs()
     return debuffs
   end
 
-  -- Saves an aura icon's name and info, or with no name, that no struct matches it.
-  function s.learnDebuff(sprite, name, info)
-    debuffs[tostring(sprite)] = name and { name = name, info = info } or { unmatched = true }
+  -- Saves an aura icon's name and the id of the struct it came from, or with no name, that no struct matches
+  -- it.
+  function s.learnDebuff(sprite, name, struct)
+    debuffs[tostring(sprite)] = name and { name = name, struct = math.tointeger(struct) } or { unmatched = true }
     store.set("debuffs", debuffs)
   end
 
