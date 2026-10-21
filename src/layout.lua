@@ -18,8 +18,12 @@ end
 
 -- Start of a span of length size aligned to the span from start to start + length, before the offset.
 local function aligned(align, start, length, size)
-  if align == "center" then return start + (length - size) // 2 end
-  if align == "right" or align == "bottom" then return start + length - size end
+  if align == "center" then
+    return start + (length - size) // 2
+  end
+  if align == "right" or align == "bottom" then
+    return start + length - size
+  end
   return start
 end
 
@@ -40,7 +44,9 @@ function layout.resolve(positions, anchors, bounds)
   local out, visiting = {}, {}
 
   local function resolveOne(name)
-    if out[name] ~= nil then return out[name] end
+    if out[name] ~= nil then
+      return out[name]
+    end
     local anchor = anchors[name]
     if anchor == nil or bounds[anchor.target] == nil or visiting[name] then
       out[name] = positions[name]
@@ -54,7 +60,9 @@ function layout.resolve(positions, anchors, bounds)
     return out[name]
   end
 
-  for name in pairs(bounds) do resolveOne(name) end
+  for name in pairs(bounds) do
+    resolveOne(name)
+  end
   return out
 end
 
@@ -85,13 +93,21 @@ function layout.grid(count, size, gap, perRow, grow, max)
   local along = math.min(max, perRow) * step - gap
   local across = math.ceil(max / perRow) * step - gap
   local w, h = along, across
-  if not vertical then w, h = across, along end
+  if not vertical then
+    w, h = across, along
+  end
 
   -- x, y of a span along and across the axis, flipping across from the far edge for up and left.
   local function place(alongAt, acrossAt, acrossSize)
-    if grow == "up" then return alongAt, h - acrossAt - acrossSize end
-    if grow == "left" then return w - acrossAt - acrossSize, alongAt end
-    if vertical then return alongAt, acrossAt end
+    if grow == "up" then
+      return alongAt, h - acrossAt - acrossSize
+    end
+    if grow == "left" then
+      return w - acrossAt - acrossSize, alongAt
+    end
+    if vertical then
+      return alongAt, acrossAt
+    end
     return acrossAt, alongAt
   end
 
@@ -104,7 +120,9 @@ function layout.grid(count, size, gap, perRow, grow, max)
   end
 
   local widest = math.min(count, perRow) * step - gap
-  if count == 0 then widest = 0 end
+  if count == 0 then
+    widest = 0
+  end
   local deep = math.max(1, math.ceil(count / perRow)) * step - gap
   local bx, by = place((along - widest) // 2, 0, deep)
   local bounds = { x = bx, y = by, w = vertical and widest or deep, h = vertical and deep or widest }
@@ -129,9 +147,13 @@ end
 
 -- Whether name may anchor to target: not itself, and not anything anchored to it.
 function layout.canAnchor(anchors, name, target)
-  if target == name then return false end
+  if target == name then
+    return false
+  end
   for _, child in ipairs(layout.chain(anchors, name)) do
-    if child == target then return false end
+    if child == target then
+      return false
+    end
   end
   return true
 end
@@ -142,7 +164,9 @@ local function snapAxis(start, length, others, pos, size, range, grid)
   local best, line = nil, nil
   local function try(from, to)
     local d = to - from
-    if math.abs(d) <= range and (best == nil or math.abs(d) < math.abs(best)) then best, line = d, to end
+    if math.abs(d) <= range and (best == nil or math.abs(d) < math.abs(best)) then
+      best, line = d, to
+    end
   end
   for _, o in ipairs(others) do
     local oStart, oLength = o[pos], o[size]
@@ -153,7 +177,9 @@ local function snapAxis(start, length, others, pos, size, range, grid)
     end
   end
   if best == nil and grid ~= nil then
-    for _, from in ipairs({ start, start + length }) do try(from, math.floor(from / grid + 0.5) * grid) end
+    for _, from in ipairs({ start, start + length }) do
+      try(from, math.floor(from / grid + 0.5) * grid)
+    end
   end
   return best or 0, line
 end
@@ -170,10 +196,14 @@ end
 -- The rects in rects, by name, that a drag of name can snap to, as a list: all but name and its chain.
 function layout.snapTargets(rects, anchors, name)
   local skip = { [name] = true }
-  for _, child in ipairs(layout.chain(anchors, name)) do skip[child] = true end
+  for _, child in ipairs(layout.chain(anchors, name)) do
+    skip[child] = true
+  end
   local targets = {}
   for other, r in pairs(rects) do
-    if not skip[other] then targets[#targets + 1] = r end
+    if not skip[other] then
+      targets[#targets + 1] = r
+    end
   end
   return targets
 end

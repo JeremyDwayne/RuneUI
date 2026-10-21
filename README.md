@@ -55,12 +55,13 @@ Hiding the game's target panel makes it fully transparent rather than closing it
 
 ## Development
 
-Specs use [busted](https://lunarmodules.github.io/busted/) and linting uses [luacheck](https://github.com/lunarmodules/luacheck), both installed with LuaRocks for Lua 5.4. From the repo root:
+Specs use [busted](https://lunarmodules.github.io/busted/) and linting uses [luacheck](https://github.com/lunarmodules/luacheck), both installed with LuaRocks for Lua 5.4. [StyLua](https://github.com/JohnnyMorganz/StyLua) formats the code. From the repo root:
 
 ```sh
 busted
 luacheck .
 for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; done
+stylua --check main.lua src spec
 ```
 
 After saving a change, run `prl runeui` in the game console to reload the plugin.

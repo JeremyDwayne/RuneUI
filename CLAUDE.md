@@ -1,6 +1,6 @@
 # RuneUI for coding agents
 
-RuneUI is a combat HUD plugin for RuneScape 3, written in Lua 5.4 and loaded by the game client. Read `CONTRIBUTING.md` first. It holds the moderation rules, setup, the three checks, the module layout, and the performance, accessibility and style rules. This file adds what an agent needs on top of it.
+RuneUI is a combat HUD plugin for RuneScape 3, written in Lua 5.4 and loaded by the game client. Read `CONTRIBUTING.md` first. It holds the moderation rules, setup, the four checks, the module layout, and the performance, accessibility and style rules. This file adds what an agent needs on top of it.
 
 ## Priorities
 
@@ -13,7 +13,7 @@ When goals conflict, settle them in this order:
 
 ## Working rules
 
-- Done means the three checks from `CONTRIBUTING.md` pass: `busted`, `luacheck .` and `luac5.4 -p` on every file. Report their output, not "should pass".
+- Done means the four checks from `CONTRIBUTING.md` pass: `busted`, `luacheck .`, `luac5.4 -p` on every file and `stylua --check main.lua src spec`. Report their output, not "should pass".
 - A bug fix starts with a spec that fails without the fix. View and options specs drive real modules through `spec/support/fake_ui.lua`.
 - Specs prove logic and write counts, not what the client draws. Anything visible is done when it has been seen in the game after `prl runeui`. Say which in-game checks are still open.
 - Before building a visible change, agree on the look with a mockup or screenshot.

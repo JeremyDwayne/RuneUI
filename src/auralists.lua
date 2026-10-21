@@ -10,8 +10,10 @@ auralists.TARGET_DEFAULTS = {
   14771, -- Smoke Cloud
   30212, -- Haunted
   21239, -- Dismember
-  21362, 14213, -- Slaughter
-  21296, 14217, -- Massacre
+  21362,
+  14213, -- Slaughter
+  21296,
+  14217, -- Massacre
   23401, -- Combust
   19226, -- Corruption Blast
   17255, -- Corruption Shot
@@ -45,7 +47,10 @@ auralists.PLAYER_DEFAULTS = {
   20293, -- Choking
   35063, -- Apmeken's Burden
   30722, -- Corruption, Corrupted
-  800, 1084, 33040, 9150, -- Telos viruses
+  800,
+  1084,
+  33040,
+  9150, -- Telos viruses
   30024, -- Drenched
   30721, -- Searing Pain, Soul drained
   29249, -- Blight
@@ -54,7 +59,12 @@ auralists.PLAYER_DEFAULTS = {
   9882, -- Corrosion
   25240, -- Bitten
   25241, -- Fatigued
-  25831, 25832, 25833, 25834, 25836, 25837, -- Stat Reduced
+  25831,
+  25832,
+  25833,
+  25834,
+  25836,
+  25837, -- Stat Reduced
   30213, -- Necromancy Stat Reduced
   33976, -- Resurrection Sickness
 }
@@ -63,7 +73,9 @@ auralists.PLAYER_DEFAULTS = {
 local function positions(list)
   local out = {}
   for i, sprite in ipairs(list) do
-    if out[sprite] == nil then out[sprite] = i end
+    if out[sprite] == nil then
+      out[sprite] = i
+    end
   end
   return out
 end
@@ -76,7 +88,9 @@ local CATEGORIES = { "combat", "upkeep", "hidden" }
 -- true | false | "seen" }; a sprite seen but never chosen, or never seen, takes its default.
 function auralists.tracked(kind, choices, sprite)
   local choice = choices[tostring(sprite)]
-  if type(choice) == "boolean" then return choice end
+  if type(choice) == "boolean" then
+    return choice
+  end
   return DEFAULTS[kind][sprite] ~= nil
 end
 
@@ -84,13 +98,19 @@ end
 local function ordered(set, saved, defaults)
   local savedAt = positions(saved or {})
   local list = {}
-  for sprite in pairs(set) do list[#list + 1] = sprite end
+  for sprite in pairs(set) do
+    list[#list + 1] = sprite
+  end
   local huge = math.huge
   table.sort(list, function(a, b)
     local sa, sb = savedAt[a] or huge, savedAt[b] or huge
-    if sa ~= sb then return sa < sb end
+    if sa ~= sb then
+      return sa < sb
+    end
     local da, db = defaults[a] or huge, defaults[b] or huge
-    if da ~= db then return da < db end
+    if da ~= db then
+      return da < db
+    end
     return a < b
   end)
   return list
@@ -100,7 +120,9 @@ end
 local function filter(order, set)
   local list = {}
   for _, sprite in ipairs(order) do
-    if set[sprite] then list[#list + 1] = sprite end
+    if set[sprite] then
+      list[#list + 1] = sprite
+    end
   end
   return list
 end
@@ -113,7 +135,9 @@ end
 function auralists.groups(categories, choices, orders)
   local groups = { order = {} }
   local members, all = {}, {}
-  for _, name in ipairs(CATEGORIES) do members[name] = {} end
+  for _, name in ipairs(CATEGORIES) do
+    members[name] = {}
+  end
   for key, category in pairs(categories) do
     local sprite = tonumber(key)
     if members[category] ~= nil and sprite ~= nil then
@@ -122,17 +146,27 @@ function auralists.groups(categories, choices, orders)
     end
   end
   groups.order.buffs = ordered(all, orders.buffs, {})
-  for _, name in ipairs(CATEGORIES) do groups[name] = filter(groups.order.buffs, members[name]) end
+  for _, name in ipairs(CATEGORIES) do
+    groups[name] = filter(groups.order.buffs, members[name])
+  end
   for kind, defaults in pairs(DEFAULTS) do
     local tracked, untracked, seen = {}, {}, {}
     local function place(sprite)
       seen[sprite] = true
-      if auralists.tracked(kind, choices[kind], sprite) then tracked[sprite] = true else untracked[sprite] = true end
+      if auralists.tracked(kind, choices[kind], sprite) then
+        tracked[sprite] = true
+      else
+        untracked[sprite] = true
+      end
     end
-    for sprite in pairs(defaults) do place(sprite) end
+    for sprite in pairs(defaults) do
+      place(sprite)
+    end
     for key in pairs(choices[kind]) do
       local sprite = tonumber(key)
-      if sprite ~= nil then place(sprite) end
+      if sprite ~= nil then
+        place(sprite)
+      end
     end
     local order = ordered(seen, orders[kind], defaults)
     groups.order[kind] = order
@@ -143,13 +177,18 @@ end
 
 -- { buffs, target, player }, each { [sprite] = position } in that kind's display order, from groups(...).
 function auralists.ranks(groups)
-  return { buffs = positions(groups.order.buffs), target = positions(groups.order.target),
-    player = positions(groups.order.player) }
+  return {
+    buffs = positions(groups.order.buffs),
+    target = positions(groups.order.target),
+    player = positions(groups.order.player),
+  }
 end
 
 local function indexOf(list, sprite)
   for i, s in ipairs(list) do
-    if s == sprite then return i end
+    if s == sprite then
+      return i
+    end
   end
 end
 
@@ -159,22 +198,32 @@ end
 -- on no icon.
 function auralists.drop(order, list, sprite, target)
   local out = {}
-  for i, s in ipairs(order) do out[i] = s end
+  for i, s in ipairs(order) do
+    out[i] = s
+  end
   if target.kind == "swap" then
     local other = list[target.index]
-    if other == nil or other == sprite then return nil end
+    if other == nil or other == sprite then
+      return nil
+    end
     local a, b = indexOf(out, sprite), indexOf(out, other)
     out[a], out[b] = other, sprite
     return { order = out, other = other }
   end
   local rest = {}
   for _, s in ipairs(list) do
-    if s ~= sprite then rest[#rest + 1] = s end
+    if s ~= sprite then
+      rest[#rest + 1] = s
+    end
   end
   local index = target.index
   local from = indexOf(list, sprite)
-  if from ~= nil and from < index then index = index - 1 end
-  if #rest == 0 then return { order = out } end
+  if from ~= nil and from < index then
+    index = index - 1
+  end
+  if #rest == 0 then
+    return { order = out }
+  end
   table.remove(out, indexOf(out, sprite))
   local before = rest[index]
   if before ~= nil then

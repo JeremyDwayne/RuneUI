@@ -4,8 +4,10 @@ local frames = {}
 
 -- Unit frame lifepoints texts, with a sample of each.
 frames.LIFEPOINTS = {
-  { id = "short", label = "12.2K | 78%" }, { id = "full", label = "12,242 / 15,695" },
-  { id = "amount", label = "12.2K" }, { id = "percent", label = "78%" },
+  { id = "short", label = "12.2K | 78%" },
+  { id = "full", label = "12,242 / 15,695" },
+  { id = "amount", label = "12.2K" },
+  { id = "percent", label = "78%" },
 }
 
 -- Spender resources shown as rows of blocks above the resource bar, read by their VarPlayer name.
@@ -20,7 +22,9 @@ local function clamp01(x)
 end
 
 local function oneDecimal(x)
-  if x == math.floor(x) then return tostring(math.floor(x)) end
+  if x == math.floor(x) then
+    return tostring(math.floor(x))
+  end
   return string.format("%.1f", x)
 end
 
@@ -42,8 +46,12 @@ end
 
 -- 6,800 below ten thousand, 13.1K and 1.2M above, rounded down so it never overstates.
 function frames.formatAmount(n)
-  if n >= 1000000 then return oneDecimal(math.floor(n / 100000) / 10) .. "M" end
-  if n >= 10000 then return oneDecimal(math.floor(n / 100) / 10) .. "K" end
+  if n >= 1000000 then
+    return oneDecimal(math.floor(n / 100000) / 10) .. "M"
+  end
+  if n >= 10000 then
+    return oneDecimal(math.floor(n / 100) / 10) .. "K"
+  end
   return withCommas(n)
 end
 
@@ -53,8 +61,12 @@ end
 -- parts there are.
 local function valueText(format, lifepoints, percent, max)
   if format == "full" and lifepoints ~= nil then
-    if max ~= nil then return withCommas(lifepoints) .. " / " .. withCommas(max) end
-    if percent == nil then return withCommas(lifepoints) end
+    if max ~= nil then
+      return withCommas(lifepoints) .. " / " .. withCommas(max)
+    end
+    if percent == nil then
+      return withCommas(lifepoints)
+    end
     return withCommas(lifepoints) .. " | " .. percent
   elseif format == "amount" and lifepoints ~= nil then
     return frames.formatAmount(lifepoints)
@@ -62,14 +74,18 @@ local function valueText(format, lifepoints, percent, max)
     return percent
   end
   local amount = lifepoints and frames.formatAmount(lifepoints)
-  if amount ~= nil and percent ~= nil then return amount .. " | " .. percent end
+  if amount ~= nil and percent ~= nil then
+    return amount .. " | " .. percent
+  end
   return amount or percent or ""
 end
 
 -- reads: { available, name, lifepoints, lifepointsLabel, prayerValue, prayerLabel }. format is one of
 -- frames.LIFEPOINTS, short when nil.
 function frames.player(reads, format)
-  if not reads.available or reads.lifepoints == nil then return { hidden = true } end
+  if not reads.available or reads.lifepoints == nil then
+    return { hidden = true }
+  end
   local model = { hidden = false, name = reads.name or "" }
   local max = labelMax(reads.lifepointsLabel)
   local percent
@@ -85,7 +101,9 @@ function frames.player(reads, format)
     local points = math.floor((reads.prayerValue % 16384) / 10)
     local prayerMax = labelMax(reads.prayerLabel)
     model.prayerText = tostring(points)
-    if prayerMax ~= nil and prayerMax > 0 then model.prayerFill = clamp01(points / prayerMax) end
+    if prayerMax ~= nil and prayerMax > 0 then
+      model.prayerFill = clamp01(points / prayerMax)
+    end
   end
   return model
 end
@@ -94,7 +112,9 @@ end
 -- The name and lifepoints come from the native target panel, which can be unloaded while a target is set.
 -- format is one of frames.LIFEPOINTS, short when nil.
 function frames.target(reads, format)
-  if reads.target == nil or reads.target == -1 or reads.lifepointsLabel == "N/A" then return { hidden = true } end
+  if reads.target == nil or reads.target == -1 or reads.lifepointsLabel == "N/A" then
+    return { hidden = true }
+  end
   local model = { hidden = false, name = reads.name or "", debuffs = reads.debuffs }
   local lifepoints = reads.lifepointsLabel and tonumber((reads.lifepointsLabel:gsub(",", "")))
   local percent
@@ -112,7 +132,9 @@ end
 -- elements they push stay put between casts.
 -- markers: { threshold = percent, ultimate = percent }
 function frames.resource(reads, markers)
-  if reads.adrenaline == nil then return { hidden = true } end
+  if reads.adrenaline == nil then
+    return { hidden = true }
+  end
   local fill = clamp01(reads.adrenaline / 1000)
   local model = {
     hidden = false,

@@ -7,7 +7,14 @@ local view = require("src/view")
 
 local function fakeStore()
   local data = {}
-  return { get = function(key) return data[key] end, set = function(key, value) data[key] = value end }
+  return {
+    get = function(key)
+      return data[key]
+    end,
+    set = function(key, value)
+      data[key] = value
+    end,
+  }
 end
 
 -- An open Appearance page on a 698 by 562 page layer. Returns the page, its settings and a count of HUD refreshes.
@@ -16,15 +23,23 @@ local function open()
   local saved = settings.load(fakeStore())
   local refreshed = { count = 0 }
   local page = appearancepage.create(root, 698, 562, {
-    saved = saved, view = view, tooltip = view.tooltip(root), auraInfo = function() end,
-    tracker = cooldowns.tracker(), refresh = function() refreshed.count = refreshed.count + 1 end,
+    saved = saved,
+    view = view,
+    tooltip = view.tooltip(root),
+    auraInfo = function() end,
+    tracker = cooldowns.tracker(),
+    refresh = function()
+      refreshed.count = refreshed.count + 1
+    end,
   })
   page.open()
   return page, saved, refreshed
 end
 
 local function label(content)
-  return fake.find(function(_, d) return d.content == content end)
+  return fake.find(function(_, d)
+    return d.content == content
+  end)
 end
 
 -- An open Bars page on a 698 by 562 page layer. Returns its settings.
@@ -32,8 +47,12 @@ local function openBars()
   local root = fake.component()
   local saved = settings.load(fakeStore())
   local page = appearancepage.bars(root, 698, 562, {
-    saved = saved, view = view, tooltip = view.tooltip(root), auraInfo = function() end,
-    tracker = cooldowns.tracker(), refresh = function() end,
+    saved = saved,
+    view = view,
+    tooltip = view.tooltip(root),
+    auraInfo = function() end,
+    tracker = cooldowns.tracker(),
+    refresh = function() end,
   })
   page.open()
   return saved
@@ -59,8 +78,12 @@ end
 -- Turns the wheel over the viewport by delta, times times.
 local function wheel(delta, times)
   local viewport = scrollParts("Font")
-  local bg = fake.find(function(c, d) return d.parent == viewport and fake.hasHook(c, "ONSCROLLWHEEL") end)
-  for _ = 1, times do fake.hook(bg, "ONSCROLLWHEEL", delta) end
+  local bg = fake.find(function(c, d)
+    return d.parent == viewport and fake.hasHook(c, "ONSCROLLWHEEL")
+  end)
+  for _ = 1, times do
+    fake.hook(bg, "ONSCROLLWHEEL", delta)
+  end
 end
 
 -- The option button's hit area under the label reading content.
@@ -81,7 +104,9 @@ describe("appearance page", function()
     assert.are.equal(1, refreshed.count)
     local copies = 0
     for _, c in ipairs(fake.created) do
-      if c.content == "Player" and fake.shown(c) then copies = copies + 1 end
+      if c.content == "Player" and fake.shown(c) then
+        copies = copies + 1
+      end
     end
     assert.are.equal(5, copies)
     fake.press("+")
@@ -137,7 +162,9 @@ describe("appearance page", function()
 
   it("saves a typed number once it is in range, and on Enter saves it clamped and shows what it saved", function()
     local _, saved = open()
-    local field = fake.find(function(c, d) return fake.hasHook(c, "ONCONTENTCHANGED") and d.content == "13" end)
+    local field = fake.find(function(c, d)
+      return fake.hasHook(c, "ONCONTENTCHANGED") and d.content == "13"
+    end)
     -- The client holds the typed text in the field before it reports it.
     local function type_(reason, contents)
       field.content = contents
@@ -191,12 +218,16 @@ describe("appearance page", function()
   it("lets the cast bar take the adrenaline bar's width and the HUD's text size, fading each stepper", function()
     local saved = openBars()
     wheel(-1, 200)
-    local width = fake.find(function(c, d) return fake.hasHook(c, "ONCONTENTCHANGED") and d.content == "278" end)
+    local width = fake.find(function(c, d)
+      return fake.hasHook(c, "ONCONTENTCHANGED") and d.content == "278"
+    end)
     assert.are.equal(1, width.alpha)
     fake.press("Same as adrenaline")
     assert.is_true(saved.appearance().castMatchWidth)
     assert.is_true(width.alpha < 1)
-    local size = fake.find(function(c, d) return fake.hasHook(c, "ONCONTENTCHANGED") and d.content == "13" end)
+    local size = fake.find(function(c, d)
+      return fake.hasHook(c, "ONCONTENTCHANGED") and d.content == "13"
+    end)
     size.content = "16"
     assert.is_true(size.alpha < 1)
     fake.hook(size, "ONCONTENTCHANGED", ui.InputFieldActionResult.SUBMIT, "16")

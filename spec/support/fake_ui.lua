@@ -15,13 +15,27 @@ local function call(method)
       fake.writes = fake.writes + 1
     end
     local data = dataOf[c]
-    if method == "SetPos" then data.x, data.y = a, b end
-    if method == "SetSize" then data.width, data.height = a, b end
-    if method == "SetWidth" then data.width = a end
-    if method == "SetHeight" then data.height = a end
-    if method == "SetAssociatedObject" then data.object = a end
+    if method == "SetPos" then
+      data.x, data.y = a, b
+    end
+    if method == "SetSize" then
+      data.width, data.height = a, b
+    end
+    if method == "SetWidth" then
+      data.width = a
+    end
+    if method == "SetHeight" then
+      data.height = a
+    end
+    if method == "SetAssociatedObject" then
+      data.object = a
+    end
     if method == "MoveToFront" then
-      if fake.shown(c) then data.fronted = true else data.undrawn = true end
+      if fake.shown(c) then
+        data.fronted = true
+      else
+        data.undrawn = true
+      end
     end
   end
 end
@@ -34,9 +48,15 @@ function fake.component(parent)
   local data = { hooks = {}, parent = parent, x = 0, y = 0 }
   local c = setmetatable({}, {
     __index = function(_, key)
-      if key == "Subscribe" then return subscribe end
-      if data[key] ~= nil then return data[key] end
-      if type(key) == "string" and key:match("^%u") then return call(key) end
+      if key == "Subscribe" then
+        return subscribe
+      end
+      if data[key] ~= nil then
+        return data[key]
+      end
+      if type(key) == "string" and key:match("^%u") then
+        return call(key)
+      end
       return nil
     end,
     __newindex = function(_, key, value)
@@ -57,7 +77,9 @@ end
 -- Whether c and every parent it has are shown.
 function fake.shown(c)
   while c ~= nil do
-    if dataOf[c].hidden then return false end
+    if dataOf[c].hidden then
+      return false
+    end
     c = dataOf[c].parent
   end
   return true
@@ -65,7 +87,9 @@ end
 
 function fake.find(predicate)
   for _, c in ipairs(fake.created) do
-    if fake.shown(c) and predicate(c, dataOf[c]) then return c end
+    if fake.shown(c) and predicate(c, dataOf[c]) then
+      return c
+    end
   end
 end
 
@@ -78,15 +102,28 @@ end
 function fake.press(label, nth)
   local seen = 0
   local text = fake.find(function(_, d)
-    if d.content == label then seen = seen + 1 end
+    if d.content == label then
+      seen = seen + 1
+    end
     return d.content == label and seen == (nth or 1)
   end)
   assert(text, "no shown label " .. label)
   local t, hit = dataOf[text], nil
   for _, c in ipairs(fake.created) do
     local d = dataOf[c]
-    if c ~= text and d.parent == t.parent and d.hooks.ONCLICK and fake.shown(c) and d.width
-      and t.x >= d.x and t.x < d.x + d.width and t.y >= d.y and t.y < d.y + d.height then hit = c end
+    if
+      c ~= text
+      and d.parent == t.parent
+      and d.hooks.ONCLICK
+      and fake.shown(c)
+      and d.width
+      and t.x >= d.x
+      and t.x < d.x + d.width
+      and t.y >= d.y
+      and t.y < d.y + d.height
+    then
+      hit = c
+    end
   end
   assert(hit, "nothing to click under " .. label)
   fake.hook(hit, "ONCLICK")
@@ -97,29 +134,54 @@ function fake.hasHook(c, name)
 end
 
 function fake.fire(name, payload)
-  for _, fn in pairs(fake.handlers[name] or {}) do fn(payload) end
+  for _, fn in pairs(fake.handlers[name] or {}) do
+    fn(payload)
+  end
 end
 
 local constructor = { new = fake.component }
 _G.ui = {
-  Layer = constructor, Rectangle = constructor, Text = constructor, Sprite = constructor, Canvas = constructor,
+  Layer = constructor,
+  Rectangle = constructor,
+  Text = constructor,
+  Sprite = constructor,
+  Canvas = constructor,
   InputField = constructor,
   TextContentVisibilityMode = { VISIBLE = 0 },
   InputFieldFilterMode = { NONE = 0 },
   InputFieldActionResult = { NONE = 0, CONTENT_CHANGE = 2, SUBMIT = 3, SUBMIT_ON_FOCUS_LOSS = 5 },
-  Hook = setmetatable({}, { __index = function(_, name) return name end }),
+  Hook = setmetatable({}, {
+    __index = function(_, name)
+      return name
+    end,
+  }),
   AlignMode = { TOPLEFT = 0, CENTRE = 1, BOTTOMRIGHT = 2 },
 }
-_G.Event = setmetatable({}, { __index = function(_, name)
-  return { Subscribe = function(ref, fn)
-    fake.handlers[name] = fake.handlers[name] or {}
-    fake.handlers[name][ref] = fn
-  end }
-end })
-_G.Mouse = { GetX = function() return fake.mouse.x end, GetY = function() return fake.mouse.y end }
+_G.Event = setmetatable({}, {
+  __index = function(_, name)
+    return {
+      Subscribe = function(ref, fn)
+        fake.handlers[name] = fake.handlers[name] or {}
+        fake.handlers[name][ref] = fn
+      end,
+    }
+  end,
+})
+_G.Mouse = {
+  GetX = function()
+    return fake.mouse.x
+  end,
+  GetY = function()
+    return fake.mouse.y
+  end,
+}
 _G.GameKey = { ESCAPE = 13, SHIFT = 81 }
 -- Each font id is its name, so specs can read which font a label holds.
-_G.id = { Font = setmetatable({}, { __index = function(_, name) return name end }), StyleSheet = {} }
+_G.id = { Font = setmetatable({}, {
+  __index = function(_, name)
+    return name
+  end,
+}), StyleSheet = {} }
 _G.log = function() end
 
 return fake

@@ -75,16 +75,20 @@ describe("frames.resource", function()
 
   it("shows a row of blocks for each spender with stacks, both at once", function()
     local model = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 2, [NECROSIS] = 7 } }, MARKERS)
-    assert.are.same({ { key = "souls", count = 2, max = 3 }, { key = "necrosis", count = 7, max = 12 } },
-      model.spenders)
+    assert.are.same(
+      { { key = "souls", count = 2, max = 3 }, { key = "necrosis", count = 7, max = 12 } },
+      model.spenders
+    )
     local empty = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 0, [NECROSIS] = 0 } }, MARKERS)
     assert.are.same({}, empty.spenders)
   end)
 
   it("keeps empty spender rows while a Necromancy weapon is worn", function()
     local model = frames.resource({ adrenaline = 0, spenders = {}, necromancy = true }, MARKERS)
-    assert.are.same({ { key = "souls", count = 0, max = 3 }, { key = "necrosis", count = 0, max = 12 } },
-      model.spenders)
+    assert.are.same(
+      { { key = "souls", count = 0, max = 3 }, { key = "necrosis", count = 0, max = 12 } },
+      model.spenders
+    )
   end)
 
   it("caps souls at 5 with a Soulbound lantern equipped and 3 without", function()
@@ -114,10 +118,14 @@ describe("frames.target", function()
 
   it("writes the exact lifepoints in full, as the target has no max, and the amount or percent alone", function()
     assert.are.equal("6,800 | 58%", frames.target(reads, "full").valueText)
-    assert.are.equal("12,242 | 58%", frames.target({ target = 1, lifepointsLabel = "12,242", healthPercent = 58 },
-      "full").valueText)
-    assert.are.equal("12.2K | 58%", frames.target({ target = 1, lifepointsLabel = "12,242", healthPercent = 58 },
-      "short").valueText)
+    assert.are.equal(
+      "12,242 | 58%",
+      frames.target({ target = 1, lifepointsLabel = "12,242", healthPercent = 58 }, "full").valueText
+    )
+    assert.are.equal(
+      "12.2K | 58%",
+      frames.target({ target = 1, lifepointsLabel = "12,242", healthPercent = 58 }, "short").valueText
+    )
     assert.are.equal("6,800", frames.target(reads, "amount").valueText)
     assert.are.equal("58%", frames.target(reads, "percent").valueText)
   end)

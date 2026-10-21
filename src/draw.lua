@@ -47,10 +47,27 @@ draw.COLOURS = {
 -- Options window palette: black panels, parchment text, and gold for what is chosen, with a white ring and dark
 -- text. Its keys name the same roles as draw.COLOURS, so window code reads one palette or the other.
 draw.WINDOW = {
-  border = 0x000000, edge = 0x5a4b33, panel = 0x0c0b09, sidebar = 0x000000, row = 0x17140f, rowAlt = 0x201c16,
-  line = 0x3a3326, popup = 0x17140f, button = 0x2b261f, buttonHover = 0x3d362c, bronze = 0x7a6a4c,
-  accent = 0xf2c66d, accentHover = 0xf7d891, accentText = 0x140e03, ring = 0xffffff, text = 0xf4ead2,
-  mutedText = 0xe0d3b2, dimText = 0xe0d3b2, darkText = 0x140e03, highlight = 0xffffff, editorTile = 0x2a2620,
+  border = 0x000000,
+  edge = 0x5a4b33,
+  panel = 0x0c0b09,
+  sidebar = 0x000000,
+  row = 0x17140f,
+  rowAlt = 0x201c16,
+  line = 0x3a3326,
+  popup = 0x17140f,
+  button = 0x2b261f,
+  buttonHover = 0x3d362c,
+  bronze = 0x7a6a4c,
+  accent = 0xf2c66d,
+  accentHover = 0xf7d891,
+  accentText = 0x140e03,
+  ring = 0xffffff,
+  text = 0xf4ead2,
+  mutedText = 0xe0d3b2,
+  dimText = 0xe0d3b2,
+  darkText = 0x140e03,
+  highlight = 0xffffff,
+  editorTile = 0x2a2620,
 }
 
 local warned = {}
@@ -81,13 +98,19 @@ end
 -- draw.edgedText label's edge copies take the same write while its edge is on.
 function draw.set(obj, field, value)
   local fields = writtenFor(obj)
-  if fields[field] == value then return end
-  local ok, err = pcall(function() obj[field] = value end)
+  if fields[field] == value then
+    return
+  end
+  local ok, err = pcall(function()
+    obj[field] = value
+  end)
   if ok then
     fields[field] = value
     local edge = MIRRORED[field] and edgeOn(obj)
     if edge then
-      for _, copy in ipairs(edge.copies) do draw.set(copy, field, value) end
+      for _, copy in ipairs(edge.copies) do
+        draw.set(copy, field, value)
+      end
     end
   elseif not warned[field] then
     warned[field] = true
@@ -98,20 +121,30 @@ end
 -- SetPos for components moved on every redraw; skips the call when the position is unchanged.
 function draw.pos(obj, x, y)
   local fields = writtenFor(obj)
-  if fields["SetPos.x"] == x and fields["SetPos.y"] == y then return end
+  if fields["SetPos.x"] == x and fields["SetPos.y"] == y then
+    return
+  end
   obj:SetPos(x, y)
   fields["SetPos.x"], fields["SetPos.y"] = x, y
   local edge = edgeOn(obj)
   if edge then
-    for i, copy in ipairs(edge.copies) do draw.pos(copy, x + EDGE_OFFSETS[i][1], y + EDGE_OFFSETS[i][2]) end
+    for i, copy in ipairs(edge.copies) do
+      draw.pos(copy, x + EDGE_OFFSETS[i][1], y + EDGE_OFFSETS[i][2])
+    end
   end
 end
 
 -- SetPos with anchors as fractions of the parent, with the same unchanged-value skip as draw.pos.
 function draw.place(obj, x, y, anchorX, anchorY)
   local fields = writtenFor(obj)
-  if fields["place.x"] == x and fields["place.y"] == y and fields["place.anchorX"] == anchorX
-    and fields["place.anchorY"] == anchorY then return end
+  if
+    fields["place.x"] == x
+    and fields["place.y"] == y
+    and fields["place.anchorX"] == anchorX
+    and fields["place.anchorY"] == anchorY
+  then
+    return
+  end
   obj:SetPos(x, y, anchorX, anchorY)
   fields["place.x"], fields["place.y"], fields["place.anchorX"], fields["place.anchorY"] = x, y, anchorX, anchorY
 end
@@ -119,7 +152,9 @@ end
 -- SetWidth with the same unchanged-value skip as draw.pos.
 function draw.width(obj, width)
   local fields = writtenFor(obj)
-  if fields.SetWidth == width then return end
+  if fields.SetWidth == width then
+    return
+  end
   obj:SetWidth(width)
   fields.SetWidth, fields["SetSize.w"] = width, width
 end
@@ -127,12 +162,16 @@ end
 -- SetSize with the same unchanged-value skip as draw.pos. A draw.edgedText label's edge copies follow it.
 function draw.size(obj, width, height)
   local fields = writtenFor(obj)
-  if fields["SetSize.w"] == width and fields["SetSize.h"] == height then return end
+  if fields["SetSize.w"] == width and fields["SetSize.h"] == height then
+    return
+  end
   obj:SetSize(width, height)
   fields["SetSize.w"], fields["SetSize.h"], fields.SetWidth = width, height, width
   local edge = edgeOn(obj)
   if edge then
-    for _, copy in ipairs(edge.copies) do draw.size(copy, width, height) end
+    for _, copy in ipairs(edge.copies) do
+      draw.size(copy, width, height)
+    end
   end
 end
 
@@ -150,13 +189,19 @@ local alignWarned = false
 -- The two-argument AlignTo raised a newindex error in the client; fall back to the one-argument form,
 -- which applies the alignment to both axes.
 local function align(t, horizontal)
-  local ok, err = pcall(function() t:AlignTo(horizontal, ui.AlignMode.CENTRE) end)
-  if ok then return end
+  local ok, err = pcall(function()
+    t:AlignTo(horizontal, ui.AlignMode.CENTRE)
+  end)
+  if ok then
+    return
+  end
   if not alignWarned then
     alignWarned = true
     log("two-axis AlignTo failed, using one axis:", err)
   end
-  pcall(function() t:AlignTo(horizontal) end)
+  pcall(function()
+    t:AlignTo(horizontal)
+  end)
 end
 
 function draw.text(parent, font, horizontal, x, y, width, height)
@@ -187,7 +232,9 @@ end
 -- change to the label's content, font, visibility, alpha, shadow, position and size.
 function draw.setEdge(label, rgb)
   local edge = edges[label]
-  if edge.rgb == rgb and edge.on == (rgb ~= nil) then return end
+  if edge.rgb == rgb and edge.on == (rgb ~= nil) then
+    return
+  end
   edge.on, edge.rgb = rgb ~= nil, rgb
   if rgb == nil then
     draw.hideAll(edge.copies, true)
@@ -197,7 +244,9 @@ function draw.setEdge(label, rgb)
   for i, copy in ipairs(edge.copies) do
     draw.set(copy, "rgb", rgb)
     for field in pairs(MIRRORED) do
-      if fields[field] ~= nil then draw.set(copy, field, fields[field]) end
+      if fields[field] ~= nil then
+        draw.set(copy, field, fields[field])
+      end
     end
     draw.set(copy, "hidden", fields.hidden == true)
     draw.pos(copy, fields["SetPos.x"] + EDGE_OFFSETS[i][1], fields["SetPos.y"] + EDGE_OFFSETS[i][2])
@@ -236,7 +285,9 @@ end
 
 function draw.cursor()
   local mx, my = Mouse.GetX(), Mouse.GetY()
-  if mx == nil or my == nil then return nil end
+  if mx == nil or my == nil then
+    return nil
+  end
   return mx / scale, my / scale
 end
 
@@ -261,14 +312,22 @@ function draw.button(parent, label, x, y, w, h, fill, onClick)
   local face = colours.edge and group.add(draw.rect(parent, normal, x + 1, y + 1, w - 2, h - 2), 1, 1) or bg
   local t = group.add(draw.text(parent, draw.FONTS.body, ui.AlignMode.CENTRE, x, y, w, h), 0, 0)
   draw.set(t, "content", label)
-  if colours.text then draw.set(t, "rgb", colours.text) end
+  if colours.text then
+    draw.set(t, "rgb", colours.text)
+  end
   if colours.dark then
     draw.set(t, "rgb", colours.dark)
     draw.set(t, "isShadowed", false)
   end
-  draw.on(bg, "ONMOUSEOVER", function() draw.set(face, "rgb", hover) end)
-  draw.on(bg, "ONMOUSELEAVE", function() draw.set(face, "rgb", normal) end)
-  draw.on(bg, "ONCLICK", function(_, cx, cy) onClick(cx, cy) end)
+  draw.on(bg, "ONMOUSEOVER", function()
+    draw.set(face, "rgb", hover)
+  end)
+  draw.on(bg, "ONMOUSELEAVE", function()
+    draw.set(face, "rgb", normal)
+  end)
+  draw.on(bg, "ONCLICK", function(_, cx, cy)
+    onClick(cx, cy)
+  end)
   group.x, group.y = x, y
   return { bg = bg, label = t, group = group }
 end
@@ -281,7 +340,9 @@ function draw.inputField(parent, x, y, w, h, maxLength, search)
   draw.size(field, w, h)
   field:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, maxLength)
   local sheet = search and id.StyleSheet.INPUT_SEARCHBOX_24PX or id.StyleSheet.INPUT_DEFAULT
-  if sheet ~= nil then draw.set(field, "stylesheetID", sheet) end
+  if sheet ~= nil then
+    draw.set(field, "stylesheetID", sheet)
+  end
   return field
 end
 
@@ -301,11 +362,17 @@ function draw.numberField(parent, x, y, w, h, low, high, onChoose)
   draw.on(field, "ONCONTENTCHANGED", function(_, reason, contents)
     local n = math.tointeger(tonumber((contents or ""):match("^%s*(%d+)%s*$")))
     if reason == ui.InputFieldActionResult.CONTENT_CHANGE then
-      if n ~= nil and n >= low and n <= high then onChoose(n) end
+      if n ~= nil and n >= low and n <= high then
+        onChoose(n)
+      end
       return
     end
-    if n ~= nil then onChoose(math.max(low, math.min(high, n))) end
-    if shown == nil then return end
+    if n ~= nil then
+      onChoose(math.max(low, math.min(high, n)))
+    end
+    if shown == nil then
+      return
+    end
     writtenFor(field).content = nil
     draw.set(field, "content", tostring(shown))
   end)
@@ -327,12 +394,18 @@ function draw.option(parent, label, x, y, w, h, onClick)
   draw.set(o.ring, "hidden", true)
   draw.set(o.label, "content", label)
   draw.on(o.bg, "ONMOUSEOVER", function()
-    if not o.chosen then draw.set(o.face, "rgb", W.buttonHover) end
+    if not o.chosen then
+      draw.set(o.face, "rgb", W.buttonHover)
+    end
   end)
   draw.on(o.bg, "ONMOUSELEAVE", function()
-    if not o.chosen then draw.set(o.face, "rgb", W.button) end
+    if not o.chosen then
+      draw.set(o.face, "rgb", W.button)
+    end
   end)
-  draw.on(o.bg, "ONCLICK", function(_, cx, cy) onClick(cx, cy) end)
+  draw.on(o.bg, "ONCLICK", function(_, cx, cy)
+    onClick(cx, cy)
+  end)
   return o
 end
 
@@ -348,7 +421,9 @@ function draw.showOption(o, chosen)
 end
 
 function draw.hideAll(components, hidden)
-  for _, c in ipairs(components) do draw.set(c, "hidden", hidden) end
+  for _, c in ipairs(components) do
+    draw.set(c, "hidden", hidden)
+  end
 end
 
 -- Components that move together, each at a fixed offset from the group's top-left. add(c, dx, dy) returns
@@ -364,11 +439,15 @@ function draw.group()
 
   function group.place(x, y)
     group.x, group.y = x, y
-    for _, m in ipairs(members) do draw.pos(m.c, x + m.dx, y + m.dy) end
+    for _, m in ipairs(members) do
+      draw.pos(m.c, x + m.dx, y + m.dy)
+    end
   end
 
   function group.set(field, value)
-    for _, m in ipairs(members) do draw.set(m.c, field, value) end
+    for _, m in ipairs(members) do
+      draw.set(m.c, field, value)
+    end
   end
 
   return group
@@ -379,11 +458,15 @@ end
 function draw.icon(c, icon)
   local fields = writtenFor(c)
   local last = fields.icon
-  if last == icon then return end
+  if last == icon then
+    return
+  end
   if icon < 0 then
     c:SetAssociatedObject(-icon)
   else
-    if last ~= nil and last < 0 then c:SetAssociatedObject(-1) end
+    if last ~= nil and last < 0 then
+      c:SetAssociatedObject(-1)
+    end
     c.sprite = icon
   end
   fields.icon = icon
@@ -392,15 +475,22 @@ end
 -- Shows a src/cooldowns tile's icon on sprite, or its initials on label when it has no icon.
 function draw.iconOrInitials(sprite, label, tile)
   draw.set(sprite, "hidden", tile.icon == nil)
-  if tile.icon ~= nil then draw.icon(sprite, tile.icon) end
+  if tile.icon ~= nil then
+    draw.icon(sprite, tile.icon)
+  end
   draw.set(label, "hidden", tile.icon ~= nil)
   draw.set(label, "content", tile.initials)
 end
 
 -- Four thin rects forming a box outline; returns them for moving and hiding.
 function draw.outline(parent, rgb, thickness)
-  return { draw.rect(parent, rgb, 0, 0, 0, 0), draw.rect(parent, rgb, 0, 0, 0, 0), draw.rect(parent, rgb, 0, 0, 0, 0),
-    draw.rect(parent, rgb, 0, 0, 0, 0), thickness = thickness }
+  return {
+    draw.rect(parent, rgb, 0, 0, 0, 0),
+    draw.rect(parent, rgb, 0, 0, 0, 0),
+    draw.rect(parent, rgb, 0, 0, 0, 0),
+    draw.rect(parent, rgb, 0, 0, 0, 0),
+    thickness = thickness,
+  }
 end
 
 -- Places an outline around the box at x, y sized w by h, its thickness drawn outside.
@@ -474,7 +564,9 @@ function draw.bar(parent, rgb, trackRgb, x, y, width, height)
     draw.set(solid, "hidden", gradient or fill == nil)
     draw.set(canvas, "hidden", not gradient or fill == nil)
     draw.set(cover, "hidden", not gradient or fill == nil or filled == width)
-    if fill == nil then return end
+    if fill == nil then
+      return
+    end
     if gradient then
       draw.pos(cover, x + filled, y)
       draw.width(cover, width - filled)
@@ -505,13 +597,17 @@ function draw.bar(parent, rgb, trackRgb, x, y, width, height)
   end
 
   function bar.setTexture(value)
-    if value == texture then return end
+    if value == texture then
+      return
+    end
     texture = value
     paint()
   end
 
   function bar.setColour(value)
-    if value == rgb then return end
+    if value == rgb then
+      return
+    end
     rgb = value
     draw.set(solid, "rgb", rgb)
     paint()
@@ -519,14 +615,20 @@ function draw.bar(parent, rgb, trackRgb, x, y, width, height)
 
   -- Moves and resizes the bar, repainting the gradient at a new size.
   function bar.setBox(newX, newY, w, h)
-    if newX == x and newY == y and w == width and h == height then return end
+    if newX == x and newY == y and w == width and h == height then
+      return
+    end
     local resized = w ~= width or h ~= height
     x, y, width, height = newX, newY, w, h
     for _, part in ipairs(bar.parts) do
       draw.pos(part, x, y)
       draw.size(part, w, h)
     end
-    if resized then paint() else redraw() end
+    if resized then
+      paint()
+    else
+      redraw()
+    end
   end
 
   return bar

@@ -4,20 +4,31 @@ local ANTIFIRE, INCITE, SONIC, AFTERSHOCK, STUN, BLOODLUST = 30093, 14766, 27432
 
 local function buffs(...)
   local list = {}
-  for i = 1, select("#", ...), 2 do list[#list + 1] = { sprite = select(i, ...), label = select(i + 1, ...) } end
+  for i = 1, select("#", ...), 2 do
+    list[#list + 1] = { sprite = select(i, ...), label = select(i + 1, ...) }
+  end
   return { buffs = list, debuffs = {} }
 end
 
 local NO_RANK = {}
 -- Row filters that show every debuff, mark no buff Keep up and rank nothing.
 local ALL = {
-  tracked = function() return true end, keepUp = {}, hasTarget = false, rank = function() return NO_RANK end,
+  tracked = function()
+    return true
+  end,
+  keepUp = {},
+  hasTarget = false,
+  rank = function()
+    return NO_RANK
+  end,
 }
 
 -- The row model for sprite in row, or nil.
 local function shown(tracker, row, sprite, categories)
   for _, model in ipairs(tracker.rows(categories or {}, {}, ALL)[row]) do
-    if model.sprite == sprite then return model end
+    if model.sprite == sprite then
+      return model
+    end
   end
 end
 
@@ -58,7 +69,9 @@ describe("auras.tracker", function()
 
   it("tracks an icon with an empty label as an aura with no timer", function()
     local tracker = auras.tracker()
-    for _ = 1, 2 do tracker.onTick(buffs(AFTERSHOCK, nil)) end
+    for _ = 1, 2 do
+      tracker.onTick(buffs(AFTERSHOCK, nil))
+    end
     local model = shown(tracker, "combatBuffs", AFTERSHOCK, { [tostring(AFTERSHOCK)] = "combat" })
     assert.are.same({ sprite = AFTERSHOCK, highlight = false }, model)
   end)
@@ -113,7 +126,9 @@ describe("auras.tracker", function()
     local tracker = auras.tracker()
     tracker.onTick(buffs(BLOODLUST, "5"))
     tracker.onTick(buffs(BLOODLUST, "4"))
-    for _ = 1, 2 do tracker.onTick(buffs(BLOODLUST, "4")) end
+    for _ = 1, 2 do
+      tracker.onTick(buffs(BLOODLUST, "4"))
+    end
     assert.is_not_nil(shown(tracker, "combatBuffs", BLOODLUST).left)
     tracker.onTick(buffs(BLOODLUST, "4"))
     local count = shown(tracker, "combatBuffs", BLOODLUST)
@@ -126,9 +141,13 @@ describe("auras.tracker", function()
     local tracker = auras.tracker()
     tracker.onTick(buffs(ANTIFIRE, "6m"))
     assert.are.equal(419, shown(tracker, "upkeepBuffs", ANTIFIRE).left)
-    for _ = 1, 10 do tracker.onTick(buffs(ANTIFIRE, "6m")) end
+    for _ = 1, 10 do
+      tracker.onTick(buffs(ANTIFIRE, "6m"))
+    end
     assert.are.equal(413, shown(tracker, "upkeepBuffs", ANTIFIRE).left)
-    for _ = 1, 200 do tracker.onTick(buffs(ANTIFIRE, "6m")) end
+    for _ = 1, 200 do
+      tracker.onTick(buffs(ANTIFIRE, "6m"))
+    end
     assert.are.equal(360, shown(tracker, "upkeepBuffs", ANTIFIRE).left)
     assert.is_false(shown(tracker, "upkeepBuffs", ANTIFIRE).highlight)
     tracker.onTick(buffs(ANTIFIRE, "5m"))
@@ -148,10 +167,14 @@ describe("auras.tracker", function()
   it("holds at most 10 icons per row", function()
     local tracker = auras.tracker()
     local reads = { buffs = {}, debuffs = {} }
-    for i = 1, 12 do reads.debuffs[i] = { sprite = 1000 + i, label = "9" } end
+    for i = 1, 12 do
+      reads.debuffs[i] = { sprite = 1000 + i, label = "9" }
+    end
     tracker.onTick(reads)
     local targets = {}
-    for i = 1, 12 do targets[i] = 2000 + i end
+    for i = 1, 12 do
+      targets[i] = 2000 + i
+    end
     local rows = tracker.rows({}, targets, ALL)
     assert.are.same({ 10, 10 }, { #rows.playerDebuffs, #rows.targetDebuffs })
   end)
@@ -159,7 +182,9 @@ describe("auras.tracker", function()
   it("drops debuffs their row does not track", function()
     local tracker = auras.tracker()
     tracker.onTick({ buffs = {}, debuffs = { { sprite = STUN, label = "4" }, { sprite = 26402, label = "9" } } })
-    local function tracked(kind, sprite) return kind == "player" and sprite == STUN or sprite == 30098 end
+    local function tracked(kind, sprite)
+      return kind == "player" and sprite == STUN or sprite == 30098
+    end
     local filters = { tracked = tracked, keepUp = {}, hasTarget = true, rank = ALL.rank }
     local rows = tracker.rows({}, { 30098, 26104 }, filters)
     assert.are.same({ { STUN }, { 30098 } }, {
@@ -186,12 +211,20 @@ describe("auras.tracker", function()
     local tracker = auras.tracker()
     tracker.onTick(buffs(SONIC, "30", INCITE, "20", 20184, "10"))
     local ranks = { buffs = { [20184] = 1 }, target = { [30212] = 1, [30098] = 2 } }
-    local filters = { tracked = ALL.tracked, keepUp = {}, hasTarget = false,
-      rank = function(kind) return ranks[kind] or NO_RANK end }
+    local filters = {
+      tracked = ALL.tracked,
+      keepUp = {},
+      hasTarget = false,
+      rank = function(kind)
+        return ranks[kind] or NO_RANK
+      end,
+    }
     local rows = tracker.rows({}, { 30098, 26104, 30212 }, filters)
     local function sprites(row)
       local out = {}
-      for i, m in ipairs(row) do out[i] = m.sprite end
+      for i, m in ipairs(row) do
+        out[i] = m.sprite
+      end
       return out
     end
     assert.are.same({ 20184, SONIC, INCITE }, sprites(rows.combatBuffs))
@@ -203,8 +236,14 @@ describe("auras.tracker", function()
     tracker.onTick(buffs(14695, "5m"))
     local categories = { [tostring(ANTIFIRE)] = "upkeep", ["14695"] = "upkeep" }
     local ranks = { [ANTIFIRE] = 1, [14695] = 2 }
-    local filters = { tracked = ALL.tracked, keepUp = { [tostring(ANTIFIRE)] = true }, hasTarget = true,
-      rank = function() return ranks end }
+    local filters = {
+      tracked = ALL.tracked,
+      keepUp = { [tostring(ANTIFIRE)] = true },
+      hasTarget = true,
+      rank = function()
+        return ranks
+      end,
+    }
     local upkeep = tracker.rows(categories, {}, filters).upkeepBuffs
     assert.are.same({ ANTIFIRE, true, 14695 }, { upkeep[1].sprite, upkeep[1].missing, upkeep[2].sprite })
   end)

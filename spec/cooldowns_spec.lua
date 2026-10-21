@@ -4,8 +4,12 @@ local CB = "COMBATV2_COOLDOWN_MAGIC_CONCENTRATED_BLAST"
 local DB = "COMBATV2_COOLDOWN_MAGIC_DRAGON_BREATH"
 local BLAST = { name = "Concentrated Blast", icon = 13309 }
 
-local function noAbility() return nil end
-local function blast() return BLAST end
+local function noAbility()
+  return nil
+end
+local function blast()
+  return BLAST
+end
 
 -- Fires an ability whose cooldown runs from tick start for length ticks.
 local function fire(tracker, varStem, start, length)
@@ -25,7 +29,9 @@ describe("cooldowns.tracker", function()
     local tile = tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1]
     assert.is_false(tile.ready)
     assert.are.equal(4.8, tile.remaining)
-    for _ = 1, 8 do tracker.onTick(noAbility) end
+    for _ = 1, 8 do
+      tracker.onTick(noAbility)
+    end
     assert.is_true(tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1].ready)
   end)
 
@@ -125,8 +131,10 @@ describe("cooldowns.tracker", function()
     local tracker = cooldowns.tracker()
     fire(tracker, CB, 1000, 9)
     justUsedChanged(tracker)
-    assert.are.same({ key = "MAGIC_CONCENTRATED_BLAST", name = "Concentrated Blast", icon = 13309 },
-      tracker.onTick(blast))
+    assert.are.same(
+      { key = "MAGIC_CONCENTRATED_BLAST", name = "Concentrated Blast", icon = 13309 },
+      tracker.onTick(blast)
+    )
     assert.is_nil(tracker.onTick(blast))
   end)
 
@@ -191,9 +199,16 @@ describe("cooldowns.tracker", function()
 
   it("takes the name, icon and keybind of an upgraded form the action bar shows instead", function()
     local tracker = cooldowns.tracker()
-    tracker.seed({ MAGIC_SUNSHINE = { name = "Sunshine", icon = 20183, forms = {
-      { name = "Sunshine", icon = 20183 }, { name = "Greater Sunshine", icon = 20184 },
-    } } })
+    tracker.seed({
+      MAGIC_SUNSHINE = {
+        name = "Sunshine",
+        icon = 20183,
+        forms = {
+          { name = "Sunshine", icon = 20183 },
+          { name = "Greater Sunshine", icon = 20184 },
+        },
+      },
+    })
     local tile = tracker.tiles({ "MAGIC_SUNSHINE" }, { [20184] = { keybind = "1", usable = true } })[1]
     assert.are.same({ "Greater Sunshine", 20184, "1" }, { tile.name, tile.icon, tile.keybind })
     tile = tracker.tiles({ "MAGIC_SUNSHINE" }, {})[1]

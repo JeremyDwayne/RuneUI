@@ -72,9 +72,13 @@ describe("editor.pickerSections", function()
 
   it("keeps a style's abilities and the style-free ones when given a style", function()
     local keys = { "MAGIC_SUNSHINE", "NECROMANCY_SOUL_SAP", "DEFENCE_FREEDOM", "STRENGTH_DESTROY" }
-    assert.are.same({ "MAGIC_SUNSHINE", "DEFENCE_FREEDOM" },
-      editor.pickerSections("rotation", groups({}, {}), keys, "magic")[1].keys)
-    assert.are.same({ "DEFENCE_FREEDOM", "STRENGTH_DESTROY" },
-      editor.pickerSections("rotation", groups({}, {}), keys, "melee")[1].keys)
+    assert.are.same(
+      { "MAGIC_SUNSHINE", "DEFENCE_FREEDOM" },
+      editor.pickerSections("rotation", groups({}, {}), keys, "magic")[1].keys
+    )
+    assert.are.same(
+      { "DEFENCE_FREEDOM", "STRENGTH_DESTROY" },
+      editor.pickerSections("rotation", groups({}, {}), keys, "melee")[1].keys
+    )
   end)
 end)

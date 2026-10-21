@@ -21,7 +21,9 @@ local hud = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
 local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
 local saved = settings.load(adapter.store(), tonumber(hud.height))
 local auraNames = icons.index(saved.debuffs(), {
-  spriteName = adapter.spriteName, itemName = adapter.itemName, describe = adapter.structInfo,
+  spriteName = adapter.spriteName,
+  itemName = adapter.itemName,
+  describe = adapter.structInfo,
 })
 local tooltip = view.tooltip(hud)
 local elements = {
@@ -32,10 +34,18 @@ local elements = {
 }
 -- Every cooldown group element, built-in then custom. A custom group not in use stays hidden.
 local GROUP_NAMES = {}
-for _, group in ipairs(settings.GROUPS) do GROUP_NAMES[#GROUP_NAMES + 1] = group.name end
-for _, name in ipairs(settings.CUSTOM_GROUPS) do GROUP_NAMES[#GROUP_NAMES + 1] = name end
-for _, name in ipairs(GROUP_NAMES) do elements[name] = view.cooldownGroup(hud, tooltip) end
-for name, style in pairs(view.AURA_STYLES) do elements[name] = view.auraRow(hud, style, tooltip, auraNames.info) end
+for _, group in ipairs(settings.GROUPS) do
+  GROUP_NAMES[#GROUP_NAMES + 1] = group.name
+end
+for _, name in ipairs(settings.CUSTOM_GROUPS) do
+  GROUP_NAMES[#GROUP_NAMES + 1] = name
+end
+for _, name in ipairs(GROUP_NAMES) do
+  elements[name] = view.cooldownGroup(hud, tooltip)
+end
+for name, style in pairs(view.AURA_STYLES) do
+  elements[name] = view.auraRow(hud, style, tooltip, auraNames.info)
+end
 local tracker = cooldowns.tracker()
 local channelTracker = channel.tracker()
 local auraTracker = auras.tracker()
@@ -58,7 +68,9 @@ end
 -- What the aura rows show: tracked debuffs in their sorted order, and Keep up tiles while the player has a
 -- target.
 local auraFilters = {
-  tracked = function(kind, sprite) return auralists.tracked(kind, saved.tracked(kind), sprite) end,
+  tracked = function(kind, sprite)
+    return auralists.tracked(kind, saved.tracked(kind), sprite)
+  end,
   keepUp = saved.keepUp(),
   hasTarget = false,
   rank = rank,
@@ -87,8 +99,12 @@ local function updateGroups()
   for _, name in ipairs(GROUP_NAMES) do
     local element, group = elements[name], saved.group(name)
     element.setInUse(group ~= nil)
-    if group ~= nil and element.configure(group) then moved = true end
-    if element.update(tracker.tiles(saved.keys(name, style) or {}, slots), since) then moved = true end
+    if group ~= nil and element.configure(group) then
+      moved = true
+    end
+    if element.update(tracker.tiles(saved.keys(name, style) or {}, slots), since) then
+      moved = true
+    end
   end
   return moved
 end
@@ -102,9 +118,13 @@ Event.Logic.Subscribe("hud", function()
     elements.castbar.update(channelTracker.model())
   end
   elements.castbar.step(LOGIC_SECONDS)
-  if tracker.changed() and updateGroups() then optionsWindow.placeAll() end
+  if tracker.changed() and updateGroups() then
+    optionsWindow.placeAll()
+  end
   local since = logicTicks * LOGIC_SECONDS
-  for _, name in ipairs(GROUP_NAMES) do elements[name].step(since) end
+  for _, name in ipairs(GROUP_NAMES) do
+    elements[name].step(since)
+  end
 end)
 Event.InventoryAdded.Subscribe("lantern", adapter.inventoryChanged)
 Event.InventoryUpdated.Subscribe("lantern", adapter.inventoryChanged)
@@ -115,7 +135,9 @@ local look, lookVersion, lookStyle = nil, nil, nil
 -- Gives every element the current look. Returns whether a unit frame's bounds changed.
 local function restyle()
   local equipped = tracker.style()
-  if look ~= nil and lookVersion == saved.appearanceVersion() and lookStyle == equipped then return false end
+  if look ~= nil and lookVersion == saved.appearanceVersion() and lookStyle == equipped then
+    return false
+  end
   look, lookVersion, lookStyle = styling.look(saved.appearance(), equipped), saved.appearanceVersion(), equipped
   return view.setLook(elements, look)
 end
@@ -132,30 +154,49 @@ local function refresh()
   local reads = adapter.resourceReads(frames.SPENDERS)
   reads.necromancy = tracker.style() == "necromancy"
   local resource = frames.resource(reads, saved.markers())
-  if elements.resource.update(resource) then moved = true end
-  if elements.player.showSpenders(resource.spenders) then moved = true end
+  if elements.resource.update(resource) then
+    moved = true
+  end
+  if elements.player.showSpenders(resource.spenders) then
+    moved = true
+  end
   -- This redraw covers any change waiting for the next Logic tick.
   channelTracker.changed()
   tracker.changed()
   elements.castbar.update(channelTracker.model())
   slots = adapter.barSlots()
-  if updateGroups() then moved = true end
+  if updateGroups() then
+    moved = true
+  end
   local bars = appearance.auraBars
   auraFilters.hasTarget = not target.hidden
   -- Listing each debuff seen puts it on the Buffs page; seeDebuff saves only a new one.
-  for _, sprite in ipairs(target.debuffs or {}) do saved.seeDebuff("target", sprite) end
+  for _, sprite in ipairs(target.debuffs or {}) do
+    saved.seeDebuff("target", sprite)
+  end
   for name, models in pairs(auraTracker.rows(saved.auras(), target.debuffs or {}, auraFilters)) do
     -- Asking for each aura's name queues unnamed icons for the background scan.
-    for _, model in ipairs(models) do auraNames.info(model.sprite) end
-    if elements[name].update(models, bars) then moved = true end
+    for _, model in ipairs(models) do
+      auraNames.info(model.sprite)
+    end
+    if elements[name].update(models, bars) then
+      moved = true
+    end
   end
   -- Anchored elements follow a row whose shown tiles changed.
-  if moved then optionsWindow.placeAll() end
+  if moved then
+    optionsWindow.placeAll()
+  end
   optionsWindow.redrawBuffs()
 end
 
 optionsWindow = options.create(top, {
-  saved = saved, tracker = tracker, elements = elements, view = view, auraInfo = auraNames.info, refresh = refresh,
+  saved = saved,
+  tracker = tracker,
+  elements = elements,
+  view = view,
+  auraInfo = auraNames.info,
+  refresh = refresh,
 })
 
 Event.ServerLogic.Subscribe("refresh", function()
@@ -163,10 +204,16 @@ Event.ServerLogic.Subscribe("refresh", function()
   channelTracker.onTick()
   channelTracker.read(adapter.iconStruct)
   local learned = tracker.onTick(adapter.justUsed)
-  if learned ~= nil then saved.learn(learned.key, learned.name, learned.icon) end
+  if learned ~= nil then
+    saved.learn(learned.key, learned.name, learned.icon)
+  end
   local auraReads = adapter.auraReads()
-  for _, found in ipairs(auraTracker.onTick(auraReads)) do saved.learnAura(found.sprite, found.category) end
-  for _, read in ipairs(auraReads.debuffs) do saved.seeDebuff("player", read.sprite) end
+  for _, found in ipairs(auraTracker.onTick(auraReads)) do
+    saved.learnAura(found.sprite, found.category)
+  end
+  for _, read in ipairs(auraReads.debuffs) do
+    saved.seeDebuff("player", read.sprite)
+  end
   for _, found in ipairs(auraNames.step(adapter.iconStruct, ICON_SCAN_BUDGET)) do
     saved.learnDebuff(found.sprite, found.name, found.struct)
   end
@@ -179,7 +226,9 @@ function PluginShutdown()
   adapter.hideBuffBars(false)
   adapter.hideCastBar(false)
   optionsWindow.shutdown()
-  for _, element in pairs(elements) do element.layer:Destroy() end
+  for _, element in pairs(elements) do
+    element.layer:Destroy()
+  end
   tooltip.destroy()
 end
 

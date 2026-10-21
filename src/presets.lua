@@ -17,7 +17,9 @@ local function list(entries)
     local info = { name = entry[2], icon = entry[3] }
     if entry[4] ~= nil then
       info.forms = { { name = entry[2], icon = entry[3] } }
-      for _, form in ipairs(entry[4]) do info.forms[#info.forms + 1] = { name = form[1], icon = form[2] } end
+      for _, form in ipairs(entry[4]) do
+        info.forms[#info.forms + 1] = { name = form[1], icon = form[2] }
+      end
     end
     keys[#keys + 1] = entry[1]
     presets.INFO[entry[1]] = info
@@ -118,8 +120,12 @@ list({
   { "NECROMANCY_INVOKE_DEATH", "Invoke Death", 30702 },
   { "NECROMANCY_THREADS_OF_FATE", "Threads of Fate", 30734 },
   { "NECROMANCY_COMMAND_SKELETON_WARRIOR", "Command Skeleton Warrior", 34165 },
-  { "NECROMANCY_SPECTRAL_SCYTHE", "Spectral Scythe", 30084,
-    { { "Spectral Scythe", 30086 }, { "Spectral Scythe", 30087 } } },
+  {
+    "NECROMANCY_SPECTRAL_SCYTHE",
+    "Spectral Scythe",
+    30084,
+    { { "Spectral Scythe", 30086 }, { "Spectral Scythe", 30087 } },
+  },
   { "NECROMANCY_BLOOD_SIPHON", "Blood Siphon", 30017 },
   { "MAGIC_SMOKE_TENDRILS", "Smoke Tendrils", 17501 },
   { "MAGIC_COMBUST", "Combust", 23401 },

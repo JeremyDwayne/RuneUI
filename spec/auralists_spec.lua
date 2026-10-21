@@ -22,7 +22,9 @@ describe("auralists.groups", function()
   it("lists buffs by row and each debuff kind by tracked or not, with defaults once", function()
     local groups = auralists.groups(
       { [tostring(ANTIFIRE)] = "upkeep", [tostring(BONE_SHIELD)] = "hidden", ["14766"] = "combat" },
-      { target = { [tostring(STUN_IMMUNE)] = "seen", [tostring(BLOATED)] = true }, player = { ["555"] = "seen" } }, {})
+      { target = { [tostring(STUN_IMMUNE)] = "seen", [tostring(BLOATED)] = true }, player = { ["555"] = "seen" } },
+      {}
+    )
     assert.are.same({ { 14766 }, { ANTIFIRE }, { BONE_SHIELD } }, { groups.combat, groups.upkeep, groups.hidden })
     assert.are.same({ STUN_IMMUNE }, groups.target.untracked)
     assert.are.equal(#auralists.TARGET_DEFAULTS, #groups.target.tracked)
@@ -56,8 +58,10 @@ describe("auralists.drop", function()
   end)
 
   it("swaps an icon with the one it is dropped on, and ignores a drop on itself", function()
-    assert.are.same({ order = { C, B, A, D }, other = C },
-      auralists.drop({ A, B, C, D }, { C, D }, A, { kind = "swap", index = 1 }))
+    assert.are.same(
+      { order = { C, B, A, D }, other = C },
+      auralists.drop({ A, B, C, D }, { C, D }, A, { kind = "swap", index = 1 })
+    )
     assert.is_nil(auralists.drop({ A, B }, { A, B }, A, { kind = "swap", index = 1 }))
   end)
 

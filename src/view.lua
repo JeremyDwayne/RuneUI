@@ -25,9 +25,13 @@ end
 -- load and on a tick where a cooldown row's bounds changed. Returns the resolved positions.
 function view.arrange(elements, positions, anchors)
   local bounds = {}
-  for name, element in pairs(elements) do bounds[name] = element.bounds end
+  for name, element in pairs(elements) do
+    bounds[name] = element.bounds
+  end
   local resolved = layout.resolve(positions, anchors, bounds)
-  for name, element in pairs(elements) do view.place(element.layer, resolved[name]) end
+  for name, element in pairs(elements) do
+    view.place(element.layer, resolved[name])
+  end
   return resolved
 end
 
@@ -78,7 +82,9 @@ function view.tooltip(root)
       panel:SetHeight(h - 4)
     end
     local top = y - h - TOOLTIP_GAP
-    if top < 0 then top = y + size + TOOLTIP_GAP end
+    if top < 0 then
+      top = y + size + TOOLTIP_GAP
+    end
     local screenWidth = tonumber(root.width)
     local panelX = x
     if screenWidth ~= nil and screenWidth > TOOLTIP_WIDTH then
@@ -91,7 +97,9 @@ function view.tooltip(root)
     if not raised then
       raised = true
       layer:MoveToFront()
-      for _, side in ipairs(highlight) do side:MoveToFront() end
+      for _, side in ipairs(highlight) do
+        side:MoveToFront()
+      end
     end
   end
 
@@ -101,7 +109,9 @@ function view.tooltip(root)
 
   function tooltip.destroy()
     layer:Destroy()
-    for _, side in ipairs(highlight) do side:Destroy() end
+    for _, side in ipairs(highlight) do
+      side:Destroy()
+    end
   end
 
   -- Entering item i's edge calls show(i) and leaving the hovered edge hides the tooltip. Returns a table
@@ -125,7 +135,9 @@ function view.tooltip(root)
       end)
     end
 
-    for _, item in ipairs(items) do hover.add(item) end
+    for _, item in ipairs(items) do
+      hover.add(item)
+    end
     return hover
   end
 
@@ -155,7 +167,9 @@ end
 function view.setLook(elements, look)
   local moved = false
   for _, element in pairs(elements) do
-    if element.setLook(look) then moved = true end
+    if element.setLook(look) then
+      moved = true
+    end
   end
   return moved
 end
@@ -188,10 +202,14 @@ local function gameFrame(layer)
 
   function frame.place(w, h)
     for c, box in pairs({
-      [topLeft] = { 0, 0, e, e }, [topRight] = { w - e, 0, e, e },
-      [bottomLeft] = { 0, h - e, e, e }, [bottomRight] = { w - e, h - e, e, e },
-      [top] = { e, 0, w - 2 * e, e }, [bottom] = { e, h - e, w - 2 * e, e },
-      [left] = { 0, e, e, h - 2 * e }, [right] = { w - e, e, e, h - 2 * e },
+      [topLeft] = { 0, 0, e, e },
+      [topRight] = { w - e, 0, e, e },
+      [bottomLeft] = { 0, h - e, e, e },
+      [bottomRight] = { w - e, h - e, e, e },
+      [top] = { e, 0, w - 2 * e, e },
+      [bottom] = { e, h - e, w - 2 * e, e },
+      [left] = { 0, e, e, h - 2 * e },
+      [right] = { w - e, e, e, h - 2 * e },
     }) do
       pos(c, box[1], box[2])
       draw.size(c, box[3], box[4])
@@ -313,7 +331,9 @@ local function unitFrame(root, kind, power)
 
   function frame.update(model)
     set(layer, "hidden", model.hidden)
-    if model.hidden then return end
+    if model.hidden then
+      return
+    end
     fill = model.fill
     health.setFill(fill)
     set(name, "content", model.name)
@@ -326,12 +346,16 @@ local function unitFrame(root, kind, power)
   end
 
   function frame.showSpenders(list)
-    if not rows then return false end
+    if not rows then
+      return false
+    end
     spenders = list or NO_SPENDERS
     local shownList = shown.spenders == "player" and spenders or NO_SPENDERS
     rows.show(shownList, frame.width, frame.height + 2)
     local h = frame.height + #shownList * SPENDER_STEP
-    if h == bounds.h then return false end
+    if h == bounds.h then
+      return false
+    end
     bounds.h = h
     return true
   end
@@ -339,16 +363,24 @@ local function unitFrame(root, kind, power)
   -- Restyles the frame for a src/style look, returning at once for the look it shows. Returns whether its
   -- bounds changed.
   function frame.setLook(look)
-    if look == shown then return false end
+    if look == shown then
+      return false
+    end
     shown = look
     local moved = frame.width ~= look.frameWidth or frame.height ~= look.frameHeight
-    if moved then resize(look.frameWidth, look.frameHeight) end
-    if frame.showSpenders(spenders) then moved = true end
+    if moved then
+      resize(look.frameWidth, look.frameHeight)
+    end
+    if frame.showSpenders(spenders) then
+      moved = true
+    end
     local rgb = look[kind]
     bright = look.auto and style.dark(rgb)
     health.setColour(rgb)
     health.setTexture(look.texture)
-    if power then prayer.setTexture(look.texture) end
+    if power then
+      prayer.setTexture(look.texture)
+    end
     set(border, "hidden", look.border == "none")
     draw.hideAll(game.parts, look.border ~= "game")
     styleLabels()
@@ -413,12 +445,16 @@ function view.resourceBar(root)
 
   -- Lays out the spender rows the look puts on the bar and fits the bounds to them; returns whether they moved.
   local function placeSpenders(spenders)
-    if shown.spenders == "player" then spenders = NO_SPENDERS end
+    if shown.spenders == "player" then
+      spenders = NO_SPENDERS
+    end
     local w, rowsH = bounds.w, #spenders * SPENDER_STEP
     local above = shown.spenders == "above"
     rows.show(spenders, w, above and BAR_Y - rowsH or BAR_Y + barH + 2)
     local y, h = above and BAR_Y - rowsH or BAR_Y, barH + rowsH
-    if y == bounds.y and h == bounds.h then return false end
+    if y == bounds.y and h == bounds.h then
+      return false
+    end
     bounds.y, bounds.h, bar.height = y, h, h
     return true
   end
@@ -426,7 +462,9 @@ function view.resourceBar(root)
   local function update(model)
     last = model
     set(layer, "hidden", model.hidden)
-    if model.hidden then return placeSpenders(NO_SPENDERS) end
+    if model.hidden then
+      return placeSpenders(NO_SPENDERS)
+    end
     local w = bounds.w
     fill.setFill(model.fill)
     set(percent, "content", model.text)
@@ -445,21 +483,29 @@ function view.resourceBar(root)
     draw.size(border, w, h)
     draw.size(track, w - 2, h - 2)
     fill.setBox(1, BAR_Y + 1, w - 2, h - 2)
-    for _, mark in ipairs(markers) do draw.size(mark, 1, h - 2) end
+    for _, mark in ipairs(markers) do
+      draw.size(mark, 1, h - 2)
+    end
     draw.size(percent, w, h - 2)
   end
 
   -- Restyles the bar for a src/style look, returning at once for the look it shows. Returns whether its bounds
   -- changed.
   function bar.setLook(look)
-    if look == shown then return false end
+    if look == shown then
+      return false
+    end
     local resized = bounds.w ~= look.barWidth or barH ~= look.barHeight
     shown, bright = look, look.auto and style.dark(COLOURS.adrenaline)
-    if resized then resize(look.barWidth, look.barHeight) end
+    if resized then
+      resize(look.barWidth, look.barHeight)
+    end
     fill.setTexture(look.texture)
     stylePercent()
     local moved = placeSpenders(last and not last.hidden and last.spenders or NO_SPENDERS)
-    if last ~= nil and resized then update(last) end
+    if last ~= nil and resized then
+      update(last)
+    end
     return resized or moved
   end
 
@@ -515,7 +561,9 @@ end
 -- up so it reads 1 until the tick that readies it. Returns whether the label changed.
 local function showSeconds(parts, since)
   local shown = math.max(1, math.ceil(parts.remaining - since - 1e-6))
-  if shown == parts.shown then return false end
+  if shown == parts.shown then
+    return false
+  end
   parts.shown = shown
   set(parts.seconds, "content", tostring(shown))
   return true
@@ -532,7 +580,9 @@ local function showTile(parts, model, since, look, size)
   set(parts.keybind, "content", model.keybind or "")
   set(parts.seconds, "hidden", model.ready)
   parts.remaining = model.remaining
-  if model.remaining ~= nil then showSeconds(parts, since) end
+  if model.remaining ~= nil then
+    showSeconds(parts, since)
+  end
   local usable = model.usable ~= false
   set(parts.icon, "rgb", usable and UNTINTED or BLOCKED_ICON)
   local labelColour = not usable and BLOCKED_TEXT or model.ready and look.text or COLOURS.dimText
@@ -603,7 +653,9 @@ function view.cooldownGroup(root, tooltip)
   function group.update(models, since)
     if not inUse then
       current, count, cooling = {}, 0, 0
-      for _, parts in ipairs(tiles) do draw.hideAll(parts.all, true) end
+      for _, parts in ipairs(tiles) do
+        draw.hideAll(parts.all, true)
+      end
       local moved = bounds.w ~= 0 or bounds.h ~= 0
       bounds.w, bounds.h = 0, 0
       if hover.index ~= nil then
@@ -628,25 +680,37 @@ function view.cooldownGroup(root, tooltip)
       else
         placeTile(parts, g.tiles[i].x, g.tiles[i].y, display.size)
         showTile(parts, models[i], shownSince, look, display.size)
-        if models[i].remaining ~= nil then cooling = cooling + 1 end
+        if models[i].remaining ~= nil then
+          cooling = cooling + 1
+        end
       end
     end
-    if hover.index ~= nil then showTooltip(hover.index) end
+    if hover.index ~= nil then
+      showTooltip(hover.index)
+    end
     return moved
   end
 
   function group.setLook(newLook)
-    if newLook == look then return false end
+    if newLook == look then
+      return false
+    end
     look = newLook
-    for i = 1, count do showTile(tiles[i], current[i], shownSince, look, display.size) end
+    for i = 1, count do
+      showTile(tiles[i], current[i], shownSince, look, display.size)
+    end
     return false
   end
 
   function group.step(since)
-    if cooling == 0 then return end
+    if cooling == 0 then
+      return
+    end
     for i = 1, count do
       local parts = tiles[i]
-      if parts.remaining ~= nil and showSeconds(parts, since) and hover.index == i then showTooltip(i) end
+      if parts.remaining ~= nil and showSeconds(parts, since) and hover.index == i then
+        showTooltip(i)
+      end
     end
   end
 
@@ -660,7 +724,9 @@ local NO_HITS = {}
 -- Ticks left as the game's cast bar writes them: "4.2s", "3s".
 local function castSeconds(ticks)
   local tenths = ticks * 6
-  if tenths % 10 == 0 then return (tenths // 10) .. "s" end
+  if tenths % 10 == 0 then
+    return (tenths // 10) .. "s"
+  end
   return string.format("%d.%ds", tenths // 10, tenths % 10)
 end
 
@@ -721,7 +787,9 @@ function view.castBar(root)
   local shown = nil
   -- Every component the cancel fade dims. Marks hide on a cancel, so they are left out.
   local faded = { border, track, iconBack, icon, name, time }
-  for _, part in ipairs(fill.parts) do faded[#faded + 1] = part end
+  for _, part in ipairs(fill.parts) do
+    faded[#faded + 1] = part
+  end
   -- Seconds left showing a cancel, or nil.
   local cancelLeft = nil
   set(layer, "hidden", true)
@@ -741,31 +809,45 @@ function view.castBar(root)
         pos(marks[placed], barX + math.floor(barWidth * at / model.duration + 0.5), 1)
       end
     end
-    for i, mark in ipairs(marks) do set(mark, "hidden", i > placed) end
+    for i, mark in ipairs(marks) do
+      set(mark, "hidden", i > placed)
+    end
   end
 
   -- Shades the marks for the seconds spent, only when the fill passes one.
   local function shadeMarks(spent)
     local passed = 0
     for i = 1, placed do
-      if markAt[i] <= spent then passed = i end
+      if markAt[i] <= spent then
+        passed = i
+      end
     end
-    if passed == passedShown then return end
+    if passed == passedShown then
+      return
+    end
     passedShown = passed
-    for i = 1, placed do shadeMark(marks[i], i <= passed) end
+    for i = 1, placed do
+      shadeMark(marks[i], i <= passed)
+    end
   end
 
   local function setGlow(level)
-    if level == glowLevel then return end
+    if level == glowLevel then
+      return
+    end
     glowLevel = level
-    for i, strip in ipairs(glow) do set(strip, "alpha", GLOW_PEAK * level * i / SPARK_GLOW) end
+    for i, strip in ipairs(glow) do
+      set(strip, "alpha", GLOW_PEAK * level * i / SPARK_GLOW)
+    end
   end
 
   -- Puts the spark's core at edge, hiding any part of it left of the fill.
   local function placeSpark(edge)
     local x = edge - sparkWidth
     pos(spark, x, 1)
-    for i, strip in ipairs(glow) do set(strip, "hidden", x + i - 1 < barX) end
+    for i, strip in ipairs(glow) do
+      set(strip, "hidden", x + i - 1 < barX)
+    end
     set(core, "hidden", edge - SPARK_CORE < barX)
   end
 
@@ -778,7 +860,9 @@ function view.castBar(root)
   end
 
   local function setAlpha(alpha)
-    for _, part in ipairs(faded) do set(part, "alpha", alpha) end
+    for _, part in ipairs(faded) do
+      set(part, "alpha", alpha)
+    end
   end
 
   -- Hides the bar and ends its channel.
@@ -790,7 +874,9 @@ function view.castBar(root)
 
   local function update(model)
     local cancel = model ~= nil and model.cancelled
-    if cancelLeft ~= nil and (model == nil or cancel or model.start == shownStart) then return end
+    if cancelLeft ~= nil and (model == nil or cancel or model.start == shownStart) then
+      return
+    end
     if cancel then
       if current ~= nil and model.start == shownStart then
         cancelLeft = CANCEL_HOLD + CANCEL_FADE
@@ -802,7 +888,9 @@ function view.castBar(root)
       end
       return
     end
-    if cancelLeft ~= nil then finish() end
+    if cancelLeft ~= nil then
+      finish()
+    end
     if model ~= nil and model.start ~= shownStart then
       shownStart, left, shownTicks = model.start, model.duration, nil
     end
@@ -819,16 +907,22 @@ function view.castBar(root)
     end
     set(iconBack, "hidden", model.icon == nil)
     set(icon, "hidden", model.icon == nil)
-    if model.icon ~= nil then set(icon, "sprite", model.icon) end
+    if model.icon ~= nil then
+      set(icon, "sprite", model.icon)
+    end
     set(name, "content", model.name or "")
     fill.setColour(shown.castColour or CAST_COLOURS[model.style] or style.CAST_COLOUR)
     set(spark, "hidden", false)
-    if model.start ~= placedFor or (model.hits and #model.hits) ~= placedHits then placeMarks(model) end
+    if model.start ~= placedFor or (model.hits and #model.hits) ~= placedHits then
+      placeMarks(model)
+    end
     show(left)
   end
 
   local function step(seconds)
-    if current == nil then return end
+    if current == nil then
+      return
+    end
     if cancelLeft ~= nil then
       cancelLeft = cancelLeft - seconds
       if cancelLeft <= 0 then
@@ -860,9 +954,13 @@ function view.castBar(root)
     draw.size(border, w, h)
     draw.size(track, w - 2, inner)
     fill.setBox(barX, 1, barWidth, inner)
-    for _, mark in ipairs(marks) do draw.size(mark, 1, inner) end
+    for _, mark in ipairs(marks) do
+      draw.size(mark, 1, inner)
+    end
     draw.size(spark, sparkWidth, inner)
-    for _, strip in ipairs(glow) do draw.size(strip, 1, inner) end
+    for _, strip in ipairs(glow) do
+      draw.size(strip, 1, inner)
+    end
     draw.size(core, SPARK_CORE, inner)
     draw.size(iconBack, inner, inner)
     draw.size(icon, inner, inner)
@@ -879,12 +977,18 @@ function view.castBar(root)
   -- Restyles the bar for a src/style look, returning at once for the look it shows. Returns whether its bounds
   -- changed. Its fills are all dark, so Auto keeps the text light.
   function bar.setLook(look)
-    if look == shown then return false end
+    if look == shown then
+      return false
+    end
     shown = look
     local moved = bounds.w ~= look.castWidth or bounds.h ~= look.castHeight
-    if moved then resize(look.castWidth, look.castHeight) end
+    if moved then
+      resize(look.castWidth, look.castHeight)
+    end
     fill.setTexture(look.texture)
-    if current ~= nil then fill.setColour(look.castColour or CAST_COLOURS[current.style] or style.CAST_COLOUR) end
+    if current ~= nil then
+      fill.setColour(look.castColour or CAST_COLOURS[current.style] or style.CAST_COLOUR)
+    end
     styleText(name, "cast", look, false)
     styleText(time, "cast", look, false)
     return moved
@@ -931,12 +1035,18 @@ local function auraTile(layer, aura)
     },
     edge = group.add(rect(layer, aura.debuff and COLOURS.debuff or COLOURS.border, 0, 0, size, size), 0, 0),
     icon = group.add(ui.Sprite.new(layer), 1, 1),
-    time = group.add(draw.edgedText(layer, FONTS[aura.timeRole], ui.AlignMode.CENTRE, 0, 0, size,
-      aura.timeHeight + 2), 0, timeY),
+    time = group.add(
+      draw.edgedText(layer, FONTS[aura.timeRole], ui.AlignMode.CENTRE, 0, 0, size, aura.timeHeight + 2),
+      0,
+      timeY
+    ),
     stacks = group.add(draw.edgedText(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 23, 1),
     track = group.add(rect(layer, COLOURS.border, 0, 0, size, AURA_BAR), 0, size + 1),
-    fill = group.add(rect(layer, aura.debuff and COLOURS.debuff or COLOURS.dimText, 0, 0, inner, AURA_BAR - 2), 1,
-      size + 2),
+    fill = group.add(
+      rect(layer, aura.debuff and COLOURS.debuff or COLOURS.dimText, 0, 0, inner, AURA_BAR - 2),
+      1,
+      size + 2
+    ),
     stripes = group.add(ui.Canvas.new(layer), 1, size + 2),
     cover = rect(layer, COLOURS.border, 0, 0, inner, AURA_BAR - 2),
     dashed = group.add(ui.Canvas.new(layer), -3, -3),
@@ -996,13 +1106,19 @@ function view.auraRow(root, aura, tooltip, info)
   local layer = ui.Layer.new(root)
   layer:SetSize(width, height)
   local tiles = {}
-  for i = 1, MAX_TILES do tiles[i] = auraTile(layer, aura) end
+  for i = 1, MAX_TILES do
+    tiles[i] = auraTile(layer, aura)
+  end
 
   -- x of the first of count tiles.
   local function left(count)
     local spare = (MAX_TILES - count) * step
-    if aura.align == "right" then return AURA_MARGIN + spare end
-    if aura.align == "centre" then return AURA_MARGIN + spare // 2 end
+    if aura.align == "right" then
+      return AURA_MARGIN + spare
+    end
+    if aura.align == "centre" then
+      return AURA_MARGIN + spare // 2
+    end
     return AURA_MARGIN
   end
 
@@ -1042,13 +1158,17 @@ function view.auraRow(root, aura, tooltip, info)
         showAura(parts, model, first + (i - 1) * step, AURA_MARGIN, size, bars)
       end
     end
-    if hover.index ~= nil then showTooltip(hover.index) end
+    if hover.index ~= nil then
+      showTooltip(hover.index)
+    end
     return moved
   end
 
   local shown = nil
   local function setLook(look)
-    if look == shown then return false end
+    if look == shown then
+      return false
+    end
     shown = look
     for _, parts in ipairs(tiles) do
       styleText(parts.time, aura.timeRole, look, false)

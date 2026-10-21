@@ -23,8 +23,8 @@ local GHOST_OFFSET = 8
 function dragdrop.create(layer, ghostSize, handlers)
   local ghost = draw.group()
   local ghostIcon = ghost.add(ui.Sprite.new(layer), 0, 0)
-  local ghostInitials = ghost.add(draw.text(layer, draw.FONTS.small, ui.AlignMode.CENTRE, 0, 0, ghostSize,
-    ghostSize), 0, 0)
+  local ghostInitials =
+    ghost.add(draw.text(layer, draw.FONTS.small, ui.AlignMode.CENTRE, 0, 0, ghostSize, ghostSize), 0, 0)
   ghostIcon:SetSize(ghostSize, ghostSize)
   draw.set(ghostIcon, "alpha", 0.7)
   ghost.set("hidden", true)
@@ -49,7 +49,9 @@ function dragdrop.create(layer, ghostSize, handlers)
   end
 
   function d.cancel()
-    if press ~= nil then handlers.finish(release().item) end
+    if press ~= nil then
+      handlers.finish(release().item)
+    end
   end
 
   function d.dragging()
@@ -58,16 +60,22 @@ function dragdrop.create(layer, ghostSize, handlers)
 
   function d.attach(item)
     draw.on(item.edge, "ONCLICK", function(_, x, y)
-      if not handlers.press(item) then return end
+      if not handlers.press(item) then
+        return
+      end
       draw.pressAt(item.edge, x)
       local mx, my = draw.cursor()
-      if mx == nil then return end
+      if mx == nil then
+        return
+      end
       origin.x, origin.y = mx - (item.x + x), my - (item.y + y)
       press = { item = item, startX = mx, startY = my, moved = false }
       lastX, lastY = nil, nil
     end)
     draw.on(item.edge, "ONRELEASE", function()
-      if press == nil or press.item ~= item then return end
+      if press == nil or press.item ~= item then
+        return
+      end
       local mx, my = draw.cursor()
       local p = release()
       if not p.moved then
@@ -80,13 +88,19 @@ function dragdrop.create(layer, ghostSize, handlers)
   end
 
   function d.follow()
-    if press == nil then return end
+    if press == nil then
+      return
+    end
     local mx, my = draw.cursor()
-    if mx == nil or (mx == lastX and my == lastY) then return end
+    if mx == nil or (mx == lastX and my == lastY) then
+      return
+    end
     lastX, lastY = mx, my
     local item = press.item
     if not press.moved then
-      if math.abs(mx - press.startX) + math.abs(my - press.startY) <= DRAG_START then return end
+      if math.abs(mx - press.startX) + math.abs(my - press.startY) <= DRAG_START then
+        return
+      end
       press.moved = true
       handlers.start(item)
       draw.set(item.edge, "alpha", 0)

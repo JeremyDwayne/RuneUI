@@ -25,20 +25,21 @@ describe("channel.tracker", function()
     assert.is_nil(tracker.model())
   end)
 
-  it("names the channel, lasts as long as the game's cast bar and times a hit on START and each iteration",
-    function()
-      local tracker = channel.tracker()
-      startAsphyxiate(tracker)
-      tracker.read(asphyxiate)
-      local expected = { start = 227269, name = "Asphyxiate", icon = 14660, duration = 4.2, ticksLeft = 7 }
-      expected.hits, expected.style = { 0, 1.2, 2.4, 3.6 }, "magic"
-      assert.are.same(expected, tracker.model())
-    end)
+  it("names the channel, lasts as long as the game's cast bar and times a hit on START and each iteration", function()
+    local tracker = channel.tracker()
+    startAsphyxiate(tracker)
+    tracker.read(asphyxiate)
+    local expected = { start = 227269, name = "Asphyxiate", icon = 14660, duration = 4.2, ticksLeft = 7 }
+    expected.hits, expected.style = { 0, 1.2, 2.4, 3.6 }, "magic"
+    assert.are.same(expected, tracker.model())
+  end)
 
   it("names a first channel that repeats the struct and iterations held at load", function()
     local tracker = channel.tracker()
     local atLoad = { COMBATV2_CHANNEL_ABILITY_STRUCT = CHOKE, COMBATV2_CHANNEL_ABILITY_ITERATIONS = 3 }
-    tracker.seed(function(name) return atLoad[name] end)
+    tracker.seed(function(name)
+      return atLoad[name]
+    end)
     tracker.onVar("COMBATV2_CHANNEL_END_REASON", 1, -1)
     tracker.onVar("COMBATV2_CHANNEL_END", 227265, 227275)
     tracker.onVar("COMBATV2_CHANNEL_START", 227263, 227269)
@@ -89,7 +90,9 @@ describe("channel.tracker", function()
     local reads = 0
     local function failingOnce(structID)
       reads = reads + 1
-      if reads > 1 then return asphyxiate(structID) end
+      if reads > 1 then
+        return asphyxiate(structID)
+      end
     end
     startAsphyxiate(tracker)
     tracker.read(failingOnce)
@@ -102,7 +105,9 @@ describe("channel.tracker", function()
     local tracker = channel.tracker()
     startAsphyxiate(tracker)
     tracker.read(asphyxiate)
-    for _ = 1, 6 do tracker.onTick() end
+    for _ = 1, 6 do
+      tracker.onTick()
+    end
     tracker.onVar("COMBATV2_CHANNEL_END_REASON", -1, 1)
     tracker.onVar("COMBATV2_CHANNEL_ABILITY_STRUCT", CHOKE, 14732)
     tracker.read(asphyxiate)
@@ -113,7 +118,9 @@ describe("channel.tracker", function()
   it("keeps a finished channel until its last tick passes, as the game's cast bar shows 0.6s on", function()
     local tracker = channel.tracker()
     startAsphyxiate(tracker)
-    for _ = 1, 6 do tracker.onTick() end
+    for _ = 1, 6 do
+      tracker.onTick()
+    end
     tracker.onVar("COMBATV2_CHANNEL_END_REASON", -1, 1)
     assert.are.equal(1, tracker.model().ticksLeft)
     tracker.onTick()

@@ -11,15 +11,21 @@ style.ROLES = { body = 13, small = 10, seconds = 17, smallSeconds = 15 }
 -- Bold font names by point size.
 local function sizes(pattern, list)
   local out = {}
-  for _, size in ipairs(list) do out[size] = string.format(pattern, size) end
+  for _, size in ipairs(list) do
+    out[size] = string.format(pattern, size)
+  end
   return out
 end
 
 local noto = {}
-for size = 10, 24 do noto[size] = "NOTOSANS_BOLD_" .. size end
+for size = 10, 24 do
+  noto[size] = "NOTOSANS_BOLD_" .. size
+end
 -- Museo Sans has no bold below 13, so its smaller text uses Noto Sans Bold.
 local museo = sizes("MUSEO_SANS_%dPT_BOLD", { 13, 15, 17, 19, 21, 24, 27 })
-for size = 10, 12 do museo[size] = noto[size] end
+for size = 10, 12 do
+  museo[size] = noto[size]
+end
 
 -- HUD font families in menu order, with their bold fonts by size.
 style.FAMILIES = {
@@ -30,13 +36,16 @@ style.FAMILIES = {
 }
 
 style.EDGES = {
-  { id = "none", label = "None" }, { id = "shadow", label = "Shadow" }, { id = "outline", label = "Outline" },
+  { id = "none", label = "None" },
+  { id = "shadow", label = "Shadow" },
+  { id = "outline", label = "Outline" },
   { id = "outlineShadow", label = "Outline + shadow" },
 }
 
 -- Auto draws white, and dark text over a fill style.dark picks.
 style.TEXT_COLOURS = {
-  { id = "white", label = "White", rgb = 0xffffff }, { id = "yellow", label = "Game yellow", rgb = 0xffea00 },
+  { id = "white", label = "White", rgb = 0xffffff },
+  { id = "yellow", label = "Game yellow", rgb = 0xffea00 },
   { id = "auto", label = "Auto", rgb = 0xffffff },
 }
 style.DARK_TEXT, style.LIGHT_EDGE, style.DARK_EDGE = 0x111316, 0xffffff, 0x000000
@@ -75,18 +84,23 @@ style.CAST_PRESETS = {
 
 -- Where the spender rows sit: under the adrenaline bar, over it, or under the player frame.
 style.SPENDER_PLACES = {
-  { id = "below", label = "Below the bar" }, { id = "above", label = "Above the bar" },
+  { id = "below", label = "Below the bar" },
+  { id = "above", label = "Above the bar" },
   { id = "player", label = "Under player frame" },
 }
 
 style.BORDERS = {
-  { id = "runeui", label = "RuneUI" }, { id = "game", label = "Game frame" }, { id = "none", label = "None" },
+  { id = "runeui", label = "RuneUI" },
+  { id = "game", label = "Game frame" },
+  { id = "none", label = "None" },
 }
 
 -- The entry of list whose id is value, or nil.
 function style.find(list, value)
   for _, entry in ipairs(list) do
-    if entry.id == value then return entry end
+    if entry.id == value then
+      return entry
+    end
   end
 end
 
@@ -99,7 +113,9 @@ function style.font(family, role, step)
   for size in pairs(available) do
     local gap = math.abs(size - want)
     local better = gap < bestGap or gap == bestGap and (step < 0) == (size < best)
-    if better then best, bestGap = size, gap end
+    if better then
+      best, bestGap = size, gap
+    end
   end
   return available[best]
 end
@@ -171,15 +187,21 @@ end
 
 -- A saved frame colour, a preset id or a hex number, as rgb for frame.
 local function frameColour(saved, frame, equippedStyle)
-  if type(saved) == "number" then return saved end
-  if saved == "equipped" then return style.STYLE_COLOURS[equippedStyle] or style.FRAME_COLOURS[frame] end
+  if type(saved) == "number" then
+    return saved
+  end
+  if saved == "equipped" then
+    return style.STYLE_COLOURS[equippedStyle] or style.FRAME_COLOURS[frame]
+  end
   local preset = style.find(style.PRESETS, saved)
   return preset and preset.rgb or style.FRAME_COLOURS[frame]
 end
 
 -- A saved cast bar colour as rgb, or nil for Ability style.
 local function castColour(saved)
-  if type(saved) == "number" then return saved end
+  if type(saved) == "number" then
+    return saved
+  end
   local preset = style.find(style.CAST_PRESETS, saved)
   return preset and preset.rgb
 end
@@ -191,7 +213,9 @@ end
 -- it only when one of them changes, as setLook skips a look it already shows.
 function style.look(appearance, equippedStyle)
   local fonts = {}
-  for role in pairs(style.ROLES) do fonts[role] = style.font(appearance.font, role, appearance.textStep) end
+  for role in pairs(style.ROLES) do
+    fonts[role] = style.font(appearance.font, role, appearance.textStep)
+  end
   local castFamily = appearance.castFont == "hud" and appearance.font or appearance.castFont
   local castStep = appearance.castTextSize == "hud" and appearance.textStep
     or appearance.castTextSize - style.ROLES.body

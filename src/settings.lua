@@ -105,30 +105,45 @@ local function whole(n)
 end
 
 local function copyPosition(pos)
-  if type(pos) ~= "table" then return nil end
+  if type(pos) ~= "table" then
+    return nil
+  end
   local copy = {}
   for _, field in ipairs(POSITION_FIELDS) do
-    if type(pos[field]) ~= "number" then return nil end
+    if type(pos[field]) ~= "number" then
+      return nil
+    end
     copy[field] = whole(pos[field])
   end
   return copy
 end
 
 local function copyAnchor(anchor)
-  if type(anchor) ~= "table" or settings.DEFAULT_POSITIONS[anchor.target] == nil then return nil end
+  if type(anchor) ~= "table" or settings.DEFAULT_POSITIONS[anchor.target] == nil then
+    return nil
+  end
   local aligns = layout.ALIGNS[anchor.side]
-  if aligns == nil or type(anchor.gap) ~= "number" or type(anchor.offset) ~= "number" then return nil end
+  if aligns == nil or type(anchor.gap) ~= "number" or type(anchor.offset) ~= "number" then
+    return nil
+  end
   for _, align in ipairs(aligns) do
     if anchor.align == align then
-      return { target = anchor.target, side = anchor.side, align = align, gap = whole(anchor.gap),
-        offset = whole(anchor.offset) }
+      return {
+        target = anchor.target,
+        side = anchor.side,
+        align = align,
+        gap = whole(anchor.gap),
+        offset = whole(anchor.offset),
+      }
     end
   end
 end
 
 local function copyAnchors(saved)
   local anchors = {}
-  for name in pairs(settings.DEFAULT_POSITIONS) do anchors[name] = copyAnchor(saved[name]) end
+  for name in pairs(settings.DEFAULT_POSITIONS) do
+    anchors[name] = copyAnchor(saved[name])
+  end
   return anchors
 end
 
@@ -136,7 +151,9 @@ end
 local function cyclic(anchors, name)
   local seen, at = {}, anchors[name]
   while at ~= nil and not seen[at.target] do
-    if at.target == name then return true end
+    if at.target == name then
+      return true
+    end
     seen[at.target] = true
     at = anchors[at.target]
   end
@@ -147,32 +164,48 @@ end
 -- with neither a saved anchor nor a saved position has never been placed, such as one added since anchors
 -- were saved, so it takes its default anchor; removing an anchor saves a position.
 local function readAnchors(saved, positions)
-  if type(saved) ~= "table" then return copyAnchors(settings.DEFAULT_ANCHORS) end
+  if type(saved) ~= "table" then
+    return copyAnchors(settings.DEFAULT_ANCHORS)
+  end
   local anchors = copyAnchors(saved)
   for name, default in pairs(settings.DEFAULT_ANCHORS) do
-    if saved[name] == nil and positions[name] == nil then anchors[name] = copyAnchor(default) end
+    if saved[name] == nil and positions[name] == nil then
+      anchors[name] = copyAnchor(default)
+    end
   end
   local looped = {}
-  for name in pairs(anchors) do looped[name] = cyclic(anchors, name) end
+  for name in pairs(anchors) do
+    looped[name] = cyclic(anchors, name)
+  end
   for name, dropped in pairs(looped) do
-    if dropped then anchors[name] = nil end
+    if dropped then
+      anchors[name] = nil
+    end
   end
   return anchors
 end
 
 local function stringsOnly(list)
   local out = {}
-  if type(list) ~= "table" then return out end
+  if type(list) ~= "table" then
+    return out
+  end
   for _, key in ipairs(list) do
-    if type(key) == "string" then out[#out + 1] = key end
+    if type(key) == "string" then
+      out[#out + 1] = key
+    end
   end
   return out
 end
 
 local function readLayout(saved)
   local positions = {}
-  if type(saved) ~= "table" then return positions end
-  for name in pairs(settings.DEFAULT_POSITIONS) do positions[name] = copyPosition(saved[name]) end
+  if type(saved) ~= "table" then
+    return positions
+  end
+  for name in pairs(settings.DEFAULT_POSITIONS) do
+    positions[name] = copyPosition(saved[name])
+  end
   return positions
 end
 
@@ -182,16 +215,22 @@ end
 
 local function isGrow(value)
   for _, grow in ipairs(settings.GROWS) do
-    if value == grow then return true end
+    if value == grow then
+      return true
+    end
   end
   return false
 end
 
 -- value cut to TITLE_MAX characters without surrounding spaces, or nil when that leaves nothing.
 local function title(value)
-  if type(value) ~= "string" then return nil end
+  if type(value) ~= "string" then
+    return nil
+  end
   local cut = value:sub(1, TITLE_MAX):match("^%s*(.-)%s*$")
-  if cut ~= "" then return cut end
+  if cut ~= "" then
+    return cut
+  end
 end
 
 -- A group record from saved, a stored table or nil, with default's title and display settings for anything
@@ -211,31 +250,43 @@ local function readGroup(saved, default)
     keys = stringsOnly(saved.keys),
     styles = {},
   }
-  if type(saved.shared) == "boolean" then group.shared = saved.shared end
-  for _, style in ipairs(settings.STYLES) do group.styles[style] = stringsOnly(styles[style]) end
+  if type(saved.shared) == "boolean" then
+    group.shared = saved.shared
+  end
+  for _, style in ipairs(settings.STYLES) do
+    group.styles[style] = stringsOnly(styles[style])
+  end
   return group
 end
 
 local function customDefault(name)
   local default = { title = "Group " .. name:match("%d+$") }
-  for field, value in pairs(CUSTOM_DEFAULT) do default[field] = value end
+  for field, value in pairs(CUSTOM_DEFAULT) do
+    default[field] = value
+  end
   return default
 end
 
 local function indexOf(list, key)
   for i, k in ipairs(list) do
-    if k == key then return i end
+    if k == key then
+      return i
+    end
   end
 end
 
 local function append(list, key)
-  if indexOf(list, key) == nil then list[#list + 1] = key end
+  if indexOf(list, key) == nil then
+    list[#list + 1] = key
+  end
 end
 
 -- Whether any list that shows with style holds key.
 local function held(groups, key, style)
   for _, group in pairs(groups) do
-    if indexOf(group.shared and group.keys or group.styles[style], key) ~= nil then return true end
+    if indexOf(group.shared and group.keys or group.styles[style], key) ~= nil then
+      return true
+    end
   end
   return false
 end
@@ -243,7 +294,9 @@ end
 -- Whether any list held with any style holds key.
 local function heldAnywhere(groups, key)
   for _, style in ipairs(settings.STYLES) do
-    if held(groups, key, style) then return true end
+    if held(groups, key, style) then
+      return true
+    end
   end
   return false
 end
@@ -259,11 +312,15 @@ local function seed(groups, seeded)
       seeded[style], changed = true, true
       local empty = true
       for _, group in pairs(groups) do
-        if #group.styles[style] > 0 then empty = false end
+        if #group.styles[style] > 0 then
+          empty = false
+        end
       end
       for name, keys in pairs(empty and presets.STYLES[style] or {}) do
         for _, key in ipairs(keys) do
-          if not held(groups, key, style) then append(groups[name].styles[style], key) end
+          if not held(groups, key, style) then
+            append(groups[name].styles[style], key)
+          end
         end
       end
     end
@@ -271,7 +328,9 @@ local function seed(groups, seeded)
   if not seeded.utility then
     seeded.utility, changed = true, true
     for _, key in ipairs(#groups.utility.keys == 0 and presets.UTILITY or {}) do
-      if not heldAnywhere(groups, key) then append(groups.utility.keys, key) end
+      if not heldAnywhere(groups, key) then
+        append(groups.utility.keys, key)
+      end
     end
   end
   if not seeded.defensives then
@@ -279,7 +338,9 @@ local function seed(groups, seeded)
     if groups[DEFENSIVES.name] == nil then
       local group = readGroup(nil, DEFENSIVES)
       for _, key in ipairs(presets.DEFENSIVES) do
-        if not heldAnywhere(groups, key) then append(group.keys, key) end
+        if not heldAnywhere(groups, key) then
+          append(group.keys, key)
+        end
       end
       groups[DEFENSIVES.name] = group
     end
@@ -297,7 +358,9 @@ local function migrateGroups(old, groups)
       if style ~= nil then
         append(groups[newName].styles[style], key)
       elseif key:match("^WEAPON_") then
-        for _, s in ipairs(settings.STYLES) do append(groups[newName].styles[s], key) end
+        for _, s in ipairs(settings.STYLES) do
+          append(groups[newName].styles[s], key)
+        end
       else
         append(groups.utility.keys, key)
       end
@@ -311,9 +374,13 @@ end
 local function readCooldownGroups(saved, old)
   local stored = type(saved) == "table" and type(saved.groups) == "table" and saved.groups or {}
   local groups = {}
-  for _, default in ipairs(settings.GROUPS) do groups[default.name] = readGroup(stored[default.name], default) end
+  for _, default in ipairs(settings.GROUPS) do
+    groups[default.name] = readGroup(stored[default.name], default)
+  end
   for _, name in ipairs(settings.CUSTOM_GROUPS) do
-    if type(stored[name]) == "table" then groups[name] = readGroup(stored[name], customDefault(name)) end
+    if type(stored[name]) == "table" then
+      groups[name] = readGroup(stored[name], customDefault(name))
+    end
   end
   local seeded = {}
   local savedSeeded = type(saved) == "table" and type(saved.seeded) == "table" and saved.seeded or {}
@@ -321,7 +388,9 @@ local function readCooldownGroups(saved, old)
     seeded[name] = savedSeeded[name] == true
   end
   local migrated = type(saved) ~= "table" and type(old) == "table"
-  if migrated then migrateGroups(old, groups) end
+  if migrated then
+    migrateGroups(old, groups)
+  end
   local changed = seed(groups, seeded)
   return { seeded = seeded, groups = groups }, migrated or changed
 end
@@ -344,29 +413,39 @@ end
 -- Checks a saved colour: an id from presets or a 0xRRGGBB number.
 local function colour(list)
   return function(value)
-    if type(value) == "string" then return styling.find(list, value) ~= nil end
+    if type(value) == "string" then
+      return styling.find(list, value) ~= nil
+    end
     return wholeIn(value, 0, 0xFFFFFF)
   end
 end
 
 local function option(list)
-  return function(value) return styling.find(list, value) ~= nil end
+  return function(value)
+    return styling.find(list, value) ~= nil
+  end
 end
 
 local function oneOf(list)
   return function(value)
     for _, known in ipairs(list) do
-      if value == known then return true end
+      if value == known then
+        return true
+      end
     end
     return false
   end
 end
 
 local function range(low, high)
-  return function(value) return wholeIn(value, low, high) end
+  return function(value)
+    return wholeIn(value, low, high)
+  end
 end
 
-local function isBoolean(value) return type(value) == "boolean" end
+local function isBoolean(value)
+  return type(value) == "boolean"
+end
 
 -- Each appearance field's default and the check a saved value must pass.
 local APPEARANCE = {
@@ -391,25 +470,37 @@ local APPEARANCE = {
   castHeight = { 22, range(settings.CAST_HEIGHT.min, settings.CAST_HEIGHT.max) },
   castMatchWidth = { false, isBoolean },
   castColour = { "ability", colour(styling.CAST_PRESETS) },
-  castFont = { "hud", function(value) return value == "hud" or styling.find(styling.FAMILIES, value) ~= nil end },
+  castFont = {
+    "hud",
+    function(value)
+      return value == "hud" or styling.find(styling.FAMILIES, value) ~= nil
+    end,
+  },
   spenders = { "below", option(styling.SPENDER_PLACES) },
-  castTextSize = { "hud", function(value)
-    return value == "hud" or wholeIn(value, styling.ROLES.body + settings.TEXT_STEP_MIN,
-      styling.ROLES.body + settings.TEXT_STEP_MAX)
-  end },
+  castTextSize = {
+    "hud",
+    function(value)
+      return value == "hud"
+        or wholeIn(value, styling.ROLES.body + settings.TEXT_STEP_MIN, styling.ROLES.body + settings.TEXT_STEP_MAX)
+    end,
+  },
 }
 
 -- A saved appearance field's value, or its default when unknown or malformed.
 local function readField(field, value)
   local default, valid = APPEARANCE[field][1], APPEARANCE[field][2]
-  if not valid(value) then return default end
+  if not valid(value) then
+    return default
+  end
   return type(value) == "number" and whole(value) or value
 end
 
 local function readAppearance(saved)
   saved = type(saved) == "table" and saved or {}
   local appearance = {}
-  for field in pairs(APPEARANCE) do appearance[field] = readField(field, saved[field]) end
+  for field in pairs(APPEARANCE) do
+    appearance[field] = readField(field, saved[field])
+  end
   return appearance
 end
 
@@ -421,7 +512,9 @@ end
 
 local function readDebuffs(saved)
   local debuffs = {}
-  if type(saved) ~= "table" then return debuffs end
+  if type(saved) ~= "table" then
+    return debuffs
+  end
   for sprite, entry in pairs(saved) do
     local key = iconKey(sprite)
     if key ~= nil and type(entry) == "table" then
@@ -438,10 +531,14 @@ end
 -- A debuff kind's choices, { [tostring(sprite)] = true | false | "seen" }.
 local function readTracked(saved)
   local out = {}
-  if type(saved) ~= "table" then return out end
+  if type(saved) ~= "table" then
+    return out
+  end
   for sprite, choice in pairs(saved) do
     local key = iconKey(sprite)
-    if key ~= nil and (type(choice) == "boolean" or choice == "seen") then out[key] = choice end
+    if key ~= nil and (type(choice) == "boolean" or choice == "seen") then
+      out[key] = choice
+    end
   end
   return out
 end
@@ -449,7 +546,9 @@ end
 -- An icon order: a list of whole numbers, each once.
 local function readOrder(saved)
   local out, seen = {}, {}
-  if type(saved) ~= "table" then return out end
+  if type(saved) ~= "table" then
+    return out
+  end
   for _, sprite in ipairs(saved) do
     local n = math.tointeger(sprite)
     if n ~= nil and not seen[n] then
@@ -462,27 +561,37 @@ end
 
 local function readKeepUp(saved)
   local out = {}
-  if type(saved) ~= "table" then return out end
+  if type(saved) ~= "table" then
+    return out
+  end
   for sprite, on in pairs(saved) do
     local key = iconKey(sprite)
-    if key ~= nil and on == true then out[key] = true end
+    if key ~= nil and on == true then
+      out[key] = true
+    end
   end
   return out
 end
 
 local function readAuras(saved)
   local out = {}
-  if type(saved) ~= "table" then return out end
+  if type(saved) ~= "table" then
+    return out
+  end
   for sprite, category in pairs(saved) do
     local key = iconKey(sprite)
-    if key ~= nil and AURA_CATEGORIES[category] then out[key] = category end
+    if key ~= nil and AURA_CATEGORIES[category] then
+      out[key] = category
+    end
   end
   return out
 end
 
 local function readKnown(saved)
   local known = {}
-  if type(saved) ~= "table" then return known end
+  if type(saved) ~= "table" then
+    return known
+  end
   for key, info in pairs(saved) do
     if type(key) == "string" and type(info) == "table" then
       local icon = type(info.icon) == "number" and whole(info.icon) or nil
@@ -495,7 +604,9 @@ end
 -- DEFAULT_POSITIONS raised or lowered together so the major group sits MAJOR_HEIGHT of windowHeight above the
 -- bottom. With no windowHeight they are DEFAULT_POSITIONS as written.
 local function defaultPositions(windowHeight)
-  if windowHeight == nil then return settings.DEFAULT_POSITIONS end
+  if windowHeight == nil then
+    return settings.DEFAULT_POSITIONS
+  end
   local shift = -math.floor(windowHeight * MAJOR_HEIGHT + 0.5) - settings.DEFAULT_POSITIONS.major.y
   local out = {}
   for name, pos in pairs(settings.DEFAULT_POSITIONS) do
@@ -538,16 +649,24 @@ function settings.load(store, windowHeight)
   end
   local auras = readAuras(store.get("auras"))
   local tracked = {}
-  for kind, key in pairs(TRACKED_KEYS) do tracked[kind] = readTracked(store.get(key)) end
+  for kind, key in pairs(TRACKED_KEYS) do
+    tracked[kind] = readTracked(store.get(key))
+  end
   local keepUp = readKeepUp(store.get("keepUp"))
   local orders = {}
-  for kind, key in pairs(ORDER_KEYS) do orders[kind] = readOrder(store.get(key)) end
+  for kind, key in pairs(ORDER_KEYS) do
+    orders[kind] = readOrder(store.get(key))
+  end
   -- Counts changes to aura rows, tracking and order, so callers rebuild what depends on them only after one.
   local auraVersion = 0
   local appearanceVersion = 0
 
-  local function saveGroups() store.set("cooldownGroups", cooldownGroups) end
-  if changed then saveGroups() end
+  local function saveGroups()
+    store.set("cooldownGroups", cooldownGroups)
+  end
+  if changed then
+    saveGroups()
+  end
 
   -- The list of name's group that shows with style: its shared list, or style's own.
   local function listFor(name, style)
@@ -560,7 +679,9 @@ function settings.load(store, windowHeight)
     for name in pairs(groups) do
       local list = listFor(name, style)
       local i = indexOf(list, key)
-      if i ~= nil then table.remove(list, i) end
+      if i ~= nil then
+        table.remove(list, i)
+      end
     end
   end
 
@@ -569,7 +690,9 @@ function settings.load(store, windowHeight)
   -- Every element's position, saved or default.
   function s.positions()
     local out = {}
-    for name, default in pairs(defaults) do out[name] = positions[name] or default end
+    for name, default in pairs(defaults) do
+      out[name] = positions[name] or default
+    end
     return out
   end
 
@@ -615,9 +738,13 @@ function settings.load(store, windowHeight)
   -- Names of the groups in use, built-in ones first, then custom ones in slot order.
   function s.groupNames()
     local names = {}
-    for _, default in ipairs(settings.GROUPS) do names[#names + 1] = default.name end
+    for _, default in ipairs(settings.GROUPS) do
+      names[#names + 1] = default.name
+    end
     for _, name in ipairs(settings.CUSTOM_GROUPS) do
-      if groups[name] ~= nil then names[#names + 1] = name end
+      if groups[name] ~= nil then
+        names[#names + 1] = name
+      end
     end
     return names
   end
@@ -631,7 +758,9 @@ function settings.load(store, windowHeight)
   -- shared a boolean, or a title cut to 20 characters and trimmed. Any other value changes nothing.
   function s.setGroup(name, field, value)
     local group = groups[name]
-    if group == nil then return end
+    if group == nil then
+      return
+    end
     if field == "size" and type(value) == "number" then
       group.size = clamp(value, settings.SIZE_MIN, settings.SIZE_MAX)
     elseif field == "perRow" and type(value) == "number" then
@@ -661,7 +790,9 @@ function settings.load(store, windowHeight)
 
   -- Deletes a custom group with its abilities. Built-in groups stay.
   function s.deleteGroup(name)
-    if groups[name] == nil or indexOf(settings.CUSTOM_GROUPS, name) == nil then return end
+    if groups[name] == nil or indexOf(settings.CUSTOM_GROUPS, name) == nil then
+      return
+    end
     groups[name] = nil
     saveGroups()
   end
@@ -670,8 +801,12 @@ function settings.load(store, windowHeight)
   -- is not in use. Read only.
   function s.keys(name, style)
     local group = groups[name]
-    if group == nil then return nil end
-    if not group.shared and style == nil then return NO_KEYS end
+    if group == nil then
+      return nil
+    end
+    if not group.shared and style == nil then
+      return NO_KEYS
+    end
     return listFor(name, style)
   end
 
@@ -679,7 +814,9 @@ function settings.load(store, windowHeight)
   -- Returns false, changing nothing, when that list is full.
   function s.add(name, style, key)
     local list = listFor(name, style)
-    if indexOf(list, key) == nil and #list >= settings.MAX_GROUP_KEYS then return false end
+    if indexOf(list, key) == nil and #list >= settings.MAX_GROUP_KEYS then
+      return false
+    end
     removeKey(key, style)
     table.insert(list, key)
     saveGroups()
@@ -696,7 +833,9 @@ function settings.load(store, windowHeight)
   function s.move(key, name, style, index)
     local list = listFor(name, style)
     local from = indexOf(list, key)
-    if from == nil then return end
+    if from == nil then
+      return
+    end
     table.remove(list, from)
     table.insert(list, clamp(index, 1, #list + 1), key)
     saveGroups()
@@ -706,7 +845,9 @@ function settings.load(store, windowHeight)
   function s.swap(a, b, name, style)
     local list = listFor(name, style)
     local i, j = indexOf(list, a), indexOf(list, b)
-    if i == nil or j == nil then return end
+    if i == nil or j == nil then
+      return
+    end
     list[i], list[j] = b, a
     saveGroups()
   end
@@ -751,7 +892,9 @@ function settings.load(store, windowHeight)
   -- Saves the category of a buff icon seen for the first time. No-op once the icon has one.
   function s.learnAura(sprite, category)
     local key = tostring(sprite)
-    if auras[key] ~= nil then return end
+    if auras[key] ~= nil then
+      return
+    end
     auras[key] = category
     auraVersion = auraVersion + 1
     store.set("auras", auras)
@@ -772,7 +915,9 @@ function settings.load(store, windowHeight)
   -- Lists a debuff of kind seen for the first time, with no choice. No-op once listed.
   function s.seeDebuff(kind, sprite)
     local key = tostring(sprite)
-    if tracked[kind][key] ~= nil then return end
+    if tracked[kind][key] ~= nil then
+      return
+    end
     tracked[kind][key] = "seen"
     auraVersion = auraVersion + 1
     store.set(TRACKED_KEYS[kind], tracked[kind])
@@ -830,7 +975,9 @@ function settings.load(store, windowHeight)
 
   function s.learn(key, name, icon)
     local info = known[key]
-    if info ~= nil and info.name == name and info.icon == icon then return end
+    if info ~= nil and info.name == name and info.icon == icon then
+      return
+    end
     known[key] = { name = name, icon = icon }
     store.set("known", known)
   end

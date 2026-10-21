@@ -31,7 +31,9 @@ function channel.tracker()
 
   -- START and END hold the channel's first and last server tick and change together when one starts.
   function tracker.onVar(name, old, new)
-    if old == new then return end
+    if old == new then
+      return
+    end
     if name == "COMBATV2_CHANNEL_START" then
       start, elapsed = new, 0
     elseif name == "COMBATV2_CHANNEL_END" then
@@ -50,7 +52,9 @@ function channel.tracker()
   end
 
   function tracker.seed(read)
-    for _, name in ipairs(HELD) do tracker.onVar(name, nil, read(name)) end
+    for _, name in ipairs(HELD) do
+      tracker.onVar(name, nil, read(name))
+    end
   end
 
   function tracker.onTick()
@@ -75,22 +79,32 @@ function channel.tracker()
 
   -- Seconds after START of each of iterations + 1 hits spread evenly over ticks, or nil.
   local function hitTimes(ticks)
-    if iterations == nil or iterations < 1 then return nil end
+    if iterations == nil or iterations < 1 then
+      return nil
+    end
     local times = {}
-    for k = 0, iterations do times[k + 1] = k * ticks * 6 / (iterations * 10) end
+    for k = 0, iterations do
+      times[k + 1] = k * ticks * 6 / (iterations * 10)
+    end
     return times
   end
 
   -- An END from the previous channel sits before the new START until the new END arrives. The game finishes a
   -- channel on its last hit, at END, and its cast bar shows 0.6s for one more tick.
   function tracker.model()
-    if start == nil then return nil end
+    if start == nil then
+      return nil
+    end
     if cancelledAt ~= nil then
       return cancelledAt == elapsed and { start = start, cancelled = true } or nil
     end
-    if (reason ~= RUNNING and reason ~= FINISHED) or finish == nil or finish <= start then return nil end
+    if (reason ~= RUNNING and reason ~= FINISHED) or finish == nil or finish <= start then
+      return nil
+    end
     local total = finish - start + 1
-    if elapsed >= total then return nil end
+    if elapsed >= total then
+      return nil
+    end
     local found = infoStart == start and info or nil
     return {
       start = start,

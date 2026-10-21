@@ -7,7 +7,14 @@ local view = require("src/view")
 
 local function fakeStore()
   local data = {}
-  return { get = function(key) return data[key] end, set = function(key, value) data[key] = value end }
+  return {
+    get = function(key)
+      return data[key]
+    end,
+    set = function(key, value)
+      data[key] = value
+    end,
+  }
 end
 
 -- The options window over a player frame and a major group, with groups filled from src/presets, after
@@ -17,7 +24,9 @@ end
 local function openWindow(mainhand, page)
   local root = fake.component()
   local tracker = cooldowns.tracker()
-  if mainhand ~= nil then tracker.onVar("COMBATV2_MAINHAND_STYLE", nil, mainhand) end
+  if mainhand ~= nil then
+    tracker.onVar("COMBATV2_MAINHAND_STYLE", nil, mainhand)
+  end
   tracker.onVar("COMBATV2_COOLDOWN_MAGIC_SUNSHINE_START", 0, 1000)
   tracker.onVar("COMBATV2_COOLDOWN_MAGIC_SUNSHINE_END", 0, 1100)
   tracker.onVar("COMBATV2_COOLDOWN_NECROMANCY_SOUL_SAP_START", 0, 1000)
@@ -46,20 +55,26 @@ local function logicTick()
 end
 
 local function editorTile()
-  return fake.find(function(c) return fake.hasHook(c, "ONRELEASE") end)
+  return fake.find(function(c)
+    return fake.hasHook(c, "ONRELEASE")
+  end)
 end
 
 -- The number of ability tiles the chosen group shows.
 local function tileCount()
   local count = 0
   for _, c in ipairs(fake.created) do
-    if fake.shown(c) and fake.hasHook(c, "ONRELEASE") then count = count + 1 end
+    if fake.shown(c) and fake.hasHook(c, "ONRELEASE") then
+      count = count + 1
+    end
   end
   return count
 end
 
 local function shows(content)
-  return fake.find(function(_, d) return d.content == content end) ~= nil
+  return fake.find(function(_, d)
+    return d.content == content
+  end) ~= nil
 end
 
 describe("options", function()
@@ -69,9 +84,13 @@ describe("options", function()
     openWindow(nil, "Appearance")
     local rows = {}
     for _, label in ipairs({ "Appearance", "Cooldown manager", "Buffs", "Bars" }) do
-      rows[#rows + 1] = fake.find(function(_, d) return d.content == label end).y
+      rows[#rows + 1] = fake.find(function(_, d)
+        return d.content == label
+      end).y
     end
-    for i = 2, #rows do assert.is_true(rows[i] > rows[i - 1]) end
+    for i = 2, #rows do
+      assert.is_true(rows[i] > rows[i - 1])
+    end
     assert.is_true(shows("Font"))
     assert.is_false(shows("New group"))
   end)
@@ -80,7 +99,9 @@ describe("options", function()
     local saved = openWindow(nil, "Bars")
     fake.press("+", 3)
     assert.are.equal(279, saved.appearance().barWidth)
-    local field = fake.find(function(_, d) return d.content == "279" end)
+    local field = fake.find(function(_, d)
+      return d.content == "279"
+    end)
     fake.hook(field, "ONCONTENTCHANGED", ui.InputFieldActionResult.SUBMIT, "300")
     assert.are.equal(300, saved.appearance().barWidth)
   end)
@@ -142,7 +163,11 @@ describe("options", function()
   it("opens the picker on the current combat style's tab and switches style by tab", function()
     openWindow()
     openPicker()
-    local function listed(name) return fake.find(function(_, d) return d.content == name end) ~= nil end
+    local function listed(name)
+      return fake.find(function(_, d)
+        return d.content == name
+      end) ~= nil
+    end
     assert.are.same({ true, false }, { listed("Wild Magic"), listed("Soul Sap") })
     fake.press("Necromancy", 2)
     assert.are.same({ false, true }, { listed("Wild Magic"), listed("Soul Sap") })
@@ -152,7 +177,9 @@ describe("options", function()
     openWindow()
     openPicker()
     fake.press("All")
-    local note = fake.find(function(_, d) return type(d.content) == "string" and d.content:find(" more. Search") end)
+    local note = fake.find(function(_, d)
+      return type(d.content) == "string" and d.content:find(" more. Search")
+    end)
     local hidden = tonumber(note.content:match("^(%d+) more"))
     assert.is_true(hidden > 0)
   end)
@@ -160,8 +187,14 @@ describe("options", function()
   it("lists abilities matching the picker search from every style, leaving the All tab chosen", function()
     openWindow()
     openPicker()
-    local search = fake.find(function(_, d) return d.emptyText == "Find an ability" end)
-    local function listed(name) return fake.find(function(_, d) return d.content == name end) ~= nil end
+    local search = fake.find(function(_, d)
+      return d.emptyText == "Find an ability"
+    end)
+    local function listed(name)
+      return fake.find(function(_, d)
+        return d.content == name
+      end) ~= nil
+    end
     fake.hook(search, "ONCONTENTCHANGED", 0, "soul")
     assert.are.same({ false, true }, { listed("Wild Magic"), listed("Soul Sap") })
     fake.hook(search, "ONCONTENTCHANGED", 0, "wild")
@@ -171,31 +204,45 @@ describe("options", function()
   it("says when no ability matches the picker search", function()
     openWindow()
     openPicker()
-    local search = fake.find(function(_, d) return d.emptyText == "Find an ability" end)
+    local search = fake.find(function(_, d)
+      return d.emptyText == "Find an ability"
+    end)
     fake.hook(search, "ONCONTENTCHANGED", 0, "zzz")
-    assert.is_not_nil(fake.find(function(_, d) return d.content == "No ability matches" end))
+    assert.is_not_nil(fake.find(function(_, d)
+      return d.content == "No ability matches"
+    end))
   end)
 
   it("closes the picker when the reset dialog opens", function()
     openWindow()
     openPicker()
     fake.press("Reset positions")
-    assert.is_nil(fake.find(function(_, d) return d.content == "Wild Magic" end))
+    assert.is_nil(fake.find(function(_, d)
+      return d.content == "Wild Magic"
+    end))
   end)
 
   it("ignores a search event that arrives after the picker closed", function()
     openWindow()
     openPicker()
-    local search = fake.find(function(_, d) return d.emptyText == "Find an ability" end)
+    local search = fake.find(function(_, d)
+      return d.emptyText == "Find an ability"
+    end)
     fake.hook(search, "ONCONTENTCHANGED", 0, "soul")
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
-    assert.has_no.errors(function() fake.hook(search, "ONCONTENTCHANGED", 4, "soul") end)
+    assert.has_no.errors(function()
+      fake.hook(search, "ONCONTENTCHANGED", 4, "soul")
+    end)
   end)
 
   it("opens on the worn weapon's style tab, marked Equipped, and switches style by tab", function()
     openWindow(37)
-    local equipped = fake.find(function(_, d) return d.content == "Equipped" end)
-    local necromancy = fake.find(function(_, d) return d.content == "Necromancy" end)
+    local equipped = fake.find(function(_, d)
+      return d.content == "Equipped"
+    end)
+    local necromancy = fake.find(function(_, d)
+      return d.content == "Necromancy"
+    end)
     assert.are.equal(necromancy.x, equipped.x)
     assert.are.equal(#presets.STYLES.necromancy.major, tileCount())
     fake.press("Magic")
@@ -235,7 +282,9 @@ describe("options", function()
 
   it("adds new groups after Defensives and hides New group once all four are in use", function()
     local saved = openWindow()
-    for _ = 1, 3 do fake.press("New group") end
+    for _ = 1, 3 do
+      fake.press("New group")
+    end
     assert.are.equal(#settings.GROUPS + 4, #saved.groupNames())
     assert.is_false(shows("New group"))
   end)
@@ -243,7 +292,9 @@ describe("options", function()
   it("renames a new group from its name field", function()
     local saved = openWindow()
     fake.press("New group")
-    local field = fake.find(function(c) return fake.hasHook(c, "ONCONTENTCHANGED") end)
+    local field = fake.find(function(c)
+      return fake.hasHook(c, "ONCONTENTCHANGED")
+    end)
     fake.hook(field, "ONCONTENTCHANGED", 0, "Bombs")
     assert.are.equal("Bombs", saved.group("custom2").title)
     assert.is_true(shows("Bombs"))

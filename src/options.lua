@@ -27,8 +27,10 @@ local GAP = 2
 -- Cooldown manager layout: style tabs across the top, the group list on the left, and the chosen group's
 -- setting rows then its ability tiles, in rows of GRID_PER_ROW, on the right.
 local STYLE_TABS = {
-  { label = "Necromancy", style = "necromancy", width = 110 }, { label = "Magic", style = "magic", width = 80 },
-  { label = "Ranged", style = "ranged", width = 84 }, { label = "Melee", style = "melee", width = 76 },
+  { label = "Necromancy", style = "necromancy", width = 110 },
+  { label = "Magic", style = "magic", width = 80 },
+  { label = "Ranged", style = "ranged", width = 84 },
+  { label = "Melee", style = "melee", width = 76 },
 }
 local TABS_H, LIST_W, LIST_Y, LIST_ROW = 44, 170, 56, 44
 local DETAIL_X = LIST_W + 24
@@ -42,14 +44,18 @@ local PICKER_WIDTH, PICKER_ROW, PICKER_SEARCH, PICKER_TABS = 340, 26, 36, 34
 local PICKER_HEAD = PICKER_SEARCH + PICKER_TABS
 -- Picker tabs left to right; style nil lists every style.
 local PICKER_TAB_LIST = {
-  { label = "All", width = 34 }, { label = "Necromancy", style = "necromancy", width = 100 },
-  { label = "Magic", style = "magic", width = 58 }, { label = "Ranged", style = "ranged", width = 66 },
+  { label = "All", width = 34 },
+  { label = "Necromancy", style = "necromancy", width = 100 },
+  { label = "Magic", style = "magic", width = 58 },
+  { label = "Ranged", style = "ranged", width = 66 },
   { label = "Melee", style = "melee", width = 58 },
 }
 
 local function indexOf(list, value)
   for i, v in ipairs(list) do
-    if v == value then return i end
+    if v == value then
+      return i
+    end
   end
 end
 
@@ -99,8 +105,14 @@ function options.create(root, deps)
   local function showPage(pageID)
     closePopups()
     currentPage = pageID
-    if pageID == "buffs" then buffsPage.redraw() end
-    if pageID == "appearance" then appearance.open() elseif pageID == "bars" then bars.open() end
+    if pageID == "buffs" then
+      buffsPage.redraw()
+    end
+    if pageID == "appearance" then
+      appearance.open()
+    elseif pageID == "bars" then
+      bars.open()
+    end
     for _, entry in ipairs(PAGE_LIST) do
       local active = entry.id == pageID
       set(pages[entry.id], "hidden", not active)
@@ -121,7 +133,9 @@ function options.create(root, deps)
       label = text(window, FONTS.body, ui.AlignMode.TOPLEFT, 18, y, SIDEBAR - 24, NAV_ROW),
     }
     set(row.label, "content", entry.label)
-    on(row.hit, "ONCLICK", function() showPage(entry.id) end)
+    on(row.hit, "ONCLICK", function()
+      showPage(entry.id)
+    end)
     navRows[entry.id] = row
     local page = ui.Layer.new(window)
     page:SetSize(PAGE_W, PAGE_H)
@@ -179,7 +193,9 @@ function options.create(root, deps)
     set(r.shared, "rgb", COLOURS.dimText)
     set(r.count, "rgb", COLOURS.dimText)
     on(r.hit, "ONCLICK", function()
-      if r.name == nil then return end
+      if r.name == nil then
+        return
+      end
       selected, confirmDelete = r.name, false
       closePopups()
       rebuildEditor()
@@ -188,14 +204,18 @@ function options.create(root, deps)
   end
   local newGroup = button(page, "New group", 16, 0, LIST_W - 32, 32, "dark", function()
     local name = saved.addGroup()
-    if name == nil then return end
+    if name == nil then
+      return
+    end
     selected, confirmDelete = name, false
     closePopups()
     changed()
   end)
 
   -- Detail pane: Name, Icon size, Icons per row, Grow and Abilities rows over the group's ability tiles.
-  local function rowY(i) return LIST_Y + (i - 1) * SETTING_H end
+  local function rowY(i)
+    return LIST_Y + (i - 1) * SETTING_H
+  end
   local detailRight = DETAIL_X + DETAIL_W - 16
   for i = 1, SETTING_ROWS do
     rect(page, i % 2 == 1 and COLOURS.row or COLOURS.rowAlt, DETAIL_X, rowY(i), DETAIL_W, SETTING_H)
@@ -207,20 +227,26 @@ function options.create(root, deps)
   end
 
   settingLabel(1, "Name")
-  local titleText = text(page, FONTS.body, ui.AlignMode.BOTTOMRIGHT, DETAIL_X + 120, rowY(1),
-    detailRight - DETAIL_X - 120, SETTING_H)
+  local titleText =
+    text(page, FONTS.body, ui.AlignMode.BOTTOMRIGHT, DETAIL_X + 120, rowY(1), detailRight - DETAIL_X - 120, SETTING_H)
   local nameField = draw.inputField(page, DETAIL_X + 120, rowY(1) + 11, detailRight - 126 - DETAIL_X - 120, 24, 20)
   -- The group whose title the field shows; a change arriving after another group was chosen is ignored.
   local nameFor = nil
   on(nameField, "ONCONTENTCHANGED", function(_, _, contents)
-    if nameFor == nil or nameFor ~= selected or saved.group(nameFor) == nil then return end
+    if nameFor == nil or nameFor ~= selected or saved.group(nameFor) == nil then
+      return
+    end
     local before = saved.group(nameFor).title
     saved.setGroup(nameFor, "title", contents or "")
-    if saved.group(nameFor).title ~= before then changed() end
+    if saved.group(nameFor).title ~= before then
+      changed()
+    end
   end)
   local deleteButton
   deleteButton = button(page, "Delete", detailRight - 120, rowY(1) + 9, 120, 28, "dark", function()
-    if saved.group(selected) == nil then return end
+    if saved.group(selected) == nil then
+      return
+    end
     if not confirmDelete then
       confirmDelete = true
       set(deleteButton.label, "content", "Click to delete")
@@ -236,18 +262,28 @@ function options.create(root, deps)
   local function stepper(i, field, low, high)
     local function choose(n)
       local group = saved.group(selected)
-      if group == nil or n == group[field] then return end
+      if group == nil or n == group[field] then
+        return
+      end
       saved.setGroup(selected, field, n)
       changed()
     end
     local value = draw.numberField(page, detailRight - 92, rowY(i) + 11, 56, 24, low, high, choose)
     local function step(d)
       local group = saved.group(selected)
-      if group ~= nil then choose(math.max(low, math.min(high, group[field] + d))) end
+      if group ~= nil then
+        choose(math.max(low, math.min(high, group[field] + d)))
+      end
     end
-    button(page, "-", detailRight - 124, rowY(i) + 9, 28, 28, "dark", function() step(-1) end)
-    button(page, "+", detailRight - 28, rowY(i) + 9, 28, 28, "dark", function() step(1) end)
-    return function(group) value.show(group[field]) end
+    button(page, "-", detailRight - 124, rowY(i) + 9, 28, 28, "dark", function()
+      step(-1)
+    end)
+    button(page, "+", detailRight - 28, rowY(i) + 9, 28, 28, "dark", function()
+      step(1)
+    end)
+    return function(group)
+      value.show(group[field])
+    end
   end
   settingLabel(2, "Icon size")
   local showSize = stepper(2, "size", settings.SIZE_MIN, settings.SIZE_MAX)
@@ -261,7 +297,9 @@ function options.create(root, deps)
     for k, option in ipairs(choices) do
       local x = detailRight - (#choices - k + 1) * (width + 4) + 4
       local b = draw.option(page, option.label, x, rowY(i) + 9, width, 28, function()
-        if saved.group(selected) == nil then return end
+        if saved.group(selected) == nil then
+          return
+        end
         saved.setGroup(selected, field, option.value)
         changed()
       end)
@@ -271,8 +309,12 @@ function options.create(root, deps)
     settingChoices[#settingChoices + 1] = row
   end
   settingLabel(4, "Grow")
-  settingChoice(4, "grow", { { value = "up", label = "Up" }, { value = "down", label = "Down" },
-    { value = "left", label = "Left" }, { value = "right", label = "Right" } }, 64)
+  settingChoice(4, "grow", {
+    { value = "up", label = "Up" },
+    { value = "down", label = "Down" },
+    { value = "left", label = "Left" },
+    { value = "right", label = "Right" },
+  }, 64)
   settingLabel(5, "Abilities")
   settingChoice(5, "shared", { { value = false, label = "Per style" }, { value = true, label = "Every style" } }, 110)
 
@@ -285,7 +327,8 @@ function options.create(root, deps)
   local function tile()
     local group = draw.group()
     local t = {
-      group = group, size = TILE,
+      group = group,
+      size = TILE,
       edge = group.add(hitArea(rect(page, COLOURS.border, 0, 0, TILE, TILE)), 0, 0),
       bg = group.add(rect(page, COLOURS.editorTile, 0, 0, TILE - 2, TILE - 2), 1, 1),
       icon = group.add(ui.Sprite.new(page), 1, 1),
@@ -296,7 +339,9 @@ function options.create(root, deps)
   end
 
   local editorTiles = {}
-  for i = 1, settings.MAX_GROUP_KEYS do editorTiles[i] = tile() end
+  for i = 1, settings.MAX_GROUP_KEYS do
+    editorTiles[i] = tile()
+  end
   local count = 0
 
   -- The "+" tile as a draw.group.
@@ -306,7 +351,9 @@ function options.create(root, deps)
   local glyph = plus.add(text(page, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, TILE, TILE), 0, 0)
   set(glyph, "content", "+")
   set(glyph, "rgb", COLOURS.accent)
-  on(plusEdge, "ONCLICK", function() openPicker() end)
+  on(plusEdge, "ONCLICK", function()
+    openPicker()
+  end)
 
   local hint = text(page, FONTS.small, ui.AlignMode.TOPLEFT, DETAIL_X, 0, DETAIL_W, 14)
   set(hint, "content", "Drag to reorder. Click + to add or move an ability here. Click an icon to remove it.")
@@ -319,12 +366,16 @@ function options.create(root, deps)
   -- Marks each choice row's option for group's value chosen.
   local function showSettingChoices(group)
     for _, row in ipairs(settingChoices) do
-      for _, b in ipairs(row.buttons) do draw.showOption(b, b.value == group[row.field]) end
+      for _, b in ipairs(row.buttons) do
+        draw.showOption(b, b.value == group[row.field])
+      end
     end
   end
 
   function rebuildEditor()
-    if saved.group(selected) == nil then selected = "major" end
+    if saved.group(selected) == nil then
+      selected = "major"
+    end
     local equipped = tracker.style()
     for _, t in ipairs(styleTabs) do
       set(t.label, "rgb", t.style == editStyle and COLOURS.text or COLOURS.mutedText)
@@ -359,7 +410,9 @@ function options.create(root, deps)
       nameFor = selected
       nameField.content = group.title
     end
-    if not custom then nameFor = nil end
+    if not custom then
+      nameFor = nil
+    end
     deleteButton.group.set("hidden", not custom)
     set(deleteButton.label, "content", confirmDelete and "Click to delete" or "Delete")
     showSize(group)
@@ -402,7 +455,9 @@ function options.create(root, deps)
   local function targetAt(px, py)
     local gx, gy = px - DETAIL_X, py - GRID_Y
     local rows = math.max(1, (count + GRID_PER_ROW - 1) // GRID_PER_ROW)
-    if gx < -10 or gx > DETAIL_W or gy < -10 or gy > rows * STEP + 10 then return nil end
+    if gx < -10 or gx > DETAIL_W or gy < -10 or gy > rows * STEP + 10 then
+      return nil
+    end
     return editor.gridDropTarget({ count = count, step = STEP, size = TILE, perRow = GRID_PER_ROW }, gx, gy)
   end
 
@@ -415,7 +470,9 @@ function options.create(root, deps)
     local swap = target ~= nil and target.kind == "swap"
     hideAll(swapBox, not swap)
     set(insertLine, "hidden", target == nil or swap)
-    if target == nil then return end
+    if target == nil then
+      return
+    end
     local x, y = slotPos(target.index)
     if swap then
       placeOutline(swapBox, x, y, TILE, TILE)
@@ -446,17 +503,29 @@ function options.create(root, deps)
 
   editorDrag = dragdrop.create(page, TILE // 2, {
     press = function(t)
-      if t.key == nil then return false end
+      if t.key == nil then
+        return false
+      end
       closePopups()
       return true
     end,
-    ghost = function(t) return knownTiles({ t.key })[1] end,
-    start = function(t) t.group.set("alpha", 0.3) end,
-    move = function(_, px, py) showDragFeedback(px, py) end,
+    ghost = function(t)
+      return knownTiles({ t.key })[1]
+    end,
+    start = function(t)
+      t.group.set("alpha", 0.3)
+    end,
+    move = function(_, px, py)
+      showDragFeedback(px, py)
+    end,
     drop = function(t)
-      if dropTarget == nil then return end
+      if dropTarget == nil then
+        return
+      end
       local action = editor.dropAction(saved.keys(selected, editStyle), t.key, dropTarget)
-      if action == nil then return end
+      if action == nil then
+        return
+      end
       if action.op == "swap" then
         saved.swap(t.key, action.other, selected, editStyle)
       else
@@ -471,7 +540,9 @@ function options.create(root, deps)
       hideDragFeedback()
     end,
   })
-  for _, t in ipairs(editorTiles) do editorDrag.attach(t) end
+  for _, t in ipairs(editorTiles) do
+    editorDrag.attach(t)
+  end
 
   -- Picker: known abilities under the "+" tile, in sections, one combat style tab at a time, narrowed by a
   -- search box. It opens on the style being edited and stays open for several adds. A search covers every
@@ -489,8 +560,12 @@ function options.create(root, deps)
   -- The field also reports its contents on Enter, Esc and focus loss, which can come after the picker closed.
   on(search, "ONCONTENTCHANGED", function(_, _, contents)
     query = (contents or ""):lower()
-    if not pickerOpen then return end
-    if query ~= "" then pickerStyle = nil end
+    if not pickerOpen then
+      return
+    end
+    if query ~= "" then
+      pickerStyle = nil
+    end
     fillPicker()
   end)
   local pickerTabX = 10
@@ -521,10 +596,16 @@ function options.create(root, deps)
     r.icon:SetSize(20, 20)
     r.icon:SetPos(PICKER_WIDTH - 29, ry + 3)
     set(r.hover, "hidden", true)
-    on(r.bg, "ONMOUSEOVER", function() set(r.hover, "hidden", r.key == nil) end)
-    on(r.bg, "ONMOUSELEAVE", function() set(r.hover, "hidden", true) end)
+    on(r.bg, "ONMOUSEOVER", function()
+      set(r.hover, "hidden", r.key == nil)
+    end)
+    on(r.bg, "ONMOUSELEAVE", function()
+      set(r.hover, "hidden", true)
+    end)
     on(r.bg, "ONCLICK", function()
-      if r.key == nil or not pickerOpen then return end
+      if r.key == nil or not pickerOpen then
+        return
+      end
       saved.add(selected, editStyle, r.key)
       changed()
       fillPicker()
@@ -540,12 +621,18 @@ function options.create(root, deps)
     end
     for _, source in ipairs({ saved.known(), presets.INFO }) do
       for key in pairs(source) do
-        if not seen[key] then keys[#keys + 1], seen[key] = key, true end
+        if not seen[key] then
+          keys[#keys + 1], seen[key] = key, true
+        end
       end
     end
     local models = {}
-    for _, t in ipairs(knownTiles(keys)) do models[t.key] = t end
-    table.sort(keys, function(a, b) return models[a].name < models[b].name end)
+    for _, t in ipairs(knownTiles(keys)) do
+      models[t.key] = t
+    end
+    table.sort(keys, function(a, b)
+      return models[a].name < models[b].name
+    end)
     return keys, models
   end
 
@@ -558,7 +645,9 @@ function options.create(root, deps)
     if query ~= "" then
       local matching = {}
       for _, key in ipairs(keys) do
-        if models[key].name:lower():find(query, 1, true) then matching[#matching + 1] = key end
+        if models[key].name:lower():find(query, 1, true) then
+          matching[#matching + 1] = key
+        end
       end
       keys = matching
     end
@@ -570,7 +659,9 @@ function options.create(root, deps)
     for _, section in ipairs(editor.pickerSections(selected, groupLists, keys, pickerStyle)) do
       if #section.keys > 0 then
         entries[#entries + 1] = { title = section.title }
-        for _, key in ipairs(section.keys) do entries[#entries + 1] = { key = key, name = models[key].name } end
+        for _, key in ipairs(section.keys) do
+          entries[#entries + 1] = { key = key, name = models[key].name }
+        end
       end
     end
     if #entries == 0 then
@@ -580,7 +671,9 @@ function options.create(root, deps)
     if #entries > MAX_PICKER_ROWS then
       local hidden = 0
       for i = MAX_PICKER_ROWS, #entries do
-        if entries[i].key ~= nil then hidden = hidden + 1 end
+        if entries[i].key ~= nil then
+          hidden = hidden + 1
+        end
       end
       entries[MAX_PICKER_ROWS] = { title = hidden .. " more. Search to find them." }
     end
@@ -594,7 +687,9 @@ function options.create(root, deps)
         set(r.label, "rgb", entry.title and COLOURS.mutedText or COLOURS.text)
         local icon = entry.key and models[entry.key].icon
         hideAll({ r.iconEdge, r.icon }, icon == nil)
-        if icon ~= nil then set(r.icon, "sprite", icon) end
+        if icon ~= nil then
+          set(r.icon, "sprite", icon)
+        end
       end
     end
     local shown = math.min(#entries, MAX_PICKER_ROWS)
@@ -608,7 +703,9 @@ function options.create(root, deps)
   function openPicker()
     local wasOpen = pickerOpen
     closePopups()
-    if wasOpen then return end
+    if wasOpen then
+      return
+    end
     pickerOpen, pickerStyle = true, editStyle
     if query ~= "" then
       query = ""
@@ -632,14 +729,20 @@ function options.create(root, deps)
     saved = saved,
     info = deps.auraInfo,
     tooltip = buffsTooltip,
-    toScreen = function(px, py) return window.x + PAGE_X + px, window.y + PAGE_Y + py end,
+    toScreen = function(px, py)
+      return window.x + PAGE_X + px, window.y + PAGE_Y + py
+    end,
     refresh = deps.refresh,
   })
 
   -- Appearance page ----------------------------------------------------------------------------------
 
   local pageDeps = {
-    saved = saved, view = deps.view, tooltip = buffsTooltip, auraInfo = deps.auraInfo, tracker = tracker,
+    saved = saved,
+    view = deps.view,
+    tooltip = buffsTooltip,
+    auraInfo = deps.auraInfo,
+    tracker = tracker,
     refresh = deps.refresh,
   }
   appearance = appearancepage.create(pages.appearance, PAGE_W, PAGE_H, pageDeps)
@@ -653,13 +756,19 @@ function options.create(root, deps)
 
   local resetPositions, openWindow
   local editMode = editmode.create(root, {
-    saved = saved, elements = elements, view = deps.view,
+    saved = saved,
+    elements = elements,
+    view = deps.view,
     label = function(name)
       local group = saved.group(name)
       return group and group.title
     end,
-    reset = function() resetPositions() end,
-    done = function() openWindow() end,
+    reset = function()
+      resetPositions()
+    end,
+    done = function()
+      openWindow()
+    end,
   })
 
   -- Reset dialog: confirms Reset positions over the window, which it dims when open. Built after the window
@@ -676,8 +785,11 @@ function options.create(root, deps)
   local dialogTitle = text(dialog, FONTS.body, ui.AlignMode.TOPLEFT, dialogX + 16, dialogY + 12, DIALOG_W - 32, 20)
   set(dialogTitle, "content", "Reset positions")
   local dialogBody = text(dialog, FONTS.small, ui.AlignMode.TOPLEFT, dialogX + 16, dialogY + 40, DIALOG_W - 32, 44)
-  set(dialogBody, "content",
-    "Every frame, bar, ability group and aura row goes back to its default spot. Your groups and settings stay.")
+  set(
+    dialogBody,
+    "content",
+    "Every frame, bar, ability group and aura row goes back to its default spot. Your groups and settings stay."
+  )
   set(dialogBody, "rgb", COLOURS.dimText)
   rect(dialog, COLOURS.line, dialogX + 1, dialogY + DIALOG_H - 56, DIALOG_W - 2, 1)
   local dialogOpen = false
@@ -756,7 +868,9 @@ function options.create(root, deps)
   Event.Logic.Subscribe("runeuiOptions", followCursor)
 
   Event.KeyDown.Subscribe("runeuiOptions", function(e)
-    if e.gameKey ~= GameKey.ESCAPE then return end
+    if e.gameKey ~= GameKey.ESCAPE then
+      return
+    end
     if dialogOpen then
       closeDialog()
     elseif editMode.editing() then
@@ -776,7 +890,9 @@ function options.create(root, deps)
   return {
     placeAll = editMode.placeAll,
     redrawBuffs = function()
-      if windowOpen and currentPage == "buffs" then buffsPage.redraw() end
+      if windowOpen and currentPage == "buffs" then
+        buffsPage.redraw()
+      end
     end,
     shutdown = function()
       buffsPage.destroy()
