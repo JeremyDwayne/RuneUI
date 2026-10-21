@@ -48,12 +48,23 @@ Event.VarTransmit.Subscribe("cooldowns", function(e)
 end)
 Event.Draw.Subscribe("targetPanel", adapter.keepTargetPanelHidden)
 Event.Draw.Subscribe("buffBars", adapter.keepBuffBarsHidden)
+Event.Draw.Subscribe("castBar", adapter.keepCastBarHidden)
+
+-- Event.Logic runs 50 times a second, so each of its ticks is 0.02 s. Counting them since the last server tick
+-- steps the cast bar smoothly between ticks; the bar returns at once between channels.
+local LOGIC_SECONDS = 0.02
+local logicTicks = 0
+Event.Logic.Subscribe("castBar", function()
+  logicTicks = logicTicks + 1
+  elements.castbar.step(logicTicks * LOGIC_SECONDS)
+end)
 Event.InventoryAdded.Subscribe("lantern", adapter.inventoryChanged)
 Event.InventoryUpdated.Subscribe("lantern", adapter.inventoryChanged)
 
 local function refresh()
   adapter.hideTargetPanel(saved.hideTargetPanel())
   adapter.hideBuffBars(saved.hideBuffBars())
+  adapter.hideCastBar(saved.hideCastBar())
   for _, element in pairs(elements) do
     if element.setTexture ~= nil then element.setTexture(saved.texture()) end
   end
@@ -87,6 +98,7 @@ optionsWindow = options.create(top, {
 })
 
 Event.ServerLogic.Subscribe("refresh", function()
+  logicTicks = 0
   channelTracker.onTick(adapter.abilityStruct)
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then saved.learn(learned.key, learned.name, learned.icon) end
@@ -101,6 +113,7 @@ refresh()
 function PluginShutdown()
   adapter.hideTargetPanel(false)
   adapter.hideBuffBars(false)
+  adapter.hideCastBar(false)
   optionsWindow.shutdown()
   for _, element in pairs(elements) do element.layer:Destroy() end
   tooltip.destroy()

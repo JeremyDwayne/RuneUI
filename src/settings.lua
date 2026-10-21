@@ -305,6 +305,7 @@ local function readAppearance(saved)
     texture = "flat",
     hideTargetPanel = saved.hideTargetPanel == true,
     hideBuffBars = saved.hideBuffBars == true,
+    hideCastBar = saved.hideCastBar ~= false,
     auraBars = saved.auraBars == true,
   }
   for _, known in ipairs(settings.TEXTURES) do
@@ -581,6 +582,16 @@ function settings.load(store, windowHeight)
 
   function s.setHideBuffBars(hidden)
     appearance.hideBuffBars = hidden
+    store.set("appearance", appearance)
+  end
+
+  -- Whether the game's own cast bar is hidden, which it is until chosen otherwise, since RuneUI draws one.
+  function s.hideCastBar()
+    return appearance.hideCastBar
+  end
+
+  function s.setHideCastBar(hidden)
+    appearance.hideCastBar = hidden
     store.set("appearance", appearance)
   end
 

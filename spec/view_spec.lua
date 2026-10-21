@@ -1,4 +1,5 @@
 local fake = require("spec/support/fake_ui")
+local draw = require("src/draw")
 local settings = require("src/settings")
 local view = require("src/view")
 
@@ -34,7 +35,7 @@ end
 
 -- The src/channel model of Asphyxiate with seconds left.
 local function asphyxiate(seconds)
-  return { name = "Asphyxiate", icon = 14660, seconds = seconds, fill = 1 - seconds / 4.2 }
+  return { name = "Asphyxiate", icon = 14660, seconds = seconds, duration = 4.2 }
 end
 
 describe("view", function()
@@ -211,7 +212,7 @@ describe("view", function()
     bar.update(asphyxiate(4.2))
     assert.is_not_nil(fake.find(function(_, d) return d.content == "4.2s" end))
     bar.update(asphyxiate(3))
-    assert.is_not_nil(fake.find(function(_, d) return d.content == "3s" end))
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "3.0s" end))
     fake.writes = 0
     bar.update(asphyxiate(3))
     assert.are.equal(0, fake.writes)
@@ -221,6 +222,22 @@ describe("view", function()
     bar.update(nil)
     assert.are.equal(0, fake.writes)
     assert.are.same({ x = 0, y = 0, w = 278, h = 22 }, bar.bounds)
+  end)
+
+  it("counts the cast bar down between server ticks, and makes no writes stepping between channels", function()
+    local bar = view.castBar(fake.component())
+    bar.update(asphyxiate(4.2))
+    local fill = fake.find(function(_, d) return d.rgb == draw.COLOURS.cast end)
+    bar.step(0.3)
+    local width = fill.width
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "3.9s" end))
+    bar.step(5)
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "3.6s" end))
+    assert.is_true(fill.width > width)
+    bar.update(nil)
+    fake.writes = 0
+    bar.step(0.1)
+    assert.are.equal(0, fake.writes)
   end)
 
   it("moves anchored frames on the tick the major group gains a tile, and makes no writes when steady", function()

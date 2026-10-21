@@ -318,6 +318,13 @@ describe("settings", function()
     assert.are.same({ ["30093"] = "upkeep", ["26466"] = "hidden" }, settings.load(store).auras())
   end)
 
+  it("hides the game's cast bar until showing it is chosen", function()
+    local store = fakeStore()
+    assert.is_true(settings.load(store).hideCastBar())
+    settings.load(store).setHideCastBar(false)
+    assert.is_false(settings.load(store).hideCastBar())
+  end)
+
   it("shows the game's buff bars and plain aura icons until chosen otherwise", function()
     local store = fakeStore()
     local s = settings.load(store)

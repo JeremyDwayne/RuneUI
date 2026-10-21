@@ -3,6 +3,8 @@ local adapter = {}
 
 local MAIN_BAR = 1430
 local TARGET_PANEL = 1490
+-- The game's cast bar, with its highest static ID and its time left label.
+local CAST_BAR, CAST_BAR_LAST_STATIC, CAST_BAR_DURATION = 764, 37, 5
 -- Target debuff icon sprites sit every 3 static IDs from :38 to :71. A slot is empty when its sprite is -1
 -- or it reads not visibleGlobal: an expired or switched-away debuff keeps its sprite while invisible.
 local DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP = 38, 71, 3
@@ -305,6 +307,16 @@ adapter.keepTargetPanelHidden = targetPanel.keep
 -- Runs each server tick with whether the native target panel should be hidden. Hiding sets alpha 0,
 -- because hidden stops the panel filling its debuff slots, which targetReads relies on.
 adapter.hideTargetPanel = targetPanel.hide
+
+-- The game's cast bar, held transparent so the client's own showing and hiding of it is left alone and
+-- restoring never shows a bar the client hid. A visible root or time label means the client rebuilt it.
+local castBar = transparency(CAST_BAR, CAST_BAR_LAST_STATIC, { { 0 }, { CAST_BAR_DURATION } })
+
+-- Runs on every rendered frame, making the game's cast bar transparent again when the client rebuilt it.
+adapter.keepCastBarHidden = castBar.keep
+
+-- Runs each server tick with whether the game's cast bar should be hidden. false restores its alphas.
+adapter.hideCastBar = castBar.hide
 
 -- Original alpha of each buff bar component while RuneUI hides the bars, keyed "bar:static" or
 -- "bar:static:category:dynamic", and the keys of the icons it set hidden.

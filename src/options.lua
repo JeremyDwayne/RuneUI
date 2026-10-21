@@ -727,6 +727,8 @@ function options.create(root, deps)
     saved.hideTargetPanel, saved.setHideTargetPanel)
   choiceRow("Game buff bars", { { value = false, label = "Show" }, { value = true, label = "Hide" } },
     saved.hideBuffBars, saved.setHideBuffBars)
+  choiceRow("Game cast bar", { { value = false, label = "Show" }, { value = true, label = "Hide" } },
+    saved.hideCastBar, saved.setHideCastBar)
   choiceRow("Aura icons", { { value = false, label = "Plain" }, { value = true, label = "With bars" } },
     saved.auraBars, saved.setAuraBars)
 

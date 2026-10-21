@@ -3,9 +3,9 @@
 local channel = {}
 
 -- Returns a tracker. onVar takes every var change; onTick runs once per server tick with a function returning
--- { name, icon } for a struct id, called once per channel. model() returns { name, icon, seconds, fill } while
--- a channel runs, else nil: seconds left, counting down 0.6 a tick from (END - START + 1) x 0.6 as the game's
--- own cast bar does, and fill, the share of the channel spent.
+-- { name, icon } for a struct id, called once per channel. model() returns { name, icon, seconds, duration }
+-- while a channel runs, else nil: seconds left at this server tick, counting down 0.6 a tick from
+-- (END - START + 1) x 0.6 as the game's own cast bar does, and duration, that first value.
 function channel.tracker()
   local start, finish, struct = nil, nil, nil
   -- END_REASON reads -1 while a channel runs.
@@ -51,7 +51,7 @@ function channel.tracker()
       name = found and found.name,
       icon = found and found.icon,
       seconds = (total - elapsed) * 6 / 10,
-      fill = (elapsed + 1) / total,
+      duration = total * 6 / 10,
     }
   end
 

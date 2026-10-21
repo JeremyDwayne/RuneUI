@@ -456,10 +456,13 @@ function view.cooldownGroup(root, tooltip)
 end
 
 local CAST_WIDTH, CAST_HEIGHT, CAST_ICON = 278, 22, 20
+-- Seconds between server ticks, the most a step moves the bar on.
+local TICK_SECONDS = 0.6
 
 -- 278x22, as wide as the resource bar: the channelled ability's icon, its name, and its time left as "1.2s"
--- over a fill of the time spent. update takes a src/channel model, or nil to hide the bar while keeping its
--- bounds, so anchored elements stay put.
+-- over a fill of the time spent. update takes a src/channel model each server tick, or nil to hide the bar
+-- while keeping its bounds, so anchored elements stay put. step(elapsed) counts the shown channel down by
+-- elapsed seconds since that tick, for a smooth bar between ticks, and does nothing between channels.
 function view.castBar(root)
   local layer = ui.Layer.new(root)
   layer:SetSize(CAST_WIDTH, CAST_HEIGHT)
@@ -474,22 +477,37 @@ function view.castBar(root)
   local name = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, barX + 5, 1, 180, CAST_HEIGHT - 2)
   local time = text(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, CAST_WIDTH - 78, 1, 72, CAST_HEIGHT - 2)
   set(layer, "hidden", true)
+  local current, shownTenths = nil, nil
+
+  -- Fills the bar to the share of the channel spent and shows remaining seconds to a tenth, rounded up,
+  -- formatting the label only when its tenth changes.
+  local function show(remaining)
+    fill.setFill(1 - remaining / current.duration)
+    local tenths = math.ceil(remaining * 10 - 1e-6)
+    if tenths == shownTenths then return end
+    shownTenths = tenths
+    set(time, "content", string.format("%.1fs", tenths / 10))
+  end
 
   local function update(model)
+    current = model
     set(layer, "hidden", model == nil)
     if model == nil then return end
-    fill.setFill(model.fill)
     set(iconBack, "hidden", model.icon == nil)
     set(icon, "hidden", model.icon == nil)
     if model.icon ~= nil then set(icon, "sprite", model.icon) end
     set(name, "content", model.name or "")
-    local whole = math.tointeger(model.seconds)
-    set(time, "content", (whole and tostring(whole) or string.format("%.1f", model.seconds)) .. "s")
+    show(model.seconds)
+  end
+
+  local function step(elapsed)
+    if current == nil then return end
+    show(math.max(0, current.seconds - math.min(elapsed, TICK_SECONDS)))
   end
 
   return {
-    layer = layer, update = update, setTexture = fill.setTexture, width = CAST_WIDTH, height = CAST_HEIGHT,
-    bounds = { x = 0, y = 0, w = CAST_WIDTH, h = CAST_HEIGHT },
+    layer = layer, update = update, step = step, setTexture = fill.setTexture, width = CAST_WIDTH,
+    height = CAST_HEIGHT, bounds = { x = 0, y = 0, w = CAST_WIDTH, h = CAST_HEIGHT },
   }
 end
 
