@@ -9,6 +9,21 @@ local function fakeStore()
   return { get = function(key) return data[key] end, set = function(key, value) data[key] = value end }
 end
 
+-- A cooldown group at its default display settings showing a full first row of ready tiles, or the given
+-- number. A custom group starts not in use.
+local function group(root, tooltip, name, count)
+  local g = view.cooldownGroup(root, tooltip)
+  local display = settings.GROUPS[1]
+  for _, default in ipairs(settings.GROUPS) do
+    if default.name == name then display = default end
+  end
+  g.configure(display)
+  local tiles = {}
+  for i = 1, count or display.perRow do tiles[i] = { key = "K" .. i, name = "K", initials = "K", ready = true } end
+  g.update(tiles)
+  return g
+end
+
 -- Edit mode over every HUD element with default settings, entered from the options window. Returns the
 -- elements by name, the settings and the options window.
 local function enterEditMode()
@@ -19,10 +34,15 @@ local function enterEditMode()
     player = view.playerFrame(root),
     target = view.targetFrame(root),
     resource = view.resourceBar(root),
-    rotation = view.cooldownGroup(root, view.TILE_STYLES.rotation, tooltip),
-    cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns, tooltip),
+    castbar = view.castBar(root),
+    major = group(root, tooltip, "major"),
+    rotation = group(root, tooltip, "rotation"),
+    utility = group(root, tooltip, "utility"),
+    custom1 = group(root, tooltip, "custom1", 0),
     combatBuffs = view.auraRow(root, view.AURA_STYLES.combatBuffs, tooltip, function() end),
   }
+  elements.custom1.setInUse(false)
+  elements.custom1.update({})
   local saved = settings.load(fakeStore())
   local window = options.create(root, {
     saved = saved, tracker = cooldowns.tracker(), elements = elements, view = view, refresh = function() end,
@@ -45,7 +65,7 @@ end
 -- The overlay hit area over element.
 local function overlayOf(element)
   return fake.find(function(c, d)
-    return fake.hasHook(c, "ONRELEASE") and d.width == element.width and d.height == element.height
+    return fake.hasHook(c, "ONRELEASE") and d.width == element.bounds.w and d.height == element.bounds.h
   end)
 end
 
@@ -140,7 +160,7 @@ describe("edit mode", function()
 
   it("anchors an element to the side and alignment chosen in the pick, flush against it", function()
     local elements, saved = enterEditMode()
-    fake.press("Rotation, left, bottom")
+    fake.press("Major, left, top")
     fake.press("Anchor")
     assert.is_true(shows("Click the element to anchor Player to"))
     fake.hook(overlayOf(elements.rotation), "ONCLICK")
@@ -159,19 +179,30 @@ describe("edit mode", function()
     fake.press("Anchor")
     fake.hook(overlayOf(elements.player), "ONCLICK")
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
-    assert.is_nil(saved.anchors().rotation)
-    assert.is_false(shows("Anchor Rotation to Player"))
-    assert.is_false(shows("Click the element to anchor Rotation to"))
+    assert.is_nil(saved.anchors().resource)
+    assert.is_false(shows("Anchor Resource bar to Player"))
+    assert.is_false(shows("Click the element to anchor Resource bar to"))
     assert.is_true(shows("Edit mode"))
   end)
 
   it("refuses a target anchored to the picking element and says why", function()
     local elements, saved = enterEditMode()
     fake.press("Anchor")
-    fake.hook(overlayOf(elements.cooldowns), "ONCLICK")
-    assert.is_true(shows("Cooldowns is anchored to Rotation"))
-    assert.is_false(shows("Anchor Rotation to Cooldowns"))
-    assert.is_nil(saved.anchors().rotation)
+    fake.hook(overlayOf(elements.major), "ONCLICK")
+    assert.is_true(shows("Major is anchored to Resource bar"))
+    assert.is_false(shows("Anchor Resource bar to Major"))
+    assert.is_nil(saved.anchors().resource)
+  end)
+
+  it("labels a cooldown group by its title and gives a custom group not in use no overlay", function()
+    local elements, saved = enterEditMode()
+    saved.setGroup("utility", "title", "Defensives")
+    fake.press("Done")
+    fake.press("Edit mode off")
+    fake.hook(overlayOf(elements.utility), "ONMOUSEOVER")
+    assert.is_true(fake.shown(fake.find(function(_, d) return d.content == "Defensives" end)))
+    local custom = fake.find(function(_, d) return d.content == "Group 1" end)
+    assert.is_false(custom ~= nil and fake.shown(custom))
   end)
 
   it("shows a small element's tag and Anchor button above it from hovering it until another is hovered", function()
@@ -186,7 +217,7 @@ describe("edit mode", function()
     local tag = fake.find(function(_, d) return d.content == "Combat buffs" end)
     assert.is_not_nil(tag)
     assert.are.equal(tag.parent.y + 18, combat.parent.y)
-    fake.press("Cooldowns, top, center")
+    fake.press("Resource bar, top, center")
     assert.is_nil(saved.anchors().combatBuffs)
 
     fake.hook(overlayOf(elements.player), "ONMOUSEOVER")
@@ -197,24 +228,24 @@ describe("edit mode", function()
   it("removes an anchor when its button is pressed, leaving the element where it is", function()
     local elements, saved = enterEditMode()
     local x, y = elements.player.layer.x, elements.player.layer.y
-    fake.press("Rotation, left, bottom")
+    fake.press("Major, left, top")
     assert.is_nil(saved.anchors().player)
     assert.are.same({ x = x, y = y, anchorX = 0.5, anchorY = 1 }, saved.positions().player)
     assert.are.same({ x, y }, { elements.player.layer.x, elements.player.layer.y })
-    assert.is_false(shows("Rotation, left, bottom"))
+    assert.is_false(shows("Major, left, top"))
   end)
 
   it("drags an element's whole chain and saves only the dragged position", function()
     local elements, saved = enterEditMode()
     local before = {}
     for name, element in pairs(elements) do before[name] = element.layer.x end
-    local tint = grab(elements.rotation)
+    local tint = grab(elements.resource)
     fake.mouse.x = 350
     logicTick()
     for name, element in pairs(elements) do assert.are.equal(before[name] + 50, element.layer.x, name) end
     fake.hook(tint, "ONRELEASE")
 
-    assert.are.equal(settings.DEFAULT_POSITIONS.rotation.x + 50, saved.positions().rotation.x)
+    assert.are.equal(settings.DEFAULT_POSITIONS.resource.x + 50, saved.positions().resource.x)
     assert.are.same(settings.DEFAULT_POSITIONS.player, saved.positions().player)
     assert.are.same(settings.DEFAULT_ANCHORS, saved.anchors())
   end)
@@ -225,7 +256,7 @@ describe("edit mode", function()
     fake.mouse.x, fake.mouse.y = 280, 310
     logicTick()
     fake.hook(tint, "ONRELEASE")
-    assert.are.same({ target = "rotation", side = "left", align = "bottom", gap = 20, offset = 10 },
+    assert.are.same({ target = "major", side = "left", align = "top", gap = 24, offset = 10 },
       saved.anchors().player)
   end)
 
@@ -233,14 +264,14 @@ describe("edit mode", function()
     for _, held in ipairs({ false, true }) do
       fake.reset()
       local elements, saved = enterEditMode()
-      fake.press("Rotation, left, bottom")
+      fake.press("Major, left, top")
       local tint = grab(elements.player)
       shift(held)
-      fake.mouse.y = 296
+      fake.mouse.y = 304
       logicTick()
       fake.hook(tint, "ONRELEASE")
       local bottom = saved.positions().player.y + elements.player.height
-      assert.are.equal(held and -353 or -349, bottom)
+      assert.are.equal(held and -337 or -341, bottom)
     end
   end)
 
@@ -257,7 +288,7 @@ describe("edit mode", function()
 
   it("saves whole-unit positions when the cursor scale is fractional", function()
     local elements, saved = enterEditMode()
-    fake.press("Rotation, left, bottom")
+    fake.press("Major, left, top")
     local tint = overlayOf(elements.player)
     tint.xyGlobal = { x = 149, y = 150 }
     fake.mouse.x, fake.mouse.y = 300, 300
@@ -269,13 +300,13 @@ describe("edit mode", function()
     assert.are.equal("integer", math.type(saved.positions().player.x))
   end)
 
-  it("snaps a dragged group's center onto the window's center line before a nearer grid line", function()
+  it("snaps a dragged bar's center onto the window's center line before a nearer grid line", function()
     local elements = enterEditMode()
-    local tint = overlayOf(elements.rotation)
+    local tint = overlayOf(elements.resource)
     fake.mouse.x, fake.mouse.y = 300, 300
     fake.hook(tint, "ONCLICK")
     fake.mouse.x = 303
     logicTick()
-    assert.are.equal(-219, elements.rotation.layer.x)
+    assert.are.equal(-139, elements.resource.layer.x)
   end)
 end)

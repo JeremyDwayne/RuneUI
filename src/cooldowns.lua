@@ -2,12 +2,22 @@
 -- Pure: main.lua feeds it var changes and server ticks, and src/adapter supplies the just-used ability.
 local cooldowns = {}
 
--- Abilities with a cooldown of at least this many ticks, 30 seconds, default to the cooldowns group.
+-- Abilities with a cooldown of at least this many ticks, 30 seconds, default to the major group.
 local LONG_COOLDOWN_TICKS = 50
 
 -- Cooldown key prefixes that name a combat style. Melee abilities are split by skill, such as
 -- STRENGTH_DESTROY; DEFENCE and CONSTITUTION abilities belong to no style.
 local STYLES = { MAGIC = "magic", NECROMANCY = "necromancy", RANGED = "ranged", ATTACK = "melee", STRENGTH = "melee" }
+
+-- Combat style by COMBATV2_MAINHAND_STYLE, the main-hand weapon's attack type: 1 magic, 5 and 6 melee, 8 to 10
+-- ranged, 37 necromancy. 7, an empty main hand, keeps the current style, since it shows for a tick between two
+-- weapons.
+cooldowns.ATTACK_STYLES = { [1] = "magic", [5] = "melee", [6] = "melee", [8] = "ranged", [9] = "ranged",
+  [10] = "ranged", [37] = "necromancy" }
+local BARE_HANDED = 7
+
+-- Cooldown key prefixes of defensive and utility abilities, which default to the shared utility group.
+local UTILITY_PREFIXES = { DEFENCE = true, CONSTITUTION = true }
 
 -- Just-used struct keys shared by many abilities, which lend their icon but not their name: every weapon
 -- special reports the special attack, whose icon its action bar slot shows.
@@ -46,7 +56,10 @@ function cooldowns.tracker()
   local now = nil
   local startedThisTick = {}
   local justUsedChanged = false
-  local style = nil
+  -- The style of the latest styled cooldown to start, and of the worn main-hand weapon.
+  local abilityStyle, weaponStyle = nil, nil
+  -- The style current when each style-free key, such as a weapon special, last started.
+  local firedStyle = {}
 
   local fired = {}
 
@@ -63,11 +76,15 @@ function cooldowns.tracker()
 
   -- A _START var holds the server tick its ability fired, which also keeps the clock in step. Weapon
   -- specials such as Instability use COMBATV2_ABILITY_WEAPON_COOLDOWN_<NAME> vars and take the key
-  -- WEAPON_<NAME>.
+  -- WEAPON_<NAME>. COMBATV2_MAINHAND_STYLE sets the weapon's style.
   function tracker.onVar(name, old, new)
     if old == new then return end
     if name == "COMBATV2_JUST_USED_ABILITY" then
       justUsedChanged = true
+      return
+    end
+    if name == "COMBATV2_MAINHAND_STYLE" then
+      if new ~= BARE_HANDED then weaponStyle = cooldowns.ATTACK_STYLES[new] end
       return
     end
     local key, edge = name:match("^COMBATV2_COOLDOWN_(.+)_(%u+)$")
@@ -79,7 +96,9 @@ function cooldowns.tracker()
       ability(key).start = new
       now = new
       startedThisTick[#startedThisTick + 1] = key
-      style = cooldowns.styleOf(key) or style
+      local keyStyle = cooldowns.styleOf(key)
+      abilityStyle = keyStyle or abilityStyle
+      if keyStyle == nil then firedStyle[key] = tracker.style() end
     elseif edge == "END" then
       ability(key).finish = new
     end
@@ -113,9 +132,10 @@ function cooldowns.tracker()
     return learned
   end
 
-  -- The combat style of the latest started cooldown that has one, as a STYLES value, or nil before any.
+  -- The worn weapon's combat style as a STYLES value, else that of the latest started cooldown that has one,
+  -- or nil before either.
   function tracker.style()
-    return style
+    return weaponStyle or abilityStyle
   end
 
   -- Restores saved names and icons, { [key] = { name, icon } }, without adding to known().
@@ -131,12 +151,19 @@ function cooldowns.tracker()
     return { table.unpack(order) }
   end
 
-  function tracker.defaultGroups()
-    local groups = { rotation = {}, cooldowns = {} }
+  -- { major, rotation, utility } key lists for style, filled in firing order: defensive and utility
+  -- abilities of any style in utility, then this style's weapon specials and 30 s cooldowns in major and the
+  -- rest in rotation. A style-free key counts as the style that was current when it fired.
+  function tracker.defaultGroups(style)
+    local groups = { major = {}, rotation = {}, utility = {} }
     for _, key in ipairs(order) do
       local a = abilities[key]
-      local long = a.start ~= nil and a.finish ~= nil and a.finish - a.start >= LONG_COOLDOWN_TICKS
-      table.insert(long and groups.cooldowns or groups.rotation, key)
+      if UTILITY_PREFIXES[key:match("^(%u+)_")] then
+        table.insert(groups.utility, key)
+      elseif (cooldowns.styleOf(key) or firedStyle[key]) == style then
+        local long = a.start ~= nil and a.finish ~= nil and a.finish - a.start >= LONG_COOLDOWN_TICKS
+        table.insert((long or key:match("^WEAPON_")) and groups.major or groups.rotation, key)
+      end
     end
     return groups
   end

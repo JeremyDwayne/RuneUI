@@ -130,10 +130,9 @@ function adapter.varChange(e)
   return read(e.var, "configName") or "", e.oldValue, e.newValue
 end
 
--- The struct in COMBATV2_JUST_USED_ABILITY as { key, name, icon }, or nil when it has no name or icon.
--- key is the struct name without "COMBATV2_ABILITY_", matching the cooldown var keys in src/cooldowns.
-function adapter.justUsed()
-  local struct = varValue("VarClient", "COMBATV2_JUST_USED_ABILITY")
+-- An ability struct as { key, name, icon }, or nil when it has no name or icon. key is the struct name
+-- without "COMBATV2_ABILITY_", matching the cooldown var keys in src/cooldowns.
+local function abilityInfo(struct)
   local params = struct and read(struct, "params")
   if params == nil then return nil end
   local info = { key = (tostring(read(struct, "configName")):gsub("^COMBATV2_ABILITY_", "")) }
@@ -145,6 +144,23 @@ function adapter.justUsed()
     end
   end
   if info.name ~= nil or info.icon ~= nil then return info end
+end
+
+-- The struct in COMBATV2_JUST_USED_ABILITY as abilityInfo describes it.
+function adapter.justUsed()
+  return abilityInfo(varValue("VarClient", "COMBATV2_JUST_USED_ABILITY"))
+end
+
+-- The ability struct with id structID, such as COMBATV2_CHANNEL_ABILITY_STRUCT holds, as abilityInfo
+-- describes it.
+function adapter.abilityStruct(structID)
+  local ok, struct = pcall(function() return config.Struct.FromID(structID) end)
+  return ok and abilityInfo(struct) or nil
+end
+
+-- COMBATV2_MAINHAND_STYLE, the worn main-hand weapon's attack type, or nil before login.
+function adapter.mainhandStyle()
+  return varValue("VarPlayer", "COMBATV2_MAINHAND_STYLE")
 end
 
 -- { [iconSpriteID] = { keybind, usable } } for every filled native action bar slot. keybind is nil on a slot

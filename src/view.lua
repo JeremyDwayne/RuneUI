@@ -7,6 +7,7 @@ local view = {}
 local draw = require("src/draw")
 local frames = require("src/frames")
 local layout = require("src/layout")
+local settings = require("src/settings")
 local set, pos, rect, text = draw.set, draw.pos, draw.rect, draw.text
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
@@ -102,10 +103,14 @@ function view.tooltip(root)
   end
 
   -- Entering item i's edge calls show(i) and leaving the hovered edge hides the tooltip. Returns a table
-  -- whose index is the hovered item's, or nil, so an update can redraw the tooltip it shows.
+  -- whose index is the hovered item's, or nil, so an update can redraw the tooltip it shows, and whose
+  -- add(item) wires one more item as the next index.
   function tooltip.hover(items, show)
-    local hover = {}
-    for i, item in ipairs(items) do
+    local hover, count = {}, 0
+
+    function hover.add(item)
+      count = count + 1
+      local i = count
       item.edge:Subscribe(ui.Hook.ONMOUSEOVER, function()
         hover.index = i
         show(i)
@@ -117,6 +122,8 @@ function view.tooltip(root)
         end
       end)
     end
+
+    for _, item in ipairs(items) do hover.add(item) end
     return hover
   end
 
@@ -296,62 +303,86 @@ function view.resourceBar(root)
   }
 end
 
--- Tile sizes: 42px tiles for the rotation and 36px for cooldowns, 2px apart. Each row's
--- combat style accent sits on its outer edge, away from the resource bar between them.
-view.TILE_STYLES = {
-  rotation = { size = 42, gap = 2, secondsFont = FONTS.seconds, accent = "bottom" },
-  cooldowns = { size = 36, gap = 2, secondsFont = FONTS.smallSeconds, accent = "top" },
-}
--- Accent colours by cooldowns tracker style.
-view.STYLE_COLOURS = { necromancy = 0x6f4ad8, magic = 0x2f7fd6, melee = 0xb8352f, ranged = 0x3c9a4a }
--- A 2px accent line inside a 1px black edge, and the space it takes with a 1px gap to the tiles.
-local ACCENT, ACCENT_SPACE = 2, 5
+local TILE_GAP = 2
+-- Tiles at least this big show their seconds in the larger font.
+local LARGE_TILE = 40
 local MAX_TILES = 10
 local COOLING_DIM = 0.62
 -- A tile whose ability can't be cast takes the native action bar's look: a dark icon tint and a faded grey
 -- keybind.
 local UNTINTED, BLOCKED_ICON, BLOCKED_TEXT, BLOCKED_ALPHA = 0xffffff, 0x333333, 0xa5a5a5, 0.6
 
--- Builds one cooldown tile's components as a draw.group, so group.place moves them all.
-local function tile(layer, style)
-  local size = style.size
-  local group = draw.group()
+-- Builds one cooldown tile's components. placeTile positions and sizes them.
+local function tile(layer)
   local parts = {
-    group = group,
-    edge = group.add(rect(layer, COLOURS.border, 0, 0, size, size), 0, 0),
-    background = group.add(rect(layer, COLOURS.tile, 0, 0, size - 2, size - 2), 1, 1),
-    icon = group.add(ui.Sprite.new(layer), 1, 1),
-    initials = group.add(text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, size - 8, 12), 4, size - 15),
-    dim = group.add(rect(layer, COLOURS.border, 0, 0, size - 2, size - 2), 1, 1),
-    keybind = group.add(text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 24, 2),
-    seconds = group.add(text(layer, style.secondsFont, ui.AlignMode.CENTRE, 0, 0, size, size), 0, 0),
+    edge = rect(layer, COLOURS.border, 0, 0, 0, 0),
+    background = rect(layer, COLOURS.tile, 0, 0, 0, 0),
+    icon = ui.Sprite.new(layer),
+    initials = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, 0, 12),
+    dim = rect(layer, COLOURS.border, 0, 0, 0, 0),
+    keybind = text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12),
+    seconds = text(layer, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, 0, 0),
   }
-  parts.icon:SetSize(size - 2, size - 2)
+  parts.all = { parts.edge, parts.background, parts.icon, parts.initials, parts.dim, parts.keybind, parts.seconds }
   set(parts.background, "alpha", TILE_ALPHA)
   set(parts.dim, "alpha", COOLING_DIM)
   return parts
 end
 
--- A centred row of up to 10 ability tiles with an accent line as wide as the shown tiles. update takes
--- src/cooldowns tiles and the accent colour, or nil to hide the line, and returns whether bounds changed.
--- bounds spans the shown tiles; an empty row's edges meet at its center. Ready tiles are bright with their
--- keybind; cooling tiles are dimmed with whole seconds left; tiles whose ability can't be cast are tinted
--- dark. Hovering a tile shows its tooltip.
-function view.cooldownGroup(root, style, tooltip)
-  local step = style.size + style.gap
-  local width = MAX_TILES * step - style.gap
-  local height = style.size + ACCENT_SPACE
-  local layer = ui.Layer.new(root)
-  layer:SetSize(width, height)
-  local top = style.accent == "top" and ACCENT_SPACE or 0
-  local accentY = style.accent == "top" and 0 or style.size + 1
-  local accentEdge = rect(layer, COLOURS.border, 0, accentY, width, ACCENT + 2)
-  local accent = rect(layer, COLOURS.border, 1, accentY + 1, width - 2, ACCENT)
-  local tiles = {}
-  for i = 1, MAX_TILES do tiles[i] = tile(layer, style) end
+-- Moves and sizes a tile's parts for a size pixel tile at x, y.
+local function placeTile(parts, x, y, size)
+  parts.x, parts.y = x, y
+  pos(parts.edge, x, y)
+  draw.size(parts.edge, size, size)
+  for _, inner in ipairs({ parts.background, parts.icon, parts.dim }) do
+    pos(inner, x + 1, y + 1)
+    draw.size(inner, size - 2, size - 2)
+  end
+  pos(parts.initials, x + 4, y + size - 15)
+  draw.size(parts.initials, size - 8, 12)
+  pos(parts.keybind, x + size - 24, y + 2)
+  pos(parts.seconds, x, y)
+  draw.size(parts.seconds, size, size)
+  set(parts.seconds, "font", size >= LARGE_TILE and FONTS.seconds or FONTS.smallSeconds)
+end
 
+-- Shows a src/cooldowns tile model on parts.
+local function showTile(parts, model)
+  set(parts.edge, "hidden", false)
+  set(parts.background, "hidden", false)
+  draw.iconOrInitials(parts.icon, parts.initials, model)
+  set(parts.dim, "hidden", model.ready)
+  set(parts.keybind, "hidden", model.keybind == nil)
+  set(parts.keybind, "content", model.keybind or "")
+  set(parts.seconds, "hidden", model.ready)
+  set(parts.seconds, "content", model.seconds and tostring(model.seconds) or "")
+  local usable = model.usable ~= false
+  set(parts.icon, "rgb", usable and UNTINTED or BLOCKED_ICON)
+  local labelColour = not usable and BLOCKED_TEXT or model.ready and COLOURS.text or COLOURS.dimText
+  local labelAlpha = usable and 1 or BLOCKED_ALPHA
+  set(parts.initials, "rgb", labelColour)
+  set(parts.keybind, "rgb", labelColour)
+  set(parts.initials, "alpha", labelAlpha)
+  set(parts.keybind, "alpha", labelAlpha)
+end
+
+-- A cooldown group of up to settings.MAX_GROUP_KEYS ability tiles laid out by layout.grid. configure takes
+-- { size, perRow, grow }, returns whether it changed, and redraws on the next update. update takes
+-- src/cooldowns tiles and returns whether bounds changed; bounds spans the shown tiles, and an empty group's
+-- sides meet at its axis. setInUse(false)
+-- hides a custom group that is not in use and collapses its bounds. Tiles are built as the group first needs
+-- them, inside its layer, and never destroyed. Ready tiles are bright with their keybind; cooling tiles are
+-- dimmed with whole seconds left; tiles whose ability can't be cast are tinted dark. Hovering a tile shows
+-- its tooltip.
+function view.cooldownGroup(root, tooltip)
+  local max = settings.MAX_GROUP_KEYS
+  local layer = ui.Layer.new(root)
+  local tiles = {}
+  local display = nil
+  local inUse = true
   local current = {}
-  local bounds = { x = 0, y = 0, w = width, h = height }
+  local bounds = { x = 0, y = 0, w = 0, h = 0 }
+  local group = { layer = layer, bounds = bounds, inUse = true }
 
   local function showTooltip(i)
     local model = current[i]
@@ -359,65 +390,96 @@ function view.cooldownGroup(root, style, tooltip)
       tooltip.hide()
       return
     end
-    local x, y = screenPos(layer, tiles[i].group.x, top)
+    local x, y = screenPos(layer, tiles[i].x, tiles[i].y)
     tooltip.show({
       title = model.name,
       left = model.cooldown and ("Cooldown " .. model.cooldown .. "s") or nil,
       right = model.keybind and ("Key " .. model.keybind) or nil,
       line = model.ready and "Ready" or ("Ready in " .. model.seconds .. "s"),
-    }, x, y, style.size)
+    }, x, y, display.size)
   end
 
-  local hover = tooltip.hover(tiles, showTooltip)
+  local hover = tooltip.hover({}, showTooltip)
 
-  local function update(models, accentRgb)
-    current = models
-    local count = math.min(#models, MAX_TILES)
-    local offset = math.floor((width - (count * step - style.gap)) / 2)
-    local left, shownWidth = offset, count * step - style.gap
-    if count == 0 then left, shownWidth = width // 2, 0 end
-    local moved = bounds.x ~= left or bounds.w ~= shownWidth
-    bounds.x, bounds.w = left, shownWidth
-    local accentShown = accentRgb ~= nil and count > 0
-    set(accentEdge, "hidden", not accentShown)
-    set(accent, "hidden", not accentShown)
-    if accentShown then
-      local rowWidth = count * step - style.gap
-      set(accent, "rgb", accentRgb)
-      pos(accentEdge, offset, accentY)
-      draw.width(accentEdge, rowWidth)
-      pos(accent, offset + 1, accentY + 1)
-      draw.width(accent, rowWidth - 2)
+  function group.configure(d)
+    if display ~= nil and display.size == d.size and display.perRow == d.perRow and display.grow == d.grow then
+      return false
     end
+    display = { size = d.size, perRow = d.perRow, grow = d.grow }
+    local extent = layout.grid(max, display.size, TILE_GAP, display.perRow, display.grow, max)
+    draw.size(layer, extent.w, extent.h)
+    return true
+  end
+
+  function group.setInUse(on)
+    inUse = on
+    group.inUse = on
+    set(layer, "hidden", not on)
+  end
+
+  function group.update(models)
+    current = models
+    local count = inUse and math.min(#models, max) or 0
+    while #tiles < count do
+      tiles[#tiles + 1] = tile(layer)
+      hover.add(tiles[#tiles])
+    end
+    local g = layout.grid(count, display.size, TILE_GAP, display.perRow, display.grow, max)
+    local shown = g.bounds
+    if not inUse then shown = { x = shown.x, y = shown.y, w = 0, h = 0 } end
+    local moved = bounds.x ~= shown.x or bounds.y ~= shown.y or bounds.w ~= shown.w or bounds.h ~= shown.h
+    bounds.x, bounds.y, bounds.w, bounds.h = shown.x, shown.y, shown.w, shown.h
     for i, parts in ipairs(tiles) do
-      local model = models[i]
-      if model == nil then
-        parts.group.set("hidden", true)
+      if i > count then
+        draw.hideAll(parts.all, true)
       else
-        parts.group.place(offset + (i - 1) * step, top)
-        set(parts.edge, "hidden", false)
-        set(parts.background, "hidden", false)
-        draw.iconOrInitials(parts.icon, parts.initials, model)
-        set(parts.dim, "hidden", model.ready)
-        set(parts.keybind, "hidden", model.keybind == nil)
-        set(parts.keybind, "content", model.keybind or "")
-        set(parts.seconds, "hidden", model.ready)
-        set(parts.seconds, "content", model.seconds and tostring(model.seconds) or "")
-        local usable = model.usable ~= false
-        set(parts.icon, "rgb", usable and UNTINTED or BLOCKED_ICON)
-        local labelColour = not usable and BLOCKED_TEXT or model.ready and COLOURS.text or COLOURS.dimText
-        local labelAlpha = usable and 1 or BLOCKED_ALPHA
-        set(parts.initials, "rgb", labelColour)
-        set(parts.keybind, "rgb", labelColour)
-        set(parts.initials, "alpha", labelAlpha)
-        set(parts.keybind, "alpha", labelAlpha)
+        placeTile(parts, g.tiles[i].x, g.tiles[i].y, display.size)
+        showTile(parts, models[i])
       end
     end
     if hover.index ~= nil then showTooltip(hover.index) end
     return moved
   end
 
-  return { layer = layer, update = update, width = width, height = height, bounds = bounds }
+  return group
+end
+
+local CAST_WIDTH, CAST_HEIGHT, CAST_ICON = 278, 22, 20
+
+-- 278x22, as wide as the resource bar: the channelled ability's icon, its name, and its time left as "1.2s"
+-- over a fill of the time spent. update takes a src/channel model, or nil to hide the bar while keeping its
+-- bounds, so anchored elements stay put.
+function view.castBar(root)
+  local layer = ui.Layer.new(root)
+  layer:SetSize(CAST_WIDTH, CAST_HEIGHT)
+  rect(layer, COLOURS.border, 0, 0, CAST_WIDTH, CAST_HEIGHT)
+  rect(layer, COLOURS.track, 1, 1, CAST_WIDTH - 2, CAST_HEIGHT - 2)
+  local barX = CAST_ICON + 2
+  local fill = draw.bar(layer, COLOURS.cast, COLOURS.track, barX, 1, CAST_WIDTH - barX - 1, CAST_HEIGHT - 2)
+  local iconBack = rect(layer, COLOURS.tile, 1, 1, CAST_ICON, CAST_ICON)
+  local icon = ui.Sprite.new(layer)
+  icon:SetPos(1, 1)
+  icon:SetSize(CAST_ICON, CAST_ICON)
+  local name = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, barX + 5, 1, 180, CAST_HEIGHT - 2)
+  local time = text(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, CAST_WIDTH - 78, 1, 72, CAST_HEIGHT - 2)
+  set(layer, "hidden", true)
+
+  local function update(model)
+    set(layer, "hidden", model == nil)
+    if model == nil then return end
+    fill.setFill(model.fill)
+    set(iconBack, "hidden", model.icon == nil)
+    set(icon, "hidden", model.icon == nil)
+    if model.icon ~= nil then set(icon, "sprite", model.icon) end
+    set(name, "content", model.name or "")
+    local whole = math.tointeger(model.seconds)
+    set(time, "content", (whole and tostring(whole) or string.format("%.1f", model.seconds)) .. "s")
+  end
+
+  return {
+    layer = layer, update = update, setTexture = fill.setTexture, width = CAST_WIDTH, height = CAST_HEIGHT,
+    bounds = { x = 0, y = 0, w = CAST_WIDTH, h = CAST_HEIGHT },
+  }
 end
 
 -- Aura rows by HUD element: tile size, which end the icons gather at, and whether they are debuffs, which get

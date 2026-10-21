@@ -1,6 +1,7 @@
--- The options window and its ribbon button: a sidebar of pages, a cooldown editor that mirrors both rows
--- with a "+" picker, drag to swap or insert and a Remove menu, marker steppers, appearance choices, the
--- reset dialog, and a footer toggle into src/editmode.
+-- The options window and its ribbon button: a sidebar of pages, a cooldown manager with combat style tabs, a
+-- group list with New group, and the chosen group's display settings and abilities with a "+" picker, drag to
+-- swap or insert and a Remove menu; marker steppers, appearance choices, the reset dialog, and a footer toggle
+-- into src/editmode.
 local draw = require("src/draw")
 local editmode = require("src/editmode")
 local editor = require("src/editor")
@@ -17,10 +18,24 @@ local WIDTH, HEIGHT = 900, 620
 local SIDEBAR, HEADER, FOOTER = 200, 64, 56
 local PAGE_X, PAGE_Y = SIDEBAR + 1, HEADER + 1
 local PAGE_W = WIDTH - PAGE_X - 1
+local PAGE_H = HEIGHT - PAGE_Y - FOOTER - 1
 -- Pixels the cursor must travel after a press before it counts as a drag.
 local DRAG_START = 3
-local MAX_TILES = 10
 local GAP = 2
+-- Cooldown manager layout: style tabs across the top, the group list on the left, and the chosen group's
+-- setting rows then its ability tiles, in rows of GRID_PER_ROW, on the right.
+local STYLE_TABS = {
+  { label = "Necromancy", style = "necromancy", width = 110 }, { label = "Magic", style = "magic", width = 80 },
+  { label = "Ranged", style = "ranged", width = 84 }, { label = "Melee", style = "melee", width = 76 },
+}
+local TABS_H, LIST_W, LIST_Y, LIST_ROW = 44, 170, 56, 44
+local DETAIL_X = LIST_W + 24
+local DETAIL_W = PAGE_W - DETAIL_X - 24
+local SETTING_H, SETTING_ROWS = 46, 5
+local TILE = 36
+local STEP = TILE + GAP
+local GRID_Y = LIST_Y + SETTING_ROWS * SETTING_H + 16
+local GRID_PER_ROW = (DETAIL_W + GAP) // STEP
 local PICKER_WIDTH, PICKER_ROW, PICKER_SEARCH, PICKER_TABS = 340, 26, 36, 34
 local PICKER_HEAD = PICKER_SEARCH + PICKER_TABS
 -- Picker tabs left to right; style nil lists every style.
@@ -30,6 +45,12 @@ local PICKER_TAB_LIST = {
   { label = "Melee", style = "melee", width = 58 },
 }
 local MARKER_STEP = 5
+
+local function indexOf(list, value)
+  for i, v in ipairs(list) do
+    if v == value then return i end
+  end
+end
 
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
 -- view = src/view, refresh = function redrawing the HUD }. Returns { placeAll, shutdown }; placeAll places
@@ -51,12 +72,6 @@ function options.create(root, deps)
   local brand = text(window, FONTS.seconds, ui.AlignMode.TOPLEFT, 18, 1, SIDEBAR - 20, HEADER)
   set(brand, "content", "RuneUI")
   local title = text(window, FONTS.seconds, ui.AlignMode.TOPLEFT, PAGE_X + 24, 1, PAGE_W - 48, HEADER)
-
-  -- Groups become the user's own on the first edit, so later automatic filling stops.
-  local function groups()
-    saved.adopt(saved.groups() or tracker.defaultGroups())
-    return saved.groups()
-  end
 
   local closePopups, rebuildEditor, drop, fillPicker, openPicker
 
@@ -104,47 +119,186 @@ function options.create(root, deps)
     pages[entry.id] = page
   end
 
-  -- Cooldown editor ----------------------------------------------------------------------------------
+  -- Cooldown manager ---------------------------------------------------------------------------------
 
   local page = pages.cooldowns
-  local box = { x = 24, y = 18, w = PAGE_W - 48 }
-  local ROWS = {
-    { name = "cooldowns", label = "Cooldowns", size = deps.view.TILE_STYLES.cooldowns.size },
-    { name = "rotation", label = "Rotation", size = deps.view.TILE_STYLES.rotation.size },
-  }
-  local y = box.y + 14
-  for _, row in ipairs(ROWS) do
-    row.labelY = y
-    row.x = box.x + 14
-    row.y = y + 22
-    y = row.y + row.size + 18
+  -- The style whose lists the page edits, the group shown in the detail pane, and whether its Delete button
+  -- has been clicked once.
+  local editStyle, selected, confirmDelete = "magic", "major", false
+
+  -- The keys name's group shows with style, filled automatically until the first edit.
+  local function keysOf(name, style)
+    return saved.keys(name, style) or tracker.defaultGroups(style)[name] or {}
   end
-  rect(page, COLOURS.border, box.x, box.y, box.w, y - box.y)
-  rect(page, COLOURS.sidebar, box.x + 1, box.y + 1, box.w - 2, y - box.y - 2)
-  for _, row in ipairs(ROWS) do
-    local label = text(page, FONTS.body, ui.AlignMode.TOPLEFT, row.x, row.labelY, 200, 18)
-    set(label, "content", row.label)
+
+  -- Groups become the user's own on the first edit, so later automatic filling stops.
+  local function adopt()
+    saved.adopt(tracker.defaultGroups)
   end
-  local hint = text(page, FONTS.small, ui.AlignMode.TOPLEFT, box.x, y + 10, box.w, 14)
-  set(hint, "content", "Drag to reorder or move between rows. Click + to add. Click an icon to remove it.")
-  set(hint, "rgb", COLOURS.mutedText)
+
+  -- Style tabs: the chosen one underlined, the equipped one marked Equipped.
+  local styleTabs = {}
+  local styleX = 16
+  for _, tab in ipairs(STYLE_TABS) do
+    local t = {
+      style = tab.style,
+      hit = hitArea(rect(page, COLOURS.panel, styleX, 0, tab.width, TABS_H)),
+      label = text(page, FONTS.body, ui.AlignMode.CENTRE, styleX, 2, tab.width, 26),
+      equipped = text(page, FONTS.small, ui.AlignMode.CENTRE, styleX, 26, tab.width, 14),
+      underline = rect(page, COLOURS.accent, styleX, TABS_H - 2, tab.width, 2),
+    }
+    set(t.label, "content", tab.label)
+    set(t.equipped, "content", "Equipped")
+    set(t.equipped, "rgb", COLOURS.accent)
+    on(t.hit, "ONCLICK", function()
+      editStyle = t.style
+      closePopups()
+      rebuildEditor()
+    end)
+    styleTabs[#styleTabs + 1] = t
+    styleX = styleX + tab.width + 4
+  end
+  rect(page, COLOURS.line, 0, TABS_H, PAGE_W, 1)
+
+  -- Group list: one row per group in use, the chosen one lit with an accent bar, then New group.
+  rect(page, COLOURS.line, LIST_W, TABS_H + 1, 1, PAGE_H - TABS_H - 1)
+  local listRows = {}
+  for i = 1, #settings.GROUPS + #settings.CUSTOM_GROUPS do
+    local y = LIST_Y + (i - 1) * LIST_ROW
+    local r = {
+      hit = hitArea(rect(page, COLOURS.panel, 0, y, LIST_W, LIST_ROW)),
+      bar = rect(page, COLOURS.accent, 0, y, 3, LIST_ROW),
+      title = text(page, FONTS.body, ui.AlignMode.TOPLEFT, 16, y + 4, LIST_W - 60, 22),
+      shared = text(page, FONTS.small, ui.AlignMode.TOPLEFT, 16, y + 25, LIST_W - 60, 14),
+      count = text(page, FONTS.small, ui.AlignMode.BOTTOMRIGHT, LIST_W - 50, y, 38, LIST_ROW),
+    }
+    set(r.shared, "content", "Every style")
+    set(r.shared, "rgb", COLOURS.dimText)
+    set(r.count, "rgb", COLOURS.dimText)
+    on(r.hit, "ONCLICK", function()
+      if r.name == nil then return end
+      selected, confirmDelete = r.name, false
+      closePopups()
+      rebuildEditor()
+    end)
+    listRows[i] = r
+  end
+  local newGroup = button(page, "New group", 16, 0, LIST_W - 32, 32, false, function()
+    local name = saved.addGroup()
+    if name == nil then return end
+    selected, confirmDelete = name, false
+    closePopups()
+    changed()
+  end)
+
+  -- Detail pane: Name, Icon size, Icons per row, Grow and Abilities rows over the group's ability tiles.
+  local function rowY(i) return LIST_Y + (i - 1) * SETTING_H end
+  local detailRight = DETAIL_X + DETAIL_W - 16
+  for i = 1, SETTING_ROWS do
+    rect(page, i % 2 == 1 and COLOURS.sidebar or COLOURS.panel, DETAIL_X, rowY(i), DETAIL_W, SETTING_H)
+  end
+  local function settingLabel(i, content)
+    local label = text(page, FONTS.body, ui.AlignMode.TOPLEFT, DETAIL_X + 16, rowY(i), 150, SETTING_H)
+    set(label, "content", content)
+    return label
+  end
+
+  settingLabel(1, "Name")
+  local titleText = text(page, FONTS.body, ui.AlignMode.BOTTOMRIGHT, DETAIL_X + 120, rowY(1),
+    detailRight - DETAIL_X - 120, SETTING_H)
+  local nameField = ui.InputField.new(page)
+  nameField:SetPos(DETAIL_X + 120, rowY(1) + 11)
+  nameField:SetSize(detailRight - 126 - DETAIL_X - 120, 24)
+  nameField:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, 20)
+  if id.StyleSheet.INPUT_SEARCHBOX_24PX ~= nil then
+    set(nameField, "stylesheetID", id.StyleSheet.INPUT_SEARCHBOX_24PX)
+  end
+  -- The group whose title the field shows; a change arriving after another group was chosen is ignored.
+  local nameFor = nil
+  on(nameField, "ONCONTENTCHANGED", function(_, _, contents)
+    if nameFor == nil or nameFor ~= selected or saved.group(nameFor) == nil then return end
+    local before = saved.group(nameFor).title
+    saved.setGroup(nameFor, "title", contents or "")
+    if saved.group(nameFor).title ~= before then changed() end
+  end)
+  local deleteButton
+  deleteButton = button(page, "Delete", detailRight - 120, rowY(1) + 9, 120, 28, false, function()
+    if saved.group(selected) == nil then return end
+    if not confirmDelete then
+      confirmDelete = true
+      set(deleteButton.label, "content", "Click to delete")
+      return
+    end
+    saved.deleteGroup(selected)
+    selected, confirmDelete = "major", false
+    changed()
+  end)
+
+  -- A row's - value + stepper changing field by delta; returns a function showing a group's value.
+  local function stepper(i, field, delta, suffix)
+    local value = text(page, FONTS.body, ui.AlignMode.CENTRE, detailRight - 92, rowY(i), 56, SETTING_H)
+    local function step(d)
+      local group = saved.group(selected)
+      if group == nil then return end
+      saved.setGroup(selected, field, group[field] + d)
+      changed()
+    end
+    button(page, "-", detailRight - 124, rowY(i) + 9, 28, 28, false, function() step(-delta) end)
+    button(page, "+", detailRight - 28, rowY(i) + 9, 28, 28, false, function() step(delta) end)
+    return function(group) set(value, "content", group[field] .. suffix) end
+  end
+  settingLabel(2, "Icon size")
+  local showSize = stepper(2, "size", 2, " px")
+  local perRowLabel = settingLabel(3, "Icons per row")
+  local showPerRow = stepper(3, "perRow", 1, "")
+
+  -- Rows of right-aligned option buttons that save one display setting; the chosen one takes the accent.
+  local settingChoices = {}
+  local function settingChoice(i, field, choices, width)
+    local row = { field = field, buttons = {} }
+    for k, option in ipairs(choices) do
+      local x = detailRight - (#choices - k + 1) * (width + 4) + 4
+      local b = {
+        value = option.value,
+        bg = hitArea(rect(page, COLOURS.button, x, rowY(i) + 9, width, 28)),
+        label = text(page, FONTS.body, ui.AlignMode.CENTRE, x, rowY(i) + 9, width, 28),
+      }
+      set(b.label, "content", option.label)
+      on(b.bg, "ONCLICK", function()
+        if saved.group(selected) == nil then return end
+        saved.setGroup(selected, field, option.value)
+        changed()
+      end)
+      row.buttons[#row.buttons + 1] = b
+    end
+    settingChoices[#settingChoices + 1] = row
+  end
+  settingLabel(4, "Grow")
+  settingChoice(4, "grow", { { value = "up", label = "Up" }, { value = "down", label = "Down" },
+    { value = "left", label = "Left" }, { value = "right", label = "Right" } }, 64)
+  settingLabel(5, "Abilities")
+  settingChoice(5, "shared", { { value = false, label = "Per style" }, { value = true, label = "Every style" } }, 110)
 
   -- The window's top-left in game-window pixels, measured from the last press, for following the cursor.
   local origin = { x = 0, y = 0 }
   local drag = nil
 
+  -- Page position of grid slot i.
+  local function slotPos(i)
+    return DETAIL_X + (i - 1) % GRID_PER_ROW * STEP, GRID_Y + (i - 1) // GRID_PER_ROW * STEP
+  end
+
   -- An editor tile as a draw.group. Its edge is the hit area.
-  local function tile(row)
-    local size = row.size
+  local function tile()
     local group = draw.group()
     local t = {
-      row = row, group = group,
-      edge = group.add(hitArea(rect(page, COLOURS.border, 0, 0, size, size)), 0, 0),
-      bg = group.add(rect(page, COLOURS.editorTile, 0, 0, size - 2, size - 2), 1, 1),
+      group = group,
+      edge = group.add(hitArea(rect(page, COLOURS.border, 0, 0, TILE, TILE)), 0, 0),
+      bg = group.add(rect(page, COLOURS.editorTile, 0, 0, TILE - 2, TILE - 2), 1, 1),
       icon = group.add(ui.Sprite.new(page), 1, 1),
-      initials = group.add(text(page, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, size - 6, 12), 4, size - 15),
+      initials = group.add(text(page, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, TILE - 6, 12), 4, TILE - 15),
     }
-    t.icon:SetSize(size - 2, size - 2)
+    t.icon:SetSize(TILE - 2, TILE - 2)
     on(t.edge, "ONCLICK", function(_, x, py)
       if t.key == nil then return end
       closePopups()
@@ -159,50 +313,104 @@ function options.create(root, deps)
     return t
   end
 
-  -- The "+" tile as a draw.group.
-  local function plusTile(row)
-    local size = row.size
-    local plus = draw.group()
-    local edge = plus.add(hitArea(rect(page, COLOURS.mutedText, 0, 0, size, size)), 0, 0)
-    plus.add(rect(page, COLOURS.sidebar, 0, 0, size - 2, size - 2), 1, 1)
-    local glyph = plus.add(text(page, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, size, size), 0, 0)
-    set(glyph, "content", "+")
-    set(glyph, "rgb", COLOURS.accent)
-    on(edge, "ONCLICK", function() openPicker(row, plus) end)
-    return plus
-  end
+  local editorTiles = {}
+  for i = 1, settings.MAX_GROUP_KEYS do editorTiles[i] = tile() end
+  local count = 0
 
-  for _, row in ipairs(ROWS) do
-    row.tiles = {}
-    for i = 1, MAX_TILES do row.tiles[i] = tile(row) end
-    row.plus = plusTile(row)
-  end
+  -- The "+" tile as a draw.group.
+  local plus = draw.group()
+  local plusEdge = plus.add(hitArea(rect(page, COLOURS.mutedText, 0, 0, TILE, TILE)), 0, 0)
+  plus.add(rect(page, COLOURS.sidebar, 0, 0, TILE - 2, TILE - 2), 1, 1)
+  local glyph = plus.add(text(page, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, TILE, TILE), 0, 0)
+  set(glyph, "content", "+")
+  set(glyph, "rgb", COLOURS.accent)
+  on(plusEdge, "ONCLICK", function() openPicker() end)
+
+  local hint = text(page, FONTS.small, ui.AlignMode.TOPLEFT, DETAIL_X, 0, DETAIL_W, 14)
+  set(hint, "content", "Drag to reorder. Click + to add or move an ability here. Click an icon to remove it.")
+  set(hint, "rgb", COLOURS.mutedText)
 
   local function knownTiles(keys)
     return tracker.tiles(keys, {})
   end
 
-  function rebuildEditor()
-    local current = saved.groups() or tracker.defaultGroups()
-    for _, row in ipairs(ROWS) do
-      local keys = current[row.name]
-      local models = knownTiles(keys)
-      for i, t in ipairs(row.tiles) do
-        local model = models[i]
-        t.key = model and model.key
-        if model == nil then
-          t.group.set("hidden", true)
-        else
-          t.group.place(row.x + (i - 1) * (row.size + GAP), row.y)
-          hideAll({ t.edge, t.bg }, false)
-          draw.iconOrInitials(t.icon, t.initials, model)
-        end
+  -- Sets each choice row's colours from group: the chosen option lit, the rest plain.
+  local function showSettingChoices(group)
+    for _, row in ipairs(settingChoices) do
+      for _, b in ipairs(row.buttons) do
+        local chosen = b.value == group[row.field]
+        set(b.bg, "rgb", chosen and COLOURS.accent or COLOURS.button)
+        set(b.label, "rgb", chosen and COLOURS.accentText or COLOURS.text)
+        set(b.label, "isShadowed", not chosen)
       end
-      local count = math.min(#models, MAX_TILES)
-      row.plus.place(row.x + count * (row.size + GAP), row.y)
-      row.plus.set("hidden", count >= MAX_TILES)
-      row.count = count
     end
+  end
+
+  function rebuildEditor()
+    if saved.group(selected) == nil then selected = "major" end
+    local equipped = tracker.style()
+    for _, t in ipairs(styleTabs) do
+      set(t.label, "rgb", t.style == editStyle and COLOURS.text or COLOURS.mutedText)
+      set(t.underline, "hidden", t.style ~= editStyle)
+      set(t.equipped, "hidden", t.style ~= equipped)
+    end
+
+    local names = saved.groupNames()
+    for i, r in ipairs(listRows) do
+      local name = names[i]
+      r.name = name
+      hideAll({ r.hit, r.title, r.count }, name == nil)
+      local group = name and saved.group(name)
+      set(r.shared, "hidden", group == nil or not group.shared)
+      set(r.bar, "hidden", name ~= selected)
+      if group ~= nil then
+        set(r.hit, "rgb", name == selected and COLOURS.line or COLOURS.panel)
+        set(r.title, "content", group.title)
+        set(r.title, "rgb", name == selected and COLOURS.text or COLOURS.mutedText)
+        set(r.count, "content", tostring(#keysOf(name, editStyle)))
+      end
+    end
+    local full = #names >= #listRows
+    hideAll({ newGroup.bg, newGroup.label }, full)
+    local newY = LIST_Y + #names * LIST_ROW + 12
+    draw.pos(newGroup.bg, 16, newY)
+    draw.pos(newGroup.label, 16, newY)
+
+    local group = saved.group(selected)
+    local custom = indexOf(settings.CUSTOM_GROUPS, selected) ~= nil
+    set(titleText, "hidden", custom)
+    set(titleText, "content", group.title)
+    set(nameField, "hidden", not custom)
+    if custom and nameFor ~= selected then
+      nameFor = selected
+      nameField.content = group.title
+    end
+    if not custom then nameFor = nil end
+    hideAll({ deleteButton.bg, deleteButton.label }, not custom)
+    set(deleteButton.label, "content", confirmDelete and "Click to delete" or "Delete")
+    showSize(group)
+    showPerRow(group)
+    local columns = group.grow == "left" or group.grow == "right"
+    set(perRowLabel, "content", columns and "Icons per column" or "Icons per row")
+    showSettingChoices(group)
+
+    local models = knownTiles(keysOf(selected, editStyle))
+    count = math.min(#models, settings.MAX_GROUP_KEYS)
+    for i, t in ipairs(editorTiles) do
+      local model = models[i]
+      t.key = model and model.key
+      if model == nil then
+        t.group.set("hidden", true)
+      else
+        t.group.place(slotPos(i))
+        hideAll({ t.edge, t.bg }, false)
+        draw.iconOrInitials(t.icon, t.initials, model)
+      end
+    end
+    plus.place(slotPos(count + 1))
+    plus.set("hidden", count >= settings.MAX_GROUP_KEYS)
+    local rows = math.max(1, (count + (count < settings.MAX_GROUP_KEYS and 1 or 0) + GRID_PER_ROW - 1) // GRID_PER_ROW)
+    draw.pos(hint, DETAIL_X, GRID_Y + rows * STEP + 8)
   end
 
   -- Drag feedback: a half-size ghost, a faded source tile, and either a swap outline or an insertion line.
@@ -218,32 +426,31 @@ function options.create(root, deps)
   end
   hideDragFeedback()
 
-  -- The row and drop target under the window position (wx, wy), or nil.
+  -- The drop target under the window position (wx, wy), or nil off the tile grid.
   local function targetAt(wx, wy)
-    for _, row in ipairs(ROWS) do
-      local top = PAGE_Y + row.y
-      if wy >= top - 10 and wy <= top + row.size + 10 then
-        local geometry = { count = row.count, step = row.size + GAP, size = row.size, offset = 0 }
-        return row, editor.dropTarget(geometry, wx - PAGE_X - row.x)
-      end
-    end
+    local gx, gy = wx - PAGE_X - DETAIL_X, wy - PAGE_Y - GRID_Y
+    local rows = math.max(1, (count + GRID_PER_ROW - 1) // GRID_PER_ROW)
+    if gx < -10 or gx > DETAIL_W or gy < -10 or gy > rows * STEP + 10 then return nil end
+    return editor.gridDropTarget({ count = count, step = STEP, size = TILE, perRow = GRID_PER_ROW }, gx, gy)
   end
 
-  local function showDragFeedback(t, wx, wy)
-    local half = math.floor(t.row.size / 2)
+  local function showDragFeedback(wx, wy)
+    local half = TILE // 2
     draw.size(ghost, half, half)
     draw.pos(ghost, wx - PAGE_X + 8, wy - PAGE_Y + 8)
     draw.pos(ghostInitials, wx - PAGE_X + 8, wy - PAGE_Y + 8)
-    local row, target = targetAt(wx, wy)
-    drag.row, drag.target = row, target
+    local target = targetAt(wx, wy)
+    drag.target = target
     local swap = target ~= nil and target.kind == "swap"
     hideAll(swapBox, not swap)
     set(insertLine, "hidden", target == nil or swap)
+    if target == nil then return end
+    local x, y = slotPos(target.index)
     if swap then
-      placeOutline(swapBox, row.x + (target.index - 1) * (row.size + GAP), row.y, row.size, row.size)
-    elseif target ~= nil then
-      draw.pos(insertLine, row.x + (target.index - 1) * (row.size + GAP) - GAP, row.y - 4)
-      draw.size(insertLine, 2, row.size + 8)
+      placeOutline(swapBox, x, y, TILE, TILE)
+    else
+      draw.pos(insertLine, x - GAP, y - 4)
+      draw.size(insertLine, 2, TILE + 8)
     end
   end
 
@@ -260,8 +467,8 @@ function options.create(root, deps)
   local menuKey = nil
   button(menu, "Remove", 1, 1, 138, 28, false, function()
     if menuKey ~= nil then
-      groups()
-      saved.remove(menuKey)
+      adopt()
+      saved.remove(menuKey, editStyle)
       closePopups()
       changed()
     end
@@ -269,7 +476,7 @@ function options.create(root, deps)
 
   local function openMenu(t)
     menuKey = t.key
-    menu:SetPos(t.group.x, t.group.y + t.row.size + 4)
+    menu:SetPos(t.group.x, math.min(t.group.y + TILE + 4, PAGE_H - 30))
     set(menu, "hidden", false)
   end
 
@@ -291,22 +498,23 @@ function options.create(root, deps)
       return
     end
     if d.target == nil then return end
-    local current = groups()
-    local action = editor.dropAction(current, d.tile.key, d.row.name, d.target)
+    adopt()
+    local action = editor.dropAction(keysOf(selected, editStyle), d.tile.key, d.target)
     if action == nil then return end
     if action.op == "swap" then
-      saved.swap(d.tile.key, action.other)
+      saved.swap(d.tile.key, action.other, selected, editStyle)
     else
-      saved.move(d.tile.key, action.group, action.index)
+      saved.move(d.tile.key, selected, editStyle, action.index)
     end
     changed()
   end
 
-  -- Picker: known abilities under a row's "+" tile, in sections, one combat style tab at a time, narrowed by
-  -- a search box. It opens on the current style and stays open for several adds. A search covers every style.
+  -- Picker: known abilities under the "+" tile, in sections, one combat style tab at a time, narrowed by a
+  -- search box. It opens on the style being edited and stays open for several adds. A search covers every
+  -- style.
   local picker = ui.Layer.new(page)
   local pickerRows, pickerTabs = {}, {}
-  local pickerFor, pickerStyle, query = nil, nil, ""
+  local pickerOpen, pickerStyle, query = false, nil, ""
   local MAX_PICKER_ROWS = 14
   picker:SetSize(PICKER_WIDTH, PICKER_HEAD + MAX_PICKER_ROWS * PICKER_ROW + 2)
   local pickerEdge = hitArea(rect(picker, COLOURS.border, 0, 0, PICKER_WIDTH, 0))
@@ -321,17 +529,17 @@ function options.create(root, deps)
   -- The field also reports its contents on Enter, Esc and focus loss, which can come after the picker closed.
   on(search, "ONCONTENTCHANGED", function(_, _, contents)
     query = (contents or ""):lower()
-    if pickerFor == nil then return end
+    if not pickerOpen then return end
     if query ~= "" then pickerStyle = nil end
     fillPicker()
   end)
-  local tabX = 10
+  local pickerTabX = 10
   for _, tab in ipairs(PICKER_TAB_LIST) do
-    local hit = hitArea(rect(picker, COLOURS.popup, tabX, PICKER_SEARCH, tab.width, PICKER_TABS))
+    local hit = hitArea(rect(picker, COLOURS.popup, pickerTabX, PICKER_SEARCH, tab.width, PICKER_TABS))
     local t = {
       style = tab.style,
-      label = text(picker, FONTS.body, ui.AlignMode.CENTRE, tabX, PICKER_SEARCH, tab.width, PICKER_TABS - 2),
-      underline = rect(picker, COLOURS.accent, tabX, PICKER_HEAD - 2, tab.width, 2),
+      label = text(picker, FONTS.body, ui.AlignMode.CENTRE, pickerTabX, PICKER_SEARCH, tab.width, PICKER_TABS - 2),
+      underline = rect(picker, COLOURS.accent, pickerTabX, PICKER_HEAD - 2, tab.width, 2),
     }
     set(t.label, "content", tab.label)
     on(hit, "ONCLICK", function()
@@ -339,7 +547,7 @@ function options.create(root, deps)
       fillPicker()
     end)
     pickerTabs[#pickerTabs + 1] = t
-    tabX = tabX + tab.width
+    pickerTabX = pickerTabX + tab.width
   end
   for i = 1, MAX_PICKER_ROWS do
     local ry = PICKER_HEAD + 1 + (i - 1) * PICKER_ROW
@@ -356,9 +564,9 @@ function options.create(root, deps)
     on(r.bg, "ONMOUSEOVER", function() set(r.hover, "hidden", r.key == nil) end)
     on(r.bg, "ONMOUSELEAVE", function() set(r.hover, "hidden", true) end)
     on(r.bg, "ONCLICK", function()
-      if r.key == nil or pickerFor == nil then return end
-      groups()
-      saved.add(pickerFor.name, r.key)
+      if r.key == nil or not pickerOpen then return end
+      adopt()
+      saved.add(selected, editStyle, r.key)
       changed()
       fillPicker()
     end)
@@ -393,8 +601,11 @@ function options.create(root, deps)
       keys = matching
     end
     local entries = {}
-    local groupsNow = saved.groups() or tracker.defaultGroups()
-    for _, section in ipairs(editor.pickerSections(pickerFor.name, groupsNow, keys, pickerStyle)) do
+    local groupLists = {}
+    for _, name in ipairs(saved.groupNames()) do
+      groupLists[#groupLists + 1] = { name = name, title = saved.group(name).title, keys = keysOf(name, editStyle) }
+    end
+    for _, section in ipairs(editor.pickerSections(selected, groupLists, keys, pickerStyle)) do
       if #section.keys > 0 then
         entries[#entries + 1] = { title = section.title }
         for _, key in ipairs(section.keys) do entries[#entries + 1] = { key = key, name = models[key].name } end
@@ -417,28 +628,30 @@ function options.create(root, deps)
       end
     end
     local shown = math.min(#entries, MAX_PICKER_ROWS)
-    pickerEdge:SetSize(PICKER_WIDTH, PICKER_HEAD + shown * PICKER_ROW + 2)
-    pickerBg:SetSize(PICKER_WIDTH - 2, PICKER_HEAD + shown * PICKER_ROW)
+    local height = PICKER_HEAD + shown * PICKER_ROW + 2
+    pickerEdge:SetSize(PICKER_WIDTH, height)
+    pickerBg:SetSize(PICKER_WIDTH - 2, height - 2)
+    -- Under the "+" tile, raised as far as it must be to fit on the page.
+    draw.pos(picker, math.min(plus.x, PAGE_W - PICKER_WIDTH - 8), math.min(plus.y + TILE + 4, PAGE_H - height))
   end
 
-  function openPicker(row, plus)
-    local wasOpen = pickerFor == row
+  function openPicker()
+    local wasOpen = pickerOpen
     closePopups()
     if wasOpen then return end
-    pickerFor, pickerStyle = row, tracker.style()
+    pickerOpen, pickerStyle = true, editStyle
     if query ~= "" then
       query = ""
       search.content = ""
     end
     fillPicker()
-    picker:SetPos(math.min(plus.x, PAGE_W - PICKER_WIDTH - 8), plus.y + row.size + 4)
     set(picker, "hidden", false)
   end
 
   function closePopups()
     set(menu, "hidden", true)
     set(picker, "hidden", true)
-    pickerFor, menuKey = nil, nil
+    pickerOpen, menuKey = false, nil
   end
 
   -- Resource bar page ---------------------------------------------------------------------------------
@@ -523,6 +736,10 @@ function options.create(root, deps)
   local resetPositions, openWindow
   local editMode = editmode.create(root, {
     saved = saved, elements = elements, view = deps.view,
+    label = function(name)
+      local group = saved.group(name)
+      return group and group.title
+    end,
     reset = function() resetPositions() end,
     done = function() openWindow() end,
   })
@@ -567,6 +784,7 @@ function options.create(root, deps)
     closeDialog()
     cancelDrag()
     closePopups()
+    confirmDelete = false
     windowOpen = false
     set(window, "hidden", true)
   end
@@ -597,6 +815,7 @@ function options.create(root, deps)
   function openWindow()
     for id_, value in pairs(markerValues) do set(value, "content", saved.markers()[id_] .. "%") end
     showChoices()
+    editStyle = tracker.style() or editStyle
     rebuildEditor()
     showPage("cooldowns")
     windowOpen = true
@@ -621,7 +840,7 @@ function options.create(root, deps)
       local wx, wy = mx - origin.x, my - origin.y
       -- The client releases a press once the cursor leaves the pressed component, so the hit area follows.
       draw.pos(drag.tile.edge, wx - PAGE_X - drag.pressX, wy - PAGE_Y - drag.pressY)
-      showDragFeedback(drag.tile, wx, wy)
+      showDragFeedback(wx, wy)
     end
   end
   Event.Draw.Subscribe("runeuiOptions", followCursor)

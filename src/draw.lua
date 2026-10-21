@@ -18,6 +18,7 @@ draw.COLOURS = {
   target = 0xa4511c,
   prayer = 0xdfe4ea,
   adrenaline = 0xffb000,
+  cast = 0x23706a,
   marker = 0xdfe4ea,
   text = 0xffffff,
   darkText = 0x111316,

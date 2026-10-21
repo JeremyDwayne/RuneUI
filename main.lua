@@ -1,8 +1,9 @@
--- RuneUI: player frame, target frame, resource bar, cooldown groups and aura rows drawn over the game.
--- Each server tick reads the client through src/adapter and redraws from the src/frames, src/cooldowns and
--- src/auras models.
+-- RuneUI: player frame, target frame, resource bar, cast bar, cooldown groups and aura rows drawn over the
+-- game. Each server tick reads the client through src/adapter and redraws from the src/frames, src/cooldowns,
+-- src/channel and src/auras models.
 local adapter = require("src/adapter")
 local auras = require("src/auras")
+local channel = require("src/channel")
 local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
 local icons = require("src/icons")
@@ -21,19 +22,27 @@ local elements = {
   player = view.playerFrame(hud),
   target = view.targetFrame(hud),
   resource = view.resourceBar(hud),
-  rotation = view.cooldownGroup(hud, view.TILE_STYLES.rotation, tooltip),
-  cooldowns = view.cooldownGroup(hud, view.TILE_STYLES.cooldowns, tooltip),
+  castbar = view.castBar(hud),
 }
+-- Every cooldown group element, built-in then custom. A custom group not in use stays hidden.
+local GROUP_NAMES = {}
+for _, group in ipairs(settings.GROUPS) do GROUP_NAMES[#GROUP_NAMES + 1] = group.name end
+for _, name in ipairs(settings.CUSTOM_GROUPS) do GROUP_NAMES[#GROUP_NAMES + 1] = name end
+for _, name in ipairs(GROUP_NAMES) do elements[name] = view.cooldownGroup(hud, tooltip) end
 for name, style in pairs(view.AURA_STYLES) do elements[name] = view.auraRow(hud, style, tooltip, auraNames.info) end
 local tracker = cooldowns.tracker()
+local channelTracker = channel.tracker()
 local auraTracker = auras.tracker()
 local optionsWindow
 tracker.seed(saved.known())
+tracker.onVar("COMBATV2_MAINHAND_STYLE", nil, adapter.mainhandStyle())
 -- Struct ids scanned per tick while an aura icon is unnamed, about 48 seconds for a full scan.
 local ICON_SCAN_BUDGET = 1000
 
 Event.VarTransmit.Subscribe("cooldowns", function(e)
-  tracker.onVar(adapter.varChange(e))
+  local name, old, new = adapter.varChange(e)
+  tracker.onVar(name, old, new)
+  channelTracker.onVar(name, old, new)
 end)
 Event.Draw.Subscribe("targetPanel", adapter.keepTargetPanelHidden)
 Event.Draw.Subscribe("buffBars", adapter.keepBuffBarsHidden)
@@ -50,12 +59,27 @@ local function refresh()
   local target = frames.target(adapter.targetReads())
   elements.target.update(target)
   elements.resource.update(frames.resource(adapter.resourceReads(frames.SPENDERS), saved.markers()))
-  -- Until the first edit in the options window, groups fill by cooldown length as abilities fire.
-  local groups = saved.groups() or tracker.defaultGroups()
+  elements.castbar.update(channelTracker.model())
+  -- Groups show the lists for the worn weapon's style. Until the first edit in the options window, they fill
+  -- by cooldown length as abilities fire.
+  local style = tracker.style()
   local slots = adapter.barSlots()
-  local accent = view.STYLE_COLOURS[tracker.style()]
-  local rotationMoved = elements.rotation.update(tracker.tiles(groups.rotation, slots), accent)
-  local moved = elements.cooldowns.update(tracker.tiles(groups.cooldowns, slots), accent) or rotationMoved
+  local defaults = nil
+  local moved = false
+  for _, name in ipairs(GROUP_NAMES) do
+    local element, group = elements[name], saved.group(name)
+    element.setInUse(group ~= nil)
+    local keys = {}
+    if group ~= nil then
+      if element.configure(group) then moved = true end
+      keys = saved.keys(name, style)
+      if keys == nil then
+        defaults = defaults or tracker.defaultGroups(style)
+        keys = defaults[name] or {}
+      end
+    end
+    if element.update(tracker.tiles(keys, slots)) then moved = true end
+  end
   local bars = saved.auraBars()
   for name, models in pairs(auraTracker.rows(saved.auras(), target.debuffs or {})) do
     -- Asking for each aura's name queues unnamed icons for the background scan.
@@ -71,6 +95,7 @@ optionsWindow = options.create(top, {
 })
 
 Event.ServerLogic.Subscribe("refresh", function()
+  channelTracker.onTick(adapter.abilityStruct)
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then saved.learn(learned.key, learned.name, learned.icon) end
   for _, found in ipairs(auraTracker.onTick(adapter.auraReads())) do saved.learnAura(found.sprite, found.category) end

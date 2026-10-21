@@ -11,13 +11,14 @@ local hitArea, on, button, pressAt, cursor = draw.hitArea, draw.on, draw.button,
 local hideAll = draw.hideAll
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
--- HUD elements in stacking order, later ones on top.
+-- HUD elements in stacking order, later ones on top. Cooldown groups take their label from deps.label.
 local ELEMENTS = {
   { name = "player", label = "Player" }, { name = "target", label = "Target" },
-  { name = "resource", label = "Resource bar" }, { name = "rotation", label = "Rotation" },
-  { name = "cooldowns", label = "Cooldowns" }, { name = "targetDebuffs", label = "Target debuffs" },
-  { name = "playerDebuffs", label = "Player debuffs" }, { name = "upkeepBuffs", label = "Upkeep buffs" },
-  { name = "combatBuffs", label = "Combat buffs" },
+  { name = "resource", label = "Resource bar" }, { name = "castbar", label = "Cast bar" },
+  { name = "major" }, { name = "rotation" }, { name = "utility" },
+  { name = "custom1" }, { name = "custom2" }, { name = "custom3" }, { name = "custom4" },
+  { name = "targetDebuffs", label = "Target debuffs" }, { name = "playerDebuffs", label = "Player debuffs" },
+  { name = "upkeepBuffs", label = "Upkeep buffs" }, { name = "combatBuffs", label = "Combat buffs" },
 }
 local LABELS = {}
 for _, entry in ipairs(ELEMENTS) do LABELS[entry.name] = entry.label end
@@ -60,16 +61,23 @@ local GRID, GRID_MAJOR = 16, 64
 local GRID_RGBA, GRID_MAJOR_RGBA = 0xFFFFFF12, 0xFFFFFF24
 local GRID_CENTER_RGBA = (COLOURS.accent << 8) | 0x73
 
--- The text on an anchored element's button, such as "Rotation, right, bottom".
-local function anchorText(anchor)
-  return LABELS[anchor.target] .. ", " .. anchor.side .. ", " .. anchor.align
-end
-
--- deps: { saved = src/settings, elements = src/view elements by name, view = src/view, reset = function
--- asking to reset positions, done = function run by the toolbar's Done }. Returns { open, close, editing,
--- escape, placeAll, shutdown }; escape handles Esc while editing.
+-- deps: { saved = src/settings, elements = src/view elements by name, view = src/view, label = function
+-- returning a cooldown group's title by element name, reset = function asking to reset positions, done =
+-- function run by the toolbar's Done }. Returns { open, close, editing, escape, placeAll, shutdown }; escape
+-- handles Esc while editing. An element whose inUse is false, such as a custom group not added, gets no
+-- overlay while editing.
 function editmode.create(root, deps)
   local saved, elements = deps.saved, deps.elements
+
+  local function labelOf(name)
+    return LABELS[name] or (deps.label and deps.label(name)) or name
+  end
+
+  -- The text on an anchored element's button, such as "Rotation, right, bottom".
+  local function anchorText(anchor)
+    return labelOf(anchor.target) .. ", " .. anchor.side .. ", " .. anchor.align
+  end
+
   local resolved = saved.positions()
   local overlays = {}
   -- move: the element being dragged; pick: { name, hover, target } while choosing what name anchors to.
@@ -108,23 +116,32 @@ function editmode.create(root, deps)
   set(dim, "alpha", 0.5)
   set(dim, "hidden", true)
 
+  -- Sizes o's tag to its element's current label and moves its button beside it.
+  local function showLabel(o)
+    o.label = labelOf(o.name)
+    o.tagW = #o.label * CHAR_W + 10
+    set(o.tag, "content", o.label)
+    draw.size(o.tagBg, o.tagW, TAG_H)
+    draw.size(o.tag, o.tagW - 5, TAG_H)
+    draw.pos(o.button, 2 + o.tagW, 2)
+    draw.pos(o.buttonText, 8 + o.tagW, 2)
+  end
+
   local function overlay(entry, element)
     local o = { name = entry.name, element = element }
     o.layer = ui.Layer.new(root)
     o.tint = hitArea(rect(o.layer, COLOURS.accent, 0, 0, 0, 0))
     o.edge = outline(o.layer, COLOURS.accent, 2)
-    local tagW = #entry.label * CHAR_W + 10
-    o.label = entry.label
-    local tagBg = rect(o.layer, COLOURS.accent, 2, 2, tagW, TAG_H)
-    local tag = text(o.layer, FONTS.small, ui.AlignMode.TOPLEFT, 7, 2, tagW - 5, TAG_H)
-    set(tag, "content", entry.label)
-    set(tag, "rgb", COLOURS.accentText)
-    set(tag, "isShadowed", false)
-    o.button = hitArea(rect(o.layer, COLOURS.panel, 2 + tagW, 2, 0, TAG_H))
-    o.buttonText = text(o.layer, FONTS.small, ui.AlignMode.TOPLEFT, 8 + tagW, 2, 200, TAG_H)
+    o.tagBg = rect(o.layer, COLOURS.accent, 2, 2, 0, TAG_H)
+    o.tag = text(o.layer, FONTS.small, ui.AlignMode.TOPLEFT, 7, 2, 0, TAG_H)
+    set(o.tag, "rgb", COLOURS.accentText)
+    set(o.tag, "isShadowed", false)
+    o.button = hitArea(rect(o.layer, COLOURS.panel, 0, 2, 0, TAG_H))
+    o.buttonText = text(o.layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 2, 200, TAG_H)
     -- The tag and button, and the header's width with the button's current text.
-    o.header = { tagBg, tag, o.button, o.buttonText }
-    o.tagW, o.buttonW = tagW, #"Anchor" * CHAR_W + 12
+    o.header = { o.tagBg, o.tag, o.button, o.buttonText }
+    o.buttonW = #"Anchor" * CHAR_W + 12
+    showLabel(o)
     on(o.tint, "ONCLICK", function(_, x) pressOverlay(o, x) end)
     on(o.tint, "ONRELEASE", function() releaseOverlay(o) end)
     on(o.tint, "ONMOUSEOVER", function() hoverOverlay(o, true) end)
@@ -349,8 +366,8 @@ function editmode.create(root, deps)
 
   local function openMenu(target)
     pick.target = target
-    set(menuTitle, "content", "Anchor " .. LABELS[pick.name] .. " to " .. LABELS[target])
-    set(sketchName, "content", LABELS[target])
+    set(menuTitle, "content", "Anchor " .. labelOf(pick.name) .. " to " .. labelOf(target))
+    set(sketchName, "content", labelOf(target))
     hoverSpot(nil, false)
     local mx, my = cursor()
     local w, h = tonumber(root.width), tonumber(root.height)
@@ -377,6 +394,7 @@ function editmode.create(root, deps)
       elseif anchors[name] ~= nil then
         content, fill = anchorText(anchors[name]), COLOURS.chip
       end
+      showLabel(o)
       set(o.buttonText, "content", content)
       set(o.buttonText, "rgb", fill == COLOURS.panel and COLOURS.text or COLOURS.accentText)
       set(o.buttonText, "isShadowed", fill == COLOURS.panel)
@@ -389,7 +407,7 @@ function editmode.create(root, deps)
 
   local function startPick(o)
     pick = { name = o.name }
-    set(prompt, "content", "Click the element to anchor " .. LABELS[o.name] .. " to")
+    set(prompt, "content", "Click the element to anchor " .. labelOf(o.name) .. " to")
     draw.size(dim, tonumber(root.width) or 0, tonumber(root.height) or 0)
     set(dim, "hidden", false)
     local r = rectOf(o.name)
@@ -411,8 +429,8 @@ function editmode.create(root, deps)
   local function choose(o)
     if not layout.canAnchor(saved.anchors(), pick.name, o.name) then
       closeMenu()
-      local reason = o.name == pick.name and (LABELS[o.name] .. " cannot anchor to itself")
-        or (LABELS[o.name] .. " is anchored to " .. LABELS[pick.name])
+      local reason = o.name == pick.name and (labelOf(o.name) .. " cannot anchor to itself")
+        or (labelOf(o.name) .. " is anchored to " .. labelOf(pick.name))
       set(prompt, "content", reason)
       return
     end
@@ -463,7 +481,7 @@ function editmode.create(root, deps)
     local rects = {}
     for name, element in pairs(elements) do
       bounds[name] = element.bounds
-      rects[name] = rectOf(name)
+      if element.inUse ~= false then rects[name] = rectOf(name) end
     end
     -- The window snaps like an element, so its edges and center lines win over the grid.
     local targets = layout.snapTargets(rects, saved.anchors(), o.name)
@@ -504,7 +522,7 @@ function editmode.create(root, deps)
       cancelPick()
       cancelMove()
     end
-    for _, o in pairs(overlays) do set(o.layer, "hidden", not enabled) end
+    for _, o in pairs(overlays) do set(o.layer, "hidden", not enabled or o.element.inUse == false) end
     floatOwner = nil
     placeFloat()
     set(toolbar, "hidden", not enabled)
