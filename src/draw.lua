@@ -274,16 +274,23 @@ function draw.button(parent, label, x, y, w, h, fill, onClick)
   return { bg = bg, label = t, group = group }
 end
 
+-- A w by h text field at x, y taking up to maxLength characters, drawn with the plain input style, or the search
+-- box style when search is true.
+function draw.inputField(parent, x, y, w, h, maxLength, search)
+  local field = ui.InputField.new(parent)
+  draw.pos(field, x, y)
+  draw.size(field, w, h)
+  field:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, maxLength)
+  local sheet = search and id.StyleSheet.INPUT_SEARCHBOX_24PX or id.StyleSheet.INPUT_DEFAULT
+  if sheet ~= nil then draw.set(field, "stylesheetID", sheet) end
+  return field
+end
+
 -- A typed whole number from low to high in a w by h field at x, y. A keystroke leaving a number in range calls
 -- onChoose(n); Enter, Esc or focus loss calls it with the typed number clamped, then shows the chosen value
 -- again, so the field never keeps text it did not take. Returns { field, show(n) }.
 function draw.numberField(parent, x, y, w, h, low, high, onChoose)
-  local field = ui.InputField.new(parent)
-  draw.pos(field, x, y)
-  draw.size(field, w, h)
-  field:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, #tostring(high))
-  local sheet = id.StyleSheet.INPUT_SEARCHBOX_24PX
-  if sheet ~= nil then draw.set(field, "stylesheetID", sheet) end
+  local field = draw.inputField(parent, x, y, w, h, #tostring(high))
   local number = { field = field }
   local shown
 

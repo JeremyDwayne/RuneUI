@@ -204,13 +204,7 @@ function options.create(root, deps)
   settingLabel(1, "Name")
   local titleText = text(page, FONTS.body, ui.AlignMode.BOTTOMRIGHT, DETAIL_X + 120, rowY(1),
     detailRight - DETAIL_X - 120, SETTING_H)
-  local nameField = ui.InputField.new(page)
-  nameField:SetPos(DETAIL_X + 120, rowY(1) + 11)
-  nameField:SetSize(detailRight - 126 - DETAIL_X - 120, 24)
-  nameField:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, 20)
-  if id.StyleSheet.INPUT_SEARCHBOX_24PX ~= nil then
-    set(nameField, "stylesheetID", id.StyleSheet.INPUT_SEARCHBOX_24PX)
-  end
+  local nameField = draw.inputField(page, DETAIL_X + 120, rowY(1) + 11, detailRight - 126 - DETAIL_X - 120, 24, 20)
   -- The group whose title the field shows; a change arriving after another group was chosen is ignored.
   local nameFor = nil
   on(nameField, "ONCONTENTCHANGED", function(_, _, contents)
@@ -485,11 +479,7 @@ function options.create(root, deps)
   local pickerEdge = hitArea(rect(picker, COLOURS.border, 0, 0, PICKER_WIDTH, 0))
   local pickerBg = rect(picker, COLOURS.popup, 1, 1, PICKER_WIDTH - 2, 0)
   rect(picker, COLOURS.line, 1, PICKER_HEAD, PICKER_WIDTH - 2, 1)
-  local search = ui.InputField.new(picker)
-  search:SetPos(10, 6)
-  search:SetSize(PICKER_WIDTH - 20, 24)
-  search:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, 30)
-  if id.StyleSheet.INPUT_SEARCHBOX_24PX ~= nil then set(search, "stylesheetID", id.StyleSheet.INPUT_SEARCHBOX_24PX) end
+  local search = draw.inputField(picker, 10, 6, PICKER_WIDTH - 20, 24, 30, true)
   set(search, "emptyText", "Find an ability")
   -- The field also reports its contents on Enter, Esc and focus loss, which can come after the picker closed.
   on(search, "ONCONTENTCHANGED", function(_, _, contents)

@@ -322,11 +322,7 @@ function appearancepage.create(page, width, height, deps)
     end
     local customX = rowRight - 2 * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP
     local hexX = rowRight - HEX_W
-    local hex = ui.InputField.new(row.layer)
-    draw.pos(hex, hexX, lineY[2] + (OPTION_H - HEX_H) // 2)
-    draw.size(hex, HEX_W, HEX_H)
-    hex:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, 7)
-    if id.StyleSheet.INPUT_SEARCHBOX_24PX ~= nil then set(hex, "stylesheetID", id.StyleSheet.INPUT_SEARCHBOX_24PX) end
+    local hex = draw.inputField(row.layer, hexX, lineY[2] + (OPTION_H - HEX_H) // 2, HEX_W, HEX_H, 7)
     -- The field also reports its contents on Enter, Esc and focus loss, so an unchanged colour is skipped.
     on(hex, "ONCONTENTCHANGED", function(_, _, contents)
       local rgb = style.parseHex(contents)
