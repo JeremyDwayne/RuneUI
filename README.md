@@ -41,7 +41,7 @@ RuneUI saves your layout, groups, markers and appearance and keeps them between 
 
 ## What RuneUI reads and does
 
-RuneUI only displays information the game already shows you. It reads your lifepoints, prayer, adrenaline, stacks and cooldowns from the game, along with the icons and keybinds on your action bars and whether each one is dimmed, the icons and time labels on the game's buff and debuff bars, the game's own target panel, your worn equipment and its main-hand attack type, and the ability you are channelling with its start and end tick. Ability, buff and debuff names come from the game's own data, the same names its tooltips show. Until RuneUI has looked up an icon's name, or when the game data has no name for it, it shows one built from the icon's name in the game data. RuneUI saves which row each buff joined.
+RuneUI only displays information the game already shows you. It reads your lifepoints, prayer, adrenaline, stacks and cooldowns from the game, along with the icons and keybinds on your action bars and whether each one is dimmed, the icons and time labels on the game's buff and debuff bars, the game's own target panel, your worn equipment and its main-hand attack type, and the ability you are channelling with its start and end tick and how many times it hits. Ability, buff and debuff names come from the game's own data, the same names its tooltips show. Until RuneUI has looked up an icon's name, or when the game data has no name for it, it shows one built from the icon's name in the game data. RuneUI saves which row each buff joined.
 
 It never clicks, casts or sends anything to the game on your behalf. It needs no permissions and sends no data off your computer.
 
