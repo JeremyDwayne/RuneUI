@@ -76,6 +76,14 @@ describe("options", function()
     assert.is_false(shows("New group"))
   end)
 
+  it("makes no writes on a steady tick with the Appearance page open", function()
+    openWindow(nil, "Appearance")
+    fake.writes = 0
+    fake.fire("Draw", {})
+    logicTick()
+    assert.are.equal(0, fake.writes)
+  end)
+
   it("cancels a tile drag on Esc, restoring the tile and leaving the logic tick idle", function()
     openWindow()
     local tile = editorTile()

@@ -2,6 +2,7 @@
 -- group list with New group, and the chosen group's display settings and abilities with a "+" picker, drag to
 -- swap or insert and a Remove menu; the src/buffspage Buffs page, marker steppers, appearance choices, the reset
 -- dialog, and a footer toggle into src/editmode.
+local appearancepage = require("src/appearancepage")
 local buffspage = require("src/buffspage")
 local dragdrop = require("src/dragdrop")
 local draw = require("src/draw")
@@ -65,11 +66,12 @@ function options.create(root, deps)
   window:SetPos(-WIDTH // 2, -HEIGHT // 2, 0.5, 0.5)
   set(window, "hidden", true)
 
-  rect(window, COLOURS.edge, 0, 0, WIDTH, HEIGHT)
-  hitArea(rect(window, COLOURS.panel, 1, 1, WIDTH - 2, HEIGHT - 2))
-  rect(window, COLOURS.sidebar, 1, 1, SIDEBAR - 1, HEIGHT - 2)
+  -- Each page draws its own background, so the Appearance preview can show the game through the window.
+  placeOutline(outline(window, COLOURS.edge, 1), 1, 1, WIDTH - 2, HEIGHT - 2)
+  hitArea(rect(window, COLOURS.sidebar, 1, 1, SIDEBAR - 1, HEIGHT - 2))
   rect(window, COLOURS.line, SIDEBAR, 1, 1, HEIGHT - 2)
   rect(window, COLOURS.line, PAGE_X, HEIGHT - FOOTER - 1, PAGE_W, 1)
+  hitArea(rect(window, COLOURS.panel, PAGE_X, HEIGHT - FOOTER, PAGE_W, FOOTER - 1))
   local brand = text(window, id.Font.CINZEL_18PT_BOLD, ui.AlignMode.TOPLEFT, 18, 1, SIDEBAR - 20, BRAND)
   set(brand, "content", "RuneUI")
   set(brand, "rgb", COLOURS.accent)
@@ -120,8 +122,9 @@ function options.create(root, deps)
     on(row.hit, "ONCLICK", function() showPage(entry.id) end)
     navRows[entry.id] = row
     local page = ui.Layer.new(window)
-    page:SetSize(PAGE_W, HEIGHT - PAGE_Y - FOOTER - 1)
+    page:SetSize(PAGE_W, PAGE_H)
     page:SetPos(PAGE_X, PAGE_Y)
+    if entry.id ~= "appearance" then hitArea(rect(page, COLOURS.panel, 0, 0, PAGE_W, PAGE_H)) end
     pages[entry.id] = page
   end
 
@@ -625,10 +628,11 @@ function options.create(root, deps)
 
   -- Buffs page ----------------------------------------------------------------------------------------
 
+  local buffsTooltip = deps.view.tooltip(root)
   buffsPage = buffspage.create(pages.buffs, PAGE_W, PAGE_H, {
     saved = saved,
     info = deps.auraInfo,
-    tooltip = deps.view.tooltip(root),
+    tooltip = buffsTooltip,
     toScreen = function(px, py) return window.x + PAGE_X + px, window.y + PAGE_Y + py end,
     refresh = deps.refresh,
   })
@@ -656,50 +660,14 @@ function options.create(root, deps)
 
   -- Appearance page ----------------------------------------------------------------------------------
 
-  local CHOICE_W = 150
-  local choiceRows = {}
-  -- Choice rows built so far on each parent, which sets the next row's position.
-  local rowCounts = {}
-
-  -- Marks each row's option for the saved value chosen.
-  local function showChoices()
-    for _, row in ipairs(choiceRows) do
-      for value, choice in pairs(row.choices) do draw.showOption(choice, value == row.current()) end
-    end
-  end
-
-  -- A labelled row of right-aligned draw.option buttons on parent, below its earlier rows, choosing the saved
-  -- appearance field. choices: { { value, label } }.
-  local function choiceRow(parent, label, choices, field)
-    local function current() return saved.appearance()[field] end
-    local n = rowCounts[parent] or 0
-    rowCounts[parent] = n + 1
-    local ry = 18 + n * 50
-    rect(parent, n % 2 == 0 and COLOURS.row or COLOURS.rowAlt, 24, ry, PAGE_W - 48, 50)
-    local rowLabel = text(parent, FONTS.body, ui.AlignMode.TOPLEFT, 40, ry, 200, 50)
-    set(rowLabel, "content", label)
-    local row = { choices = {}, current = current }
-    choiceRows[#choiceRows + 1] = row
-    for i, option in ipairs(choices) do
-      local x = PAGE_W - 40 - (#choices - i + 1) * (CHOICE_W + 4) + 4
-      row.choices[option.value] = draw.option(parent, option.label, x, ry + 11, CHOICE_W, 28, function()
-        saved.setAppearance(field, option.value)
-        showChoices()
-        deps.refresh()
-      end)
-    end
-  end
-
-  local TEXTURE_LABELS = { flat = "Flat", vertical = "Vertical gradient", horizontal = "Horizontal gradient" }
-  local textures = {}
-  for i, texture in ipairs(settings.TEXTURES) do textures[i] = { value = texture, label = TEXTURE_LABELS[texture] } end
-  local showHide = { { value = false, label = "Show" }, { value = true, label = "Hide" } }
-  choiceRow(pages.appearance, "Bar texture", textures, "texture")
-  choiceRow(pages.appearance, "Default target panel", showHide, "hideTargetPanel")
-  choiceRow(pages.appearance, "Game cast bar", showHide, "hideCastBar")
-  choiceRow(buffsPage.display, "Game buff bars", showHide, "hideBuffBars")
-  local auraIcons = { { value = false, label = "Plain" }, { value = true, label = "With bars" } }
-  choiceRow(buffsPage.display, "Aura icons", auraIcons, "auraBars")
+  local appearance = appearancepage.create(pages.appearance, PAGE_W, PAGE_H, {
+    saved = saved, view = deps.view, tooltip = buffsTooltip, auraInfo = deps.auraInfo, tracker = tracker,
+    refresh = deps.refresh,
+  })
+  local showHide = { { id = false, label = "Show" }, { id = true, label = "Hide" } }
+  appearance.choiceRow(buffsPage.display, 24, 18, PAGE_W - 48, "Game buff bars", showHide, "hideBuffBars", 120)
+  local auraIcons = { { id = false, label = "Plain" }, { id = true, label = "With bars" } }
+  appearance.choiceRow(buffsPage.display, 24, 68, PAGE_W - 48, "Aura icons", auraIcons, "auraBars", 120)
 
   -- Edit mode ----------------------------------------------------------------------------------------
 
@@ -785,7 +753,7 @@ function options.create(root, deps)
 
   function openWindow()
     for id_, value in pairs(markerValues) do set(value, "content", saved.markers()[id_] .. "%") end
-    showChoices()
+    appearance.open()
     editStyle = tracker.style() or editStyle
     rebuildEditor()
     showPage("appearance")

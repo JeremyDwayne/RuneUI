@@ -252,8 +252,8 @@ local FILLS = {
 }
 
 -- A flat button with a centred label that lightens on hover. fill names a FILLS entry, plain when nil. An edged
--- fill draws a 1px edge inside the button's box. Returns { bg, label, group }: bg is the hit area, and group, a
--- draw.group of every part, moves and hides the button.
+-- fill draws a 1px edge inside the button's box. onClick takes the click's x and y inside the button. Returns
+-- { bg, label, group }: bg is the hit area, and group, a draw.group of every part, moves and hides the button.
 function draw.button(parent, label, x, y, w, h, fill, onClick)
   local colours = FILLS[fill or "plain"]
   local normal, hover = colours[1], colours[2]
@@ -269,14 +269,14 @@ function draw.button(parent, label, x, y, w, h, fill, onClick)
   end
   draw.on(bg, "ONMOUSEOVER", function() draw.set(face, "rgb", hover) end)
   draw.on(bg, "ONMOUSELEAVE", function() draw.set(face, "rgb", normal) end)
-  draw.on(bg, "ONCLICK", function() onClick() end)
+  draw.on(bg, "ONCLICK", function(_, cx, cy) onClick(cx, cy) end)
   group.x, group.y = x, y
   return { bg = bg, label = t, group = group }
 end
 
 -- An options window choice button at x, y sized w by h: dark with a bronze edge, or once draw.showOption marks
--- it chosen, gold with dark text and a 2px white ring outside its box. Returns { ring, bg, face, label }; bg is
--- the hit area, which onClick and hover hang from.
+-- it chosen, gold with dark text and a 2px white ring outside its box. onClick takes the click's x and y inside
+-- the button. Returns { ring, bg, face, label }; bg is the hit area, which onClick and hover hang from.
 function draw.option(parent, label, x, y, w, h, onClick)
   local W = draw.WINDOW
   local o = {
@@ -294,7 +294,7 @@ function draw.option(parent, label, x, y, w, h, onClick)
   draw.on(o.bg, "ONMOUSELEAVE", function()
     if not o.chosen then draw.set(o.face, "rgb", W.button) end
   end)
-  draw.on(o.bg, "ONCLICK", function() onClick() end)
+  draw.on(o.bg, "ONCLICK", function(_, cx, cy) onClick(cx, cy) end)
   return o
 end
 

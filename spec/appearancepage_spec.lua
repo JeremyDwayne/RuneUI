@@ -1,0 +1,92 @@
+local fake = require("spec/support/fake_ui")
+local appearancepage = require("src/appearancepage")
+local cooldowns = require("src/cooldowns")
+local settings = require("src/settings")
+local view = require("src/view")
+
+local function fakeStore()
+  local data = {}
+  return { get = function(key) return data[key] end, set = function(key, value) data[key] = value end }
+end
+
+-- An open Appearance page on a 698 by 562 page layer. Returns the page, its settings and a count of HUD refreshes.
+local function open()
+  local root = fake.component()
+  local saved = settings.load(fakeStore())
+  local refreshed = { count = 0 }
+  local page = appearancepage.create(root, 698, 562, {
+    saved = saved, view = view, tooltip = view.tooltip(root), auraInfo = function() end,
+    tracker = cooldowns.tracker(), refresh = function() refreshed.count = refreshed.count + 1 end,
+  })
+  page.open()
+  return page, saved, refreshed
+end
+
+local function label(content)
+  return fake.find(function(_, d) return d.content == content end)
+end
+
+-- The settings' viewport, content layer and the row holding the label reading content, shown or not.
+local function scrollParts(content)
+  for _, c in ipairs(fake.created) do
+    if c.content == content then
+      local row = c.parent
+      return row.parent.parent, row.parent, row
+    end
+  end
+end
+
+-- Turns the wheel over the viewport by delta, times times.
+local function wheel(delta, times)
+  local viewport = scrollParts("Font")
+  local bg = fake.find(function(c, d) return d.parent == viewport and fake.hasHook(c, "ONSCROLLWHEEL") end)
+  for _ = 1, times do fake.hook(bg, "ONSCROLLWHEEL", delta) end
+end
+
+-- The option button's hit area under the label reading content.
+local function optionHit(content)
+  local t = label(content)
+  return fake.find(function(c, d)
+    return c ~= t and d.parent == t.parent and fake.hasHook(c, "ONCLICK") and d.x == t.x and d.y == t.y
+  end)
+end
+
+describe("appearance page", function()
+  before_each(fake.reset)
+
+  it("saves a choice and redraws the preview and the HUD", function()
+    local _, saved, refreshed = open()
+    fake.press("Outline")
+    assert.are.equal("outline", saved.appearance().edge)
+    assert.are.equal(1, refreshed.count)
+    local copies = 0
+    for _, c in ipairs(fake.created) do
+      if c.content == "Player" and fake.shown(c) then copies = copies + 1 end
+    end
+    assert.are.equal(5, copies)
+    fake.press("+")
+    assert.are.equal(1, saved.appearance().textStep)
+    assert.is_not_nil(label("14 pt"))
+  end)
+
+  it("scrolls by the wheel and stops with 32 px below the last row", function()
+    open()
+    local viewport, content, last = scrollParts("Game cast bar")
+    wheel(-1, 100)
+    assert.are.equal(viewport.height - 32, last.y + last.height + content.y)
+    wheel(1, 100)
+    assert.are.equal(0, content.y)
+  end)
+
+  it("takes no click on a row scrolled out of view or on its clipped part", function()
+    local _, saved = open()
+    wheel(-1, 2)
+    fake.hook(optionHit("Noto Sans"), "ONCLICK", 4, 2)
+    assert.are.equal("museo", saved.appearance().font)
+    wheel(-1, 10)
+    assert.is_nil(label("Noto Sans"))
+    wheel(1, 12)
+    fake.press("Noto Sans")
+    assert.are.equal("noto", saved.appearance().font)
+  end)
+end)
