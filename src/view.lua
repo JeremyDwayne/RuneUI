@@ -161,49 +161,12 @@ function view.setLook(elements, look)
 end
 
 local POWER_HEIGHT = 6
--- Game frame: the game's HUD window sprites, RS3_HUD_WINDOW_CORNER_TOP, _CORNER_BOTTOM, _TOP_TILE, _BOTTOM_TILE
--- and _SIDE_TILE, drawn GAME_EDGE px thick inside the frame's box. The right side is the left one flipped.
-local GAME_EDGE = 6
-local GAME_SPRITES = { cornerTop = 18193, side = 18194, cornerBottom = 18195, top = 18196, bottom = 18197 }
-
--- The eight sprites of a Game frame on layer, hidden. place(w, h) fits them to a w by h box.
-local function gameFrame(layer)
-  local parts = {}
-  local function part(sprite, flipped)
-    local c = ui.Sprite.new(layer)
-    set(c, "sprite", sprite)
-    set(c, "isTiling", true)
-    set(c, "isFlippedHorizontally", flipped)
-    set(c, "hidden", true)
-    parts[#parts + 1] = c
-    return c
-  end
-  local S = GAME_SPRITES
-  local topLeft, topRight = part(S.cornerTop, false), part(S.cornerTop, true)
-  local bottomLeft, bottomRight = part(S.cornerBottom, false), part(S.cornerBottom, true)
-  local top, bottom = part(S.top, false), part(S.bottom, false)
-  local left, right = part(S.side, false), part(S.side, true)
-  local e = GAME_EDGE
-  local frame = { parts = parts }
-
-  function frame.place(w, h)
-    for c, box in pairs({
-      [topLeft] = { 0, 0, e, e }, [topRight] = { w - e, 0, e, e },
-      [bottomLeft] = { 0, h - e, e, e }, [bottomRight] = { w - e, h - e, e, e },
-      [top] = { e, 0, w - 2 * e, e }, [bottom] = { e, h - e, w - 2 * e, e },
-      [left] = { 0, e, e, h - 2 * e }, [right] = { w - e, e, e, h - 2 * e },
-    }) do
-      pos(c, box[1], box[2])
-      draw.size(c, box[3], box[4])
-    end
-  end
-
-  return frame
-end
+-- Game frame: a 1px bronze line round the black box, as the game's action bars and chat box edge theirs.
+local GAME_EDGE = 0x6b5636
 -- The value label's width at the right of a unit frame, and the space the name leaves for it.
 local VALUE_WIDTH, VALUE_SPACE = 95, 110
 
--- A unit frame of look.frameWidth by look.frameHeight: a black border, or the game's window frame or none as
+-- A unit frame of look.frameWidth by look.frameHeight: a black border, with a bronze line round it or none as
 -- look.border picks, a health bar in the look's colour for
 -- kind, "player" or "target", with the name on the left and the value on the right, and with power a 6px prayer
 -- bar along the bottom. Both frames share one box height, whether or not a power bar shows in it. Auto text goes
@@ -215,7 +178,7 @@ local function unitFrame(root, kind, power)
   local health = draw.bar(layer, style.FRAME_COLOURS[kind], COLOURS.healthTrack, 1, 1, 0, 0)
   local prayerTrack = power and rect(layer, COLOURS.healthTrack, 1, 0, 0, POWER_HEIGHT)
   local prayer = power and draw.bar(layer, COLOURS.prayer, COLOURS.healthTrack, 1, 0, 0, POWER_HEIGHT)
-  local game = gameFrame(layer)
+  local game = draw.outline(layer, GAME_EDGE, 1)
   local name = draw.edgedText(layer, FONTS.body, ui.AlignMode.TOPLEFT, 6, 1, 0, 0)
   local value = draw.edgedText(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, 0, 1, VALUE_WIDTH, 0)
   local bounds = { x = 0, y = 0, w = 0, h = 0 }
@@ -236,7 +199,7 @@ local function unitFrame(root, kind, power)
     pos(value, w - VALUE_WIDTH - 6, 1)
     draw.size(value, VALUE_WIDTH, healthHeight)
     nameAt, valueAt = (6 + w - VALUE_SPACE) / inner, (inner - 5) / inner
-    game.place(w, h)
+    draw.placeOutline(game, 1, 1, w - 2, h - 2)
     if power then
       pos(prayerTrack, 1, healthHeight + 2)
       draw.width(prayerTrack, inner)
@@ -276,7 +239,7 @@ local function unitFrame(root, kind, power)
     health.setTexture(look.texture)
     if power then prayer.setTexture(look.texture) end
     set(border, "hidden", look.border == "none")
-    draw.hideAll(game.parts, look.border ~= "game")
+    draw.hideAll(game, look.border ~= "game")
     styleLabels()
     return moved
   end
