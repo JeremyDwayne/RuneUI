@@ -759,7 +759,7 @@ function options.create(root, deps)
   set(dialogTitle, "content", "Reset positions")
   local dialogBody = text(dialog, FONTS.small, ui.AlignMode.TOPLEFT, dialogX + 16, dialogY + 40, DIALOG_W - 32, 44)
   set(dialogBody, "content",
-    "Every frame, bar, ability row and aura row goes back to its default spot. Your rows and settings stay.")
+    "Every frame, bar, ability group and aura row goes back to its default spot. Your groups and settings stay.")
   set(dialogBody, "rgb", COLOURS.dimText)
   rect(dialog, COLOURS.line, dialogX + 1, dialogY + DIALOG_H - 56, DIALOG_W - 2, 1)
   local dialogOpen = false

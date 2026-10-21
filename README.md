@@ -2,20 +2,21 @@
 
 # RuneUI
 
-A clean combat HUD for RuneScape 3. RuneUI draws compact unit frames, a resource bar, two rows of ability cooldowns and rows of buffs and debuffs in one block below your character, so the numbers you check mid-fight sit close together. Game windows such as the bank draw over it.
+A clean combat HUD for RuneScape 3. RuneUI draws compact unit frames, a resource bar, a cast bar, groups of ability cooldowns and rows of buffs and debuffs in one block below your character, so the numbers you check mid-fight sit close together. Game windows such as the bank draw over it.
 
 ## What it shows
 
 - The player frame shows your name and lifepoints as "13.1K | 78%" on a health bar, with a thin prayer bar underneath.
 - The target frame shows your target's name and lifepoints as "6,800 | 58%".
 - The resource bar fills with your adrenaline and shows its percent, with two marker notches you can set, such as 50% and 100%. With Necromancy it adds rows of blocks for residual souls and necrosis stacks. The soul row grows to 5 blocks while a Soulbound lantern is worn.
-- The rotation and cooldowns rows hold ability icons. Each icon shows its action bar keybind, and dims and counts down in whole seconds while cooling. An icon turns dark with a faded keybind while its ability can't be cast, as it does on the action bar, such as when you lack the adrenaline. Hover an icon to see its name, cooldown length, keybind and ready state. A thin line on each row takes the colour of the combat style you last used.
+- The cast bar under the resource bar shows the ability you are channelling, such as Asphyxiate or Rapid Fire, with its icon, name and seconds left, counting down each game tick as the game's own cast bar does. It is empty between channels.
+- The Major, Rotation and Utility groups hold ability icons, and you can add up to four groups of your own. Each icon shows its action bar keybind, and dims and counts down in whole seconds while cooling. An icon turns dark with a faded keybind while its ability can't be cast, as it does on the action bar, such as when you lack the adrenaline. Hover an icon to see its name, cooldown length, keybind and ready state. A group wraps onto a new row or column once it holds its set number of icons, and each row grows from its center.
 
-- Four aura rows show the icons from the game's buff bar, debuff bar and target panel. Target debuffs sit above the target frame and your debuffs above the player frame, both with an orange edge. Long buffs such as overloads and prayer renewals sit below the player frame, and short combat buffs such as ultimates sit above the cooldowns row. Each icon shows its time left as the game's own label does, and its stacks in the top right. In its last 10%, or its last 3 seconds when that is longer, an icon gets a white ring and its time turns black on a white plate. Hover an icon to see its name and description. The first time RuneUI sees an icon, it shows a name taken from the icon until the game's own name and description load, within about a minute.
+- Four aura rows show the icons from the game's buff bar, debuff bar and target panel. Target debuffs sit above the target frame and your debuffs above the player frame, both with an orange edge. Long buffs such as overloads and prayer renewals sit below the player frame, and short combat buffs such as ultimates sit above the resource bar. Each icon shows its time left as the game's own label does, and its stacks in the top right. In its last 10%, or its last 3 seconds when that is longer, an icon gets a white ring and its time turns black on a white plate. Hover an icon to see its name and description. The first time RuneUI sees an icon, it shows a name taken from the icon until the game's own name and description load, within about a minute.
 
 A buff joins a row the first time RuneUI sees it: the combat row if it has a minute or less left, the long buff row if it has more, and no row if it has no timer, such as a percent. Target debuffs show no timer, because the game's target panel does not show one.
 
-Abilities join a row the first time you use them, weapon special attacks such as Instability and Black Hole included. Ones with a cooldown of 30 seconds or more go in the cooldowns row, and the rest go in the rotation row. You can rearrange both rows yourself in the options window.
+Each combat style has its own Major and Rotation groups, and RuneUI shows the ones for the weapon in your main hand, switching when you change weapons. Abilities join a group the first time you use them. Weapon special attacks such as Instability and Black Hole, and abilities with a cooldown of 30 seconds or more, go in Major, and the rest go in Rotation. Defensive and Constitution abilities go in Utility, which shows the same abilities for every style. You can rearrange every group yourself in the options window.
 
 ## Install
 
@@ -29,18 +30,18 @@ RuneUI runs on the RuneScape beta while plugins are in testing.
 
 Open the plugin ribbon and press **Open RuneUI options**. Press Esc or **Done** to close the window.
 
-- The Cooldown manager page shows both ability rows. Drag an icon to reorder it or move it to the other row, press **+** to add an ability you have used, and click an icon for a Remove option. The **+** list opens on your current combat style, with tabs for the other styles and a search box for ability names.
+- The Cooldown manager page opens on your weapon's combat style, marked Equipped, with tabs for the other styles. Pick a group from the list on the left to set its icon size, how many icons fit in a row or column before it wraps, which way it grows, and whether its abilities change with the style or stay the same for every style. Drag an icon to reorder it, press **+** to add an ability you have used, and click an icon for a Remove option. The **+** list opens on the style you are editing, with tabs for the others and a search box for ability names, and choosing an ability from another group moves it here. **New group** adds a group of your own, up to four, which you can rename. Its **Delete** button asks for a second click.
 - The Resource bar page sets the threshold and ultimate marker percents.
 - The Appearance page picks a flat bar fill or a vertical or horizontal gradient. It can also hide the game's own target panel, since RuneUI's target frame replaces it. **Game buff bars** hides the game's own buff and debuff bars, since RuneUI's aura rows replace them. **Aura icons** picks plain icons or icons with a draining bar under each. With bars, an icon in that window gets a dashed white outline and a striped bar instead of the ring and plate.
 - Edit mode, turned on from the window's footer, lets you drag any HUD element to move it. Everything anchored to that element moves with it. Press Esc to finish, or **Done** to return to the window.
-- To anchor an element, press its **Anchor** button in edit mode, click another element, then choose a side and alignment from the menu. The element sits flush against that side and keeps its gap when the other element grows or shrinks, such as when an ability row gains a tile. Its button then names the anchor, such as "Rotation, left, bottom", and pressing it removes the anchor. The frames and bars start anchored to the rotation row, so dragging the row moves the whole HUD.
+- To anchor an element, press its **Anchor** button in edit mode, click another element, then choose a side and alignment from the menu. The element sits flush against that side and keeps its gap when the other element grows or shrinks, such as when a group gains an icon. Its button then names the anchor, such as "Major, left, top", and pressing it removes the anchor. Everything starts anchored to the resource bar, directly or through the elements below it, so dragging the bar moves the whole HUD.
 - While you drag, an element snaps to the edges and centers of other elements and of the game window, or to a 16 px grid, and a line marks each snap. Hold Shift to move freely. **Snap on** in the toolbar turns snapping and the grid off. **Reset positions** asks first, then puts every element and anchor back.
 
-RuneUI saves your layout, rows, markers and appearance and keeps them between sessions.
+RuneUI saves your layout, groups, markers and appearance and keeps them between sessions. Updating to this version puts every element back in the new default layout once, and keeps your abilities in their groups.
 
 ## What RuneUI reads and does
 
-RuneUI only displays information the game already shows you. It reads your lifepoints, prayer, adrenaline, stacks and cooldowns from the game, along with the icons and keybinds on your action bars and whether each one is dimmed, the icons and time labels on the game's buff and debuff bars, the game's own target panel and your worn equipment. Ability, buff and debuff names come from the game's own data, the same names its tooltips show. Until RuneUI has looked up an icon's name, or when the game data has no name for it, it shows one built from the icon's name in the game data. RuneUI saves which row each buff joined.
+RuneUI only displays information the game already shows you. It reads your lifepoints, prayer, adrenaline, stacks and cooldowns from the game, along with the icons and keybinds on your action bars and whether each one is dimmed, the icons and time labels on the game's buff and debuff bars, the game's own target panel, your worn equipment and its main-hand attack type, and the ability you are channelling with its start and end tick. Ability, buff and debuff names come from the game's own data, the same names its tooltips show. Until RuneUI has looked up an icon's name, or when the game data has no name for it, it shows one built from the icon's name in the game data. RuneUI saves which row each buff joined.
 
 It never clicks, casts or sends anything to the game on your behalf. It needs no permissions and sends no data off your computer.
 
@@ -58,7 +59,7 @@ for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; d
 
 After saving a change, run `prl runeui` in the game console to reload the plugin.
 
-`src/adapter.lua` is the only module that reads the game client. `src/frames.lua`, `src/cooldowns.lua`, `src/auras.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure Lua with specs. `src/view.lua`, `src/options.lua` and `src/editmode.lua` draw the HUD, the options window and edit mode.
+`src/adapter.lua` is the only module that reads the game client. `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure Lua with specs. `src/view.lua`, `src/options.lua` and `src/editmode.lua` draw the HUD, the options window and edit mode.
 
 ## Contributing
 
