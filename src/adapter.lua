@@ -153,13 +153,6 @@ function adapter.justUsed()
   return abilityInfo(varValue("VarClient", "COMBATV2_JUST_USED_ABILITY"))
 end
 
--- The ability struct with id structID, such as COMBATV2_CHANNEL_ABILITY_STRUCT holds, as abilityInfo
--- describes it.
-function adapter.abilityStruct(structID)
-  local ok, struct = pcall(function() return config.Struct.FromID(structID) end)
-  return ok and abilityInfo(struct) or nil
-end
-
 -- COMBATV2_MAINHAND_STYLE, the worn main-hand weapon's attack type, or nil before login.
 function adapter.mainhandStyle()
   return varValue("VarPlayer", "COMBATV2_MAINHAND_STYLE")
@@ -430,8 +423,9 @@ local function readIconStruct(structID)
   }
 end
 
--- src/icons lookup: the COMBATV2_ struct at structID as { configName, icon, name, info }, or nil. Reads only
--- these params, since reading some others logs a conversion error to the console.
+-- The COMBATV2_ struct at structID as { configName, icon, name, info }, or nil, for src/icons and the struct
+-- id COMBATV2_CHANNEL_ABILITY_STRUCT holds. Reads only these params, since reading some others logs a
+-- conversion error to the console.
 function adapter.iconStruct(structID)
   local ok, struct = pcall(readIconStruct, structID)
   return ok and struct or nil

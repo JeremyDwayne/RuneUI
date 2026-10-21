@@ -44,6 +44,20 @@ describe("channel.tracker", function()
     assert.are.equal(1, reads)
   end)
 
+  it("reads the ability's struct again on the next tick when it found nothing", function()
+    local tracker = channel.tracker()
+    local reads = 0
+    local function failingOnce(structID)
+      reads = reads + 1
+      if reads > 1 then return asphyxiate(structID) end
+    end
+    startAsphyxiate(tracker)
+    tracker.onTick(failingOnce)
+    assert.is_nil(tracker.model().name)
+    tracker.onTick(failingOnce)
+    assert.are.equal("Asphyxiate", tracker.model().name)
+  end)
+
   it("ends when the game marks the channel finished", function()
     local tracker = channel.tracker()
     startAsphyxiate(tracker)
