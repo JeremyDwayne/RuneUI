@@ -1,6 +1,7 @@
 local fake = require("spec/support/fake_ui")
 local draw = require("src/draw")
 local settings = require("src/settings")
+local style = require("src/style")
 local view = require("src/view")
 
 -- n ready tiles for a cooldown group.
@@ -316,9 +317,9 @@ describe("view", function()
     local model = asphyxiate()
     model.style = "necromancy"
     bar.update(model)
-    assert.is_not_nil(fake.find(function(_, d) return d.rgb == draw.COLOURS.castNecromancy end))
+    assert.is_not_nil(fake.find(function(_, d) return d.rgb == style.STYLE_COLOURS.necromancy end))
     bar.update(asphyxiate(227280))
-    assert.is_nil(fake.find(function(_, d) return d.rgb == draw.COLOURS.castNecromancy end))
+    assert.is_nil(fake.find(function(_, d) return d.rgb == style.STYLE_COLOURS.necromancy end))
     assert.is_not_nil(fake.find(function(_, d) return d.rgb == draw.COLOURS.cast end))
   end)
 
@@ -393,5 +394,108 @@ describe("view", function()
     fake.writes = 0
     tick(5)
     assert.are.equal(0, fake.writes)
+  end)
+
+  -- A src/style look from the default appearance with changes.
+  local function look(changes)
+    local appearance = {}
+    for k, v in pairs(settings.defaultAppearance()) do appearance[k] = v end
+    for k, v in pairs(changes or {}) do appearance[k] = v end
+    return style.look(appearance, nil)
+  end
+
+  local setLook = view.setLook
+
+  -- Every HUD element and a combat buffs row, each showing text, styled with the default look.
+  local function shownHud()
+    local elements = hud()
+    elements.combatBuffs = auraRow()
+    setLook(elements, look())
+    local tiles = readyTiles(3)
+    tiles[1].keybind = "V"
+    tiles[2].remaining = 7.2
+    tiles[2].ready = false
+    local function tick()
+      elements.player.update({ hidden = false, name = "Jeremy", valueText = "13.1K | 78%", fill = 0.78,
+        prayerText = "960", prayerFill = 0.9 })
+      elements.target.update({ hidden = false, name = "Aviansie", valueText = "6,800 | 58%", fill = 0.58 })
+      elements.resource.update({ hidden = false, fill = 0.8, text = "80%", markers = {}, spenders = {} })
+      elements.castbar.update(asphyxiate())
+      elements.major.update(tiles, 0)
+      elements.combatBuffs.update(incite(10), false)
+    end
+    tick()
+    return elements, tick
+  end
+
+  -- Shown components reading content.
+  local function shownWith(content)
+    local n = 0
+    for _, c in ipairs(fake.created) do
+      if c.content == content and fake.shown(c) then n = n + 1 end
+    end
+    return n
+  end
+
+  it("writes each HUD label's font once when the font changes, and nothing else", function()
+    local elements = shownHud()
+    fake.writes = 0
+    setLook(elements, look({ font = "noto" }))
+    local changed = 0
+    for _, c in ipairs(fake.created) do
+      local font = c.font
+      if font == "NOTOSANS_BOLD_13" or font == "NOTOSANS_BOLD_15" or font == "NOTOSANS_BOLD_17" then
+        changed = changed + 1
+      end
+    end
+    assert.are.equal(changed, fake.writes)
+    assert.are.equal("NOTOSANS_BOLD_13", fake.find(function(_, d) return d.content == "Jeremy" end).font)
+    assert.are.equal("NOTOSANS_BOLD_17", fake.find(function(_, d) return d.content == "8" end).font)
+  end)
+
+  it("shows four outline copies under each label while Outline is on, or the native outline font", function()
+    local elements = shownHud()
+    setLook(elements, look({ edge = "outline" }))
+    assert.are.same({ 5, 5, 5 }, { shownWith("Jeremy"), shownWith("V"), shownWith("10") })
+    setLook(elements, look({ edge = "none" }))
+    assert.are.same({ 1, 1, 1 }, { shownWith("Jeremy"), shownWith("V"), shownWith("10") })
+    setLook(elements, look({ edge = "outline", font = "noto" }))
+    assert.are.equal(1, shownWith("Jeremy"))
+    assert.are.equal("NOTO_SANS_13PT_BOLD_OUTLINE", fake.find(function(_, d) return d.content == "Jeremy" end).font)
+  end)
+
+  it("makes no writes on a steady tick with Outline on", function()
+    local elements, tick = shownHud()
+    local outlined = look({ edge = "outlineShadow" })
+    setLook(elements, outlined)
+    tick()
+    fake.writes = 0
+    setLook(elements, outlined)
+    tick()
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("resizes both unit frames and their bounds, reporting the change once", function()
+    local elements = shownHud()
+    local big = look({ frameWidth = 400, frameHeight = 80 })
+    assert.is_true(setLook(elements, big))
+    for _, name in ipairs({ "player", "target" }) do
+      local frame = elements[name]
+      assert.are.same({ 400, 80, 400, 80 }, { frame.layer.width, frame.layer.height, frame.bounds.w, frame.bounds.h })
+    end
+    fake.writes = 0
+    assert.is_false(setLook(elements, big))
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("draws Auto text dark over a bright fill only", function()
+    local elements = shownHud()
+    setLook(elements, look({ targetColour = 0xffea00 }))
+    elements.target.update({ hidden = false, name = "Aviansie", valueText = "6,800 | 100%", fill = 1 })
+    local function rgb(content) return fake.find(function(_, d) return d.content == content end).rgb end
+    assert.are.same({ style.DARK_TEXT, style.DARK_TEXT, 0xffffff },
+      { rgb("Aviansie"), rgb("6,800 | 100%"), rgb("Jeremy") })
+    setLook(elements, look({ targetColour = 0xffea00, textColour = "white" }))
+    assert.are.equal(0xffffff, rgb("Aviansie"))
   end)
 end)

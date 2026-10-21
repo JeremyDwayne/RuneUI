@@ -1,13 +1,15 @@
 -- Draws RuneUI elements on the plugin layer from display models, in a flat dark style.
--- Each constructor returns { layer, update(model), width, height, bounds }, plus setTexture(texture) for
--- elements with bars. bounds is the shown { x, y, w, h } inside the layer. place() positions a layer on the
--- game window and arrange() places every element from saved positions and anchors.
+-- Each constructor returns { layer, update(model), setLook(look), width, height, bounds }. setLook takes a
+-- src/style look, returns at once for the look the element shows, and returns whether bounds changed. bounds is
+-- the shown { x, y, w, h } inside the layer. place() positions a layer on the game window and arrange() places
+-- every element from saved positions and anchors.
 local view = {}
 
 local draw = require("src/draw")
 local frames = require("src/frames")
 local layout = require("src/layout")
 local settings = require("src/settings")
+local style = require("src/style")
 local set, pos, rect, text = draw.set, draw.pos, draw.rect, draw.text
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
@@ -135,75 +137,124 @@ local function screenPos(layer, x, y)
   return layer.x + x, layer.y + y
 end
 
-local FRAME_WIDTH = 250
-local HEALTH_HEIGHT = 46
-local POWER_HEIGHT = 6
--- Both unit frames share one box height, whether or not a power bar shows in it.
-local FRAME_HEIGHT = HEALTH_HEIGHT + POWER_HEIGHT + 3
+-- The look an element shows until it is given one.
+local DEFAULT_LOOK = style.look(settings.defaultAppearance(), nil)
 
--- A unit frame bar with the name on the left and the value on the right; returns its update(model) and
--- the draw.bar under it.
-local function unitBar(layer, rgb, y, height)
-  local inner = FRAME_WIDTH - 2
-  rect(layer, COLOURS.healthTrack, 1, y, inner, height)
-  local bar = draw.bar(layer, rgb, COLOURS.healthTrack, 1, y, inner, height)
-  local name = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, 6, y, 140, height)
-  local value = text(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, FRAME_WIDTH - 101, y, 95, height)
-  local function update(model)
-    bar.setFill(model.fill)
-    set(name, "content", model.name)
-    set(value, "content", model.valueText)
-  end
-  return update, bar
+-- Writes look's font for role, a text colour and the edge to a draw.edgedText label. dark draws Auto's dark text
+-- with a light edge and no shadow; rgb overrides the look's text colour. Every write skips an unchanged value.
+local function styleText(label, role, look, dark, rgb)
+  local font = look.fonts[role]
+  local native = look.outline and not dark and style.outlineFont(font)
+  set(label, "font", id.Font[native or font])
+  set(label, "rgb", dark and style.DARK_TEXT or rgb or look.text)
+  set(label, "isShadowed", look.shadow and not dark)
+  draw.setEdge(label, look.outline and not native and (dark and style.LIGHT_EDGE or style.DARK_EDGE) or nil)
 end
 
--- 250x55: 46px health bar with name and "13.1K | 78%", 6px prayer bar below.
-function view.playerFrame(root)
-  local height = FRAME_HEIGHT
-  local prayerY = HEALTH_HEIGHT + 2
-  local layer = ui.Layer.new(root)
-  layer:SetSize(FRAME_WIDTH, height)
-  rect(layer, COLOURS.border, 0, 0, FRAME_WIDTH, height)
-  local updateHealth, health = unitBar(layer, COLOURS.player, 1, HEALTH_HEIGHT)
-  local prayerTrack = rect(layer, COLOURS.healthTrack, 1, prayerY, FRAME_WIDTH - 2, POWER_HEIGHT)
-  local prayer = draw.bar(layer, COLOURS.prayer, COLOURS.healthTrack, 1, prayerY, FRAME_WIDTH - 2, POWER_HEIGHT)
+-- Gives each element its look; returns whether any element's bounds changed.
+function view.setLook(elements, look)
+  local moved = false
+  for _, element in pairs(elements) do
+    if element.setLook(look) then moved = true end
+  end
+  return moved
+end
 
-  local function update(model)
+-- Sets every element layer's alpha, from 0 to 1.
+function view.setOpacity(elements, alpha)
+  for _, element in pairs(elements) do set(element.layer, "alpha", alpha) end
+end
+
+local POWER_HEIGHT = 6
+-- The value label's width at the right of a unit frame, and the space the name leaves for it.
+local VALUE_WIDTH, VALUE_SPACE = 95, 110
+
+-- A unit frame of look.frameWidth by look.frameHeight: a black border, a health bar in the look's colour for
+-- kind, "player" or "target", with the name on the left and the value on the right, and with power a 6px prayer
+-- bar along the bottom. Both frames share one box height, whether or not a power bar shows in it. Auto text goes
+-- dark over a bright fill once the fill reaches the label's right end.
+local function unitFrame(root, kind, power)
+  local layer = ui.Layer.new(root)
+  local border = rect(layer, COLOURS.border, 0, 0, 0, 0)
+  local track = rect(layer, COLOURS.healthTrack, 1, 1, 0, 0)
+  local health = draw.bar(layer, style.FRAME_COLOURS[kind], COLOURS.healthTrack, 1, 1, 0, 0)
+  local name = draw.edgedText(layer, FONTS.body, ui.AlignMode.TOPLEFT, 6, 1, 0, 0)
+  local value = draw.edgedText(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, 0, 1, VALUE_WIDTH, 0)
+  local prayerTrack = power and rect(layer, COLOURS.healthTrack, 1, 0, 0, POWER_HEIGHT)
+  local prayer = power and draw.bar(layer, COLOURS.prayer, COLOURS.healthTrack, 1, 0, 0, POWER_HEIGHT)
+  local bounds = { x = 0, y = 0, w = 0, h = 0 }
+  local frame = { layer = layer, bounds = bounds }
+  -- The look shown, whether its fill wants Auto's dark text, the fill shown, and the fills at which each label
+  -- sits wholly on it.
+  local shown, bright, fill = nil, false, nil
+  local nameAt, valueAt = 1, 1
+
+  local function resize(w, h)
+    local inner, healthHeight = w - 2, power and h - POWER_HEIGHT - 3 or h - 2
+    frame.width, frame.height, bounds.w, bounds.h = w, h, w, h
+    draw.size(layer, w, h)
+    draw.size(border, w, h)
+    draw.size(track, inner, healthHeight)
+    health.setBox(1, 1, inner, healthHeight)
+    draw.size(name, w - VALUE_SPACE, healthHeight)
+    pos(value, w - VALUE_WIDTH - 6, 1)
+    draw.size(value, VALUE_WIDTH, healthHeight)
+    nameAt, valueAt = (6 + w - VALUE_SPACE) / inner, (inner - 5) / inner
+    if power then
+      pos(prayerTrack, 1, healthHeight + 2)
+      draw.width(prayerTrack, inner)
+      prayer.setBox(1, healthHeight + 2, inner, POWER_HEIGHT)
+    end
+  end
+
+  local function styleLabels()
+    styleText(name, "body", shown, bright and fill ~= nil and fill >= nameAt)
+    styleText(value, "body", shown, bright and fill ~= nil and fill >= valueAt)
+  end
+
+  function frame.update(model)
     set(layer, "hidden", model.hidden)
     if model.hidden then return end
-    updateHealth(model)
-    set(prayerTrack, "hidden", model.prayerText == nil)
-    prayer.setFill(model.prayerFill)
+    fill = model.fill
+    health.setFill(fill)
+    set(name, "content", model.name)
+    set(value, "content", model.valueText)
+    styleLabels()
+    if power then
+      set(prayerTrack, "hidden", model.prayerText == nil)
+      prayer.setFill(model.prayerFill)
+    end
   end
 
-  local function setTexture(texture)
-    health.setTexture(texture)
-    prayer.setTexture(texture)
+  -- Restyles the frame for a src/style look, returning at once for the look it shows. Returns whether its
+  -- bounds changed.
+  function frame.setLook(look)
+    if look == shown then return false end
+    shown = look
+    local moved = bounds.w ~= look.frameWidth or bounds.h ~= look.frameHeight
+    if moved then resize(look.frameWidth, look.frameHeight) end
+    local rgb = look[kind]
+    bright = look.auto and style.dark(rgb)
+    health.setColour(rgb)
+    health.setTexture(look.texture)
+    if power then prayer.setTexture(look.texture) end
+    set(border, "hidden", look.border == "none")
+    styleLabels()
+    return moved
   end
 
-  return {
-    layer = layer, update = update, setTexture = setTexture, width = FRAME_WIDTH, height = height,
-    bounds = { x = 0, y = 0, w = FRAME_WIDTH, h = height },
-  }
+  frame.setLook(DEFAULT_LOOK)
+  return frame
 end
 
--- 250x55: a 53px health bar with name and "6,800 | 58%", the same box height as the player frame.
+-- The player's frame: health with name and "13.1K | 78%", prayer below.
+function view.playerFrame(root)
+  return unitFrame(root, "player", true)
+end
+
+-- The target's frame: health with name and "6,800 | 58%", the same box height as the player frame.
 function view.targetFrame(root)
-  local layer = ui.Layer.new(root)
-  layer:SetSize(FRAME_WIDTH, FRAME_HEIGHT)
-  rect(layer, COLOURS.border, 0, 0, FRAME_WIDTH, FRAME_HEIGHT)
-  local updateHealth, health = unitBar(layer, COLOURS.target, 1, FRAME_HEIGHT - 2)
-
-  local function update(model)
-    set(layer, "hidden", model.hidden)
-    if not model.hidden then updateHealth(model) end
-  end
-
-  return {
-    layer = layer, update = update, setTexture = health.setTexture,
-    width = FRAME_WIDTH, height = FRAME_HEIGHT,
-    bounds = { x = 0, y = 0, w = FRAME_WIDTH, h = FRAME_HEIGHT },
-  }
+  return unitFrame(root, "target", false)
 end
 
 local BAR_WIDTH = 278
@@ -261,7 +312,9 @@ function view.resourceBar(root)
   rect(layer, COLOURS.track, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
   local fill = draw.bar(layer, COLOURS.adrenaline, COLOURS.track, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
   local markers = { barMark(layer, 0, BAR_Y + 1, BAR_HEIGHT - 2), barMark(layer, 0, BAR_Y + 1, BAR_HEIGHT - 2) }
-  local percent = text(layer, FONTS.body, ui.AlignMode.CENTRE, 0, BAR_Y + 1, BAR_WIDTH, BAR_HEIGHT - 2)
+  local percent = draw.edgedText(layer, FONTS.body, ui.AlignMode.CENTRE, 0, BAR_Y + 1, BAR_WIDTH, BAR_HEIGHT - 2)
+  -- The look shown, whether it wants dark text once the fill passes the label, and the fill shown.
+  local shown, bright, fillShown = nil, false, 0
 
   -- Black-edged blocks, filled up to the spender's count.
   local function drawBlocks(canvas, spender)
@@ -288,15 +341,17 @@ function view.resourceBar(root)
     end
   end
 
+  local function stylePercent()
+    styleText(percent, "body", shown, bright and fillShown >= PERCENT_ON_FILL)
+  end
+
   local function update(model)
     set(layer, "hidden", model.hidden)
     if model.hidden then return end
     fill.setFill(model.fill)
     set(percent, "content", model.text)
-    -- Dark text once the fill passes the centred label, white with a shadow on the track.
-    local onFill = model.fill >= PERCENT_ON_FILL
-    set(percent, "rgb", onFill and COLOURS.darkText or COLOURS.text)
-    set(percent, "isShadowed", not onFill)
+    fillShown = model.fill
+    stylePercent()
     for i, marker in ipairs(model.markers) do
       pos(markers[i], math.min(math.floor(marker.at * (BAR_WIDTH - 2)), BAR_WIDTH - 3) + 1, BAR_Y + 1)
       shadeMark(markers[i], model.fill >= marker.at)
@@ -304,8 +359,17 @@ function view.resourceBar(root)
     updateSpenders(model.spenders)
   end
 
+  local function setLook(look)
+    if look == shown then return false end
+    shown, bright = look, look.auto and style.dark(COLOURS.adrenaline)
+    fill.setTexture(look.texture)
+    stylePercent()
+    return false
+  end
+
+  setLook(DEFAULT_LOOK)
   return {
-    layer = layer, update = update, setTexture = fill.setTexture, width = BAR_WIDTH, height = height,
+    layer = layer, update = update, setLook = setLook, width = BAR_WIDTH, height = height,
     bounds = { x = 0, y = 0, w = BAR_WIDTH, h = height },
   }
 end
@@ -325,10 +389,10 @@ local function tile(layer)
     edge = rect(layer, COLOURS.border, 0, 0, 0, 0),
     background = rect(layer, COLOURS.tile, 0, 0, 0, 0),
     icon = ui.Sprite.new(layer),
-    initials = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, 0, 12),
+    initials = draw.edgedText(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, 0, 12),
     dim = rect(layer, COLOURS.border, 0, 0, 0, 0),
-    keybind = text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12),
-    seconds = text(layer, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, 0, 0),
+    keybind = draw.edgedText(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12),
+    seconds = draw.edgedText(layer, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, 0, 0),
   }
   parts.all = { parts.edge, parts.background, parts.icon, parts.initials, parts.dim, parts.keybind, parts.seconds }
   parts.inner = { parts.background, parts.icon, parts.dim }
@@ -351,7 +415,6 @@ local function placeTile(parts, x, y, size)
   pos(parts.keybind, x + size - 24, y + 2)
   pos(parts.seconds, x, y)
   draw.size(parts.seconds, size, size)
-  set(parts.seconds, "font", size >= LARGE_TILE and FONTS.seconds or FONTS.smallSeconds)
 end
 
 -- Shows a cooling tile's whole seconds left, since seconds after the server tick its model was read at, rounded
@@ -364,8 +427,9 @@ local function showSeconds(parts, since)
   return true
 end
 
--- Shows a src/cooldowns tile model on parts, since seconds after the server tick it was read at.
-local function showTile(parts, model, since)
+-- Shows a src/cooldowns tile model on a size pixel tile's parts in a src/style look, since seconds after the
+-- server tick it was read at.
+local function showTile(parts, model, since, look, size)
   set(parts.edge, "hidden", false)
   set(parts.background, "hidden", false)
   draw.iconOrInitials(parts.icon, parts.initials, model)
@@ -377,10 +441,11 @@ local function showTile(parts, model, since)
   if model.remaining ~= nil then showSeconds(parts, since) end
   local usable = model.usable ~= false
   set(parts.icon, "rgb", usable and UNTINTED or BLOCKED_ICON)
-  local labelColour = not usable and BLOCKED_TEXT or model.ready and COLOURS.text or COLOURS.dimText
+  local labelColour = not usable and BLOCKED_TEXT or model.ready and look.text or COLOURS.dimText
   local labelAlpha = usable and 1 or BLOCKED_ALPHA
-  set(parts.initials, "rgb", labelColour)
-  set(parts.keybind, "rgb", labelColour)
+  styleText(parts.initials, "small", look, false, labelColour)
+  styleText(parts.keybind, "small", look, false, labelColour)
+  styleText(parts.seconds, size >= LARGE_TILE and "seconds" or "smallSeconds", look, false)
   set(parts.initials, "alpha", labelAlpha)
   set(parts.keybind, "alpha", labelAlpha)
 end
@@ -393,7 +458,7 @@ end
 -- hides a custom group that is not in use and collapses its bounds. Tiles are built as the group first needs
 -- them, inside its layer, and never destroyed. Ready tiles are bright with their keybind; cooling tiles are
 -- dimmed with whole seconds left; tiles whose ability can't be cast are tinted dark. Hovering a tile shows
--- its tooltip.
+-- its tooltip. setLook(look) restyles the tiles' text and returns false, as it moves no bounds.
 function view.cooldownGroup(root, tooltip)
   local max = settings.MAX_GROUP_KEYS
   local layer = ui.Layer.new(root)
@@ -403,6 +468,8 @@ function view.cooldownGroup(root, tooltip)
   local current = {}
   -- Shown tiles, and how many of them are cooling.
   local count, cooling = 0, 0
+  -- The look shown and the seconds since the server tick of the models shown.
+  local look, shownSince = DEFAULT_LOOK, 0
   local bounds = { x = 0, y = 0, w = 0, h = 0 }
   local group = { layer = layer, bounds = bounds, inUse = true }
 
@@ -451,7 +518,7 @@ function view.cooldownGroup(root, tooltip)
       end
       return moved
     end
-    current = models
+    current, shownSince = models, since or 0
     count, cooling = math.min(#models, max), 0
     while #tiles < count do
       tiles[#tiles + 1] = tile(layer)
@@ -466,12 +533,19 @@ function view.cooldownGroup(root, tooltip)
         draw.hideAll(parts.all, true)
       else
         placeTile(parts, g.tiles[i].x, g.tiles[i].y, display.size)
-        showTile(parts, models[i], since or 0)
+        showTile(parts, models[i], shownSince, look, display.size)
         if models[i].remaining ~= nil then cooling = cooling + 1 end
       end
     end
     if hover.index ~= nil then showTooltip(hover.index) end
     return moved
+  end
+
+  function group.setLook(newLook)
+    if newLook == look then return false end
+    look = newLook
+    for i = 1, count do showTile(tiles[i], current[i], shownSince, look, display.size) end
+    return false
   end
 
   function group.step(since)
@@ -502,10 +576,7 @@ end
 local CANCEL_HOLD, CANCEL_FADE, CANCEL_STEPS = 0.6, 0.4, 5
 
 -- Fill colour by the channelled ability's src/cooldowns combat style. A channel with none keeps COLOURS.cast.
-local CAST_COLOURS = {
-  magic = COLOURS.castMagic, ranged = COLOURS.castRanged, melee = COLOURS.castMelee,
-  necromancy = COLOURS.castNecromancy,
-}
+local CAST_COLOURS = style.STYLE_COLOURS
 
 -- The spark at the fill's edge: a 2px white core with a glow of SPARK_GLOW 1px white strips behind it, their alpha
 -- rising evenly to GLOW_PEAK by the core, times the glow level. The level sits at GLOW_BASE and flashes on each
@@ -548,8 +619,8 @@ function view.castBar(root)
   local icon = ui.Sprite.new(layer)
   icon:SetPos(1, 1)
   icon:SetSize(CAST_ICON, CAST_ICON)
-  local name = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, barX + 5, 1, 180, CAST_HEIGHT - 2)
-  local time = text(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, CAST_WIDTH - 78, 1, 72, CAST_HEIGHT - 2)
+  local name = draw.edgedText(layer, FONTS.body, ui.AlignMode.TOPLEFT, barX + 5, 1, 180, CAST_HEIGHT - 2)
+  local time = draw.edgedText(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, CAST_WIDTH - 78, 1, 72, CAST_HEIGHT - 2)
   -- Every component the cancel fade dims. Marks hide on a cancel, so they are left out.
   local faded = { border, track, iconBack, icon, name, time }
   for _, part in ipairs(fill.parts) do faded[#faded + 1] = part end
@@ -682,19 +753,31 @@ function view.castBar(root)
     end
   end
 
+  -- Its fills are all dark, so Auto keeps the text light.
+  local shown = nil
+  local function setLook(look)
+    if look == shown then return false end
+    shown = look
+    fill.setTexture(look.texture)
+    styleText(name, "body", look, false)
+    styleText(time, "body", look, false)
+    return false
+  end
+
+  setLook(DEFAULT_LOOK)
   return {
-    layer = layer, update = update, step = step, setTexture = fill.setTexture, width = CAST_WIDTH,
+    layer = layer, update = update, step = step, setLook = setLook, width = CAST_WIDTH,
     height = CAST_HEIGHT, bounds = { x = 0, y = 0, w = CAST_WIDTH, h = CAST_HEIGHT },
   }
 end
 
 -- Aura rows by HUD element: tile size, which end the icons gather at, and whether they are debuffs, which get
--- an orange edge. timeFont and timeHeight size the time text along a tile's bottom.
+-- an orange edge. timeRole, a src/style text role, and timeHeight size the time text along a tile's bottom.
 view.AURA_STYLES = {
-  targetDebuffs = { size = 26, align = "right", debuff = true, timeFont = FONTS.small, timeHeight = 11 },
-  playerDebuffs = { size = 26, align = "left", debuff = true, timeFont = FONTS.small, timeHeight = 11 },
-  upkeepBuffs = { size = 26, align = "left", timeFont = FONTS.small, timeHeight = 11 },
-  combatBuffs = { size = 36, align = "centre", timeFont = FONTS.body, timeHeight = 13 },
+  targetDebuffs = { size = 26, align = "right", debuff = true, timeRole = "small", timeHeight = 11 },
+  playerDebuffs = { size = 26, align = "left", debuff = true, timeRole = "small", timeHeight = 11 },
+  upkeepBuffs = { size = 26, align = "left", timeRole = "small", timeHeight = 11 },
+  combatBuffs = { size = 36, align = "centre", timeRole = "body", timeHeight = 13 },
 }
 local AURA_GAP = 2
 -- Room around the tiles for the highlight, which draws up to 3px outside a tile.
@@ -708,12 +791,12 @@ local MISSING_ALPHA = 0.35
 
 -- Builds one aura tile's components as a draw.group. The bar's cover moves on its own, so it sits outside
 -- the group.
-local function auraTile(layer, style)
-  local size = style.size
+local function auraTile(layer, aura)
+  local size = aura.size
   local inner = size - 2
   local group = draw.group()
   local white = COLOURS.highlight
-  local timeY = size - style.timeHeight - 3
+  local timeY = size - aura.timeHeight - 3
   local parts = {
     group = group,
     ring = {
@@ -722,12 +805,13 @@ local function auraTile(layer, style)
       group.add(rect(layer, white, 0, 0, 2, size), -2, 0),
       group.add(rect(layer, white, 0, 0, 2, size), size, 0),
     },
-    edge = group.add(rect(layer, style.debuff and COLOURS.debuff or COLOURS.border, 0, 0, size, size), 0, 0),
+    edge = group.add(rect(layer, aura.debuff and COLOURS.debuff or COLOURS.border, 0, 0, size, size), 0, 0),
     icon = group.add(ui.Sprite.new(layer), 1, 1),
-    time = group.add(text(layer, style.timeFont, ui.AlignMode.CENTRE, 0, 0, size, style.timeHeight + 2), 0, timeY),
-    stacks = group.add(text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 23, 1),
+    time = group.add(draw.edgedText(layer, FONTS[aura.timeRole], ui.AlignMode.CENTRE, 0, 0, size,
+      aura.timeHeight + 2), 0, timeY),
+    stacks = group.add(draw.edgedText(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 23, 1),
     track = group.add(rect(layer, COLOURS.border, 0, 0, size, AURA_BAR), 0, size + 1),
-    fill = group.add(rect(layer, style.debuff and COLOURS.debuff or COLOURS.dimText, 0, 0, inner, AURA_BAR - 2), 1,
+    fill = group.add(rect(layer, aura.debuff and COLOURS.debuff or COLOURS.dimText, 0, 0, inner, AURA_BAR - 2), 1,
       size + 2),
     stripes = group.add(ui.Canvas.new(layer), 1, size + 2),
     cover = rect(layer, COLOURS.border, 0, 0, inner, AURA_BAR - 2),
@@ -780,21 +864,21 @@ end
 -- are on, and returns whether bounds changed. bounds spans the shown tiles, at least one, so an empty row
 -- can still be dragged in edit mode. Hovering an icon shows the name and info from info(sprite), which
 -- returns { name, info } or nil.
-function view.auraRow(root, style, tooltip, info)
-  local size = style.size
+function view.auraRow(root, aura, tooltip, info)
+  local size = aura.size
   local step = size + AURA_GAP
   local width = 2 * AURA_MARGIN + MAX_TILES * step - AURA_GAP
   local height = 2 * AURA_MARGIN + size + AURA_BAR_SPACE
   local layer = ui.Layer.new(root)
   layer:SetSize(width, height)
   local tiles = {}
-  for i = 1, MAX_TILES do tiles[i] = auraTile(layer, style) end
+  for i = 1, MAX_TILES do tiles[i] = auraTile(layer, aura) end
 
   -- x of the first of count tiles.
   local function left(count)
     local spare = (MAX_TILES - count) * step
-    if style.align == "right" then return AURA_MARGIN + spare end
-    if style.align == "centre" then return AURA_MARGIN + spare // 2 end
+    if aura.align == "right" then return AURA_MARGIN + spare end
+    if aura.align == "centre" then return AURA_MARGIN + spare // 2 end
     return AURA_MARGIN
   end
 
@@ -810,7 +894,7 @@ function view.auraRow(root, style, tooltip, info)
     local found = info(model.sprite)
     local x, y = screenPos(layer, tiles[i].group.x, AURA_MARGIN)
     tooltip.show({
-      title = found and found.name or (style.debuff and "Unknown debuff" or "Unknown buff"),
+      title = found and found.name or (aura.debuff and "Unknown debuff" or "Unknown buff"),
       left = found and found.info or (found == nil and "Looking up name" or nil),
     }, x, y, size)
   end
@@ -838,7 +922,19 @@ function view.auraRow(root, style, tooltip, info)
     return moved
   end
 
-  return { layer = layer, update = update, width = width, height = height, bounds = bounds }
+  local shown = nil
+  local function setLook(look)
+    if look == shown then return false end
+    shown = look
+    for _, parts in ipairs(tiles) do
+      styleText(parts.time, aura.timeRole, look, false)
+      styleText(parts.stacks, "small", look, false)
+    end
+    return false
+  end
+
+  setLook(DEFAULT_LOOK)
+  return { layer = layer, update = update, setLook = setLook, width = width, height = height, bounds = bounds }
 end
 
 return view

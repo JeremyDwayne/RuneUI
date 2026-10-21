@@ -469,6 +469,11 @@ local function defaultPositions(windowHeight)
   return out
 end
 
+-- Every appearance field at its default, the look of a HUD element before src/main gives it one.
+function settings.defaultAppearance()
+  return readAppearance(nil)
+end
+
 -- Loads saved settings from store, dropping unknown keys and malformed values. windowHeight, the game
 -- window's height in UI units, places the default HUD; specs leave it out.
 function settings.load(store, windowHeight)

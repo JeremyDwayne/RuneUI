@@ -117,7 +117,8 @@ _G.Event = setmetatable({}, { __index = function(_, name)
 end })
 _G.Mouse = { GetX = function() return fake.mouse.x end, GetY = function() return fake.mouse.y end }
 _G.GameKey = { ESCAPE = 13, SHIFT = 81 }
-_G.id = { Font = {}, StyleSheet = {} }
+-- Each font id is its name, so specs can read which font a label holds.
+_G.id = { Font = setmetatable({}, { __index = function(_, name) return name end }), StyleSheet = {} }
 _G.log = function() end
 
 return fake

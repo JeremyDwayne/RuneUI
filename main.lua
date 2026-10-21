@@ -12,6 +12,7 @@ local icons = require("src/icons")
 local options = require("src/options")
 local presets = require("src/presets")
 local settings = require("src/settings")
+local styling = require("src/style")
 local view = require("src/view")
 
 -- Game interfaces such as the bank draw over the game area, so the HUD sits under them. The options window
@@ -108,24 +109,40 @@ end)
 Event.InventoryAdded.Subscribe("lantern", adapter.inventoryChanged)
 Event.InventoryUpdated.Subscribe("lantern", adapter.inventoryChanged)
 
+-- The src/style look every element shows, rebuilt only after an appearance change or a weapon swap, and the HUD
+-- opacity shown.
+local look, lookVersion, lookStyle = nil, nil, nil
+local opacity = 1
+
+-- Gives every element the current look. Returns whether a unit frame's bounds changed.
+local function restyle()
+  local equipped = tracker.style()
+  if look ~= nil and lookVersion == saved.appearanceVersion() and lookStyle == equipped then return false end
+  look, lookVersion, lookStyle = styling.look(saved.appearance(), equipped), saved.appearanceVersion(), equipped
+  return view.setLook(elements, look)
+end
+
 local function refresh()
   local appearance = saved.appearance()
   adapter.hideTargetPanel(appearance.hideTargetPanel)
   adapter.hideBuffBars(appearance.hideBuffBars)
   adapter.hideCastBar(appearance.hideCastBar)
-  for _, element in pairs(elements) do
-    if element.setTexture ~= nil then element.setTexture(appearance.texture) end
-  end
-  elements.player.update(frames.player(adapter.playerReads()))
-  local target = frames.target(adapter.targetReads())
+  local moved = restyle()
+  elements.player.update(frames.player(adapter.playerReads(), appearance.lifepoints))
+  local target = frames.target(adapter.targetReads(), appearance.lifepoints)
   elements.target.update(target)
+  local alpha = target.hidden and appearance.idleAlpha / 100 or 1
+  if alpha ~= opacity then
+    opacity = alpha
+    view.setOpacity(elements, alpha)
+  end
   elements.resource.update(frames.resource(adapter.resourceReads(frames.SPENDERS), saved.markers()))
   -- This redraw covers any change waiting for the next Logic tick.
   channelTracker.changed()
   tracker.changed()
   elements.castbar.update(channelTracker.model())
   slots = adapter.barSlots()
-  local moved = updateGroups()
+  if updateGroups() then moved = true end
   local bars = appearance.auraBars
   auraFilters.hasTarget = not target.hidden
   -- Listing each debuff seen puts it on the Buffs page; seeDebuff saves only a new one.

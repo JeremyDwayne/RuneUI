@@ -14,15 +14,9 @@ draw.COLOURS = {
   border = 0x000000,
   track = 0x1a1d21,
   healthTrack = 0x111111,
-  player = 0x2f63a8,
-  target = 0xa4511c,
   prayer = 0xdfe4ea,
   adrenaline = 0xffb000,
   cast = 0x23706a,
-  castMagic = 0x2a5fa8,
-  castRanged = 0x2f7a33,
-  castMelee = 0x8e2a26,
-  castNecromancy = 0x6b3fa0,
   marker = 0xdfe4ea,
   text = 0xffffff,
   darkText = 0x111316,
@@ -54,6 +48,11 @@ draw.COLOURS = {
 local warned = {}
 -- Last value written per component and field, so per-tick redraws only touch what changed.
 local written = setmetatable({}, { __mode = "k" })
+-- Each draw.edgedText label's edge: { copies, on, rgb }.
+local edges = setmetatable({}, { __mode = "k" })
+-- Label fields its edge copies repeat, and each copy's offset from the label.
+local MIRRORED = { content = true, font = true, hidden = true, alpha = true, isShadowed = true }
+local EDGE_OFFSETS = { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } }
 
 local function writtenFor(obj)
   local fields = written[obj]
@@ -64,13 +63,24 @@ local function writtenFor(obj)
   return fields
 end
 
--- Writes a component property unless it already holds value, logging the first failure per property.
+-- The edge of obj while it is on, or nil.
+local function edgeOn(obj)
+  local edge = edges[obj]
+  return edge ~= nil and edge.on and edge or nil
+end
+
+-- Writes a component property unless it already holds value, logging the first failure per property. A
+-- draw.edgedText label's edge copies take the same write while its edge is on.
 function draw.set(obj, field, value)
   local fields = writtenFor(obj)
   if fields[field] == value then return end
   local ok, err = pcall(function() obj[field] = value end)
   if ok then
     fields[field] = value
+    local edge = MIRRORED[field] and edgeOn(obj)
+    if edge then
+      for _, copy in ipairs(edge.copies) do draw.set(copy, field, value) end
+    end
   elseif not warned[field] then
     warned[field] = true
     log("cannot set " .. field .. ":", err)
@@ -83,6 +93,10 @@ function draw.pos(obj, x, y)
   if fields["SetPos.x"] == x and fields["SetPos.y"] == y then return end
   obj:SetPos(x, y)
   fields["SetPos.x"], fields["SetPos.y"] = x, y
+  local edge = edgeOn(obj)
+  if edge then
+    for i, copy in ipairs(edge.copies) do draw.pos(copy, x + EDGE_OFFSETS[i][1], y + EDGE_OFFSETS[i][2]) end
+  end
 end
 
 -- SetPos with anchors as fractions of the parent, with the same unchanged-value skip as draw.pos.
@@ -99,23 +113,27 @@ function draw.width(obj, width)
   local fields = writtenFor(obj)
   if fields.SetWidth == width then return end
   obj:SetWidth(width)
-  fields.SetWidth = width
+  fields.SetWidth, fields["SetSize.w"] = width, width
 end
 
--- SetSize with the same unchanged-value skip as draw.pos.
+-- SetSize with the same unchanged-value skip as draw.pos. A draw.edgedText label's edge copies follow it.
 function draw.size(obj, width, height)
   local fields = writtenFor(obj)
   if fields["SetSize.w"] == width and fields["SetSize.h"] == height then return end
   obj:SetSize(width, height)
-  fields["SetSize.w"], fields["SetSize.h"] = width, height
+  fields["SetSize.w"], fields["SetSize.h"], fields.SetWidth = width, height, width
+  local edge = edgeOn(obj)
+  if edge then
+    for _, copy in ipairs(edge.copies) do draw.size(copy, width, height) end
+  end
 end
 
 function draw.rect(parent, rgb, x, y, width, height)
   local r = ui.Rectangle.new(parent)
   draw.set(r, "fill", true)
   draw.set(r, "rgb", rgb)
-  r:SetPos(x, y)
-  r:SetSize(width, height)
+  draw.pos(r, x, y)
+  draw.size(r, width, height)
   return r
 end
 
@@ -139,9 +157,44 @@ function draw.text(parent, font, horizontal, x, y, width, height)
   draw.set(t, "rgb", draw.COLOURS.text)
   draw.set(t, "isShadowed", true)
   align(t, horizontal)
-  t:SetPos(x, y)
-  t:SetSize(width, height)
+  draw.pos(t, x, y)
+  draw.size(t, width, height)
   return t
+end
+
+-- A draw.text label with four hidden copies under it, offset 1px diagonally, that draw.setEdge shows as an
+-- outline. Built before the label so they draw beneath it.
+function draw.edgedText(parent, font, horizontal, x, y, width, height)
+  local copies = {}
+  for i, offset in ipairs(EDGE_OFFSETS) do
+    copies[i] = draw.text(parent, font, horizontal, x + offset[1], y + offset[2], width, height)
+    draw.set(copies[i], "hidden", true)
+  end
+  local t = draw.text(parent, font, horizontal, x, y, width, height)
+  edges[t] = { copies = copies, on = false }
+  return t
+end
+
+-- Shows a draw.edgedText label's outline in rgb, or hides it when rgb is nil. Once on, the copies take every
+-- change to the label's content, font, visibility, alpha, shadow, position and size.
+function draw.setEdge(label, rgb)
+  local edge = edges[label]
+  if edge.rgb == rgb and edge.on == (rgb ~= nil) then return end
+  edge.on, edge.rgb = rgb ~= nil, rgb
+  if rgb == nil then
+    draw.hideAll(edge.copies, true)
+    return
+  end
+  local fields = writtenFor(label)
+  for i, copy in ipairs(edge.copies) do
+    draw.set(copy, "rgb", rgb)
+    for field in pairs(MIRRORED) do
+      if fields[field] ~= nil then draw.set(copy, field, fields[field]) end
+    end
+    draw.set(copy, "hidden", fields.hidden == true)
+    draw.pos(copy, fields["SetPos.x"] + EDGE_OFFSETS[i][1], fields["SetPos.y"] + EDGE_OFFSETS[i][2])
+    draw.size(copy, fields["SetSize.w"], fields["SetSize.h"])
+  end
 end
 
 -- Makes c take clicks and stop them, like a button: plain components start enabled = false and
@@ -308,13 +361,13 @@ end
 
 -- A bar fill over its track, flat or with a settings.TEXTURES gradient. The gradient is drawn once per
 -- texture on a canvas, and a track-coloured cover hides the empty part, so a fill change moves one rect.
--- Returns { setFill(fill from 0 to 1, or nil to hide), setTexture(texture), setColour(rgb), parts }, parts listing
--- its components.
+-- Returns { setFill(fill from 0 to 1, or nil to hide), setTexture(texture), setColour(rgb), setBox(x, y, w, h),
+-- parts }, parts listing its components.
 function draw.bar(parent, rgb, trackRgb, x, y, width, height)
   local solid = draw.rect(parent, rgb, x, y, width, height)
   local canvas = ui.Canvas.new(parent)
-  canvas:SetPos(x, y)
-  canvas:SetSize(width, height)
+  draw.pos(canvas, x, y)
+  draw.size(canvas, width, height)
   local cover = draw.rect(parent, trackRgb, x, y, width, height)
   local texture, fill = "flat", nil
 
@@ -365,6 +418,18 @@ function draw.bar(parent, rgb, trackRgb, x, y, width, height)
     rgb = value
     draw.set(solid, "rgb", rgb)
     paint()
+  end
+
+  -- Moves and resizes the bar, repainting the gradient at a new size.
+  function bar.setBox(newX, newY, w, h)
+    if newX == x and newY == y and w == width and h == height then return end
+    local resized = w ~= width or h ~= height
+    x, y, width, height = newX, newY, w, h
+    for _, part in ipairs(bar.parts) do
+      draw.pos(part, x, y)
+      draw.size(part, w, h)
+    end
+    if resized then paint() else redraw() end
   end
 
   return bar
