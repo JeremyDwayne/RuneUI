@@ -96,7 +96,12 @@ function icons.index(saved, spriteName, itemName, count)
   function index.step(lookup, budget)
     local found = {}
     if next(wanted) == nil then return found end
-    for _ = 1, budget do
+    -- Scan no further than the icon with the most ids left needs. Ids past an icon's own full cycle are ones
+    -- it already saw, so they leave its match unchanged.
+    local scan = 0
+    for _, w in pairs(wanted) do scan = math.max(scan, w.left) end
+    scan = math.min(scan, budget)
+    for _ = 1, scan do
       local id = nextID
       nextID = (nextID + 1) % count
       local struct = lookup(id)
@@ -109,18 +114,18 @@ function icons.index(saved, spriteName, itemName, count)
           want.best, want.bestRank, want.bestID = struct, r, id
         end
       end
-      for sprite, w in pairs(wanted) do
-        w.left = w.left - 1
-        if w.left <= 0 then
-          if w.best ~= nil then
-            found[#found + 1] = name(sprite, w.best)
-          else
-            unmatched[sprite], wanted[sprite] = true, nil
-            found[#found + 1] = { sprite = sprite }
-          end
+      if next(wanted) == nil then break end
+    end
+    for sprite, w in pairs(wanted) do
+      w.left = w.left - scan
+      if w.left <= 0 then
+        if w.best ~= nil then
+          found[#found + 1] = name(sprite, w.best)
+        else
+          unmatched[sprite], wanted[sprite] = true, nil
+          found[#found + 1] = { sprite = sprite }
         end
       end
-      if next(wanted) == nil then break end
     end
     return found
   end
