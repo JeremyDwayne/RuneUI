@@ -40,8 +40,7 @@ tracker.seed(presets.INFO)
 tracker.seed(saved.known())
 -- These vars send no change until they next differ, so their values at load seed the trackers.
 tracker.onVar("COMBATV2_MAINHAND_STYLE", nil, adapter.playerVar("COMBATV2_MAINHAND_STYLE"))
-local ITERATIONS = "COMBATV2_CHANNEL_ABILITY_ITERATIONS"
-channelTracker.onVar(ITERATIONS, nil, adapter.playerVar(ITERATIONS))
+channelTracker.seed(adapter.playerVar)
 -- Struct ids scanned per tick while an aura icon is unnamed, about 48 seconds for a full scan.
 local ICON_SCAN_BUDGET = 1000
 

@@ -35,6 +35,18 @@ describe("channel.tracker", function()
       assert.are.same(expected, tracker.model())
     end)
 
+  it("names a first channel that repeats the struct and iterations held at load", function()
+    local tracker = channel.tracker()
+    local atLoad = { COMBATV2_CHANNEL_ABILITY_STRUCT = CHOKE, COMBATV2_CHANNEL_ABILITY_ITERATIONS = 3 }
+    tracker.seed(function(name) return atLoad[name] end)
+    tracker.onVar("COMBATV2_CHANNEL_END_REASON", 1, -1)
+    tracker.onVar("COMBATV2_CHANNEL_END", 227265, 227275)
+    tracker.onVar("COMBATV2_CHANNEL_START", 227263, 227269)
+    tracker.read(asphyxiate)
+    local model = tracker.model()
+    assert.are.same({ "Asphyxiate", "magic", 4 }, { model.name, model.style, #model.hits })
+  end)
+
   it("counts the ticks left down on each server tick after START, as the game's label steps", function()
     local tracker = channel.tracker()
     startAsphyxiate(tracker)
