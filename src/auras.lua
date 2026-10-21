@@ -100,23 +100,60 @@ function auras.tracker()
     return m
   end
 
-  local function add(row, item)
-    if #row < MAX_ICONS then row[#row + 1] = item end
+  -- Sorts row's models by rank, a { [sprite] = position } map, keeping the row's order among unranked ones,
+  -- then drops all but the first MAX_ICONS.
+  local function finish(row, rank)
+    if #row < 2 then return end
+    local at = {}
+    for i, m in ipairs(row) do at[m] = i end
+    local huge = math.huge
+    table.sort(row, function(a, b)
+      local ra, rb = rank[a.sprite] or huge, rank[b.sprite] or huge
+      if ra ~= rb then return ra < rb end
+      return at[a] < at[b]
+    end)
+    for i = #row, MAX_ICONS + 1, -1 do row[i] = nil end
   end
 
   -- categories: { [tostring(sprite)] = "combat" | "upkeep" | "hidden" } from settings; a buff missing from it
-  -- goes where its first time left put it. targetDebuffs: target debuff sprites. Returns { targetDebuffs,
-  -- playerDebuffs, upkeepBuffs, combatBuffs }, keyed by HUD element, each a list of up to 10 models in bar
-  -- order. Target debuffs carry only their sprite.
-  function tracker.rows(categories, targetDebuffs)
+  -- goes where its first time left put it. targetDebuffs: target debuff sprites. filters: { tracked(kind,
+  -- sprite), keepUp, hasTarget, rank(kind) }, where tracked says whether the "target" or "player" debuff row
+  -- shows a sprite, keepUp is settings' { [tostring(sprite)] = true }, and rank returns the "buffs", "target"
+  -- or "player" sorted order as { [sprite] = position }. Returns { targetDebuffs, playerDebuffs, upkeepBuffs,
+  -- combatBuffs }, keyed by HUD element, each a list of up to 10 models in rank order, with unranked icons
+  -- after in bar order. Target debuffs carry only their sprite. While hasTarget, each Keep up upkeep buff
+  -- missing from the bar joins the upkeep row as { sprite, missing = true }.
+  function tracker.rows(categories, targetDebuffs, filters)
     local rows = { targetDebuffs = {}, playerDebuffs = {}, upkeepBuffs = {}, combatBuffs = {} }
-    for _, sprite in ipairs(targetDebuffs) do add(rows.targetDebuffs, { sprite = sprite }) end
-    for _, sprite in ipairs(bars.debuffs.order) do add(rows.playerDebuffs, model(bars.debuffs.states[sprite])) end
+    for _, sprite in ipairs(targetDebuffs) do
+      if filters.tracked("target", sprite) then rows.targetDebuffs[#rows.targetDebuffs + 1] = { sprite = sprite } end
+    end
+    for _, sprite in ipairs(bars.debuffs.order) do
+      if filters.tracked("player", sprite) then
+        rows.playerDebuffs[#rows.playerDebuffs + 1] = model(bars.debuffs.states[sprite])
+      end
+    end
     for _, sprite in ipairs(bars.buffs.order) do
       local state = bars.buffs.states[sprite]
       local row = rows[ROWS[categories[tostring(sprite)] or state.category]]
-      if row ~= nil then add(row, model(state)) end
+      if row ~= nil then row[#row + 1] = model(state) end
     end
+    if filters.hasTarget then
+      local missing = {}
+      for key in pairs(filters.keepUp) do
+        local sprite = tonumber(key)
+        if categories[key] == "upkeep" and bars.buffs.states[sprite] == nil then missing[#missing + 1] = sprite end
+      end
+      table.sort(missing)
+      local upkeep = rows.upkeepBuffs
+      for _, sprite in ipairs(missing) do
+        upkeep[#upkeep + 1] = { sprite = sprite, missing = true, highlight = false }
+      end
+    end
+    finish(rows.targetDebuffs, filters.rank("target"))
+    finish(rows.playerDebuffs, filters.rank("player"))
+    finish(rows.upkeepBuffs, filters.rank("buffs"))
+    finish(rows.combatBuffs, filters.rank("buffs"))
     return rows
   end
 

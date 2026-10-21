@@ -231,3 +231,65 @@ describe("adapter.barSlots", function()
     assert.are.same({ [13309] = { keybind = "Q", usable = true }, [14385] = { usable = false } }, adapter.barSlots())
   end)
 end)
+
+describe("adapter.iconStruct", function()
+  it("reads combat and spell structs with an icon and a name, and skips other structs", function()
+    local params = {
+      COMBATV2_ABILITY_ICON = { id = 1 }, COMBATV2_ABILITY_NAME = { id = 2 }, COMBATV2_ABILITY_INFO = { id = 3 },
+    }
+    local function struct(configName, values)
+      return {
+        configName = configName,
+        HasParam = function(_, p) return values[p.id] ~= nil end,
+        GetParamValue = function(_, p) return values[p.id] end,
+      }
+    end
+    local structs = {
+      [1] = struct("MAGIC_VULNERABILITY", { 14395, "Vulnerability" }),
+      [2] = struct("COMBATV2_STUNNED_DUMMY_ABILITY", { 26103, "Stunned" }),
+      [3] = struct("QUEST_REWARD", { 99, "Lamp" }),
+    }
+    _G.config = { Param = params, Struct = { FromID = function(structID) return structs[structID] end } }
+    assert.are.same({ configName = "MAGIC_VULNERABILITY", icon = 14395, name = "Vulnerability" }, adapter.iconStruct(1))
+    assert.are.equal("Stunned", adapter.iconStruct(2).name)
+    assert.is_nil(adapter.iconStruct(3))
+  end)
+end)
+
+describe("adapter.auraReads", function()
+  it("reads a buff slot that shows an item, such as an overload, as minus the item id", function()
+    local slots = {
+      [19] = { icon = { spriteID = 30099 }, label = { content = "" } },
+      [20] = { icon = { spriteID = -1, associatedObjectID = 49039 }, label = { content = "5m" } },
+    }
+    _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID, _, dynamicID)
+      local slot = interfaceID == 284 and slots[staticID]
+      if slot then return dynamicID == 0 and slot.icon or slot.label end
+    end } }
+    assert.are.same({ { sprite = 30099 }, { sprite = -49039, label = "5m" } }, adapter.auraReads().buffs)
+  end)
+end)
+
+describe("adapter.structInfo", function()
+  it("reads a struct's description, or nil when it has none", function()
+    local info = { id = 3 }
+    local function struct(text)
+      return {
+        HasParam = function(_, p) return p == info and text ~= nil end,
+        GetParamValue = function() return text end,
+      }
+    end
+    local structs = { [1] = struct("Swollen."), [2] = struct(nil) }
+    local function fromID(structID) return structs[structID] end
+    _G.config = { Param = { COMBATV2_ABILITY_INFO = info }, Struct = { FromID = fromID } }
+    assert.are.same({ "Swollen.", nil, nil }, { adapter.structInfo(1), adapter.structInfo(2), adapter.structInfo(9) })
+  end)
+end)
+
+describe("adapter.itemName", function()
+  it("names an item by id", function()
+    local salve = { name = "Elder overload salve (6)" }
+    _G.config = { Obj = { FromID = function(objID) return objID == 49039 and salve or nil end } }
+    assert.are.same({ "Elder overload salve (6)", nil }, { adapter.itemName(49039), adapter.itemName(1) })
+  end)
+end)

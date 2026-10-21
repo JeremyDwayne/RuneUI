@@ -1,6 +1,7 @@
 -- Saved settings: element positions and anchors, cooldown groups, marker percents, appearance (bar texture,
 -- aura bars, and whether the default target panel and buff bars are hidden), edit mode snapping, learned
--- ability names and icons, aura names by icon, and the aura row each buff icon belongs to.
+-- ability names and icons, aura names by icon, the aura row each buff icon belongs to, which debuffs each
+-- debuff row tracks, the upkeep buffs kept up, and the order of each kind of aura icon.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local layout = require("src/layout")
 
@@ -41,6 +42,12 @@ settings.TEXTURES = { "flat", "vertical", "horizontal" }
 local GROUP_NAMES = { "rotation", "cooldowns" }
 -- Aura rows a buff icon can be sorted into.
 local AURA_CATEGORIES = { combat = true, upkeep = true, hidden = true }
+-- Saved keys of each debuff row's tracked choices, by kind.
+local TRACKED_KEYS = { target = "trackedTarget", player = "trackedPlayer" }
+-- Saved keys of each aura kind's icon order.
+local ORDER_KEYS = { buffs = "orderBuffs", target = "orderTarget", player = "orderPlayer" }
+-- The rule src/icons names auras by; saved names from an older rule are dropped once on load.
+local NAMES_VERSION = 3
 local POSITION_FIELDS = { "x", "y", "anchorX", "anchorY" }
 
 -- PersistentDB hands numbers back as floats, so -427 returns as -427.0; whole numbers become integers again.
@@ -150,24 +157,69 @@ local function readAppearance(saved)
   return appearance
 end
 
+-- An icon map's key as the string of a whole number, a sprite id or minus an item id, or nil.
+local function iconKey(key)
+  local n = math.tointeger(tonumber(key))
+  return n and tostring(n)
+end
+
 local function readDebuffs(saved)
   local debuffs = {}
   if type(saved) ~= "table" then return debuffs end
   for sprite, entry in pairs(saved) do
-    if type(entry) == "table" and type(entry.name) == "string" then
-      debuffs[tostring(sprite)] = { name = entry.name, info = type(entry.info) == "string" and entry.info or nil }
-    elseif type(entry) == "table" and entry.unmatched == true then
-      debuffs[tostring(sprite)] = { unmatched = true }
+    local key = iconKey(sprite)
+    if key ~= nil and type(entry) == "table" then
+      if type(entry.name) == "string" then
+        debuffs[key] = { name = entry.name, struct = math.tointeger(entry.struct) }
+      elseif entry.unmatched == true then
+        debuffs[key] = { unmatched = true }
+      end
     end
   end
   return debuffs
+end
+
+-- A debuff kind's choices, { [tostring(sprite)] = true | false | "seen" }.
+local function readTracked(saved)
+  local out = {}
+  if type(saved) ~= "table" then return out end
+  for sprite, choice in pairs(saved) do
+    local key = iconKey(sprite)
+    if key ~= nil and (type(choice) == "boolean" or choice == "seen") then out[key] = choice end
+  end
+  return out
+end
+
+-- An icon order: a list of whole numbers, each once.
+local function readOrder(saved)
+  local out, seen = {}, {}
+  if type(saved) ~= "table" then return out end
+  for _, sprite in ipairs(saved) do
+    local n = math.tointeger(sprite)
+    if n ~= nil and not seen[n] then
+      seen[n] = true
+      out[#out + 1] = n
+    end
+  end
+  return out
+end
+
+local function readKeepUp(saved)
+  local out = {}
+  if type(saved) ~= "table" then return out end
+  for sprite, on in pairs(saved) do
+    local key = iconKey(sprite)
+    if key ~= nil and on == true then out[key] = true end
+  end
+  return out
 end
 
 local function readAuras(saved)
   local out = {}
   if type(saved) ~= "table" then return out end
   for sprite, category in pairs(saved) do
-    if AURA_CATEGORIES[category] then out[tostring(sprite)] = category end
+    local key = iconKey(sprite)
+    if key ~= nil and AURA_CATEGORIES[category] then out[key] = category end
   end
   return out
 end
@@ -218,7 +270,20 @@ function settings.load(store, windowHeight)
   local known = readKnown(store.get("known"))
   local appearance = readAppearance(store.get("appearance"))
   local debuffs = readDebuffs(store.get("debuffs"))
+  local namesVersion = store.get("namesVersion")
+  if type(namesVersion) ~= "table" or namesVersion.version ~= NAMES_VERSION then
+    debuffs = {}
+    store.set("debuffs", debuffs)
+    store.set("namesVersion", { version = NAMES_VERSION })
+  end
   local auras = readAuras(store.get("auras"))
+  local tracked = {}
+  for kind, key in pairs(TRACKED_KEYS) do tracked[kind] = readTracked(store.get(key)) end
+  local keepUp = readKeepUp(store.get("keepUp"))
+  local orders = {}
+  for kind, key in pairs(ORDER_KEYS) do orders[kind] = readOrder(store.get(key)) end
+  -- Counts changes to aura rows, tracking and order, so callers rebuild what depends on them only after one.
+  local auraVersion = 0
 
   local function saveGroups() store.set("groups", groups) end
 
@@ -367,18 +432,73 @@ function settings.load(store, windowHeight)
     local key = tostring(sprite)
     if auras[key] ~= nil then return end
     auras[key] = category
+    auraVersion = auraVersion + 1
     store.set("auras", auras)
   end
 
-  -- { [tostring(sprite)] = { name, info } } for every aura icon src/icons has named, and
+  -- Moves a buff icon to another aura row.
+  function s.setAuraCategory(sprite, category)
+    auras[tostring(sprite)] = category
+    auraVersion = auraVersion + 1
+    store.set("auras", auras)
+  end
+
+  -- { [tostring(sprite)] = true | false | "seen" }: the debuffs of kind, "target" or "player", seen or chosen.
+  function s.tracked(kind)
+    return tracked[kind]
+  end
+
+  -- Lists a debuff of kind seen for the first time, with no choice. No-op once listed.
+  function s.seeDebuff(kind, sprite)
+    local key = tostring(sprite)
+    if tracked[kind][key] ~= nil then return end
+    tracked[kind][key] = "seen"
+    auraVersion = auraVersion + 1
+    store.set(TRACKED_KEYS[kind], tracked[kind])
+  end
+
+  function s.setTracked(kind, sprite, on)
+    tracked[kind][tostring(sprite)] = on
+    auraVersion = auraVersion + 1
+    store.set(TRACKED_KEYS[kind], tracked[kind])
+  end
+
+  -- { buffs, target, player }: each kind's icons in the order sorted on the Buffs page.
+  function s.orders()
+    return orders
+  end
+
+  function s.setOrder(kind, list)
+    orders[kind] = list
+    auraVersion = auraVersion + 1
+    store.set(ORDER_KEYS[kind], list)
+  end
+
+  -- A number that changes with every aura row, tracking or order change.
+  function s.auraVersion()
+    return auraVersion
+  end
+
+  -- { [tostring(sprite)] = true } for each upkeep buff that keeps a tile while missing.
+  function s.keepUp()
+    return keepUp
+  end
+
+  function s.setKeepUp(sprite, on)
+    keepUp[tostring(sprite)] = on or nil
+    store.set("keepUp", keepUp)
+  end
+
+  -- { [tostring(sprite)] = { name, struct } } for every aura icon src/icons has named, and
   -- { unmatched = true } for each one it found no struct for.
   function s.debuffs()
     return debuffs
   end
 
-  -- Saves an aura icon's name and info, or with no name, that no struct matches it.
-  function s.learnDebuff(sprite, name, info)
-    debuffs[tostring(sprite)] = name and { name = name, info = info } or { unmatched = true }
+  -- Saves an aura icon's name and the id of the struct it came from, or with no name, that no struct matches
+  -- it.
+  function s.learnDebuff(sprite, name, struct)
+    debuffs[tostring(sprite)] = name and { name = name, struct = math.tointeger(struct) } or { unmatched = true }
     store.set("debuffs", debuffs)
   end
 

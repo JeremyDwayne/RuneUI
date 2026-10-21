@@ -25,6 +25,18 @@ describe("draw", function()
     assert.are.same({ props = 2, pos = 4 }, c.writes)
   end)
 
+  it("shows an aura icon as a sprite, or as an item for minus its id, skipping an unchanged icon", function()
+    local calls = {}
+    local c = setmetatable({
+      SetAssociatedObject = function(_, objID) calls[#calls + 1] = "object=" .. objID end,
+    }, { __newindex = function(_, k, v) calls[#calls + 1] = k .. "=" .. v end })
+    draw.icon(c, 30099)
+    draw.icon(c, -49039)
+    draw.icon(c, -49039)
+    draw.icon(c, 30099)
+    assert.are.same({ "sprite=30099", "object=49039", "object=-1", "sprite=30099" }, calls)
+  end)
+
   it("retries a write the client refused", function()
     local attempts = 0
     local c = setmetatable({}, { __newindex = function()

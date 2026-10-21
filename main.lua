@@ -2,6 +2,7 @@
 -- Each server tick reads the client through src/adapter and redraws from the src/frames, src/cooldowns and
 -- src/auras models.
 local adapter = require("src/adapter")
+local auralists = require("src/auralists")
 local auras = require("src/auras")
 local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
@@ -15,7 +16,9 @@ local view = require("src/view")
 local hud = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
 local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
 local saved = settings.load(adapter.store(), tonumber(hud.height))
-local auraNames = icons.index(saved.debuffs(), adapter.spriteName)
+local auraNames = icons.index(saved.debuffs(), {
+  spriteName = adapter.spriteName, itemName = adapter.itemName, describe = adapter.structInfo,
+})
 local tooltip = view.tooltip(hud)
 local elements = {
   player = view.playerFrame(hud),
@@ -29,6 +32,24 @@ local tracker = cooldowns.tracker()
 local auraTracker = auras.tracker()
 local optionsWindow
 tracker.seed(saved.known())
+-- Each aura kind's sorted order as { [sprite] = position }, rebuilt only after a saved aura choice changes.
+local auraRanks, ranksVersion = nil, nil
+local function rank(kind)
+  if ranksVersion ~= saved.auraVersion() then
+    local choices = { target = saved.tracked("target"), player = saved.tracked("player") }
+    auraRanks = auralists.ranks(auralists.groups(saved.auras(), choices, saved.orders()))
+    ranksVersion = saved.auraVersion()
+  end
+  return auraRanks[kind]
+end
+-- What the aura rows show: tracked debuffs in their sorted order, and Keep up tiles while the player has a
+-- target.
+local auraFilters = {
+  tracked = function(kind, sprite) return auralists.tracked(kind, saved.tracked(kind), sprite) end,
+  keepUp = saved.keepUp(),
+  hasTarget = false,
+  rank = rank,
+}
 -- Struct ids scanned per tick while an aura icon is unnamed, about 48 seconds for a full scan.
 local ICON_SCAN_BUDGET = 1000
 
@@ -57,25 +78,31 @@ local function refresh()
   local rotationMoved = elements.rotation.update(tracker.tiles(groups.rotation, slots), accent)
   local moved = elements.cooldowns.update(tracker.tiles(groups.cooldowns, slots), accent) or rotationMoved
   local bars = saved.auraBars()
-  for name, models in pairs(auraTracker.rows(saved.auras(), target.debuffs or {})) do
+  auraFilters.hasTarget = not target.hidden
+  -- Listing each debuff seen puts it on the Buffs page; seeDebuff saves only a new one.
+  for _, sprite in ipairs(target.debuffs or {}) do saved.seeDebuff("target", sprite) end
+  for name, models in pairs(auraTracker.rows(saved.auras(), target.debuffs or {}, auraFilters)) do
     -- Asking for each aura's name queues unnamed icons for the background scan.
     for _, model in ipairs(models) do auraNames.info(model.sprite) end
     if elements[name].update(models, bars) then moved = true end
   end
   -- Anchored elements follow a row whose shown tiles changed.
   if moved then optionsWindow.placeAll() end
+  optionsWindow.redrawBuffs()
 end
 
 optionsWindow = options.create(top, {
-  saved = saved, tracker = tracker, elements = elements, view = view, refresh = refresh,
+  saved = saved, tracker = tracker, elements = elements, view = view, auraInfo = auraNames.info, refresh = refresh,
 })
 
 Event.ServerLogic.Subscribe("refresh", function()
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then saved.learn(learned.key, learned.name, learned.icon) end
-  for _, found in ipairs(auraTracker.onTick(adapter.auraReads())) do saved.learnAura(found.sprite, found.category) end
+  local auraReads = adapter.auraReads()
+  for _, found in ipairs(auraTracker.onTick(auraReads)) do saved.learnAura(found.sprite, found.category) end
+  for _, read in ipairs(auraReads.debuffs) do saved.seeDebuff("player", read.sprite) end
   for _, found in ipairs(auraNames.step(adapter.iconStruct, ICON_SCAN_BUDGET)) do
-    saved.learnDebuff(found.sprite, found.name, found.info)
+    saved.learnDebuff(found.sprite, found.name, found.struct)
   end
   refresh()
 end)
