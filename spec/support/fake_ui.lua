@@ -19,6 +19,7 @@ local function call(method)
     if method == "SetSize" then data.width, data.height = a, b end
     if method == "SetWidth" then data.width = a end
     if method == "SetHeight" then data.height = a end
+    if method == "SetAssociatedObject" then data.object = a end
     if method == "MoveToFront" then
       if fake.shown(c) then data.fronted = true else data.undrawn = true end
     end

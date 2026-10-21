@@ -98,11 +98,16 @@ function adapter.targetReads()
 end
 
 -- { sprite, label } for each shown icon on bar, a BUFF_BARS entry, stopping after EMPTY_RUN empty slots.
+-- A slot that shows an item, as an overload's does, reads as minus the item id.
 local function barReads(bar)
   local list, empty, filled = {}, 0, bar.first - 1
   for staticID = bar.first, bar.last do
     local icon = ui.Interfaces:GetComponent(bar.id, staticID, 0, 0)
     local sprite = icon and read(icon, "spriteID")
+    if sprite == -1 then
+      local objID = read(icon, "associatedObjectID")
+      if objID ~= nil and objID >= 0 then sprite = -objID end
+    end
     local label = ui.Interfaces:GetComponent(bar.id, staticID, 0, 1)
     local text = label and read(label, "content")
     if type(text) ~= "string" or text == "" then text = nil end
@@ -414,6 +419,16 @@ end
 
 local function readSpriteName(sprite)
   return id.Sprite.FromID(sprite)
+end
+
+local function readItemName(objID)
+  return config.Obj.FromID(objID).name
+end
+
+-- src/icons item names: the name of an item id, or nil.
+function adapter.itemName(objID)
+  local ok, name = pcall(readItemName, objID)
+  return ok and type(name) == "string" and name or nil
 end
 
 -- src/icons sprite names: the config name of a sprite id, or nil.

@@ -3,18 +3,18 @@ local buffspage = require("src/buffspage")
 local settings = require("src/settings")
 local view = require("src/view")
 
-local BONE_SHIELD, OVERLOAD, BLOATED, STUN_IMMUNE = 30099, 30093, 30098, 26104
+local BONE_SHIELD, ANTIFIRE, BLOATED, STUN_IMMUNE = 30099, 30093, 30098, 26104
 
 local function fakeStore()
   local data = {}
   return { get = function(key) return data[key] end, set = function(key, value) data[key] = value end }
 end
 
--- A Buffs page with Bone Shield in combat buffs, an overload in upkeep, and Stun Immune seen on a target.
+-- A Buffs page with Bone Shield in combat buffs, an antifire in upkeep, and Stun Immune seen on a target.
 local function open()
   local saved = settings.load(fakeStore())
   saved.learnAura(BONE_SHIELD, "combat")
-  saved.learnAura(OVERLOAD, "upkeep")
+  saved.learnAura(ANTIFIRE, "upkeep")
   saved.seeDebuff("target", STUN_IMMUNE)
   local root = fake.component()
   local refreshed = { count = 0 }
@@ -81,9 +81,9 @@ describe("buffspage", function()
   it("marks an upkeep buff Keep up from its menu", function()
     local _, saved = open()
     assert.is_nil(fake.find(function(_, d) return d.content == "K" end))
-    click(tileEdge(OVERLOAD))
+    click(tileEdge(ANTIFIRE))
     fake.press("Keep up: off")
-    assert.is_true(saved.keepUp()[tostring(OVERLOAD)])
+    assert.is_true(saved.keepUp()[tostring(ANTIFIRE)])
     assert.is_not_nil(fake.find(function(_, d) return d.content == "K" end))
   end)
 

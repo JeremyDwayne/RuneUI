@@ -1,7 +1,8 @@
 -- Names buff and debuff icons by scanning the client's structs in the background, a slice per tick, only
 -- while an unnamed icon is wanted. Until the scan names an icon, or when no struct matches it, a label made
--- from its sprite name stands in. Pure: src/adapter supplies spriteName(sprite) and lookup(id), and settings
--- keeps what the scan finds.
+-- from its sprite name stands in. An item icon, minus its item id, takes the item's name with no scan. Pure:
+-- src/adapter supplies spriteName(sprite), itemName(objID) and lookup(id), and settings keeps what the scan
+-- finds.
 local icons = {}
 
 -- Struct ids run below this; 35711 of 0 to 80000 exist.
@@ -48,12 +49,13 @@ local function rank(struct, words)
 end
 
 -- saved: { [tostring(sprite)] = { name, info } or { unmatched = true } } from settings. spriteName(sprite)
--- returns the sprite's config name or nil. count overrides STRUCT_COUNT for specs. info(sprite) returns
--- { name, info }, its sprite label as { name }, {} once no struct matches an icon with no label, or nil while
--- one is looked up, and wants the icon when unknown. step(lookup, budget)
--- scans budget struct ids, where lookup(id) returns { configName, icon, name, info } or nil, and returns
--- what it settled for saving: { sprite, name, info } for a named icon, { sprite } for one no struct matches.
-function icons.index(saved, spriteName, count)
+-- returns the sprite's config name or nil, and itemName(objID) an item's name or nil. count overrides
+-- STRUCT_COUNT for specs. info(sprite) returns { name, info }, its sprite label as { name }, {} once no struct
+-- matches an icon with no label, or nil while one is looked up, and wants the icon when unknown.
+-- step(lookup, budget) scans budget struct ids, where lookup(id) returns { configName, icon, name, info } or
+-- nil, and returns what it settled for saving: { sprite, name, info } for a named icon, { sprite } for one no
+-- struct matches.
+function icons.index(saved, spriteName, itemName, count)
   count = count or icons.STRUCT_COUNT
   local known = {}
   -- Icons a full scan found no struct for, which are never scanned for again.
@@ -73,7 +75,10 @@ function icons.index(saved, spriteName, count)
   function index.info(sprite)
     local entry = known[sprite]
     if entry ~= nil then return entry end
-    if labels[sprite] == nil then
+    if labels[sprite] == nil and sprite < 0 then
+      local item = itemName(-sprite)
+      labels[sprite] = item ~= nil and { name = (item:gsub(" %(%d+%)$", "")) } or NO_NAME
+    elseif labels[sprite] == nil then
       local configName = spriteName(sprite) or ""
       local label = icons.spriteLabel(configName)
       labels[sprite] = label ~= nil and { name = label } or false

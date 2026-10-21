@@ -219,10 +219,25 @@ function draw.group()
   return group
 end
 
+-- Shows icon on the ui.Sprite c: a sprite id, or minus an item id for an icon the client draws from an item.
+-- Skips an unchanged icon.
+function draw.icon(c, icon)
+  local fields = writtenFor(c)
+  local last = fields.icon
+  if last == icon then return end
+  if icon < 0 then
+    c:SetAssociatedObject(-icon)
+  else
+    if last ~= nil and last < 0 then c:SetAssociatedObject(-1) end
+    c.sprite = icon
+  end
+  fields.icon = icon
+end
+
 -- Shows a src/cooldowns tile's icon on sprite, or its initials on label when it has no icon.
 function draw.iconOrInitials(sprite, label, tile)
   draw.set(sprite, "hidden", tile.icon == nil)
-  if tile.icon ~= nil then draw.set(sprite, "sprite", tile.icon) end
+  if tile.icon ~= nil then draw.icon(sprite, tile.icon) end
   draw.set(label, "hidden", tile.icon ~= nil)
   draw.set(label, "content", tile.initials)
 end

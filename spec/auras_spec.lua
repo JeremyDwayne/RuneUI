@@ -1,6 +1,6 @@
 local auras = require("src/auras")
 
-local OVERLOAD, INCITE, SONIC, AFTERSHOCK, STUN = 30093, 14766, 27432, 26466, 14695
+local ANTIFIRE, INCITE, SONIC, AFTERSHOCK, STUN = 30093, 14766, 27432, 26466, 14695
 
 local function buffs(...)
   local list = {}
@@ -34,15 +34,15 @@ end)
 describe("auras.tracker", function()
   it("sorts a new buff by its first time left: combat up to a minute, upkeep above, hidden with no timer", function()
     local tracker = auras.tracker()
-    local new = tracker.onTick(buffs(SONIC, "60", OVERLOAD, "6m", AFTERSHOCK, "47%"))
+    local new = tracker.onTick(buffs(SONIC, "60", ANTIFIRE, "6m", AFTERSHOCK, "47%"))
     assert.are.same({
       { sprite = SONIC, category = "combat" },
-      { sprite = OVERLOAD, category = "upkeep" },
+      { sprite = ANTIFIRE, category = "upkeep" },
       { sprite = AFTERSHOCK, category = "hidden" },
     }, new)
-    assert.are.same({}, tracker.onTick(buffs(SONIC, "59", OVERLOAD, "6m", AFTERSHOCK, "47%")))
+    assert.are.same({}, tracker.onTick(buffs(SONIC, "59", ANTIFIRE, "6m", AFTERSHOCK, "47%")))
     assert.is_not_nil(shown(tracker, "combatBuffs", SONIC))
-    assert.is_not_nil(shown(tracker, "upkeepBuffs", OVERLOAD))
+    assert.is_not_nil(shown(tracker, "upkeepBuffs", ANTIFIRE))
     assert.is_nil(shown(tracker, "combatBuffs", AFTERSHOCK) or shown(tracker, "upkeepBuffs", AFTERSHOCK))
   end)
 
@@ -93,15 +93,15 @@ describe("auras.tracker", function()
 
   it("counts a minute label down by ticks inside its minute and resyncs when the label changes", function()
     local tracker = auras.tracker()
-    tracker.onTick(buffs(OVERLOAD, "6m"))
-    assert.are.equal(419, shown(tracker, "upkeepBuffs", OVERLOAD).left)
-    for _ = 1, 10 do tracker.onTick(buffs(OVERLOAD, "6m")) end
-    assert.are.equal(413, shown(tracker, "upkeepBuffs", OVERLOAD).left)
-    for _ = 1, 200 do tracker.onTick(buffs(OVERLOAD, "6m")) end
-    assert.are.equal(360, shown(tracker, "upkeepBuffs", OVERLOAD).left)
-    assert.is_false(shown(tracker, "upkeepBuffs", OVERLOAD).highlight)
-    tracker.onTick(buffs(OVERLOAD, "5m"))
-    local model = shown(tracker, "upkeepBuffs", OVERLOAD)
+    tracker.onTick(buffs(ANTIFIRE, "6m"))
+    assert.are.equal(419, shown(tracker, "upkeepBuffs", ANTIFIRE).left)
+    for _ = 1, 10 do tracker.onTick(buffs(ANTIFIRE, "6m")) end
+    assert.are.equal(413, shown(tracker, "upkeepBuffs", ANTIFIRE).left)
+    for _ = 1, 200 do tracker.onTick(buffs(ANTIFIRE, "6m")) end
+    assert.are.equal(360, shown(tracker, "upkeepBuffs", ANTIFIRE).left)
+    assert.is_false(shown(tracker, "upkeepBuffs", ANTIFIRE).highlight)
+    tracker.onTick(buffs(ANTIFIRE, "5m"))
+    local model = shown(tracker, "upkeepBuffs", ANTIFIRE)
     assert.are.same({ 359, 419, "5m" }, { model.left, model.full, model.text })
   end)
 
@@ -140,11 +140,11 @@ describe("auras.tracker", function()
   it("keeps a missing Keep up buff's tile after the active upkeep buffs only while the player has a target", function()
     local tracker = auras.tracker()
     tracker.onTick(buffs(14695, "5m"))
-    local categories = { [tostring(OVERLOAD)] = "upkeep", ["14695"] = "upkeep" }
-    local keepUp = { [tostring(OVERLOAD)] = true, ["14695"] = true }
+    local categories = { [tostring(ANTIFIRE)] = "upkeep", ["14695"] = "upkeep" }
+    local keepUp = { [tostring(ANTIFIRE)] = true, ["14695"] = true }
     local filters = { tracked = ALL.tracked, keepUp = keepUp, hasTarget = true }
     local upkeep = tracker.rows(categories, {}, filters).upkeepBuffs
-    assert.are.same({ 14695, OVERLOAD }, { upkeep[1].sprite, upkeep[2].sprite })
+    assert.are.same({ 14695, ANTIFIRE }, { upkeep[1].sprite, upkeep[2].sprite })
     assert.are.same({ nil, true }, { upkeep[1].missing, upkeep[2].missing })
     assert.is_nil(upkeep[2].text)
     filters.hasTarget = false

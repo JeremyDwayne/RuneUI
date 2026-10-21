@@ -245,13 +245,35 @@ describe("adapter.iconStruct", function()
       }
     end
     local structs = {
-      [1] = struct("MAGIC_VULNERABILITY", { 14371, "Vulnerability" }),
+      [1] = struct("MAGIC_VULNERABILITY", { 14395, "Vulnerability" }),
       [2] = struct("COMBATV2_STUNNED_DUMMY_ABILITY", { 26103, "Stunned" }),
       [3] = struct("QUEST_REWARD", { 99, "Lamp" }),
     }
     _G.config = { Param = params, Struct = { FromID = function(structID) return structs[structID] end } }
-    assert.are.same({ configName = "MAGIC_VULNERABILITY", icon = 14371, name = "Vulnerability" }, adapter.iconStruct(1))
+    assert.are.same({ configName = "MAGIC_VULNERABILITY", icon = 14395, name = "Vulnerability" }, adapter.iconStruct(1))
     assert.are.equal("Stunned", adapter.iconStruct(2).name)
     assert.is_nil(adapter.iconStruct(3))
+  end)
+end)
+
+describe("adapter.auraReads", function()
+  it("reads a buff slot that shows an item, such as an overload, as minus the item id", function()
+    local slots = {
+      [19] = { icon = { spriteID = 30099 }, label = { content = "" } },
+      [20] = { icon = { spriteID = -1, associatedObjectID = 49039 }, label = { content = "5m" } },
+    }
+    _G.ui = { Interfaces = { GetComponent = function(_, interfaceID, staticID, _, dynamicID)
+      local slot = interfaceID == 284 and slots[staticID]
+      if slot then return dynamicID == 0 and slot.icon or slot.label end
+    end } }
+    assert.are.same({ { sprite = 30099 }, { sprite = -49039, label = "5m" } }, adapter.auraReads().buffs)
+  end)
+end)
+
+describe("adapter.itemName", function()
+  it("names an item by id", function()
+    local salve = { name = "Elder overload salve (6)" }
+    _G.config = { Obj = { FromID = function(objID) return objID == 49039 and salve or nil end } }
+    assert.are.same({ "Elder overload salve (6)", nil }, { adapter.itemName(49039), adapter.itemName(1) })
   end)
 end)

@@ -175,7 +175,7 @@ function buffspage.create(page, width, height, deps)
           draw.pos(t.edge, t.x, t.y)
           draw.pos(t.icon, t.x + 1, t.y + 1)
           draw.hideAll({ t.edge, t.icon }, false)
-          set(t.icon, "sprite", sprite)
+          draw.icon(t.icon, sprite)
           set(t.icon, "alpha", def.dim and DIM or 1)
           -- Asking for a name queues an unnamed icon for the background scan.
           deps.info(sprite)
