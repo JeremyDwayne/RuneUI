@@ -141,6 +141,12 @@ function auralists.groups(categories, choices, orders)
   return groups
 end
 
+-- { buffs, target, player }, each { [sprite] = position } in that kind's display order, from groups(...).
+function auralists.ranks(groups)
+  return { buffs = positions(groups.order.buffs), target = positions(groups.order.target),
+    player = positions(groups.order.player) }
+end
+
 local function indexOf(list, sprite)
   for i, s in ipairs(list) do
     if s == sprite then return i end

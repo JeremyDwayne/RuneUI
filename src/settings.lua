@@ -282,6 +282,8 @@ function settings.load(store, windowHeight)
   local keepUp = readKeepUp(store.get("keepUp"))
   local orders = {}
   for kind, key in pairs(ORDER_KEYS) do orders[kind] = readOrder(store.get(key)) end
+  -- Counts changes to aura rows, tracking and order, so callers rebuild what depends on them only after one.
+  local auraVersion = 0
 
   local function saveGroups() store.set("groups", groups) end
 
@@ -430,12 +432,14 @@ function settings.load(store, windowHeight)
     local key = tostring(sprite)
     if auras[key] ~= nil then return end
     auras[key] = category
+    auraVersion = auraVersion + 1
     store.set("auras", auras)
   end
 
   -- Moves a buff icon to another aura row.
   function s.setAuraCategory(sprite, category)
     auras[tostring(sprite)] = category
+    auraVersion = auraVersion + 1
     store.set("auras", auras)
   end
 
@@ -449,22 +453,30 @@ function settings.load(store, windowHeight)
     local key = tostring(sprite)
     if tracked[kind][key] ~= nil then return end
     tracked[kind][key] = "seen"
+    auraVersion = auraVersion + 1
     store.set(TRACKED_KEYS[kind], tracked[kind])
   end
 
   function s.setTracked(kind, sprite, on)
     tracked[kind][tostring(sprite)] = on
+    auraVersion = auraVersion + 1
     store.set(TRACKED_KEYS[kind], tracked[kind])
   end
 
-  -- The icons of kind, "buffs", "target" or "player", in the order sorted on the Buffs page.
-  function s.order(kind)
-    return orders[kind]
+  -- { buffs, target, player }: each kind's icons in the order sorted on the Buffs page.
+  function s.orders()
+    return orders
   end
 
   function s.setOrder(kind, list)
     orders[kind] = list
+    auraVersion = auraVersion + 1
     store.set(ORDER_KEYS[kind], list)
+  end
+
+  -- A number that changes with every aura row, tracking or order change.
+  function s.auraVersion()
+    return auraVersion
   end
 
   -- { [tostring(sprite)] = true } for each upkeep buff that keeps a tile while missing.

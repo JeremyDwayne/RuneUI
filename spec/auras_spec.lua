@@ -8,8 +8,11 @@ local function buffs(...)
   return { buffs = list, debuffs = {} }
 end
 
--- Row filters that show every debuff and mark no buff Keep up.
-local ALL = { tracked = function() return true end, keepUp = {}, hasTarget = false }
+local NO_RANK = {}
+-- Row filters that show every debuff, mark no buff Keep up and rank nothing.
+local ALL = {
+  tracked = function() return true end, keepUp = {}, hasTarget = false, rank = function() return NO_RANK end,
+}
 
 -- The row model for sprite in row, or nil.
 local function shown(tracker, row, sprite, categories)
@@ -129,7 +132,7 @@ describe("auras.tracker", function()
     local tracker = auras.tracker()
     tracker.onTick({ buffs = {}, debuffs = { { sprite = STUN, label = "4" }, { sprite = 26402, label = "9" } } })
     local function tracked(kind, sprite) return kind == "player" and sprite == STUN or sprite == 30098 end
-    local filters = { tracked = tracked, keepUp = {}, hasTarget = true }
+    local filters = { tracked = tracked, keepUp = {}, hasTarget = true, rank = ALL.rank }
     local rows = tracker.rows({}, { 30098, 26104 }, filters)
     assert.are.same({ { STUN }, { 30098 } }, {
       { rows.playerDebuffs[1].sprite, rows.playerDebuffs[2] and rows.playerDebuffs[2].sprite },
@@ -142,12 +145,39 @@ describe("auras.tracker", function()
     tracker.onTick(buffs(14695, "5m"))
     local categories = { [tostring(ANTIFIRE)] = "upkeep", ["14695"] = "upkeep" }
     local keepUp = { [tostring(ANTIFIRE)] = true, ["14695"] = true }
-    local filters = { tracked = ALL.tracked, keepUp = keepUp, hasTarget = true }
+    local filters = { tracked = ALL.tracked, keepUp = keepUp, hasTarget = true, rank = ALL.rank }
     local upkeep = tracker.rows(categories, {}, filters).upkeepBuffs
     assert.are.same({ 14695, ANTIFIRE }, { upkeep[1].sprite, upkeep[2].sprite })
     assert.are.same({ nil, true }, { upkeep[1].missing, upkeep[2].missing })
     assert.is_nil(upkeep[2].text)
     filters.hasTarget = false
     assert.are.equal(1, #tracker.rows(categories, {}, filters).upkeepBuffs)
+  end)
+
+  it("orders each row by the sorted rank, after which unranked icons keep the bar's order", function()
+    local tracker = auras.tracker()
+    tracker.onTick(buffs(SONIC, "30", INCITE, "20", 20184, "10"))
+    local ranks = { buffs = { [20184] = 1 }, target = { [30212] = 1, [30098] = 2 } }
+    local filters = { tracked = ALL.tracked, keepUp = {}, hasTarget = false,
+      rank = function(kind) return ranks[kind] or NO_RANK end }
+    local rows = tracker.rows({}, { 30098, 26104, 30212 }, filters)
+    local function sprites(row)
+      local out = {}
+      for i, m in ipairs(row) do out[i] = m.sprite end
+      return out
+    end
+    assert.are.same({ 20184, SONIC, INCITE }, sprites(rows.combatBuffs))
+    assert.are.same({ 30212, 30098, 26104 }, sprites(rows.targetDebuffs))
+  end)
+
+  it("puts a missing Keep up buff's tile in its ranked place among the active upkeep buffs", function()
+    local tracker = auras.tracker()
+    tracker.onTick(buffs(14695, "5m"))
+    local categories = { [tostring(ANTIFIRE)] = "upkeep", ["14695"] = "upkeep" }
+    local ranks = { [ANTIFIRE] = 1, [14695] = 2 }
+    local filters = { tracked = ALL.tracked, keepUp = { [tostring(ANTIFIRE)] = true }, hasTarget = true,
+      rank = function() return ranks end }
+    local upkeep = tracker.rows(categories, {}, filters).upkeepBuffs
+    assert.are.same({ ANTIFIRE, true, 14695 }, { upkeep[1].sprite, upkeep[1].missing, upkeep[2].sprite })
   end)
 end)

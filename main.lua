@@ -32,11 +32,23 @@ local tracker = cooldowns.tracker()
 local auraTracker = auras.tracker()
 local optionsWindow
 tracker.seed(saved.known())
--- What the aura rows show: tracked debuffs, and Keep up tiles while the player has a target.
+-- Each aura kind's sorted order as { [sprite] = position }, rebuilt only after a saved aura choice changes.
+local auraRanks, ranksVersion = nil, nil
+local function rank(kind)
+  if ranksVersion ~= saved.auraVersion() then
+    local choices = { target = saved.tracked("target"), player = saved.tracked("player") }
+    auraRanks = auralists.ranks(auralists.groups(saved.auras(), choices, saved.orders()))
+    ranksVersion = saved.auraVersion()
+  end
+  return auraRanks[kind]
+end
+-- What the aura rows show: tracked debuffs in their sorted order, and Keep up tiles while the player has a
+-- target.
 local auraFilters = {
   tracked = function(kind, sprite) return auralists.tracked(kind, saved.tracked(kind), sprite) end,
   keepUp = saved.keepUp(),
   hasTarget = false,
+  rank = rank,
 }
 -- Struct ids scanned per tick while an aura icon is unnamed, about 48 seconds for a full scan.
 local ICON_SCAN_BUDGET = 1000
