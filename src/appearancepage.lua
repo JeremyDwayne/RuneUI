@@ -19,7 +19,8 @@ local BACKDROPS = {
   { id = "game", label = "Game" },
 }
 local ROW_H, HEADING_H, END_SPACE, MARGIN = 50, 40, 32, 16
-local SCROLLBAR_W, WHEEL_STEP = 10, 40
+-- The wheel reports many small deltas per turn, negative while scrolling down; each moves WHEEL_STEP px.
+local SCROLLBAR_W, WHEEL_STEP = 10, 8
 -- Side of the transparent square that holds a thumb drag under the cursor, which a fast move cannot leave.
 local GRAB = 160
 local OPTION_H = 28

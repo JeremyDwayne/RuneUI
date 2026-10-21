@@ -45,7 +45,8 @@ Handlers run inside the player's frame. The rates are measured, not documented.
 The client API is thinly documented, and these facts came from probing it in the game. When code depends on behaviour not listed here, confirm it in the game with a small throwaway plugin before relying on it. Add what you learn to this list and, where specs can model it, to `spec/support/fake_ui.lua`.
 
 - `MoveToFront` on a hidden component, or on a layer holding one, stops it drawing for good, even after it is shown. Raise only while visible, as the tooltip does on its first show.
-- Stacking follows creation order. Build what must sit on top last.
+- Stacking follows creation order, for labels as for rects. Build what must sit on top last.
+- `ONSCROLLWHEEL` fires dozens of times per scroll with deltas from 1 to 14, so scale the delta by pixels.
 - `ONRELEASE` fires as soon as the cursor leaves the pressed component, with the button still held. A drag keeps the pressed component under the cursor until release. A 30px hit area that follows the cursor loses fast moves; `src/dragdrop.lua` grows it into a transparent 160px square centred on the cursor, which holds the press even under components created after it.
 - A component hidden during its own press gets no `ONRELEASE`.
 - Hooks cannot tell mouse buttons apart, so a right click fires `ONCLICK` too. A destructive action needs a second step.
