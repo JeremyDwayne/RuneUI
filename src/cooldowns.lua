@@ -26,9 +26,24 @@ local NO_FORMS = {}
 -- special reports the special attack, whose icon its action bar slot shows.
 local GENERIC_STRUCTS = { CONSTITUTION_SPECIAL_ATTACK = true }
 
+-- Abilities with two charges, each recharging on its own timer of RECHARGE_TICKS. The base var pair ends when
+-- the first charge returns and the _CHARGE2 pair when the second does.
+local CHARGES = { MAGIC_SURGE = true, RANGED_ESCAPE = true }
+local RECHARGE_TICKS = 17
+
+-- Abilities cast in stages, by stage count. Each recast opens with COMBATV2_ABILITY_<KEY>_RECAST_<n>_ACTIVE
+-- and a short lockout var pair, while the base pair holds the cooldown after the last stage.
+local RECASTS = { NECROMANCY_SPECTRAL_SCYTHE = 3, MELEE_DISMEMBER = 3 }
+
 -- "MAGIC_SUNSHINE" -> "magic": the combat style a cooldown key belongs to, or nil for a style-free one.
 function cooldowns.styleOf(key)
   return STYLES[key:match("^(%u+)_")]
+end
+
+-- "MAGIC_SURGE_CHARGE2" -> "MAGIC_SURGE", "MELEE_DISMEMBER_RECAST_1" -> "MELEE_DISMEMBER": the ability a second
+-- charge's or recast stage's cooldown key belongs to. Other keys come back unchanged.
+function cooldowns.baseKey(key)
+  return key:match("^(.+)_CHARGE2$") or key:match("^(.+)_RECAST_%d+$") or key
 end
 
 -- "MAGIC_DRAGON_BREATH" -> "Dragon Breath": drops the combat style and title-cases the rest.
@@ -88,11 +103,21 @@ function cooldowns.tracker()
     return abilities[key]
   end
 
+  local function started(key)
+    for _, seen in ipairs(startedThisTick) do
+      if seen == key then
+        return
+      end
+    end
+    startedThisTick[#startedThisTick + 1] = key
+  end
+
   local tracker = {}
 
   -- A _START var holds the server tick its ability fired, which also keeps the clock in step. Weapon
   -- specials such as Instability use COMBATV2_ABILITY_WEAPON_COOLDOWN_<NAME> vars and take the key
-  -- WEAPON_<NAME>. COMBATV2_MAINHAND_STYLE sets the weapon's style.
+  -- WEAPON_<NAME>. A second charge's and a recast stage's vars fold into their ability's key, and a stage's
+  -- start does not count as the ability starting. COMBATV2_MAINHAND_STYLE sets the weapon's style.
   function tracker.onVar(name, old, new)
     if old == new then
       return
@@ -108,21 +133,45 @@ function cooldowns.tracker()
       changed = true
       return
     end
+    local recastKey, stage = name:match("^COMBATV2_ABILITY_(.+)_RECAST_(%d+)_ACTIVE$")
+    if recastKey ~= nil then
+      local a = ability(recastKey)
+      stage = tonumber(stage)
+      if new == 1 then
+        a.stage = stage
+      elseif a.stage == stage then
+        a.stage = nil
+      end
+      changed = true
+      return
+    end
     local key, edge = name:match("^COMBATV2_COOLDOWN_(.+)_(%u+)$")
     if key == nil then
       key, edge = name:match("^COMBATV2_ABILITY_WEAPON_COOLDOWN_(.+)_(%u+)$")
       key = key and "WEAPON_" .. key
     end
-    if edge == "START" or edge == "END" then
-      changed = true
+    if edge ~= "START" and edge ~= "END" then
+      return
     end
+    changed = true
+    local base = cooldowns.baseKey(key)
+    local recast = key:match("_RECAST_%d+$") ~= nil
+    local a = ability(base)
     if edge == "START" then
-      ability(key).start = new
       now = new
-      startedThisTick[#startedThisTick + 1] = key
-      abilityStyle = cooldowns.styleOf(key) or abilityStyle
-    elseif edge == "END" then
-      ability(key).finish = new
+      abilityStyle = cooldowns.styleOf(base) or abilityStyle
+      if key == base then
+        a.start = new
+      end
+      if not recast then
+        started(base)
+      end
+    elseif recast then
+      a.lockout = new
+    elseif key == base then
+      a.finish = new
+    else
+      a.charged = new
     end
   end
 
@@ -192,16 +241,45 @@ function cooldowns.tracker()
     return { table.unpack(order) }
   end
 
+  -- Ticks from now until tick, 0 before the clock starts or with no tick.
+  local function ticksTo(tick)
+    return (now ~= nil and tick ~= nil) and tick - now or 0
+  end
+
   -- keys: ability keys in display order. slots: { [iconSpriteID] = { keybind, usable } } from the native
   -- bars. A tile whose icon no slot shows takes the name, icon and slot of the first form a slot does show.
-  -- A tile with no matching slot counts as usable.
+  -- A tile with no matching slot counts as usable. A charge ability's tile is ready while a charge is left,
+  -- with count its charges left and, below two, recharge = { remaining, length } in seconds for the next
+  -- charge. A recast ability's tile counts down its stage lockout while a stage is open, with count such as
+  -- "2/3".
   function tracker.tiles(keys, slots)
     local tiles = {}
     for _, key in ipairs(keys) do
       local a = abilities[key] or {}
       local name = a.name or nameFromKey(key)
       local icon = a.icon
-      local left = (now ~= nil and a.finish ~= nil) and a.finish - now or 0
+      local left = ticksTo(a.finish)
+      local cooldown = (a.start ~= nil and a.finish ~= nil) and secondsLeft(a.finish - a.start) or nil
+      local count = nil
+      local recharge = nil
+      if CHARGES[key] then
+        local second = ticksTo(a.charged)
+        local charges = 2
+        if left > 0 then
+          charges = 0
+        elseif second > 0 then
+          charges = 1
+        end
+        count = tostring(charges)
+        if charges < 2 then
+          local returning = charges == 0 and left or second
+          recharge = { remaining = returning * 6 / 10, length = RECHARGE_TICKS * 6 / 10 }
+        end
+        cooldown = secondsLeft(RECHARGE_TICKS)
+      elseif RECASTS[key] and a.stage ~= nil then
+        left = ticksTo(a.lockout)
+        count = (a.stage + 1) .. "/" .. RECASTS[key]
+      end
       local slot = icon and slots[icon]
       for _, form in ipairs(slot == nil and a.forms or NO_FORMS) do
         if slots[form.icon] ~= nil then
@@ -220,7 +298,9 @@ function cooldowns.tracker()
         usable = not slot or slot.usable,
         ready = left <= 0,
         remaining = left > 0 and left * 6 / 10 or nil,
-        cooldown = (a.start ~= nil and a.finish ~= nil) and secondsLeft(a.finish - a.start) or nil,
+        cooldown = cooldown,
+        count = count,
+        recharge = recharge,
       }
     end
     return tiles

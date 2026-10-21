@@ -245,3 +245,107 @@ describe("cooldowns.tracker", function()
     assert.are.equal("melee", tracker.style())
   end)
 end)
+
+describe("cooldowns.baseKey", function()
+  it("strips a second charge or recast stage and keeps other keys", function()
+    assert.are.same({ "MAGIC_SURGE", "MELEE_DISMEMBER", "MAGIC_DRAGON_BREATH" }, {
+      cooldowns.baseKey("MAGIC_SURGE_CHARGE2"),
+      cooldowns.baseKey("MELEE_DISMEMBER_RECAST_2"),
+      cooldowns.baseKey("MAGIC_DRAGON_BREATH"),
+    })
+  end)
+end)
+
+describe("cooldowns.tracker charges and recast stages", function()
+  local SURGE = "COMBATV2_COOLDOWN_MAGIC_SURGE"
+  local SCYTHE = "NECROMANCY_SPECTRAL_SCYTHE"
+
+  local function ticks(tracker, n)
+    for _ = 1, n do
+      tracker.onTick(noAbility)
+    end
+  end
+
+  local function surge(tracker)
+    return tracker.tiles({ "MAGIC_SURGE" }, {})[1]
+  end
+
+  it("stays ready with one charge left while the second recharges", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, SURGE .. "_CHARGE2", 43418, 17)
+    tracker.onTick(noAbility)
+    local tile = surge(tracker)
+    assert.are.same({ true, "1", 9.6, 10.2 }, { tile.ready, tile.count, tile.recharge.remaining, tile.recharge.length })
+    ticks(tracker, 16)
+    tile = surge(tracker)
+    assert.are.same({ "2", nil }, { tile.count, tile.recharge })
+  end)
+
+  it("cools down to the first charge's return after both are used, then recharges the second", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, SURGE .. "_CHARGE2", 43466, 17)
+    tracker.onTick(noAbility)
+    ticks(tracker, 4)
+    fire(tracker, SURGE, 43471, 12)
+    tracker.onVar(SURGE .. "_CHARGE2_END", 43483, 43488)
+    tracker.onTick(noAbility)
+    local tile = surge(tracker)
+    assert.are.same({ false, 6.6, "0", 6.6, 10.2 }, {
+      tile.ready,
+      tile.remaining,
+      tile.count,
+      tile.recharge.remaining,
+      tile.recharge.length,
+    })
+    ticks(tracker, 11)
+    tile = surge(tracker)
+    assert.are.same({ true, nil, "1", 3.0 }, { tile.ready, tile.remaining, tile.count, tile.recharge.remaining })
+    assert.are.same({ "MAGIC_SURGE" }, tracker.known())
+  end)
+
+  it("counts each recast lockout down, then shows the open stage, then the main cooldown", function()
+    local tracker = cooldowns.tracker()
+    local function scythe()
+      return tracker.tiles({ SCYTHE }, {})[1]
+    end
+    fire(tracker, "COMBATV2_COOLDOWN_" .. SCYTHE, 2000, 25)
+    fire(tracker, "COMBATV2_COOLDOWN_" .. SCYTHE .. "_RECAST_1", 2000, 3)
+    tracker.onVar("COMBATV2_ABILITY_" .. SCYTHE .. "_RECAST_1_ACTIVE", 0, 1)
+    tracker.onTick(noAbility)
+    local tile = scythe()
+    assert.are.same({ false, 1.2, "2/3" }, { tile.ready, tile.remaining, tile.count })
+    ticks(tracker, 2)
+    tile = scythe()
+    assert.are.same({ true, nil, "2/3" }, { tile.ready, tile.remaining, tile.count })
+    fire(tracker, "COMBATV2_COOLDOWN_" .. SCYTHE .. "_RECAST_2", 2003, 3)
+    tracker.onVar("COMBATV2_ABILITY_" .. SCYTHE .. "_RECAST_2_ACTIVE", 0, 1)
+    tracker.onVar("COMBATV2_ABILITY_" .. SCYTHE .. "_RECAST_1_ACTIVE", 1, 0)
+    ticks(tracker, 3)
+    tile = scythe()
+    assert.are.same({ true, "3/3" }, { tile.ready, tile.count })
+    tracker.onVar("COMBATV2_ABILITY_" .. SCYTHE .. "_RECAST_2_ACTIVE", 1, 0)
+    tracker.onTick(noAbility)
+    tile = scythe()
+    assert.are.same({ false, 10.8, nil, 15 }, { tile.ready, tile.remaining, tile.count, tile.cooldown })
+    assert.are.same({ SCYTHE }, tracker.known())
+  end)
+
+  it("names Dismember from its first cast and keeps the name through its stages", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, "COMBATV2_COOLDOWN_MELEE_DISMEMBER", 3000, 40)
+    fire(tracker, "COMBATV2_COOLDOWN_MELEE_DISMEMBER_RECAST_1", 3000, 3)
+    justUsedChanged(tracker)
+    tracker.onTick(function()
+      return { key = "STRENGTH_DISMEMBER", name = "Dismember", icon = 21239 }
+    end)
+    ticks(tracker, 2)
+    fire(tracker, "COMBATV2_COOLDOWN_MELEE_DISMEMBER_RECAST_2", 3003, 3)
+    tracker.onVar("COMBATV2_JUST_USED_ABILITY", 44244, 52788)
+    local learned = tracker.onTick(function()
+      return { key = "MELEE_DISMEMBER_RECAST_1", name = "Slaughter", icon = 21362 }
+    end)
+    assert.is_nil(learned)
+    local tile = tracker.tiles({ "MELEE_DISMEMBER" }, {})[1]
+    assert.are.same({ "Dismember", 21239 }, { tile.name, tile.icon })
+  end)
+end)
