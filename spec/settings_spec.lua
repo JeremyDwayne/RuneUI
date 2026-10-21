@@ -230,6 +230,19 @@ describe("settings", function()
     assert.are.same({ ["26103"] = true }, reloaded.tracked("player"))
   end)
 
+  it("drops icon keys that are not whole numbers from every icon map, keeping item icons", function()
+    local s = settings.load(fakeStore({
+      namesVersion = { version = 2 },
+      debuffs = { abc = { name = "Broken" }, ["30098"] = { name = "Bloated" } },
+      auras = { abc = "upkeep", ["-49039"] = "upkeep" },
+      keepUp = { ["1.5"] = true, ["-49039"] = true },
+      trackedTarget = { abc = true, ["30098"] = "seen" },
+    }))
+    assert.are.same({
+      { ["30098"] = { name = "Bloated" } }, { ["-49039"] = "upkeep" }, { ["-49039"] = true }, { ["30098"] = "seen" },
+    }, { s.debuffs(), s.auras(), s.keepUp(), s.tracked("target") })
+  end)
+
   it("drops aura names saved before the current naming rule once", function()
     local store = fakeStore({ debuffs = { ["30097"] = { name = "Delirium" } } })
     assert.are.same({}, settings.load(store).debuffs())

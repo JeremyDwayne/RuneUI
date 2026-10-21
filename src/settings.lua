@@ -155,14 +155,23 @@ local function readAppearance(saved)
   return appearance
 end
 
+-- An icon map's key as the string of a whole number, a sprite id or minus an item id, or nil.
+local function iconKey(key)
+  local n = math.tointeger(tonumber(key))
+  return n and tostring(n)
+end
+
 local function readDebuffs(saved)
   local debuffs = {}
   if type(saved) ~= "table" then return debuffs end
   for sprite, entry in pairs(saved) do
-    if type(entry) == "table" and type(entry.name) == "string" then
-      debuffs[tostring(sprite)] = { name = entry.name, info = type(entry.info) == "string" and entry.info or nil }
-    elseif type(entry) == "table" and entry.unmatched == true then
-      debuffs[tostring(sprite)] = { unmatched = true }
+    local key = iconKey(sprite)
+    if key ~= nil and type(entry) == "table" then
+      if type(entry.name) == "string" then
+        debuffs[key] = { name = entry.name, info = type(entry.info) == "string" and entry.info or nil }
+      elseif entry.unmatched == true then
+        debuffs[key] = { unmatched = true }
+      end
     end
   end
   return debuffs
@@ -173,7 +182,8 @@ local function readTracked(saved)
   local out = {}
   if type(saved) ~= "table" then return out end
   for sprite, choice in pairs(saved) do
-    if type(choice) == "boolean" or choice == "seen" then out[tostring(sprite)] = choice end
+    local key = iconKey(sprite)
+    if key ~= nil and (type(choice) == "boolean" or choice == "seen") then out[key] = choice end
   end
   return out
 end
@@ -182,7 +192,8 @@ local function readKeepUp(saved)
   local out = {}
   if type(saved) ~= "table" then return out end
   for sprite, on in pairs(saved) do
-    if on == true then out[tostring(sprite)] = true end
+    local key = iconKey(sprite)
+    if key ~= nil and on == true then out[key] = true end
   end
   return out
 end
@@ -191,7 +202,8 @@ local function readAuras(saved)
   local out = {}
   if type(saved) ~= "table" then return out end
   for sprite, category in pairs(saved) do
-    if AURA_CATEGORIES[category] then out[tostring(sprite)] = category end
+    local key = iconKey(sprite)
+    if key ~= nil and AURA_CATEGORIES[category] then out[key] = category end
   end
   return out
 end
