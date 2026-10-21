@@ -21,6 +21,15 @@ local SPRITES = {
 }
 local function spriteName(sprite) return SPRITES[sprite] end
 local function noName() return nil end
+local described = 0
+local function structInfo(structID)
+  described = described + 1
+  return STRUCTS[structID] and STRUCTS[structID].info
+end
+-- The client lookups icons.index takes, with no sprite names when bare.
+local function client(bare)
+  return { spriteName = bare and noName or spriteName, itemName = noName, describe = structInfo }
+end
 
 describe("icons.spriteLabel", function()
   it("drops the icon prefix and a leading combat style, and title cases the rest", function()
@@ -35,7 +44,7 @@ end)
 
 describe("icons.index", function()
   it("names wanted icons, preferring a debuff struct over an earlier match, and saves what it found", function()
-    local index = icons.index({}, noName, noName, 10)
+    local index = icons.index({}, client(true), 10)
     assert.is_nil(index.info(30098))
     assert.is_nil(index.info(26104))
     local learned = {}
@@ -44,12 +53,21 @@ describe("icons.index", function()
     end
     assert.are.same({ name = "Bloated", info = "Swollen." }, index.info(30098))
     assert.are.same({ name = "Stun Immune" }, index.info(26104))
-    assert.are.equal("Bloated", learned[30098].name)
+    assert.are.same({ sprite = 30098, name = "Bloated", struct = 8 }, learned[30098])
     assert.are.equal("Stun Immune", learned[26104].name)
   end)
 
+  it("reads a saved icon's description from its struct once, on first ask", function()
+    local saved = { ["30098"] = { name = "Bloated", struct = 8 } }
+    local index = icons.index(saved, client(), 10)
+    described = 0
+    assert.are.same({ name = "Bloated", info = "Swollen." }, index.info(30098))
+    index.info(30098)
+    assert.are.same({ 1, { name = "Bloated", struct = 8 } }, { described, saved["30098"] })
+  end)
+
   it("starts from saved names and scans nothing until an unknown icon is wanted", function()
-    local index = icons.index({ ["30098"] = { name = "Bloated" } }, spriteName, noName, 10)
+    local index = icons.index({ ["30098"] = { name = "Bloated" } }, client(), 10)
     looked = 0
     assert.are.equal("Bloated", index.info(30098).name)
     index.step(lookup, 5)
@@ -58,7 +76,7 @@ describe("icons.index", function()
 
   it("names an item icon from its item without its dose, scanning nothing", function()
     local function itemName(objID) return objID == 49039 and "Elder overload salve (6)" or nil end
-    local index = icons.index({}, spriteName, itemName, 10)
+    local index = icons.index({}, { spriteName = spriteName, itemName = itemName, describe = structInfo }, 10)
     looked = 0
     assert.are.same({ name = "Elder overload salve" }, index.info(-49039))
     index.step(lookup, 5)
@@ -66,14 +84,14 @@ describe("icons.index", function()
   end)
 
   it("shows an icon's sprite label until the scan names it", function()
-    local index = icons.index({}, spriteName, noName, 10)
+    local index = icons.index({}, client(), 10)
     assert.are.same({ name = "Buff 11" }, index.info(26104))
     for _ = 1, 4 do index.step(lookup, 3) end
     assert.are.same({ name = "Stun Immune" }, index.info(26104))
   end)
 
   it("reports an icon no struct matches, and never scans for it again once saved", function()
-    local index = icons.index({}, spriteName, noName, 10)
+    local index = icons.index({}, client(), 10)
     index.info(14766)
     local found = {}
     for _ = 1, 4 do
@@ -81,7 +99,7 @@ describe("icons.index", function()
     end
     assert.are.same({ { sprite = 14766 } }, found)
 
-    index = icons.index({ ["14766"] = { unmatched = true } }, spriteName, noName, 10)
+    index = icons.index({ ["14766"] = { unmatched = true } }, client(), 10)
     looked = 0
     assert.are.same({ name = "Incite Fear" }, index.info(14766))
     index.step(lookup, 5)
@@ -89,14 +107,14 @@ describe("icons.index", function()
   end)
 
   it("stops reporting a lookup for an unmatched icon with no sprite label", function()
-    local index = icons.index({}, noName, noName, 10)
+    local index = icons.index({}, client(true), 10)
     assert.is_nil(index.info(14766))
     for _ = 1, 4 do index.step(lookup, 3) end
     assert.are.same({}, index.info(14766))
   end)
 
   it("prefers a struct named for the sprite, and otherwise keeps the lowest id", function()
-    local index = icons.index({}, spriteName, noName, 10)
+    local index = icons.index({}, client(), 10)
     index.info(30097)
     index.info(17606)
     for _ = 1, 4 do index.step(lookup, 3) end

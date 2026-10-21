@@ -1,8 +1,8 @@
 -- Names buff and debuff icons by scanning the client's structs in the background, a slice per tick, only
 -- while an unnamed icon is wanted. Until the scan names an icon, or when no struct matches it, a label made
--- from its sprite name stands in. An item icon, minus its item id, takes the item's name with no scan. Pure:
--- src/adapter supplies spriteName(sprite), itemName(objID) and lookup(id), and settings keeps what the scan
--- finds.
+-- from its sprite name stands in. An item icon, minus its item id, takes the item's name with no scan. A
+-- named icon's description is read from its struct when first asked for. Pure: src/adapter supplies the client
+-- lookups, and settings keeps what the scan finds.
 local icons = {}
 
 -- Struct ids run below this; 35711 of 0 to 80000 exist.
@@ -48,20 +48,28 @@ local function rank(struct, words)
   return struct.configName:sub(1, 16) == "COMBATV2_DEBUFF_" and 2 or 3
 end
 
--- saved: { [tostring(sprite)] = { name, info } or { unmatched = true } } from settings. spriteName(sprite)
--- returns the sprite's config name or nil, and itemName(objID) an item's name or nil. count overrides
--- STRUCT_COUNT for specs. info(sprite) returns { name, info }, its sprite label as { name }, {} once no struct
--- matches an icon with no label, or nil while one is looked up, and wants the icon when unknown.
--- step(lookup, budget) scans budget struct ids, where lookup(id) returns { configName, icon, name, info } or
--- nil, and returns what it settled for saving: { sprite, name, info } for a named icon, { sprite } for one no
--- struct matches.
-function icons.index(saved, spriteName, itemName, count)
+-- saved: { [tostring(sprite)] = { name, struct } or { unmatched = true } } from settings. client: { spriteName,
+-- itemName, describe }, where spriteName(sprite) returns the sprite's config name, itemName(objID) an item's
+-- name and describe(structID) a struct's description, each or nil. count overrides STRUCT_COUNT for specs.
+-- info(sprite) returns { name, info }, its sprite label as { name }, {} once no struct matches an icon with no
+-- label, or nil while one is looked up, and wants the icon when unknown. step(lookup, budget) scans budget
+-- struct ids, where lookup(id) returns { configName, icon, name } or nil, and returns what it settled for
+-- saving: { sprite, name, struct } for a named icon, { sprite } for one no struct matches.
+function icons.index(saved, client, count)
   count = count or icons.STRUCT_COUNT
   local known = {}
+  -- Named icons whose description is not read yet, to their struct id.
+  local undescribed = {}
   -- Icons a full scan found no struct for, which are never scanned for again.
   local unmatched = {}
-  for sprite, entry in pairs(saved) do
-    if entry.unmatched then unmatched[tonumber(sprite)] = true else known[tonumber(sprite)] = entry end
+  for key, entry in pairs(saved) do
+    local sprite = tonumber(key)
+    if entry.unmatched then
+      unmatched[sprite] = true
+    else
+      known[sprite] = { name = entry.name }
+      undescribed[sprite] = entry.struct
+    end
   end
   -- Unnamed icons being scanned for: ids left to scan, the sprite's words, and the best match so far with its
   -- rank and id.
@@ -74,12 +82,19 @@ function icons.index(saved, spriteName, itemName, count)
 
   function index.info(sprite)
     local entry = known[sprite]
-    if entry ~= nil then return entry end
+    if entry ~= nil then
+      local structID = undescribed[sprite]
+      if structID ~= nil then
+        undescribed[sprite] = nil
+        entry.info = client.describe(structID)
+      end
+      return entry
+    end
     if labels[sprite] == nil and sprite < 0 then
-      local item = itemName(-sprite)
+      local item = client.itemName(-sprite)
       labels[sprite] = item ~= nil and { name = (item:gsub(" %(%d+%)$", "")) } or NO_NAME
     elseif labels[sprite] == nil then
-      local configName = spriteName(sprite) or ""
+      local configName = client.spriteName(sprite) or ""
       local label = icons.spriteLabel(configName)
       labels[sprite] = label ~= nil and { name = label } or false
       if not unmatched[sprite] then wanted[sprite] = { left = count, words = spriteWords(configName) } end
@@ -87,10 +102,11 @@ function icons.index(saved, spriteName, itemName, count)
     return labels[sprite] or (unmatched[sprite] and NO_NAME) or nil
   end
 
-  local function name(sprite, struct)
-    known[sprite] = { name = struct.name, info = struct.info }
+  local function name(sprite, struct, structID)
+    known[sprite] = { name = struct.name }
+    undescribed[sprite] = structID
     wanted[sprite] = nil
-    return { sprite = sprite, name = struct.name, info = struct.info }
+    return { sprite = sprite, name = struct.name, struct = structID }
   end
 
   function index.step(lookup, budget)
@@ -109,7 +125,7 @@ function icons.index(saved, spriteName, itemName, count)
       if want ~= nil then
         local r = rank(struct, want.words)
         if r == 1 then
-          found[#found + 1] = name(struct.icon, struct)
+          found[#found + 1] = name(struct.icon, struct, id)
         elseif want.best == nil or r < want.bestRank or (r == want.bestRank and id < want.bestID) then
           want.best, want.bestRank, want.bestID = struct, r, id
         end
@@ -120,7 +136,7 @@ function icons.index(saved, spriteName, itemName, count)
       w.left = w.left - scan
       if w.left <= 0 then
         if w.best ~= nil then
-          found[#found + 1] = name(sprite, w.best)
+          found[#found + 1] = name(sprite, w.best, w.bestID)
         else
           unmatched[sprite], wanted[sprite] = true, nil
           found[#found + 1] = { sprite = sprite }

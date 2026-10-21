@@ -392,7 +392,6 @@ local function readIconStruct(structID)
   iconParams = iconParams or {
     icon = config.Param.COMBATV2_ABILITY_ICON,
     name = config.Param.COMBATV2_ABILITY_NAME,
-    info = config.Param.COMBATV2_ABILITY_INFO,
   }
   local struct = config.Struct.FromID(structID)
   if struct == nil then return nil end
@@ -405,13 +404,12 @@ local function readIconStruct(structID)
     configName = configName,
     icon = struct:GetParamValue(iconParams.icon),
     name = struct:GetParamValue(iconParams.name),
-    info = iconParams.info ~= nil and struct:HasParam(iconParams.info) and struct:GetParamValue(iconParams.info) or nil,
   }
 end
 
 -- src/icons lookup: the combat or spell struct at structID, named COMBATV2_ or MAGIC_ such as
--- MAGIC_VULNERABILITY, as { configName, icon, name, info }, or nil. Reads only these params, since reading
--- some others logs a conversion error to the console.
+-- MAGIC_VULNERABILITY, as { configName, icon, name }, or nil. Reads only these params, since reading some
+-- others logs a conversion error to the console.
 function adapter.iconStruct(structID)
   local ok, struct = pcall(readIconStruct, structID)
   return ok and struct or nil
@@ -419,6 +417,18 @@ end
 
 local function readSpriteName(sprite)
   return id.Sprite.FromID(sprite)
+end
+
+local function readStructInfo(structID)
+  local param = config.Param.COMBATV2_ABILITY_INFO
+  local struct = config.Struct.FromID(structID)
+  if struct ~= nil and struct:HasParam(param) then return struct:GetParamValue(param) end
+end
+
+-- src/icons descriptions: the COMBATV2_ABILITY_INFO text of the struct at structID, or nil.
+function adapter.structInfo(structID)
+  local ok, info = pcall(readStructInfo, structID)
+  return ok and type(info) == "string" and info or nil
 end
 
 local function readItemName(objID)

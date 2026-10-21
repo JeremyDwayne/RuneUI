@@ -16,7 +16,9 @@ local view = require("src/view")
 local hud = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
 local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
 local saved = settings.load(adapter.store(), tonumber(hud.height))
-local auraNames = icons.index(saved.debuffs(), adapter.spriteName, adapter.itemName)
+local auraNames = icons.index(saved.debuffs(), {
+  spriteName = adapter.spriteName, itemName = adapter.itemName, describe = adapter.structInfo,
+})
 local tooltip = view.tooltip(hud)
 local elements = {
   player = view.playerFrame(hud),
@@ -88,7 +90,7 @@ Event.ServerLogic.Subscribe("refresh", function()
   for _, found in ipairs(auraTracker.onTick(auraReads)) do saved.learnAura(found.sprite, found.category) end
   for _, read in ipairs(auraReads.debuffs) do saved.seeDebuff("player", read.sprite) end
   for _, found in ipairs(auraNames.step(adapter.iconStruct, ICON_SCAN_BUDGET)) do
-    saved.learnDebuff(found.sprite, found.name, found.info)
+    saved.learnDebuff(found.sprite, found.name, found.struct)
   end
   refresh()
 end)

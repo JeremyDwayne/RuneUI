@@ -270,6 +270,22 @@ describe("adapter.auraReads", function()
   end)
 end)
 
+describe("adapter.structInfo", function()
+  it("reads a struct's description, or nil when it has none", function()
+    local info = { id = 3 }
+    local function struct(text)
+      return {
+        HasParam = function(_, p) return p == info and text ~= nil end,
+        GetParamValue = function() return text end,
+      }
+    end
+    local structs = { [1] = struct("Swollen."), [2] = struct(nil) }
+    local function fromID(structID) return structs[structID] end
+    _G.config = { Param = { COMBATV2_ABILITY_INFO = info }, Struct = { FromID = fromID } }
+    assert.are.same({ "Swollen.", nil, nil }, { adapter.structInfo(1), adapter.structInfo(2), adapter.structInfo(9) })
+  end)
+end)
+
 describe("adapter.itemName", function()
   it("names an item by id", function()
     local salve = { name = "Elder overload salve (6)" }
