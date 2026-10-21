@@ -188,14 +188,20 @@ local function readAnchors(saved, positions)
   return anchors
 end
 
+-- The ability keys in a saved list, each mapped to its ability by cooldowns.baseKey and kept once, in order.
 local function stringsOnly(list)
   local out = {}
   if type(list) ~= "table" then
     return out
   end
+  local seen = {}
   for _, key in ipairs(list) do
     if type(key) == "string" then
-      out[#out + 1] = key
+      key = cooldowns.baseKey(key)
+      if not seen[key] then
+        seen[key] = true
+        out[#out + 1] = key
+      end
     end
   end
   return out
@@ -595,6 +601,8 @@ local function readAuras(saved)
   return out
 end
 
+-- Saved names and icons by ability key. An entry under a second charge's or recast stage's key loads under its
+-- ability's, unless the ability has its own entry.
 local function readKnown(saved)
   local known = {}
   if type(saved) ~= "table" then
@@ -602,8 +610,11 @@ local function readKnown(saved)
   end
   for key, info in pairs(saved) do
     if type(key) == "string" and type(info) == "table" then
-      local icon = type(info.icon) == "number" and whole(info.icon) or nil
-      known[key] = { name = type(info.name) == "string" and info.name or nil, icon = icon }
+      local base = cooldowns.baseKey(key)
+      if key == base or known[base] == nil then
+        local icon = type(info.icon) == "number" and whole(info.icon) or nil
+        known[base] = { name = type(info.name) == "string" and info.name or nil, icon = icon }
+      end
     end
   end
   return known
