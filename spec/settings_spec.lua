@@ -301,6 +301,45 @@ describe("settings", function()
     assert.are.equal("flat", settings.load(fakeStore({ appearance = { texture = "plaid" } })).appearance().texture)
   end)
 
+  it("reads today's look until the new appearance fields are chosen, and saves each one", function()
+    local store = fakeStore({ appearance = { texture = "vertical", hideTargetPanel = true, hideCastBar = false,
+      hideBuffBars = true, auraBars = true } })
+    local s = settings.load(store)
+    assert.are.same({
+      texture = "vertical", hideTargetPanel = true, hideCastBar = false, hideBuffBars = true, auraBars = true,
+      font = "museo", textStep = 0, edge = "shadow", textColour = "auto", playerColour = "runeui",
+      targetColour = "runeui", border = "runeui", lifepoints = "short", frameWidth = 250, frameHeight = 55,
+      idleAlpha = 100,
+    }, s.appearance())
+    local chosen = { font = "cinzel", textStep = -3, edge = "outlineShadow", textColour = "yellow",
+      playerColour = 0x123456, targetColour = "equipped", border = "game", lifepoints = "percent",
+      frameWidth = 400, frameHeight = 30, idleAlpha = 40 }
+    for field, value in pairs(chosen) do s.setAppearance(field, value) end
+    local reloaded = settings.load(store).appearance()
+    for field, value in pairs(chosen) do assert.are.equal(value, reloaded[field]) end
+  end)
+
+  it("reads unknown and malformed appearance values as their defaults", function()
+    local s = settings.load(fakeStore({ appearance = {
+      font = "comic", textStep = 7, edge = 2, textColour = "plaid", playerColour = "teal", targetColour = 0x1000000,
+      border = "gold", lifepoints = "all", frameWidth = 185, frameHeight = 100, idleAlpha = 50,
+    } }))
+    local a = s.appearance()
+    assert.are.same({ "museo", 0, "shadow", "auto", "runeui", "runeui", "runeui", "short", 250, 55, 100 },
+      { a.font, a.textStep, a.edge, a.textColour, a.playerColour, a.targetColour, a.border, a.lifepoints,
+        a.frameWidth, a.frameHeight, a.idleAlpha })
+  end)
+
+  it("reads a saved hex colour and size back as whole numbers, and counts appearance changes", function()
+    local s = settings.load(fakeStore({ appearance = { playerColour = 1193046.0, frameWidth = 300.0 } }))
+    assert.are.equal(math.type(1193046), math.type(s.appearance().playerColour))
+    assert.are.equal(math.type(300), math.type(s.appearance().frameWidth))
+    local start = s.appearanceVersion()
+    s.setAppearance("edge", "outline")
+    s.setAppearance("texture", "horizontal")
+    assert.are.equal(start + 2, s.appearanceVersion())
+  end)
+
   it("shows the default target panel until hiding is chosen, keeping the texture beside it", function()
     local store = fakeStore()
     assert.is_false(settings.load(store).appearance().hideTargetPanel)

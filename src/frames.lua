@@ -2,6 +2,12 @@
 -- Pure: no client calls, so specs drive it with fake reads from src/adapter's shape.
 local frames = {}
 
+-- Unit frame lifepoints texts, with a sample of each.
+frames.LIFEPOINTS = {
+  { id = "short", label = "12.2K | 78%" }, { id = "full", label = "12,242 / 15,695" },
+  { id = "amount", label = "12.2K" }, { id = "percent", label = "78%" },
+}
+
 -- Spender resources shown as rows of blocks above the resource bar, read by their VarPlayer name.
 -- Residual souls cap at 3, or 5 with a Soulbound lantern equipped.
 frames.SPENDERS = {
@@ -41,18 +47,37 @@ function frames.formatAmount(n)
   return withCommas(n)
 end
 
--- reads: { available, name, lifepoints, lifepointsLabel, prayerValue, prayerLabel }
-function frames.player(reads)
+-- A unit frame's value text in a frames.LIFEPOINTS format, from its lifepoints with commas, short amount and
+-- percent, any of which may be nil. The full format joins lifepoints and max with a slash, or with a bar to the
+-- percent when the max is unknown. A format whose part is missing falls back to the parts there are.
+local function valueText(format, exact, amount, percent, max)
+  if format == "full" and exact ~= nil then
+    if max ~= nil then return exact .. " / " .. max end
+    amount = exact
+  elseif format == "amount" and amount ~= nil then
+    return amount
+  elseif format == "percent" and percent ~= nil then
+    return percent
+  end
+  if amount ~= nil and percent ~= nil then return amount .. " | " .. percent end
+  return amount or percent or ""
+end
+
+-- reads: { available, name, lifepoints, lifepointsLabel, prayerValue, prayerLabel }. format is one of
+-- frames.LIFEPOINTS, short when nil.
+function frames.player(reads, format)
   if not reads.available or reads.lifepoints == nil then return { hidden = true } end
   local model = { hidden = false, name = reads.name or "" }
-  local amount = frames.formatAmount(reads.lifepoints)
   local max = labelMax(reads.lifepointsLabel)
+  local percent
   if max ~= nil and max > 0 then
     model.fill = clamp01(reads.lifepoints / max)
-    model.valueText = amount .. " | " .. percentText(reads.lifepoints, max)
+    percent = percentText(reads.lifepoints, max)
   else
-    model.valueText = amount
+    max = nil
   end
+  model.valueText = valueText(format, withCommas(reads.lifepoints), frames.formatAmount(reads.lifepoints), percent,
+    max and withCommas(max))
   if reads.prayerValue ~= nil then
     -- The low 14 bits hold prayer in tenths of a point.
     local points = math.floor((reads.prayerValue % 16384) / 10)
@@ -65,17 +90,18 @@ end
 
 -- reads: { target = NPCTARGET, name, lifepointsLabel = "6,800", healthPercent = 0..100, debuffs = { spriteID } }
 -- The name and lifepoints come from the native target panel, which can be unloaded while a target is set.
-function frames.target(reads)
+-- format is one of frames.LIFEPOINTS, short when nil.
+function frames.target(reads, format)
   if reads.target == nil or reads.target == -1 or reads.lifepointsLabel == "N/A" then return { hidden = true } end
   local model = { hidden = false, name = reads.name or "", debuffs = reads.debuffs }
-  local parts = {}
   local lifepoints = reads.lifepointsLabel and tonumber((reads.lifepointsLabel:gsub(",", "")))
-  if lifepoints ~= nil then parts[#parts + 1] = frames.formatAmount(lifepoints) end
+  local percent
   if reads.healthPercent ~= nil then
     model.fill = clamp01(reads.healthPercent / 100)
-    parts[#parts + 1] = percentText(reads.healthPercent, 100)
+    percent = percentText(reads.healthPercent, 100)
   end
-  model.valueText = table.concat(parts, " | ")
+  model.valueText = valueText(format, lifepoints and withCommas(lifepoints),
+    lifepoints and frames.formatAmount(lifepoints), percent, nil)
   return model
 end
 

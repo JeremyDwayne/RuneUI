@@ -1,12 +1,14 @@
 -- Saved settings: element positions and anchors, cooldown groups with their display settings and ability
--- lists, marker percents, appearance (bar texture, aura bars, and whether the default target panel, buff bars
--- and cast bar are hidden), edit mode snapping, learned ability names and icons, aura names by icon, the aura
--- row each buff icon belongs to, which debuffs each debuff row tracks, the upkeep buffs kept up, and the order
--- of each kind of aura icon.
+-- lists, marker percents, appearance (HUD text, unit frame colours, border and size, bar texture, aura bars,
+-- opacity with no target, and whether the default target panel, buff bars and cast bar are hidden), edit mode
+-- snapping, learned ability names and icons, aura names by icon, the aura row each buff icon belongs to, which
+-- debuffs each debuff row tracks, the upkeep buffs kept up, and the order of each kind of aura icon.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local cooldowns = require("src/cooldowns")
+local frames = require("src/frames")
 local layout = require("src/layout")
 local presets = require("src/presets")
+local styling = require("src/style")
 
 local settings = {}
 
@@ -57,6 +59,11 @@ settings.LAYOUT_VERSION = 2
 local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 -- Bar fills: one flat colour, or a gradient from top to bottom or across the bar.
 settings.TEXTURES = { "flat", "vertical", "horizontal" }
+-- Points every HUD text role moves from its size, unit frame sizes, and the HUD's opacities with no target.
+settings.TEXT_STEP_MIN, settings.TEXT_STEP_MAX = -3, 6
+settings.FRAME_WIDTH = { min = 180, max = 400, step = 10 }
+settings.FRAME_HEIGHT = { min = 30, max = 80, step = 5 }
+settings.IDLE_ALPHAS = { 100, 80, 60, 40, 20 }
 
 -- Combat styles a cooldown group keeps a separate ability list for, and the directions a group grows in.
 settings.STYLES = { "necromancy", "magic", "ranged", "melee" }
@@ -306,18 +313,68 @@ local function readMarkers(saved)
   return markers
 end
 
+-- Whether value is a whole number from low to high, a multiple of step above low.
+local function inSteps(value, low, high, step)
+  value = type(value) == "number" and whole(value)
+  return math.type(value) == "integer" and value >= low and value <= high and (value - low) % step == 0
+end
+
+-- A saved frame colour: a src/style preset id or a 0xRRGGBB number.
+local function isColour(value)
+  if type(value) == "string" then return styling.find(styling.PRESETS, value) ~= nil end
+  return inSteps(value, 0, 0xFFFFFF, 1)
+end
+
+local function option(list)
+  return function(value) return styling.find(list, value) ~= nil end
+end
+
+local function oneOf(list)
+  return function(value)
+    for _, known in ipairs(list) do
+      if value == known then return true end
+    end
+    return false
+  end
+end
+
+local function steps(low, high, step)
+  return function(value) return inSteps(value, low, high, step) end
+end
+
+local function isBoolean(value) return type(value) == "boolean" end
+
+-- Each appearance field's default and the check a saved value must pass.
+local APPEARANCE = {
+  texture = { "flat", oneOf(settings.TEXTURES) },
+  hideTargetPanel = { false, isBoolean },
+  hideBuffBars = { false, isBoolean },
+  hideCastBar = { true, isBoolean },
+  auraBars = { false, isBoolean },
+  font = { "museo", option(styling.FAMILIES) },
+  textStep = { 0, steps(settings.TEXT_STEP_MIN, settings.TEXT_STEP_MAX, 1) },
+  edge = { "shadow", option(styling.EDGES) },
+  textColour = { "auto", option(styling.TEXT_COLOURS) },
+  playerColour = { "runeui", isColour },
+  targetColour = { "runeui", isColour },
+  border = { "runeui", option(styling.BORDERS) },
+  lifepoints = { "short", option(frames.LIFEPOINTS) },
+  frameWidth = { 250, steps(settings.FRAME_WIDTH.min, settings.FRAME_WIDTH.max, settings.FRAME_WIDTH.step) },
+  frameHeight = { 55, steps(settings.FRAME_HEIGHT.min, settings.FRAME_HEIGHT.max, settings.FRAME_HEIGHT.step) },
+  idleAlpha = { 100, oneOf(settings.IDLE_ALPHAS) },
+}
+
+-- A saved appearance field's value, or its default when unknown or malformed.
+local function readField(field, value)
+  local default, valid = APPEARANCE[field][1], APPEARANCE[field][2]
+  if not valid(value) then return default end
+  return type(value) == "number" and whole(value) or value
+end
+
 local function readAppearance(saved)
   saved = type(saved) == "table" and saved or {}
-  local appearance = {
-    texture = "flat",
-    hideTargetPanel = saved.hideTargetPanel == true,
-    hideBuffBars = saved.hideBuffBars == true,
-    hideCastBar = saved.hideCastBar ~= false,
-    auraBars = saved.auraBars == true,
-  }
-  for _, known in ipairs(settings.TEXTURES) do
-    if saved.texture == known then appearance.texture = known end
-  end
+  local appearance = {}
+  for field in pairs(APPEARANCE) do appearance[field] = readField(field, saved[field]) end
   return appearance
 end
 
@@ -447,6 +504,7 @@ function settings.load(store, windowHeight)
   for kind, key in pairs(ORDER_KEYS) do orders[kind] = readOrder(store.get(key)) end
   -- Counts changes to aura rows, tracking and order, so callers rebuild what depends on them only after one.
   local auraVersion = 0
+  local appearanceVersion = 0
 
   local function saveGroups() store.set("cooldownGroups", cooldownGroups) end
   if changed then saveGroups() end
@@ -622,16 +680,24 @@ function settings.load(store, windowHeight)
     store.set("markers", markers)
   end
 
-  -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars }. The game's own cast bar is hidden until
-  -- chosen otherwise, since RuneUI draws one; auraBars draws a draining bar under each aura icon. Read-only.
+  -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars, font, textStep, edge, textColour,
+  -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight, idleAlpha }. The game's own cast
+  -- bar is hidden until chosen otherwise, since RuneUI draws one; auraBars draws a draining bar under each aura
+  -- icon; idleAlpha is the HUD's opacity in percent with no target. Read-only.
   function s.appearance()
     return appearance
   end
 
-  -- Saves one appearance field. value is one the field's reader accepts, such as one of settings.TEXTURES.
+  -- Saves one appearance field, reading a value it does not accept as the field's default.
   function s.setAppearance(field, value)
-    appearance[field] = value
+    appearance[field] = readField(field, value)
+    appearanceVersion = appearanceVersion + 1
     store.set("appearance", appearance)
+  end
+
+  -- A number that changes with every appearance change.
+  function s.appearanceVersion()
+    return appearanceVersion
   end
 
   -- { [tostring(sprite)] = "combat" | "upkeep" | "hidden" }: the aura row each buff icon seen so far joins.
