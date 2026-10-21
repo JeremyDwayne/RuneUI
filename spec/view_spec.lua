@@ -72,6 +72,12 @@ describe("view", function()
   it("makes no client writes when a cooldown group redraws unchanged tiles", function()
     local tiles = readyTiles(9)
     tiles[2] = { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, keybind = "Q", remaining = 3.6 }
+    tiles[3].count = "8"
+    tiles[3].stacks = { key = "necrosis", count = 8, max = 12, gold = 6, notch = 6 }
+    tiles[4].count = "1"
+    tiles[4].charges = 1
+    tiles[4].recharge = { remaining = 6, length = 10.2 }
+    tiles[5].count = "2/3"
     for _, grow in ipairs(settings.GROWS) do
       local g = group(36, 7, grow)
       g.update(tiles)
@@ -95,6 +101,110 @@ describe("view", function()
     fake.writes = 0
     g.step(0.58)
     assert.are.equal(0, fake.writes)
+  end)
+
+  it("writes a tile's count once when it changes", function()
+    local g = group()
+    local tile =
+      { key = "MAGIC_SURGE", name = "Surge", initials = "S", icon = 14233, ready = true, count = "2", charges = 2 }
+    g.update({ tile })
+    tile.count = "1"
+    fake.writes = 0
+    g.update({ tile })
+    local writes = fake.writes
+    assert.is_not_nil(fake.find(function(_, d)
+      return d.content == "1"
+    end))
+    assert.is_true(writes > 0)
+    fake.writes = 0
+    g.update({ tile })
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("fills a spender's tile bar to its count in the row colour, growing it with whole casts gold", function()
+    local g = group(36)
+    local tile = { key = "NECROMANCY_FINGER_OF_DEATH", name = "Finger of Death", initials = "FOD", icon = 30077 }
+    tile.ready = true
+    tile.count = "5"
+    tile.stacks = { key = "necrosis", count = 5, max = 12, gold = 0, notch = 6 }
+    g.update({ tile })
+    local function shownRect(rgb)
+      return fake.find(function(_, d)
+        return d.rgb == rgb and d.height ~= nil and d.height <= 8
+      end)
+    end
+    local fill = shownRect(draw.COLOURS.necrosis)
+    assert.are.same({ 14, 3 }, { fill.width, fill.height })
+    assert.is_nil(shownRect(draw.WINDOW.accent))
+    local notch = shownRect(draw.COLOURS.highlight)
+    assert.are.same({ 2, 3 }, { notch.width, notch.height })
+    tile.count = "6"
+    tile.stacks = { key = "necrosis", count = 6, max = 12, gold = 6, notch = 6 }
+    g.update({ tile })
+    local gold = shownRect(draw.WINDOW.accent)
+    assert.are.same({ 17, 5, 5, 5 }, { gold.width, gold.height, fill.height, notch.height })
+    fake.writes = 0
+    g.update({ tile })
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("moves a charge's white recharge bar between server ticks, writing only when its width changes", function()
+    local g = group(36)
+    local tile = { key = "MAGIC_SURGE", name = "Surge", initials = "S", icon = 14233, ready = true, count = "1" }
+    tile.charges = 1
+    tile.recharge = { remaining = 6, length = 10.2 }
+    g.update({ tile }, 0)
+    local fill = fake.find(function(_, d)
+      return d.rgb == draw.COLOURS.highlight and d.height == 3
+    end)
+    assert.is_true(fill.width < 15)
+    g.step(0.45)
+    assert.are.equal(15, fill.width)
+    fake.writes = 0
+    g.step(0.46)
+    assert.are.equal(0, fake.writes)
+    tile.charges = 2
+    tile.count = "2"
+    tile.recharge = nil
+    g.update({ tile }, 0)
+    assert.is_false(fake.shown(fill))
+  end)
+
+  it("turns a spender row's whole casts gold, redrawing its canvas once per change", function()
+    local bar = view.resourceBar(fake.component())
+    local canvas = nil
+    for _, c in ipairs(fake.created) do
+      if canvas == nil and c.parent == bar.layer then
+        canvas = c
+      end
+    end
+    local fills = {}
+    local clears = 0
+    canvas.AddRectangle = function(_, _, _, _, _, rgba)
+      fills[#fills + 1] = rgba
+    end
+    canvas.Clear = function()
+      clears = clears + 1
+      fills = {}
+    end
+    local function blocks(rgb)
+      local n = 0
+      for i = 2, #fills, 2 do
+        if fills[i] == draw.opaque(rgb) then
+          n = n + 1
+        end
+      end
+      return n
+    end
+    local necrosis = { key = "necrosis", count = 8, max = 12, gold = 6, notch = 6 }
+    local model = { hidden = false, fill = 0.4, text = "40%", markers = {}, spenders = { necrosis } }
+    bar.update(model)
+    assert.are.same({ 6, 2, 1 }, { blocks(draw.WINDOW.accent), blocks(draw.COLOURS.necrosis), clears })
+    bar.update(model)
+    assert.are.equal(1, clears)
+    necrosis.gold = 0
+    bar.update(model)
+    assert.are.same({ 0, 8, 2 }, { blocks(draw.WINDOW.accent), blocks(draw.COLOURS.necrosis), clears })
   end)
 
   it("makes no writes stepping a group with no cooling tile", function()
@@ -650,7 +760,8 @@ describe("view", function()
     local elements = shownHud()
     local bar = elements.resource
     local player = elements.player
-    local spenders = { { key = "souls", count = 1, max = 3 }, { key = "necrosis", count = 4, max = 12 } }
+    local spenders =
+      { { key = "souls", count = 1, max = 3, gold = 0 }, { key = "necrosis", count = 4, max = 12, gold = 0 } }
     local model = { hidden = false, fill = 0.4, text = "40%", markers = {}, spenders = spenders }
     local function boxes()
       return { bar.bounds.y, bar.bounds.h, player.bounds.h }

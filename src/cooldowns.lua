@@ -250,8 +250,8 @@ function cooldowns.tracker()
   -- keys: ability keys in display order. slots: { [iconSpriteID] = { keybind, usable } } from the native
   -- bars. A tile whose icon no slot shows takes the name, icon and slot of the first form a slot does show.
   -- A tile with no matching slot counts as usable. A charge ability's tile is ready while a charge is left,
-  -- with count its charges left and, below two, recharge = { remaining, length } in seconds for the next
-  -- charge. A recast ability's tile counts down its stage lockout while a stage is open, with count such as
+  -- with charges and count its charges left and, below two, recharge = { remaining, length } in seconds for
+  -- the next charge. A recast ability's tile counts down its stage lockout while a stage is open, with count such as
   -- "2/3". stacks: a src/frames resource model's byAbility, whose row a spender ability's tile shows as count
   -- and stacks.
   function tracker.tiles(keys, slots, stacks)
@@ -264,13 +264,14 @@ function cooldowns.tracker()
       local left = ticksTo(a.finish)
       local cooldown = (a.start ~= nil and a.finish ~= nil) and secondsLeft(a.finish - a.start) or nil
       local count = nil
+      local charges = nil
       local recharge = nil
       local spender = stacks[key]
       if spender ~= nil then
         count = tostring(spender.count)
       elseif CHARGES[key] then
         local second = ticksTo(a.charged)
-        local charges = 2
+        charges = 2
         if left > 0 then
           charges = 0
         elseif second > 0 then
@@ -306,6 +307,7 @@ function cooldowns.tracker()
         remaining = left > 0 and left * 6 / 10 or nil,
         cooldown = cooldown,
         count = count,
+        charges = charges,
         recharge = recharge,
         stacks = spender,
       }
