@@ -11,7 +11,8 @@ local function fakeStore()
 end
 
 -- A Buffs page with Bone Shield in combat buffs, an antifire in upkeep, and Stun Immune seen on a target.
-local function open()
+-- info names every icon "Icon" unless given.
+local function open(info)
   local saved = settings.load(fakeStore())
   saved.learnAura(BONE_SHIELD, "combat")
   saved.learnAura(ANTIFIRE, "upkeep")
@@ -20,7 +21,7 @@ local function open()
   local refreshed = { count = 0 }
   local page = buffspage.create(fake.component(root), 698, 498, {
     saved = saved,
-    info = function() return { name = "Icon" } end,
+    info = info or function() return { name = "Icon" } end,
     tooltip = view.tooltip(root),
     toScreen = function(x, y) return x, y end,
     refresh = function() refreshed.count = refreshed.count + 1 end,
@@ -85,6 +86,12 @@ describe("buffspage", function()
     fake.press("Keep up: off")
     assert.is_true(saved.keepUp()[tostring(ANTIFIRE)])
     assert.is_not_nil(fake.find(function(_, d) return d.content == "K" end))
+  end)
+
+  it("says a name is being looked up in an icon's tooltip until it loads", function()
+    open(function() return nil end)
+    fake.hook(tileEdge(BONE_SHIELD), "ONMOUSEOVER")
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "Looking up name" end))
   end)
 
   it("makes no client writes when redrawn unchanged", function()

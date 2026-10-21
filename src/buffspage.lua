@@ -338,6 +338,7 @@ function buffspage.create(page, width, height, deps)
     local x, y = deps.toScreen(t.x, t.y)
     deps.tooltip.show({
       title = found and found.name or "Unknown",
+      left = found == nil and "Looking up name" or nil,
       line = "Drag to another group, or click for options",
     }, x, y, SIZE)
   end)
