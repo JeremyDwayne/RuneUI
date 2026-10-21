@@ -1,4 +1,5 @@
 local fake = require("spec/support/fake_ui")
+local draw = require("src/draw")
 local settings = require("src/settings")
 local view = require("src/view")
 
@@ -9,44 +10,93 @@ local function readyTiles(n)
   return out
 end
 
--- Every HUD element on one root.
+-- A cooldown group with display settings of size px tiles, perRow to a row, growing in grow.
+local function group(size, perRow, grow, root, tooltip)
+  local g = view.cooldownGroup(root or fake.component(), tooltip or view.tooltip(fake.component()))
+  g.configure({ size = size or 36, perRow = perRow or 7, grow = grow or "down" })
+  return g
+end
+
+-- Every HUD element on one root, with the built-in groups at their default display settings.
 local function hud()
   local root = fake.component()
   local tooltip = view.tooltip(root)
-  return {
+  local elements = {
     player = view.playerFrame(root),
     target = view.targetFrame(root),
     resource = view.resourceBar(root),
-    rotation = view.cooldownGroup(root, view.TILE_STYLES.rotation, tooltip),
-    cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns, tooltip),
+    castbar = view.castBar(root),
   }
+  for _, default in ipairs(settings.GROUPS) do
+    elements[default.name] = group(default.size, default.perRow, default.grow, root, tooltip)
+  end
+  return elements
+end
+
+-- The src/channel model of Asphyxiate, 7 ticks long, with ticksLeft of them left.
+local function asphyxiate(start, ticksLeft)
+  return { start = start or 227269, name = "Asphyxiate", icon = 14660, duration = 4.2, ticksLeft = ticksLeft or 7,
+    hits = { 0, 1.2, 2.4, 3.6 } }
+end
+
+-- Shown 1px bar marks on bar, as tall as the cast bar's fill unless height is given: { dark ones over the fill,
+-- light ones ahead of it }.
+local function marks(bar, height)
+  local dark, light = 0, 0
+  for _, c in ipairs(fake.created) do
+    if fake.shown(c) and c.parent == bar.layer and c.width == 1 and c.height == (height or 20) then
+      if c.rgb == draw.COLOURS.border then dark = dark + 1 end
+      if c.rgb == draw.COLOURS.highlight then light = light + 1 end
+    end
+  end
+  return { dark, light }
 end
 
 describe("view", function()
   before_each(fake.reset)
 
   it("makes no client writes when a cooldown group redraws unchanged tiles", function()
-    local group = view.cooldownGroup(fake.component(), view.TILE_STYLES.rotation, view.tooltip(fake.component()))
-    local tiles = {
-      { key = "MAGIC_SUNSHINE", name = "Sunshine", initials = "SUN", ready = true },
-      { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, keybind = "Q", seconds = 4 },
-    }
-    group.update(tiles, 0x2f7fd6)
+    local tiles = readyTiles(9)
+    tiles[2] = { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, keybind = "Q", remaining = 3.6 }
+    for _, grow in ipairs(settings.GROWS) do
+      local g = group(36, 7, grow)
+      g.update(tiles)
+      fake.writes = 0
+      assert.is_false(g.configure({ size = 36, perRow = 7, grow = grow }))
+      g.update(tiles)
+      assert.are.equal(0, fake.writes, grow)
+    end
+  end)
+
+  it("counts a cooling tile's whole seconds down between server ticks, writing only when they change", function()
+    local g = group()
+    g.update({ { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, remaining = 4.2 } }, 0)
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "5" end))
+    g.step(0.2)
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "4" end))
     fake.writes = 0
-    group.update(tiles, 0x2f7fd6)
+    g.step(0.58)
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("makes no writes stepping a group with no cooling tile", function()
+    local g = group()
+    g.update(readyTiles(3))
+    fake.writes = 0
+    g.step(0.3)
     assert.are.equal(0, fake.writes)
   end)
 
   it("tints a tile's icon and keybind as the native bar does while its ability can't be cast", function()
-    local group = view.cooldownGroup(fake.component(), view.TILE_STYLES.rotation, view.tooltip(fake.component()))
+    local g = group()
     local tile = { key = "MAGIC_WILD_MAGIC", name = "Wild Magic", initials = "WM", icon = 14385, keybind = "W",
       ready = true, usable = false }
-    group.update({ tile }, nil)
+    g.update({ tile })
     local icon = fake.find(function(_, d) return d.sprite == 14385 end)
     local keybind = fake.find(function(_, d) return d.content == "W" end)
     assert.are.same({ 0x333333, 0xa5a5a5, 0.6 }, { icon.rgb, keybind.rgb, keybind.alpha })
     tile.usable = true
-    group.update({ tile }, nil)
+    g.update({ tile })
     assert.are.same({ 0xffffff, 1 }, { icon.rgb, keybind.alpha })
   end)
 
@@ -155,29 +205,193 @@ describe("view", function()
     assert.are.equal(boxHeight(elements.player), boxHeight(elements.target))
   end)
 
-  it("bounds a cooldown row by its shown tiles, meeting at its center when empty", function()
-    local group = view.cooldownGroup(fake.component(), view.TILE_STYLES.rotation, view.tooltip(fake.component()))
-    assert.is_true(group.update(readyTiles(7)))
-    assert.are.same({ x = 66, y = 0, w = 306, h = 47 }, group.bounds)
-    assert.is_false(group.update(readyTiles(7)))
-    group.update({})
-    assert.are.same({ x = 219, y = 0, w = 0, h = 47 }, group.bounds)
+  it("bounds a cooldown group by its shown tiles, meeting at its axis when empty", function()
+    local g = group(36, 7, "down")
+    assert.is_true(g.update(readyTiles(9)))
+    assert.are.same({ x = 0, y = 0, w = 264, h = 74 }, g.bounds)
+    assert.is_false(g.update(readyTiles(9)))
+    g.update({})
+    assert.are.same({ x = 132, y = 0, w = 0, h = 36 }, g.bounds)
   end)
 
-  it("moves anchored frames on the tick the rotation row gains a tile, and makes no writes when steady", function()
+  it("keeps an up group's last tile on its bottom row and a left group's on its right column", function()
+    local up, left = group(36, 7, "up"), group(30, 2, "left")
+    up.update(readyTiles(3))
+    left.update(readyTiles(3))
+    assert.are.same({ x = 76, y = 76, w = 112, h = 36 }, up.bounds)
+    assert.are.same({ x = 256, y = 0, w = 62, h = 62 }, left.bounds)
+  end)
+
+  it("resizes its tiles in place, building more only as the group grows", function()
+    local g = group(36, 7, "down")
+    g.update(readyTiles(3))
+    local built = #fake.created
+    assert.is_true(g.configure({ size = 44, perRow = 7, grow = "down" }))
+    g.update(readyTiles(3))
+    assert.are.equal(built, #fake.created)
+    assert.is_not_nil(fake.find(function(_, d) return d.width == 44 and d.height == 44 end))
+    g.update(readyTiles(20))
+    g.update(readyTiles(25))
+    local full = #fake.created
+    g.update(readyTiles(2))
+    assert.are.equal(full, #fake.created)
+  end)
+
+  it("hides a group not in use and collapses its bounds", function()
+    local g = group()
+    g.update(readyTiles(3))
+    g.setInUse(false)
+    assert.is_true(g.update(readyTiles(3)))
+    assert.are.same({ 0, 0 }, { g.bounds.w, g.bounds.h })
+    assert.is_true(g.layer.hidden)
+  end)
+
+  it("updates a custom group that was never configured while it is not in use", function()
+    local g = view.cooldownGroup(fake.component(), view.tooltip(fake.component()))
+    g.setInUse(false)
+    assert.has_no.errors(function() g.update({}) end)
+    assert.are.same({ 0, 0 }, { g.bounds.w, g.bounds.h })
+  end)
+
+  it("shows the channel's name and length, hides between channels, and makes no writes when steady", function()
+    local bar = view.castBar(fake.component())
+    bar.update(asphyxiate())
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "Asphyxiate" end))
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "4.2s" end))
+    fake.writes = 0
+    bar.update(asphyxiate())
+    assert.are.equal(0, fake.writes)
+    bar.update(nil)
+    assert.is_true(bar.layer.hidden)
+    fake.writes = 0
+    bar.update(nil)
+    assert.are.equal(0, fake.writes)
+    assert.are.same({ x = 0, y = 0, w = 278, h = 22 }, bar.bounds)
+  end)
+
+  it("fills each step up to the next tick, steps its time with the ticks as the game does, and ends at 0", function()
+    local bar = view.castBar(fake.component())
+    bar.update(asphyxiate())
+    local fill = fake.find(function(_, d) return d.rgb == draw.COLOURS.cast end)
+    local width = fill.width
+    bar.step(0.3)
+    bar.update(asphyxiate())
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "4.2s" end))
+    assert.is_true(fill.width > width)
+    bar.update(asphyxiate(nil, 5))
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "3s" end))
+    bar.step(5)
+    assert.is_false(bar.layer.hidden)
+    bar.update(asphyxiate(nil, 1))
+    bar.step(0.7)
+    assert.is_true(bar.layer.hidden)
+    bar.update(asphyxiate())
+    assert.is_true(bar.layer.hidden)
+    bar.update(asphyxiate(227280))
+    assert.is_false(bar.layer.hidden)
+  end)
+
+  it("shows Cancelled for a cancelled channel, then fades the bar out and hides it", function()
+    local bar = view.castBar(fake.component())
+    bar.update(asphyxiate())
+    local name = fake.find(function(_, d) return d.content == "Asphyxiate" end)
+    bar.update({ start = 227269, cancelled = true })
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "Cancelled" end))
+    assert.are.same({ 0, 0 }, marks(bar))
+    bar.update(nil)
+    bar.step(0.6)
+    assert.are.same({ false, 1 }, { bar.layer.hidden, name.alpha or 1 })
+    bar.step(0.2)
+    assert.is_true(name.alpha > 0 and name.alpha < 1)
+    bar.step(0.3)
+    assert.is_true(bar.layer.hidden)
+    bar.update(asphyxiate())
+    assert.is_true(bar.layer.hidden)
+    bar.update(asphyxiate(227280))
+    assert.are.same({ false, 1 }, { bar.layer.hidden, name.alpha })
+  end)
+
+  it("colours the fill by the channel's combat style, and teal when it has none", function()
+    local bar = view.castBar(fake.component())
+    local model = asphyxiate()
+    model.style = "necromancy"
+    bar.update(model)
+    assert.is_not_nil(fake.find(function(_, d) return d.rgb == draw.COLOURS.castNecromancy end))
+    bar.update(asphyxiate(227280))
+    assert.is_nil(fake.find(function(_, d) return d.rgb == draw.COLOURS.castNecromancy end))
+    assert.is_not_nil(fake.find(function(_, d) return d.rgb == draw.COLOURS.cast end))
+  end)
+
+  it("keeps a spark at the fill's edge whose glow flashes on each server tick", function()
+    local bar = view.castBar(fake.component())
+    bar.update(asphyxiate())
+    bar.step(0.3)
+    local core = fake.find(function(_, d)
+      return d.rgb == draw.COLOURS.highlight and d.width == 2 and d.height == 20
+    end)
+    local x = core.parent.x
+    bar.step(0.2)
+    assert.is_true(core.parent.x > x)
+    local function glow(alpha)
+      return fake.find(function(_, d) return d.width == 1 and d.height == 20 and d.alpha == alpha end)
+    end
+    bar.update(asphyxiate(nil, 6))
+    assert.is_not_nil(glow(0.9))
+    bar.step(0.3)
+    assert.are.same({ false, true }, { glow(0.9) ~= nil, glow(0.45) ~= nil })
+  end)
+
+  it("ignores a cancelled channel it never showed", function()
+    local bar = view.castBar(fake.component())
+    bar.update({ start = 227269, cancelled = true })
+    assert.is_true(bar.layer.hidden)
+  end)
+
+  it("marks each hit inside the cast bar but not at its ends, dark once the fill passes it", function()
+    local bar = view.castBar(fake.component())
+    bar.update(asphyxiate())
+    assert.are.same({ 0, 3 }, marks(bar))
+    bar.update(asphyxiate(nil, 5))
+    assert.are.same({ 1, 2 }, marks(bar))
+    fake.writes = 0
+    bar.step(0.02)
+    assert.are.equal(2, fake.writes, "the fill and the spark")
+    bar.update({ start = 1, name = "Greater Concentrated Blast", duration = 1.8, hits = { 0, 0.6, 1.2 } })
+    assert.are.same({ 0, 2 }, marks(bar))
+    bar.update({ start = 2, name = "Asphyxiate", duration = 3.6 })
+    assert.are.same({ 0, 0 }, marks(bar))
+  end)
+
+  it("draws each adrenaline marker as a faint line across the bar, dark once the fill reaches it", function()
+    local bar = view.resourceBar(fake.component())
+    bar.update({ hidden = false, fill = 0.6, text = "60%", markers = { { at = 0.5 }, { at = 1 } }, spenders = {} })
+    assert.are.same({ 1, 1 }, marks(bar, 18))
+    bar.update({ hidden = false, fill = 1, text = "100%", markers = { { at = 0.5 }, { at = 1 } }, spenders = {} })
+    assert.are.same({ 2, 0 }, marks(bar, 18))
+  end)
+
+  it("makes no writes stepping between channels", function()
+    local bar = view.castBar(fake.component())
+    bar.update(nil)
+    fake.writes = 0
+    bar.step(0.02)
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("moves anchored frames on the tick the major group gains a tile, and makes no writes when steady", function()
     local elements = hud()
     local saved = settings.load({ get = function() end, set = function() end })
     local function tick(count)
-      local moved = elements.rotation.update(readyTiles(count))
+      local moved = elements.major.update(readyTiles(count))
       if moved then view.arrange(elements, saved.positions(), saved.anchors()) end
     end
     view.arrange(elements, saved.positions(), saved.anchors())
-    tick(7)
+    tick(4)
     local x = elements.player.layer.x
-    tick(8)
-    assert.are.equal(x - 22, elements.player.layer.x)
+    tick(5)
+    assert.are.equal(x - 23, elements.player.layer.x)
     fake.writes = 0
-    tick(8)
+    tick(5)
     assert.are.equal(0, fake.writes)
   end)
 end)

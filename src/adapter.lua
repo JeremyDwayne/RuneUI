@@ -3,6 +3,8 @@ local adapter = {}
 
 local MAIN_BAR = 1430
 local TARGET_PANEL = 1490
+-- The game's cast bar, with its highest static ID and its time left label.
+local CAST_BAR, CAST_BAR_LAST_STATIC, CAST_BAR_DURATION, CAST_BAR_GLOW = 764, 37, 5, 19
 -- Target debuff icon sprites sit every 3 static IDs from :38 to :71. A slot is empty when its sprite is -1
 -- or it reads not visibleGlobal: an expired or switched-away debuff keeps its sprite while invisible.
 local DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP = 38, 71, 3
@@ -135,10 +137,9 @@ function adapter.varChange(e)
   return read(e.var, "configName") or "", e.oldValue, e.newValue
 end
 
--- The struct in COMBATV2_JUST_USED_ABILITY as { key, name, icon }, or nil when it has no name or icon.
--- key is the struct name without "COMBATV2_ABILITY_", matching the cooldown var keys in src/cooldowns.
-function adapter.justUsed()
-  local struct = varValue("VarClient", "COMBATV2_JUST_USED_ABILITY")
+-- An ability struct as { key, name, icon }, or nil when it has no name or icon. key is the struct name
+-- without "COMBATV2_ABILITY_", matching the cooldown var keys in src/cooldowns.
+local function abilityInfo(struct)
   local params = struct and read(struct, "params")
   if params == nil then return nil end
   local info = { key = (tostring(read(struct, "configName")):gsub("^COMBATV2_ABILITY_", "")) }
@@ -150,6 +151,16 @@ function adapter.justUsed()
     end
   end
   if info.name ~= nil or info.icon ~= nil then return info end
+end
+
+-- The struct in COMBATV2_JUST_USED_ABILITY as abilityInfo describes it.
+function adapter.justUsed()
+  return abilityInfo(varValue("VarClient", "COMBATV2_JUST_USED_ABILITY"))
+end
+
+-- The value of the VarPlayer var name, such as COMBATV2_MAINHAND_STYLE, or nil before login.
+function adapter.playerVar(name)
+  return varValue("VarPlayer", name)
 end
 
 -- { [iconSpriteID] = { keybind, usable } } for every filled native action bar slot. keybind is nil on a slot
@@ -220,10 +231,11 @@ end
 
 -- An interface RuneUI can hold transparent with alpha 0, since hiding its components stops them updating.
 -- lastStatic is its highest static ID. watched lists { staticID, categoryID, dynamicID } addresses, without
--- the last two for a static, that read opaque once the client reloads or rebuilds the interface. Returns
--- { hide(hidden), keep() }: hide runs each server tick and false restores the original alphas; keep runs on
--- every rendered frame, reading only the watched components while hidden and nothing while shown.
-local function transparency(interfaceID, lastStatic, watched)
+-- the last two for a static, that read opaque once the client reloads or rebuilds the interface. animated lists
+-- static IDs whose alpha the client animates, which take hidden instead. Returns { hide(hidden), keep() }: hide
+-- runs each server tick and false restores the original alphas and hidden states; keep runs on every rendered
+-- frame, reading only the watched components while hidden and nothing while shown.
+local function transparency(interfaceID, lastStatic, watched, animated)
   -- Original alpha of each component while held transparent, keyed "static" or "static:category:dynamic".
   local originals = nil
 
@@ -251,6 +263,14 @@ local function transparency(interfaceID, lastStatic, watched)
       local alpha = transparent and 0 or originals[key] or 1
       pcall(function() c.alpha = alpha end)
     end)
+    for _, staticID in ipairs(animated or {}) do
+      local c, key = ui.Interfaces:GetComponent(interfaceID, staticID), "hidden " .. staticID
+      if c ~= nil and (transparent or originals[key] ~= nil) then
+        if transparent and originals[key] == nil then originals[key] = read(c, "hidden") == true end
+        local hidden = transparent or originals[key]
+        pcall(function() c.hidden = hidden end)
+      end
+    end
   end
 
   local t = {}
@@ -294,6 +314,17 @@ adapter.keepTargetPanelHidden = targetPanel.keep
 -- Runs each server tick with whether the native target panel should be hidden. Hiding sets alpha 0,
 -- because hidden stops the panel filling its debuff slots, which targetReads relies on.
 adapter.hideTargetPanel = targetPanel.hide
+
+-- The game's cast bar, held transparent so the client's own showing and hiding of it is left alone and
+-- restoring never shows a bar the client hid. A visible root or time label means the client rebuilt it. The
+-- client fades the glow of the bar's moving spark in from opaque each tick, so the glow takes hidden.
+local castBar = transparency(CAST_BAR, CAST_BAR_LAST_STATIC, { { 0 }, { CAST_BAR_DURATION } }, { CAST_BAR_GLOW })
+
+-- Runs on every rendered frame, making the game's cast bar transparent again when the client rebuilt it.
+adapter.keepCastBarHidden = castBar.keep
+
+-- Runs each server tick with whether the game's cast bar should be hidden. false restores its alphas.
+adapter.hideCastBar = castBar.hide
 
 -- Original alpha of each buff bar component while RuneUI hides the bars, keyed "bar:static" or
 -- "bar:static:category:dynamic", and the keys of the icons it set hidden.
@@ -407,9 +438,9 @@ local function readIconStruct(structID)
   }
 end
 
--- src/icons lookup: the combat or spell struct at structID, named COMBATV2_ or MAGIC_ such as
--- MAGIC_VULNERABILITY, as { configName, icon, name }, or nil. Reads only these params, since reading some
--- others logs a conversion error to the console.
+-- The combat or spell struct at structID, named COMBATV2_ or MAGIC_ such as MAGIC_VULNERABILITY, as
+-- { configName, icon, name }, or nil, for src/icons and the struct id COMBATV2_CHANNEL_ABILITY_STRUCT holds.
+-- Reads only these params, since reading some others logs a conversion error to the console.
 function adapter.iconStruct(structID)
   local ok, struct = pcall(readIconStruct, structID)
   return ok and struct or nil

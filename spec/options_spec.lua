@@ -1,6 +1,7 @@
 local fake = require("spec/support/fake_ui")
 local cooldowns = require("src/cooldowns")
 local options = require("src/options")
+local presets = require("src/presets")
 local settings = require("src/settings")
 local view = require("src/view")
 
@@ -9,11 +10,13 @@ local function fakeStore()
   return { get = function(key) return data[key] end, set = function(key, value) data[key] = value end }
 end
 
--- The options window over a player frame, a cooldowns row holding Sunshine, and a rotation row holding Soul
--- Sap and then Wild Magic, so magic is the current style. Opened from the ribbon.
-local function openWindow()
+-- The options window over a player frame and a major group, with groups filled from src/presets, after
+-- Sunshine, Soul Sap and then Wild Magic fired, so magic is the current style unless mainhand gives the worn
+-- weapon's style. Opened from the ribbon on the Major group. Returns the settings.
+local function openWindow(mainhand)
   local root = fake.component()
   local tracker = cooldowns.tracker()
+  if mainhand ~= nil then tracker.onVar("COMBATV2_MAINHAND_STYLE", nil, mainhand) end
   tracker.onVar("COMBATV2_COOLDOWN_MAGIC_SUNSHINE_START", 0, 1000)
   tracker.onVar("COMBATV2_COOLDOWN_MAGIC_SUNSHINE_END", 0, 1100)
   tracker.onVar("COMBATV2_COOLDOWN_NECROMANCY_SOUL_SAP_START", 0, 1000)
@@ -22,15 +25,18 @@ local function openWindow()
   tracker.onVar("COMBATV2_COOLDOWN_MAGIC_WILD_MAGIC_END", 0, 1010)
   local elements = {
     player = view.playerFrame(root),
-    cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns, view.tooltip(root)),
+    major = view.cooldownGroup(root, view.tooltip(root)),
   }
   local saved = settings.load(fakeStore())
-  options.create(root, {
-    saved = saved, tracker = tracker, elements = elements, view = view, refresh = function() end,
-  })
+  options.create(root, { saved = saved, tracker = tracker, elements = elements, view = view, refresh = function() end })
   fake.fire("ContentLayerReady", { component = fake.component() })
   fake.press("Open RuneUI options")
   return saved
+end
+
+-- Opens the ability picker from the "+" tile, the third "+" after the two steppers'.
+local function openPicker()
+  fake.press("+", 3)
 end
 
 local function logicTick()
@@ -39,6 +45,19 @@ end
 
 local function editorTile()
   return fake.find(function(c) return fake.hasHook(c, "ONRELEASE") end)
+end
+
+-- The number of ability tiles the chosen group shows.
+local function tileCount()
+  local count = 0
+  for _, c in ipairs(fake.created) do
+    if fake.shown(c) and fake.hasHook(c, "ONRELEASE") then count = count + 1 end
+  end
+  return count
+end
+
+local function shows(content)
+  return fake.find(function(_, d) return d.content == content end) ~= nil
 end
 
 describe("options", function()
@@ -77,44 +96,51 @@ describe("options", function()
     assert.are.same({ x, y }, { tile.x, tile.y })
   end)
 
-  it("moves a tile to the row it is dropped on", function()
+  it("swaps a tile with the one it is dropped on", function()
     local saved = openWindow()
+    local first, second = table.unpack(saved.keys("major", "magic"))
     local tile = editorTile()
-    local rotation = fake.find(function(_, d) return d.content == "Rotation" end)
     fake.mouse.x, fake.mouse.y = 500, 300
     fake.hook(tile, "ONCLICK", 5, 5)
-    fake.mouse.y = 300 + rotation.y + 32 - (tile.y + 5)
+    fake.mouse.x, fake.mouse.y = 500 + 38 + 13, 300 + 13
     logicTick()
     fake.hook(tile, "ONRELEASE")
-    local groups = saved.groups()
-    assert.are.same({ {}, "MAGIC_SUNSHINE" }, { groups.cooldowns, groups.rotation[1] })
+    local keys = saved.keys("major", "magic")
+    assert.are.same({ second, first }, { keys[1], keys[2] })
   end)
 
   it("opens the picker on the current combat style's tab and switches style by tab", function()
     openWindow()
-    fake.press("+")
+    openPicker()
     local function listed(name) return fake.find(function(_, d) return d.content == name end) ~= nil end
     assert.are.same({ true, false }, { listed("Wild Magic"), listed("Soul Sap") })
-    fake.press("Necromancy")
+    fake.press("Necromancy", 2)
     assert.are.same({ false, true }, { listed("Wild Magic"), listed("Soul Sap") })
+  end)
+
+  it("counts the abilities past the picker's last row and points to the search box", function()
+    openWindow()
+    openPicker()
     fake.press("All")
-    assert.are.same({ true, true }, { listed("Wild Magic"), listed("Soul Sap") })
+    local note = fake.find(function(_, d) return type(d.content) == "string" and d.content:find(" more. Search") end)
+    local hidden = tonumber(note.content:match("^(%d+) more"))
+    assert.is_true(hidden > 0)
   end)
 
   it("lists abilities matching the picker search from every style, leaving the All tab chosen", function()
     openWindow()
-    fake.press("+")
+    openPicker()
     local search = fake.find(function(c) return fake.hasHook(c, "ONCONTENTCHANGED") end)
     local function listed(name) return fake.find(function(_, d) return d.content == name end) ~= nil end
     fake.hook(search, "ONCONTENTCHANGED", 0, "soul")
     assert.are.same({ false, true }, { listed("Wild Magic"), listed("Soul Sap") })
-    fake.hook(search, "ONCONTENTCHANGED", 0, "")
-    assert.are.same({ true, true }, { listed("Wild Magic"), listed("Soul Sap") })
+    fake.hook(search, "ONCONTENTCHANGED", 0, "wild")
+    assert.are.same({ true, false }, { listed("Wild Magic"), listed("Soul Sap") })
   end)
 
   it("says when no ability matches the picker search", function()
     openWindow()
-    fake.press("+")
+    openPicker()
     local search = fake.find(function(c) return fake.hasHook(c, "ONCONTENTCHANGED") end)
     fake.hook(search, "ONCONTENTCHANGED", 0, "zzz")
     assert.is_not_nil(fake.find(function(_, d) return d.content == "No ability matches" end))
@@ -122,18 +148,85 @@ describe("options", function()
 
   it("closes the picker when the reset dialog opens", function()
     openWindow()
-    fake.press("+")
+    openPicker()
     fake.press("Reset positions")
     assert.is_nil(fake.find(function(_, d) return d.content == "Wild Magic" end))
   end)
 
   it("ignores a search event that arrives after the picker closed", function()
     openWindow()
-    fake.press("+")
+    openPicker()
     local search = fake.find(function(c) return fake.hasHook(c, "ONCONTENTCHANGED") end)
     fake.hook(search, "ONCONTENTCHANGED", 0, "soul")
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
     assert.has_no.errors(function() fake.hook(search, "ONCONTENTCHANGED", 4, "soul") end)
+  end)
+
+  it("opens on the worn weapon's style tab, marked Equipped, and switches style by tab", function()
+    openWindow(37)
+    local equipped = fake.find(function(_, d) return d.content == "Equipped" end)
+    local necromancy = fake.find(function(_, d) return d.content == "Necromancy" end)
+    assert.are.equal(necromancy.x, equipped.x)
+    assert.are.equal(#presets.STYLES.necromancy.major, tileCount())
+    fake.press("Magic")
+    assert.are.equal(#presets.STYLES.magic.major, tileCount())
+  end)
+
+  it("saves the chosen group's icon size, grow and abilities setting, and names the limit by grow", function()
+    local saved = openWindow()
+    fake.press("+")
+    fake.press("Right")
+    fake.press("Every style", 2)
+    local major = saved.group("major")
+    assert.are.same({ 46, "right", true }, { major.size, major.grow, major.shared })
+    assert.is_true(shows("Icons per column"))
+    assert.is_false(shows("Icons per row"))
+  end)
+
+  it("switches a group to every style and back, keeping its abilities for the style", function()
+    local saved = openWindow()
+    fake.press("Every style", 2)
+    assert.are.same({}, saved.keys("major", "magic"))
+    fake.press("Per style")
+    assert.are.same(presets.STYLES.magic.major, saved.keys("major", "magic"))
+  end)
+
+  it("moves an ability picked from another group's section into the chosen group", function()
+    local saved = openWindow()
+    openPicker()
+    assert.is_true(shows("In Rotation"))
+    fake.press("Wild Magic")
+    local major = { table.unpack(presets.STYLES.magic.major) }
+    major[#major + 1] = "MAGIC_WILD_MAGIC"
+    assert.are.same(major, saved.keys("major", "magic"))
+    assert.is_false(saved.keys("rotation", "magic")[2] == "MAGIC_WILD_MAGIC")
+    assert.are.equal(#presets.STYLES.magic.rotation - 1, #saved.keys("rotation", "magic"))
+  end)
+
+  it("adds up to four new groups and hides New group once they are all in use", function()
+    local saved = openWindow()
+    for _ = 1, 4 do fake.press("New group") end
+    assert.are.equal(#settings.GROUPS + 4, #saved.groupNames())
+    assert.is_false(shows("New group"))
+  end)
+
+  it("renames a new group from its name field", function()
+    local saved = openWindow()
+    fake.press("New group")
+    local field = fake.find(function(c) return fake.hasHook(c, "ONCONTENTCHANGED") end)
+    fake.hook(field, "ONCONTENTCHANGED", 0, "Bombs")
+    assert.are.equal("Bombs", saved.group("custom1").title)
+    assert.is_true(shows("Bombs"))
+  end)
+
+  it("deletes a new group only on a second click", function()
+    local saved = openWindow()
+    fake.press("New group")
+    fake.press("Delete")
+    assert.is_not_nil(saved.group("custom1"))
+    fake.press("Click to delete")
+    assert.is_nil(saved.group("custom1"))
+    assert.is_false(shows("Delete"))
   end)
 
   it("makes no client writes while a tile drag is held still", function()

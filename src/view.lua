@@ -7,6 +7,7 @@ local view = {}
 local draw = require("src/draw")
 local frames = require("src/frames")
 local layout = require("src/layout")
+local settings = require("src/settings")
 local set, pos, rect, text = draw.set, draw.pos, draw.rect, draw.text
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
@@ -102,10 +103,14 @@ function view.tooltip(root)
   end
 
   -- Entering item i's edge calls show(i) and leaving the hovered edge hides the tooltip. Returns a table
-  -- whose index is the hovered item's, or nil, so an update can redraw the tooltip it shows.
+  -- whose index is the hovered item's, or nil, so an update can redraw the tooltip it shows, and whose
+  -- add(item) wires one more item as the next index.
   function tooltip.hover(items, show)
-    local hover = {}
-    for i, item in ipairs(items) do
+    local hover, count = {}, 0
+
+    function hover.add(item)
+      count = count + 1
+      local i = count
       item.edge:Subscribe(ui.Hook.ONMOUSEOVER, function()
         hover.index = i
         show(i)
@@ -117,6 +122,8 @@ function view.tooltip(root)
         end
       end)
     end
+
+    for _, item in ipairs(items) do hover.add(item) end
     return hover
   end
 
@@ -204,7 +211,6 @@ local SPENDER_ROW = 8
 -- Spender rows stack upward from just above the bar, one per spender with stacks.
 local BAR_Y = 2 * (SPENDER_ROW + 2)
 local BAR_HEIGHT = 20
-local NOTCH = 7
 local SPENDER_COLOURS = { souls = COLOURS.spender, necrosis = COLOURS.necrosis }
 -- Fill fraction at which the centred percent label sits entirely on the fill.
 local PERCENT_ON_FILL = 0.56
@@ -220,10 +226,26 @@ local function blockSpans(count, width)
   return spans
 end
 
--- 278 wide: up to two rows of spender blocks, the adrenaline bar with its percent, and marker notches
--- below the bar so they never cross the percent.
+-- Bar marks are faint 1px lines across a bar: dark where the fill has passed them, light ahead of it.
+local MARK_DARK_ALPHA, MARK_LIGHT_ALPHA = 0.4, 0.3
+
+-- A bar mark at x, y as tall as height.
+local function barMark(layer, x, y, height)
+  local mark = rect(layer, COLOURS.highlight, x, y, 1, height)
+  set(mark, "alpha", MARK_LIGHT_ALPHA)
+  return mark
+end
+
+-- Shades a bar mark for whether the fill has passed it.
+local function shadeMark(mark, passed)
+  set(mark, "rgb", passed and COLOURS.border or COLOURS.highlight)
+  set(mark, "alpha", passed and MARK_DARK_ALPHA or MARK_LIGHT_ALPHA)
+end
+
+-- 278 wide: up to two rows of spender blocks and the adrenaline bar with its percent and a bar mark at each of
+-- its two markers.
 function view.resourceBar(root)
-  local height = BAR_Y + BAR_HEIGHT + NOTCH
+  local height = BAR_Y + BAR_HEIGHT
   local layer = ui.Layer.new(root)
   layer:SetSize(BAR_WIDTH, height)
 
@@ -238,14 +260,7 @@ function view.resourceBar(root)
   rect(layer, COLOURS.border, 0, BAR_Y, BAR_WIDTH, BAR_HEIGHT)
   rect(layer, COLOURS.track, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
   local fill = draw.bar(layer, COLOURS.adrenaline, COLOURS.track, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
-  -- Light notches with black edges hang from the bar's bottom edge.
-  local markers = {}
-  for i = 1, 2 do
-    markers[i] = {
-      edge = rect(layer, COLOURS.border, 0, BAR_Y + BAR_HEIGHT, 4, NOTCH),
-      line = rect(layer, COLOURS.marker, 0, BAR_Y + BAR_HEIGHT, 2, NOTCH - 1),
-    }
-  end
+  local markers = { barMark(layer, 0, BAR_Y + 1, BAR_HEIGHT - 2), barMark(layer, 0, BAR_Y + 1, BAR_HEIGHT - 2) }
   local percent = text(layer, FONTS.body, ui.AlignMode.CENTRE, 0, BAR_Y + 1, BAR_WIDTH, BAR_HEIGHT - 2)
 
   -- Black-edged blocks, filled up to the spender's count.
@@ -283,9 +298,8 @@ function view.resourceBar(root)
     set(percent, "rgb", onFill and COLOURS.darkText or COLOURS.text)
     set(percent, "isShadowed", not onFill)
     for i, marker in ipairs(model.markers) do
-      local x = math.min(math.floor(marker.at * (BAR_WIDTH - 2)), BAR_WIDTH - 3)
-      pos(markers[i].edge, x - 1, BAR_Y + BAR_HEIGHT)
-      pos(markers[i].line, x, BAR_Y + BAR_HEIGHT)
+      pos(markers[i], math.min(math.floor(marker.at * (BAR_WIDTH - 2)), BAR_WIDTH - 3) + 1, BAR_Y + 1)
+      shadeMark(markers[i], model.fill >= marker.at)
     end
     updateSpenders(model.spenders)
   end
@@ -296,62 +310,101 @@ function view.resourceBar(root)
   }
 end
 
--- Tile sizes: 42px tiles for the rotation and 36px for cooldowns, 2px apart. Each row's
--- combat style accent sits on its outer edge, away from the resource bar between them.
-view.TILE_STYLES = {
-  rotation = { size = 42, gap = 2, secondsFont = FONTS.seconds, accent = "bottom" },
-  cooldowns = { size = 36, gap = 2, secondsFont = FONTS.smallSeconds, accent = "top" },
-}
--- Accent colours by cooldowns tracker style.
-view.STYLE_COLOURS = { necromancy = 0x6f4ad8, magic = 0x2f7fd6, melee = 0xb8352f, ranged = 0x3c9a4a }
--- A 2px accent line inside a 1px black edge, and the space it takes with a 1px gap to the tiles.
-local ACCENT, ACCENT_SPACE = 2, 5
+local TILE_GAP = 2
+-- Tiles at least this big show their seconds in the larger font.
+local LARGE_TILE = 40
 local MAX_TILES = 10
 local COOLING_DIM = 0.62
 -- A tile whose ability can't be cast takes the native action bar's look: a dark icon tint and a faded grey
 -- keybind.
 local UNTINTED, BLOCKED_ICON, BLOCKED_TEXT, BLOCKED_ALPHA = 0xffffff, 0x333333, 0xa5a5a5, 0.6
 
--- Builds one cooldown tile's components as a draw.group, so group.place moves them all.
-local function tile(layer, style)
-  local size = style.size
-  local group = draw.group()
+-- Builds one cooldown tile's components. placeTile positions and sizes them.
+local function tile(layer)
   local parts = {
-    group = group,
-    edge = group.add(rect(layer, COLOURS.border, 0, 0, size, size), 0, 0),
-    background = group.add(rect(layer, COLOURS.tile, 0, 0, size - 2, size - 2), 1, 1),
-    icon = group.add(ui.Sprite.new(layer), 1, 1),
-    initials = group.add(text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, size - 8, 12), 4, size - 15),
-    dim = group.add(rect(layer, COLOURS.border, 0, 0, size - 2, size - 2), 1, 1),
-    keybind = group.add(text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 24, 2),
-    seconds = group.add(text(layer, style.secondsFont, ui.AlignMode.CENTRE, 0, 0, size, size), 0, 0),
+    edge = rect(layer, COLOURS.border, 0, 0, 0, 0),
+    background = rect(layer, COLOURS.tile, 0, 0, 0, 0),
+    icon = ui.Sprite.new(layer),
+    initials = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, 0, 12),
+    dim = rect(layer, COLOURS.border, 0, 0, 0, 0),
+    keybind = text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12),
+    seconds = text(layer, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, 0, 0),
   }
-  parts.icon:SetSize(size - 2, size - 2)
+  parts.all = { parts.edge, parts.background, parts.icon, parts.initials, parts.dim, parts.keybind, parts.seconds }
+  parts.inner = { parts.background, parts.icon, parts.dim }
   set(parts.background, "alpha", TILE_ALPHA)
   set(parts.dim, "alpha", COOLING_DIM)
   return parts
 end
 
--- A centred row of up to 10 ability tiles with an accent line as wide as the shown tiles. update takes
--- src/cooldowns tiles and the accent colour, or nil to hide the line, and returns whether bounds changed.
--- bounds spans the shown tiles; an empty row's edges meet at its center. Ready tiles are bright with their
--- keybind; cooling tiles are dimmed with whole seconds left; tiles whose ability can't be cast are tinted
--- dark. Hovering a tile shows its tooltip.
-function view.cooldownGroup(root, style, tooltip)
-  local step = style.size + style.gap
-  local width = MAX_TILES * step - style.gap
-  local height = style.size + ACCENT_SPACE
-  local layer = ui.Layer.new(root)
-  layer:SetSize(width, height)
-  local top = style.accent == "top" and ACCENT_SPACE or 0
-  local accentY = style.accent == "top" and 0 or style.size + 1
-  local accentEdge = rect(layer, COLOURS.border, 0, accentY, width, ACCENT + 2)
-  local accent = rect(layer, COLOURS.border, 1, accentY + 1, width - 2, ACCENT)
-  local tiles = {}
-  for i = 1, MAX_TILES do tiles[i] = tile(layer, style) end
+-- Moves and sizes a tile's parts for a size pixel tile at x, y.
+local function placeTile(parts, x, y, size)
+  parts.x, parts.y = x, y
+  pos(parts.edge, x, y)
+  draw.size(parts.edge, size, size)
+  for _, inner in ipairs(parts.inner) do
+    pos(inner, x + 1, y + 1)
+    draw.size(inner, size - 2, size - 2)
+  end
+  pos(parts.initials, x + 4, y + size - 15)
+  draw.size(parts.initials, size - 8, 12)
+  pos(parts.keybind, x + size - 24, y + 2)
+  pos(parts.seconds, x, y)
+  draw.size(parts.seconds, size, size)
+  set(parts.seconds, "font", size >= LARGE_TILE and FONTS.seconds or FONTS.smallSeconds)
+end
 
+-- Shows a cooling tile's whole seconds left, since seconds after the server tick its model was read at, rounded
+-- up so it reads 1 until the tick that readies it. Returns whether the label changed.
+local function showSeconds(parts, since)
+  local shown = math.max(1, math.ceil(parts.remaining - since - 1e-6))
+  if shown == parts.shown then return false end
+  parts.shown = shown
+  set(parts.seconds, "content", tostring(shown))
+  return true
+end
+
+-- Shows a src/cooldowns tile model on parts, since seconds after the server tick it was read at.
+local function showTile(parts, model, since)
+  set(parts.edge, "hidden", false)
+  set(parts.background, "hidden", false)
+  draw.iconOrInitials(parts.icon, parts.initials, model)
+  set(parts.dim, "hidden", model.ready)
+  set(parts.keybind, "hidden", model.keybind == nil)
+  set(parts.keybind, "content", model.keybind or "")
+  set(parts.seconds, "hidden", model.ready)
+  parts.remaining = model.remaining
+  if model.remaining ~= nil then showSeconds(parts, since) end
+  local usable = model.usable ~= false
+  set(parts.icon, "rgb", usable and UNTINTED or BLOCKED_ICON)
+  local labelColour = not usable and BLOCKED_TEXT or model.ready and COLOURS.text or COLOURS.dimText
+  local labelAlpha = usable and 1 or BLOCKED_ALPHA
+  set(parts.initials, "rgb", labelColour)
+  set(parts.keybind, "rgb", labelColour)
+  set(parts.initials, "alpha", labelAlpha)
+  set(parts.keybind, "alpha", labelAlpha)
+end
+
+-- A cooldown group of up to settings.MAX_GROUP_KEYS ability tiles laid out by layout.grid. configure takes
+-- { size, perRow, grow }, returns whether it changed, and redraws on the next update. update takes
+-- src/cooldowns tiles and the seconds since the server tick they were read at, and returns whether bounds
+-- changed; bounds spans the shown tiles, and an empty group's sides meet at its axis. step(since) counts the
+-- cooling tiles down from that tick, and returns at once when none is cooling. setInUse(false)
+-- hides a custom group that is not in use and collapses its bounds. Tiles are built as the group first needs
+-- them, inside its layer, and never destroyed. Ready tiles are bright with their keybind; cooling tiles are
+-- dimmed with whole seconds left; tiles whose ability can't be cast are tinted dark. Hovering a tile shows
+-- its tooltip.
+function view.cooldownGroup(root, tooltip)
+  local max = settings.MAX_GROUP_KEYS
+  local layer = ui.Layer.new(root)
+  local tiles = {}
+  local display = nil
+  local inUse = true
   local current = {}
-  local bounds = { x = 0, y = 0, w = width, h = height }
+  -- Shown tiles, and how many of them are cooling.
+  local count, cooling = 0, 0
+  local bounds = { x = 0, y = 0, w = 0, h = 0 }
+  local group = { layer = layer, bounds = bounds, inUse = true }
 
   local function showTooltip(i)
     local model = current[i]
@@ -359,65 +412,280 @@ function view.cooldownGroup(root, style, tooltip)
       tooltip.hide()
       return
     end
-    local x, y = screenPos(layer, tiles[i].group.x, top)
+    local x, y = screenPos(layer, tiles[i].x, tiles[i].y)
     tooltip.show({
       title = model.name,
       left = model.cooldown and ("Cooldown " .. model.cooldown .. "s") or nil,
       right = model.keybind and ("Key " .. model.keybind) or nil,
-      line = model.ready and "Ready" or ("Ready in " .. model.seconds .. "s"),
-    }, x, y, style.size)
+      line = model.ready and "Ready" or ("Ready in " .. tiles[i].shown .. "s"),
+    }, x, y, display.size)
   end
 
-  local hover = tooltip.hover(tiles, showTooltip)
+  local hover = tooltip.hover({}, showTooltip)
 
-  local function update(models, accentRgb)
-    current = models
-    local count = math.min(#models, MAX_TILES)
-    local offset = math.floor((width - (count * step - style.gap)) / 2)
-    local left, shownWidth = offset, count * step - style.gap
-    if count == 0 then left, shownWidth = width // 2, 0 end
-    local moved = bounds.x ~= left or bounds.w ~= shownWidth
-    bounds.x, bounds.w = left, shownWidth
-    local accentShown = accentRgb ~= nil and count > 0
-    set(accentEdge, "hidden", not accentShown)
-    set(accent, "hidden", not accentShown)
-    if accentShown then
-      local rowWidth = count * step - style.gap
-      set(accent, "rgb", accentRgb)
-      pos(accentEdge, offset, accentY)
-      draw.width(accentEdge, rowWidth)
-      pos(accent, offset + 1, accentY + 1)
-      draw.width(accent, rowWidth - 2)
+  function group.configure(d)
+    if display ~= nil and display.size == d.size and display.perRow == d.perRow and display.grow == d.grow then
+      return false
     end
+    display = { size = d.size, perRow = d.perRow, grow = d.grow }
+    local extent = layout.grid(max, display.size, TILE_GAP, display.perRow, display.grow, max)
+    draw.size(layer, extent.w, extent.h)
+    return true
+  end
+
+  function group.setInUse(on)
+    inUse = on
+    group.inUse = on
+    set(layer, "hidden", not on)
+  end
+
+  function group.update(models, since)
+    if not inUse then
+      current, count, cooling = {}, 0, 0
+      for _, parts in ipairs(tiles) do draw.hideAll(parts.all, true) end
+      local moved = bounds.w ~= 0 or bounds.h ~= 0
+      bounds.w, bounds.h = 0, 0
+      if hover.index ~= nil then
+        hover.index = nil
+        tooltip.hide()
+      end
+      return moved
+    end
+    current = models
+    count, cooling = math.min(#models, max), 0
+    while #tiles < count do
+      tiles[#tiles + 1] = tile(layer)
+      hover.add(tiles[#tiles])
+    end
+    local g = layout.grid(count, display.size, TILE_GAP, display.perRow, display.grow, max)
+    local shown = g.bounds
+    local moved = bounds.x ~= shown.x or bounds.y ~= shown.y or bounds.w ~= shown.w or bounds.h ~= shown.h
+    bounds.x, bounds.y, bounds.w, bounds.h = shown.x, shown.y, shown.w, shown.h
     for i, parts in ipairs(tiles) do
-      local model = models[i]
-      if model == nil then
-        parts.group.set("hidden", true)
+      if i > count then
+        draw.hideAll(parts.all, true)
       else
-        parts.group.place(offset + (i - 1) * step, top)
-        set(parts.edge, "hidden", false)
-        set(parts.background, "hidden", false)
-        draw.iconOrInitials(parts.icon, parts.initials, model)
-        set(parts.dim, "hidden", model.ready)
-        set(parts.keybind, "hidden", model.keybind == nil)
-        set(parts.keybind, "content", model.keybind or "")
-        set(parts.seconds, "hidden", model.ready)
-        set(parts.seconds, "content", model.seconds and tostring(model.seconds) or "")
-        local usable = model.usable ~= false
-        set(parts.icon, "rgb", usable and UNTINTED or BLOCKED_ICON)
-        local labelColour = not usable and BLOCKED_TEXT or model.ready and COLOURS.text or COLOURS.dimText
-        local labelAlpha = usable and 1 or BLOCKED_ALPHA
-        set(parts.initials, "rgb", labelColour)
-        set(parts.keybind, "rgb", labelColour)
-        set(parts.initials, "alpha", labelAlpha)
-        set(parts.keybind, "alpha", labelAlpha)
+        placeTile(parts, g.tiles[i].x, g.tiles[i].y, display.size)
+        showTile(parts, models[i], since or 0)
+        if models[i].remaining ~= nil then cooling = cooling + 1 end
       end
     end
     if hover.index ~= nil then showTooltip(hover.index) end
     return moved
   end
 
-  return { layer = layer, update = update, width = width, height = height, bounds = bounds }
+  function group.step(since)
+    if cooling == 0 then return end
+    for i = 1, count do
+      local parts = tiles[i]
+      if parts.remaining ~= nil and showSeconds(parts, since) and hover.index == i then showTooltip(i) end
+    end
+  end
+
+  return group
+end
+
+local CAST_WIDTH, CAST_HEIGHT, CAST_ICON = 278, 22, 20
+-- Hit marks built for the cast bar, more than any channel deals.
+local MAX_HITS = 12
+local NO_HITS = {}
+
+-- Ticks left as the game's cast bar writes them: "4.2s", "3s".
+local function castSeconds(ticks)
+  local tenths = ticks * 6
+  if tenths % 10 == 0 then return (tenths // 10) .. "s" end
+  return string.format("%d.%ds", tenths // 10, tenths % 10)
+end
+
+-- A cancelled channel shows "Cancelled" for CANCEL_HOLD seconds, then the bar fades out over CANCEL_FADE seconds
+-- in CANCEL_STEPS alpha steps, from 0.8 down to 0.
+local CANCEL_HOLD, CANCEL_FADE, CANCEL_STEPS = 0.6, 0.4, 5
+
+-- Fill colour by the channelled ability's src/cooldowns combat style. A channel with none keeps COLOURS.cast.
+local CAST_COLOURS = {
+  magic = COLOURS.castMagic, ranged = COLOURS.castRanged, melee = COLOURS.castMelee,
+  necromancy = COLOURS.castNecromancy,
+}
+
+-- The spark at the fill's edge: a 2px white core with a glow of SPARK_GLOW 1px white strips behind it, their alpha
+-- rising evenly to GLOW_PEAK by the core, times the glow level. The level sits at GLOW_BASE and flashes on each
+-- server tick, stepping down through FLASH_LEVELS over FLASH seconds, as the game's spark glow does.
+local SPARK_GLOW, SPARK_CORE, GLOW_PEAK = 12, 2, 0.9
+local GLOW_BASE, FLASH, FLASH_LEVELS = 0.5, 0.2, { 1, 0.8, 0.65 }
+
+-- 278x22, as wide as the resource bar: the channelled ability's icon, its name, and its time left as "1.2s" over
+-- a fill of the time spent in its combat style's colour, with a spark at the fill's edge and a bar mark at each
+-- hit that lands inside the bar rather than at its ends. A cancelled channel shows "Cancelled" in place of its
+-- time, hides its spark and marks, and fades out, whatever updates arrive meanwhile.
+-- update takes a src/channel model, or nil to hide the bar while keeping its bounds, so anchored elements stay
+-- put. The time steps with the model's ticks left, as the game's label does, and each new count sets the fill to
+-- that tick. step(seconds) moves the fill on smoothly up to the next tick, hides the bar once its last tick runs
+-- out, and does nothing between channels.
+function view.castBar(root)
+  local layer = ui.Layer.new(root)
+  layer:SetSize(CAST_WIDTH, CAST_HEIGHT)
+  local border = rect(layer, COLOURS.border, 0, 0, CAST_WIDTH, CAST_HEIGHT)
+  local track = rect(layer, COLOURS.track, 1, 1, CAST_WIDTH - 2, CAST_HEIGHT - 2)
+  local barX = CAST_ICON + 2
+  local barWidth = CAST_WIDTH - barX - 1
+  local fill = draw.bar(layer, COLOURS.cast, COLOURS.track, barX, 1, barWidth, CAST_HEIGHT - 2)
+  local marks = {}
+  for i = 1, MAX_HITS do
+    marks[i] = barMark(layer, barX, 1, CAST_HEIGHT - 2)
+    set(marks[i], "hidden", true)
+  end
+  local sparkWidth = SPARK_GLOW + SPARK_CORE
+  local spark = ui.Layer.new(layer)
+  spark:SetSize(sparkWidth, CAST_HEIGHT - 2)
+  local glow = {}
+  for i = 1, SPARK_GLOW do
+    glow[i] = rect(spark, COLOURS.highlight, i - 1, 0, 1, CAST_HEIGHT - 2)
+  end
+  local core = rect(spark, COLOURS.highlight, sparkWidth - SPARK_CORE, 0, SPARK_CORE, CAST_HEIGHT - 2)
+  -- The glow level shown, and seconds left in a flash.
+  local glowLevel, flashLeft = nil, 0
+  local iconBack = rect(layer, COLOURS.tile, 1, 1, CAST_ICON, CAST_ICON)
+  local icon = ui.Sprite.new(layer)
+  icon:SetPos(1, 1)
+  icon:SetSize(CAST_ICON, CAST_ICON)
+  local name = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, barX + 5, 1, 180, CAST_HEIGHT - 2)
+  local time = text(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, CAST_WIDTH - 78, 1, 72, CAST_HEIGHT - 2)
+  -- Every component the cancel fade dims. Marks hide on a cancel, so they are left out.
+  local faded = { border, track, iconBack, icon, name, time }
+  for _, part in ipairs(fill.parts) do faded[#faded + 1] = part end
+  -- Seconds left showing a cancel, or nil.
+  local cancelLeft = nil
+  set(layer, "hidden", true)
+  -- The shown channel's model and seconds left, nil once it ends, the start of the latest channel shown and the
+  -- ticks left its label shows.
+  local current, left, shownStart, shownTicks = nil, nil, nil, nil
+  -- Seconds into the channel of each shown mark, the start and hit count they were placed for, and how many the
+  -- fill has passed.
+  local markAt, placedFor, placedHits, placed, passedShown = {}, nil, nil, 0, nil
+
+  local function placeMarks(model)
+    placedFor, placedHits, placed, passedShown = model.start, model.hits and #model.hits, 0, nil
+    for _, at in ipairs(model.hits or NO_HITS) do
+      if at > 0 and at < model.duration and placed < MAX_HITS then
+        placed = placed + 1
+        markAt[placed] = at
+        pos(marks[placed], barX + math.floor(barWidth * at / model.duration + 0.5), 1)
+      end
+    end
+    for i, mark in ipairs(marks) do set(mark, "hidden", i > placed) end
+  end
+
+  -- Shades the marks for the seconds spent, only when the fill passes one.
+  local function shadeMarks(spent)
+    local passed = 0
+    for i = 1, placed do
+      if markAt[i] <= spent then passed = i end
+    end
+    if passed == passedShown then return end
+    passedShown = passed
+    for i = 1, placed do shadeMark(marks[i], i <= passed) end
+  end
+
+  local function setGlow(level)
+    if level == glowLevel then return end
+    glowLevel = level
+    for i, strip in ipairs(glow) do set(strip, "alpha", GLOW_PEAK * level * i / SPARK_GLOW) end
+  end
+
+  -- Puts the spark's core at edge, hiding any part of it left of the fill.
+  local function placeSpark(edge)
+    local x = edge - sparkWidth
+    pos(spark, x, 1)
+    for i, strip in ipairs(glow) do set(strip, "hidden", x + i - 1 < barX) end
+    set(core, "hidden", edge - SPARK_CORE < barX)
+  end
+
+  -- Fills the bar to the share of the channel spent, moves the spark to its edge and shades the marks it passed.
+  local function show(remaining)
+    local spent = 1 - remaining / current.duration
+    fill.setFill(spent)
+    placeSpark(barX + math.floor(barWidth * spent))
+    shadeMarks(current.duration - remaining)
+  end
+
+  local function setAlpha(alpha)
+    for _, part in ipairs(faded) do set(part, "alpha", alpha) end
+  end
+
+  -- Hides the bar and ends its channel.
+  local function finish()
+    current, left, cancelLeft = nil, nil, nil
+    set(layer, "hidden", true)
+    setAlpha(1)
+  end
+
+  local function update(model)
+    local cancel = model ~= nil and model.cancelled
+    if cancelLeft ~= nil and (model == nil or cancel or model.start == shownStart) then return end
+    if cancel then
+      if current ~= nil and model.start == shownStart then
+        cancelLeft = CANCEL_HOLD + CANCEL_FADE
+        set(time, "content", "Cancelled")
+        draw.hideAll(marks, true)
+        set(spark, "hidden", true)
+      else
+        finish()
+      end
+      return
+    end
+    if cancelLeft ~= nil then finish() end
+    if model ~= nil and model.start ~= shownStart then
+      shownStart, left, shownTicks = model.start, model.duration, nil
+    end
+    if model ~= nil and left ~= nil and model.ticksLeft ~= shownTicks then
+      shownTicks, left, flashLeft = model.ticksLeft, model.ticksLeft * 6 / 10, FLASH
+      set(time, "content", castSeconds(shownTicks))
+      setGlow(FLASH_LEVELS[1])
+    end
+    current = left ~= nil and model or nil
+    set(layer, "hidden", current == nil)
+    if current == nil then
+      left = nil
+      return
+    end
+    set(iconBack, "hidden", model.icon == nil)
+    set(icon, "hidden", model.icon == nil)
+    if model.icon ~= nil then set(icon, "sprite", model.icon) end
+    set(name, "content", model.name or "")
+    fill.setColour(CAST_COLOURS[model.style] or COLOURS.cast)
+    set(spark, "hidden", false)
+    if model.start ~= placedFor or (model.hits and #model.hits) ~= placedHits then placeMarks(model) end
+    show(left)
+  end
+
+  local function step(seconds)
+    if current == nil then return end
+    if cancelLeft ~= nil then
+      cancelLeft = cancelLeft - seconds
+      if cancelLeft <= 0 then
+        finish()
+      elseif cancelLeft < CANCEL_FADE then
+        setAlpha((math.ceil(cancelLeft / CANCEL_FADE * CANCEL_STEPS) - 1) / CANCEL_STEPS)
+      end
+      return
+    end
+    if flashLeft > 0 then
+      flashLeft = flashLeft - seconds
+      local steps = #FLASH_LEVELS
+      setGlow(flashLeft > 0 and FLASH_LEVELS[steps + 1 - math.ceil(flashLeft / FLASH * steps)] or GLOW_BASE)
+    end
+    left = math.max(left - seconds, (shownTicks - 1) * 6 / 10)
+    if left > 0 then
+      show(left)
+    else
+      finish()
+    end
+  end
+
+  return {
+    layer = layer, update = update, step = step, setTexture = fill.setTexture, width = CAST_WIDTH,
+    height = CAST_HEIGHT, bounds = { x = 0, y = 0, w = CAST_WIDTH, h = CAST_HEIGHT },
+  }
 end
 
 -- Aura rows by HUD element: tile size, which end the icons gather at, and whether they are debuffs, which get
@@ -456,7 +724,6 @@ local function auraTile(layer, style)
     },
     edge = group.add(rect(layer, style.debuff and COLOURS.debuff or COLOURS.border, 0, 0, size, size), 0, 0),
     icon = group.add(ui.Sprite.new(layer), 1, 1),
-    plate = group.add(rect(layer, white, 0, 0, size - 8, style.timeHeight + 2), 4, timeY),
     time = group.add(text(layer, style.timeFont, ui.AlignMode.CENTRE, 0, 0, size, style.timeHeight + 2), 0, timeY),
     stacks = group.add(text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 23, 1),
     track = group.add(rect(layer, COLOURS.border, 0, 0, size, AURA_BAR), 0, size + 1),
@@ -488,11 +755,8 @@ local function showAura(parts, model, x, y, size, bars)
   set(parts.icon, "hidden", false)
   draw.icon(parts.icon, model.sprite)
   set(parts.icon, "alpha", model.missing and MISSING_ALPHA or 1)
-  set(parts.plate, "hidden", not ring)
   set(parts.time, "hidden", model.text == nil)
   set(parts.time, "content", model.text or "")
-  set(parts.time, "rgb", ring and COLOURS.darkText or COLOURS.text)
-  set(parts.time, "isShadowed", not ring)
   set(parts.stacks, "hidden", model.stacks == nil)
   set(parts.stacks, "content", model.stacks or "")
 
@@ -511,7 +775,7 @@ local function showAura(parts, model, x, y, size, bars)
 end
 
 -- A row of up to 10 aura icons gathered at style.align's end. Each icon shows its time left and stacks, and
--- in its refresh window a highlight: a white ring and the time on a white plate, or with bars on a dashed
+-- in its refresh window a highlight: a white ring, or with bars on a dashed
 -- outline and a striped bar. update takes src/auras models and whether bars
 -- are on, and returns whether bounds changed. bounds spans the shown tiles, at least one, so an empty row
 -- can still be dragged in edit mode. Hovering an icon shows the name and info from info(sprite), which

@@ -25,9 +25,9 @@ When goals conflict, settle them in this order:
 ## Architecture
 
 - `src/adapter.lua` is the only module that calls the client. Every read goes through `pcall` and comes back as a plain table, and a read can always be nil: interfaces unload, and vars are nil before login.
-- `src/frames.lua`, `src/cooldowns.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure. Keep client globals out of them.
+- `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua`, `src/icons.lua` and `src/presets.lua` are pure. Keep client globals out of them.
 - `src/view.lua`, `src/options.lua`, `src/buffspage.lua`, `src/dragdrop.lua` and `src/editmode.lua` draw through `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values.
-- `main.lua` wires events: `VarTransmit` feeds the cooldown tracker, `ServerLogic` reads the adapter and redraws, and `PluginShutdown` destroys every component.
+- `main.lua` wires events: `VarTransmit` feeds the cooldown and channel trackers, `ServerLogic` reads the adapter and redraws, `Logic` redraws the cast bar and cooldown groups after their vars change and counts them down, and `PluginShutdown` destroys every component.
 
 ## Hot path
 
@@ -36,7 +36,7 @@ Handlers run inside the player's frame. The rates are measured, not documented.
 - `Event.Draw` fires once per rendered frame, about 30 a second when measured. `Event.Logic` fires 50 times a second. `Event.ServerLogic` fires every 0.6 s tick. `VarTransmit` arrives in bursts during combat.
 - A steady tick, where nothing in the game changed, makes 0 component writes. Specs in `spec/view_spec.lua`, `spec/options_spec.lua` and `spec/editmode_spec.lua` assert this. Keep them passing.
 - `VarTransmit` handlers record the change and return. They make no client reads and draw nothing.
-- `Draw` and `Logic` handlers return before any client call or allocation when idle, such as when no drag is under way. Two exceptions: while the native target panel is hidden, a `Draw` handler reads two of its alphas, because the client rebuilds the panel's frame sprites opaque between server ticks. While the native buff bars are hidden, a `Draw` handler reads the icon of each slot up to 8 past the last buff for 8 frames after each server tick, because the client fills slots a few frames after the tick, and a potion fills several at once.
+- `Draw` and `Logic` handlers return before any client call or allocation when idle, such as when no drag is under way. While a channel runs or a cooldown is cooling, a `Logic` handler counts the cast bar and the cooling tiles down with no client reads. On the Logic tick after a channel or cooldown var changes, it redraws the cast bar or the groups from the trackers, reading the channelled ability's struct once and reusing the action bar slots read on the last server tick. Three exceptions: while the native target panel is hidden, a `Draw` handler reads two of its alphas, because the client rebuilds the panel's frame sprites opaque between server ticks. While the native cast bar is hidden, a `Draw` handler reads the alphas of its root and time label. While the native buff bars are hidden, a `Draw` handler reads the icon of each slot up to 8 past the last buff for 8 frames after each server tick, because the client fills slots a few frames after the tick, and a potion fills several at once.
 - Build components at load and hide the spares. Create and destroy only on player actions.
 - Save to PersistentDB when a value changes, never per tick. A drag saves on release.
 
@@ -59,6 +59,8 @@ The client API is thinly documented, and these facts came from probing it in the
 - `pairs(id.Component)`, `pairs(id.StyleSheet)` and `pairs(id.Sprite)` yield number keys with name values. `id.Sprite.FromID(sprite)` returns one sprite's name, while `id.Sprite[sprite]` with a number raises.
 - `Keyboard.IsShiftDown()` and `IsGameKeyDown(GameKey.SHIFT)` read false inside `Event.Logic` with Shift held. Track Shift from `KeyDown` and `KeyUp`, as `src/editmode.lua` does.
 - Hiding target panel components stops its debuff slots updating, even when only the frame containers `:25` and `:26` are hidden: a debuff appeared and never cleared. Make the panel transparent instead.
+- A server tick's var changes arrive right after its `Event.ServerLogic`, before the next Draw frame.
+- On the cast bar 764, the client fades the spark's glow `:19` in from opaque around each tick, so alpha 0 does not hold there. Hiding it holds.
 - On the buff bars 284 and 291, the client sets each filled slot's icon `:0:0` and `:0:2` opaque several times a tick, so alpha 0 does not hold there. Hiding those two keeps the label counting and the slot filling, and the client shows them again only when it fills the slot. A hidden icon reads `visibleGlobal` false, so read a slot's visibility from its label `:0:1`.
 - A buff bar slot can show an item instead of a sprite: an overload's icon reads `spriteID` -1 with `associatedObjectID` set to the item. `src/adapter.lua` reads such a slot as minus the item id, and `draw.icon` shows it with `SetAssociatedObject`.
 - Moving a native interface off screen freezes it: its labels stop counting and new icons wait until it returns.

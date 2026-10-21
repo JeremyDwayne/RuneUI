@@ -18,15 +18,26 @@ local function justUsedChanged(tracker)
 end
 
 describe("cooldowns.tracker", function()
-  it("counts whole seconds down with server ticks and turns ready at the end", function()
+  it("gives the seconds left at each server tick and turns ready at the end", function()
     local tracker = cooldowns.tracker()
     fire(tracker, CB, 1000, 9)
     tracker.onTick(noAbility)
     local tile = tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1]
     assert.is_false(tile.ready)
-    assert.are.equal(5, tile.seconds)
+    assert.are.equal(4.8, tile.remaining)
     for _ = 1, 8 do tracker.onTick(noAbility) end
     assert.is_true(tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1].ready)
+  end)
+
+  it("reports a change once after a cooldown or weapon style var changes, and not after other vars", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, CB, 1000, 9)
+    assert.is_true(tracker.changed())
+    assert.is_false(tracker.changed())
+    tracker.onVar("COMBATV2_MAINHAND_STYLE", 1, 8)
+    assert.is_true(tracker.changed())
+    tracker.onVar("SA_ENERGY", 0, 100)
+    assert.is_false(tracker.changed())
   end)
 
   it("follows the combat style of the latest started cooldown, skipping style-free ones", function()
@@ -53,7 +64,7 @@ describe("cooldowns.tracker", function()
     fire(tracker, "COMBATV2_ABILITY_WEAPON_COOLDOWN_INSTABILITY", 1000, 100)
     tracker.onTick(noAbility)
     local tile = tracker.tiles({ "WEAPON_INSTABILITY" }, {})[1]
-    assert.are.same({ "Instability", 60, 60 }, { tile.name, tile.seconds, tile.cooldown })
+    assert.are.same({ "Instability", 59.4, 60 }, { tile.name, tile.remaining, tile.cooldown })
     assert.are.same({ "WEAPON_INSTABILITY" }, tracker.known())
   end)
 
@@ -173,11 +184,49 @@ describe("cooldowns.tracker", function()
     assert.are.equal("MAGIC_CONCENTRATED_BLAST", tiles[2].key)
   end)
 
-  it("defaults abilities of 30 seconds or more to the cooldowns group", function()
+  it("counts Dismember's MELEE_ cooldown as melee and defensives as no style", function()
+    assert.are.same({ "melee", "melee" }, { cooldowns.styleOf("MELEE_DISMEMBER"), cooldowns.styleOf("ATTACK_FLURRY") })
+    assert.is_nil(cooldowns.styleOf("DEFENCE_FREEDOM"))
+  end)
+
+  it("takes the name, icon and keybind of an upgraded form the action bar shows instead", function()
+    local tracker = cooldowns.tracker()
+    tracker.seed({ MAGIC_SUNSHINE = { name = "Sunshine", icon = 20183, forms = {
+      { name = "Sunshine", icon = 20183 }, { name = "Greater Sunshine", icon = 20184 },
+    } } })
+    local tile = tracker.tiles({ "MAGIC_SUNSHINE" }, { [20184] = { keybind = "1", usable = true } })[1]
+    assert.are.same({ "Greater Sunshine", 20184, "1" }, { tile.name, tile.icon, tile.keybind })
+    tile = tracker.tiles({ "MAGIC_SUNSHINE" }, {})[1]
+    assert.are.same({ "Sunshine", 20183 }, { tile.name, tile.icon })
+  end)
+
+  it("keeps a seeded name when a later seed gives only an icon", function()
+    local tracker = cooldowns.tracker()
+    tracker.seed({ MAGIC_SUNSHINE = { name = "Sunshine", icon = 20183 } })
+    tracker.seed({ MAGIC_SUNSHINE = { icon = 20184 } })
+    local tile = tracker.tiles({ "MAGIC_SUNSHINE" }, {})[1]
+    assert.are.same({ "Sunshine", 20184 }, { tile.name, tile.icon })
+  end)
+
+  it("takes the style from the main-hand weapon, keeping it through an empty hand", function()
     local tracker = cooldowns.tracker()
     fire(tracker, CB, 1000, 9)
-    fire(tracker, "COMBATV2_COOLDOWN_MAGIC_SUNSHINE", 1001, 100)
-    assert.are.same({ rotation = { "MAGIC_CONCENTRATED_BLAST" }, cooldowns = { "MAGIC_SUNSHINE" } },
-      tracker.defaultGroups())
+    tracker.onVar("COMBATV2_MAINHAND_STYLE", nil, 8)
+    assert.are.equal("ranged", tracker.style())
+    tracker.onVar("COMBATV2_MAINHAND_STYLE", 8, 7)
+    assert.are.equal("ranged", tracker.style())
+    tracker.onVar("COMBATV2_MAINHAND_STYLE", 7, 6)
+    assert.are.equal("melee", tracker.style())
+    tracker.onVar("COMBATV2_MAINHAND_STYLE", 6, 37)
+    assert.are.equal("necromancy", tracker.style())
+  end)
+
+  it("falls back to the latest ability's style for an unknown weapon value", function()
+    local tracker = cooldowns.tracker()
+    tracker.onVar("COMBATV2_MAINHAND_STYLE", nil, 1)
+    fire(tracker, "COMBATV2_COOLDOWN_STRENGTH_DESTROY", 1000, 9)
+    assert.are.equal("magic", tracker.style())
+    tracker.onVar("COMBATV2_MAINHAND_STYLE", 1, 99)
+    assert.are.equal("melee", tracker.style())
   end)
 end)

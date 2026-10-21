@@ -1,14 +1,19 @@
 local layout = require("src/layout")
 local settings = require("src/settings")
 
--- Shown bounds inside each element's layer with full rows: 10 rotation, cooldown and aura tiles.
+-- Shown bounds inside each element's layer with full first rows: 6 major, 7 rotation and 8 utility and custom
+-- tiles, and 10 aura tiles.
 local function fullBounds()
+  local function row(size, count) return layout.grid(count, size, 2, count, "down", 20).bounds end
   return {
     player = { x = 0, y = 0, w = 250, h = 55 },
     target = { x = 0, y = 0, w = 250, h = 55 },
     resource = { x = 0, y = 0, w = 278, h = 47 },
-    rotation = { x = 0, y = 0, w = 438, h = 47 },
-    cooldowns = { x = 0, y = 0, w = 378, h = 41 },
+    castbar = { x = 0, y = 0, w = 278, h = 22 },
+    major = row(44, 6),
+    rotation = row(36, 7),
+    utility = row(30, 8),
+    custom1 = row(36, 8), custom2 = row(36, 8), custom3 = row(36, 8), custom4 = row(36, 8),
     targetDebuffs = { x = 3, y = 3, w = 278, h = 26 },
     playerDebuffs = { x = 3, y = 3, w = 278, h = 26 },
     upkeepBuffs = { x = 3, y = 3, w = 278, h = 26 },
@@ -26,13 +31,21 @@ describe("layout", function()
     assert.are.same(settings.DEFAULT_POSITIONS, positions)
   end)
 
-  it("moves the frames in to stay flush with 7 shown rotation tiles", function()
+  it("moves the frames in to stay beside 4 shown major tiles", function()
     local bounds = fullBounds()
-    bounds.rotation = { x = 66, y = 0, w = 306, h = 47 }
+    bounds.major = layout.grid(4, 44, 2, 6, "down", 20).bounds
     local positions = layout.resolve(settings.DEFAULT_POSITIONS, settings.DEFAULT_ANCHORS, bounds)
-    assert.are.equal(-219 + 66 - 250, positions.player.x)
-    assert.are.equal(-219 + 66 + 306, positions.target.x)
-    assert.are.equal(-404, positions.player.y)
+    assert.are.equal(-137 + 46 - 4 - 250, positions.player.x)
+    assert.are.equal(-137 + 46 + 182 + 4, positions.target.x)
+    assert.are.equal(-396, positions.player.y)
+  end)
+
+  it("pushes the groups below a major group that wraps to a second row", function()
+    local bounds = fullBounds()
+    bounds.major = layout.grid(8, 44, 2, 6, "down", 20).bounds
+    local positions = layout.resolve(settings.DEFAULT_POSITIONS, settings.DEFAULT_ANCHORS, bounds)
+    assert.are.equal(settings.DEFAULT_POSITIONS.rotation.y + 46, positions.rotation.y)
+    assert.are.equal(-396, positions.target.y)
   end)
 
   it("places a child flush on each side and alignment of its target", function()
@@ -92,16 +105,16 @@ describe("layout", function()
 
   it("lists every descendant in a chain and refuses anchoring into it", function()
     local anchors = settings.DEFAULT_ANCHORS
-    local chain = layout.chain(anchors, "rotation")
+    local chain = layout.chain(anchors, "major")
     table.sort(chain)
-    assert.are.same({ "combatBuffs", "cooldowns", "player", "playerDebuffs", "resource", "target", "targetDebuffs",
-      "upkeepBuffs" }, chain)
-    local resourceChain = layout.chain(anchors, "resource")
-    table.sort(resourceChain)
-    assert.are.same({ "combatBuffs", "cooldowns" }, resourceChain)
-    assert.is_false(layout.canAnchor(anchors, "rotation", "rotation"))
-    assert.is_false(layout.canAnchor(anchors, "rotation", "cooldowns"))
-    assert.is_true(layout.canAnchor(anchors, "cooldowns", "player"))
+    assert.are.same({ "custom1", "custom2", "custom3", "custom4", "player", "playerDebuffs", "rotation", "target",
+      "targetDebuffs", "upkeepBuffs", "utility" }, chain)
+    local rotationChain = layout.chain(anchors, "rotation")
+    table.sort(rotationChain)
+    assert.are.same({ "custom1", "custom2", "custom3", "custom4", "utility" }, rotationChain)
+    assert.is_false(layout.canAnchor(anchors, "major", "major"))
+    assert.is_false(layout.canAnchor(anchors, "major", "utility"))
+    assert.is_true(layout.canAnchor(anchors, "utility", "player"))
   end)
 
   it("snaps an edge or center within range onto another element's lines, with a guide on the snapped axis", function()
@@ -130,10 +143,40 @@ describe("layout", function()
 
   it("offers every element outside the dragged one's chain as a snap target", function()
     local rects = fullBounds()
-    local targets = layout.snapTargets(rects, settings.DEFAULT_ANCHORS, "resource")
-    local widths = {}
-    for i, r in ipairs(targets) do widths[i] = r.w end
-    table.sort(widths)
-    assert.are.same({ 250, 250, 278, 278, 278, 438 }, widths)
+    local skipped = { player = true, playerDebuffs = true, upkeepBuffs = true }
+    local targets = layout.snapTargets(rects, settings.DEFAULT_ANCHORS, "player")
+    local count = 0
+    for name in pairs(rects) do
+      if not skipped[name] then count = count + 1 end
+    end
+    assert.are.equal(count, #targets)
+    assert.are.same({}, layout.snapTargets(rects, settings.DEFAULT_ANCHORS, "resource"))
+  end)
+
+  it("wraps a down group into centred rows below its first", function()
+    local g = layout.grid(9, 36, 2, 7, "down", 14)
+    assert.are.same({ 264, 74 }, { g.w, g.h })
+    assert.are.same({ x = 0, y = 0 }, g.tiles[1])
+    assert.are.same({ x = 228, y = 0 }, g.tiles[7])
+    assert.are.same({ { x = 95, y = 38 }, { x = 133, y = 38 } }, { g.tiles[8], g.tiles[9] })
+    assert.are.same({ x = 0, y = 0, w = 264, h = 74 }, g.bounds)
+  end)
+
+  it("keeps an up group's bottom edge and centres a short row on the axis", function()
+    local g = layout.grid(3, 36, 2, 7, "up", 14)
+    assert.are.same({ x = 76, y = 38 }, g.tiles[1])
+    assert.are.same({ x = 76, y = 38, w = 112, h = 36 }, g.bounds)
+  end)
+
+  it("lays a left group in columns that stack leftward from its right edge", function()
+    local g = layout.grid(5, 30, 2, 2, "left", 6)
+    assert.are.same({ 94, 62 }, { g.w, g.h })
+    assert.are.same({ { x = 64, y = 0 }, { x = 64, y = 32 } }, { g.tiles[1], g.tiles[2] })
+    assert.are.same({ x = 0, y = 16 }, g.tiles[5])
+    assert.are.same({ x = 0, y = 0, w = 94, h = 62 }, g.bounds)
+  end)
+
+  it("bounds an empty group one row deep with its sides meeting at the axis", function()
+    assert.are.same({ x = 132, y = 0, w = 0, h = 36 }, layout.grid(0, 36, 2, 7, "down", 14).bounds)
   end)
 end)

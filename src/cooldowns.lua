@@ -2,12 +2,20 @@
 -- Pure: main.lua feeds it var changes and server ticks, and src/adapter supplies the just-used ability.
 local cooldowns = {}
 
--- Abilities with a cooldown of at least this many ticks, 30 seconds, default to the cooldowns group.
-local LONG_COOLDOWN_TICKS = 50
-
 -- Cooldown key prefixes that name a combat style. Melee abilities are split by skill, such as
--- STRENGTH_DESTROY; DEFENCE and CONSTITUTION abilities belong to no style.
-local STYLES = { MAGIC = "magic", NECROMANCY = "necromancy", RANGED = "ranged", ATTACK = "melee", STRENGTH = "melee" }
+-- STRENGTH_DESTROY, and Dismember's cooldown is MELEE_DISMEMBER; DEFENCE and CONSTITUTION abilities belong to
+-- no style.
+local STYLES = {
+  MAGIC = "magic", NECROMANCY = "necromancy", RANGED = "ranged", ATTACK = "melee", STRENGTH = "melee", MELEE = "melee",
+}
+
+-- Combat style by COMBATV2_MAINHAND_STYLE, the main-hand weapon's attack type: 1 magic, 5 and 6 melee, 8 to 10
+-- ranged, 37 necromancy. 7, an empty main hand, keeps the current style, since it shows for a tick between two
+-- weapons.
+cooldowns.ATTACK_STYLES = { [1] = "magic", [5] = "melee", [6] = "melee", [8] = "ranged", [9] = "ranged",
+  [10] = "ranged", [37] = "necromancy" }
+local BARE_HANDED = 7
+local NO_FORMS = {}
 
 -- Just-used struct keys shared by many abilities, which lend their icon but not their name: every weapon
 -- special reports the special attack, whose icon its action bar slot shows.
@@ -26,11 +34,17 @@ local function nameFromKey(key)
   return table.concat(words, " ")
 end
 
--- "Greater Concentrated Blast" -> "GCB", shown on tiles with no icon.
+-- "Greater Concentrated Blast" -> "GCB", shown on tiles with no icon. Cached by name, since tiles rebuild
+-- every tick.
+local initialsOf = {}
 local function initials(name)
+  local cached = initialsOf[name]
+  if cached ~= nil then return cached end
   local letters = {}
   for word in name:gmatch("%S+") do letters[#letters + 1] = word:match("%a") end
-  return table.concat(letters):sub(1, 3):upper()
+  cached = table.concat(letters):sub(1, 3):upper()
+  initialsOf[name] = cached
+  return cached
 end
 
 -- Seconds left, rounded up so a cooling tile never reads 0. Integer maths avoids 0.6 float error.
@@ -40,13 +54,16 @@ end
 
 -- Returns a tracker. onVar takes every numeric var change, onTick runs once per server tick with a
 -- function returning the just-used ability as { key, name, icon } or nil, and returns what it learned.
+-- changed() reports once whether a cooldown or the weapon style changed since the last call.
 function cooldowns.tracker()
   local abilities = {}
   local order = {}
   local now = nil
   local startedThisTick = {}
   local justUsedChanged = false
-  local style = nil
+  local changed = false
+  -- The style of the latest styled cooldown to start, and of the worn main-hand weapon.
+  local abilityStyle, weaponStyle = nil, nil
 
   local fired = {}
 
@@ -63,11 +80,16 @@ function cooldowns.tracker()
 
   -- A _START var holds the server tick its ability fired, which also keeps the clock in step. Weapon
   -- specials such as Instability use COMBATV2_ABILITY_WEAPON_COOLDOWN_<NAME> vars and take the key
-  -- WEAPON_<NAME>.
+  -- WEAPON_<NAME>. COMBATV2_MAINHAND_STYLE sets the weapon's style.
   function tracker.onVar(name, old, new)
     if old == new then return end
     if name == "COMBATV2_JUST_USED_ABILITY" then
       justUsedChanged = true
+      return
+    end
+    if name == "COMBATV2_MAINHAND_STYLE" then
+      if new ~= BARE_HANDED then weaponStyle = cooldowns.ATTACK_STYLES[new] end
+      changed = true
       return
     end
     local key, edge = name:match("^COMBATV2_COOLDOWN_(.+)_(%u+)$")
@@ -75,11 +97,12 @@ function cooldowns.tracker()
       key, edge = name:match("^COMBATV2_ABILITY_WEAPON_COOLDOWN_(.+)_(%u+)$")
       key = key and "WEAPON_" .. key
     end
+    if edge == "START" or edge == "END" then changed = true end
     if edge == "START" then
       ability(key).start = new
       now = new
       startedThisTick[#startedThisTick + 1] = key
-      style = cooldowns.styleOf(key) or style
+      abilityStyle = cooldowns.styleOf(key) or abilityStyle
     elseif edge == "END" then
       ability(key).finish = new
     end
@@ -113,16 +136,26 @@ function cooldowns.tracker()
     return learned
   end
 
-  -- The combat style of the latest started cooldown that has one, as a STYLES value, or nil before any.
-  function tracker.style()
-    return style
+  function tracker.changed()
+    local was = changed
+    changed = false
+    return was
   end
 
-  -- Restores saved names and icons, { [key] = { name, icon } }, without adding to known().
+  -- The worn weapon's combat style as a STYLES value, else that of the latest started cooldown that has one,
+  -- or nil before either.
+  function tracker.style()
+    return weaponStyle or abilityStyle
+  end
+
+  -- Restores names and icons, { [key] = { name, icon, forms } }, without adding to known(). A missing field
+  -- keeps the one seeded before, so learned names can follow src/presets. forms lists { name, icon } for
+  -- every form the ability's bar slot can show, such as Greater Sunshine.
   function tracker.seed(saved)
     for key, info in pairs(saved) do
-      abilities[key] = abilities[key] or {}
-      abilities[key].name, abilities[key].icon = info.name, info.icon
+      local a = abilities[key] or {}
+      abilities[key] = a
+      a.name, a.icon, a.forms = info.name or a.name, info.icon or a.icon, info.forms or a.forms
     end
   end
 
@@ -131,34 +164,31 @@ function cooldowns.tracker()
     return { table.unpack(order) }
   end
 
-  function tracker.defaultGroups()
-    local groups = { rotation = {}, cooldowns = {} }
-    for _, key in ipairs(order) do
-      local a = abilities[key]
-      local long = a.start ~= nil and a.finish ~= nil and a.finish - a.start >= LONG_COOLDOWN_TICKS
-      table.insert(long and groups.cooldowns or groups.rotation, key)
-    end
-    return groups
-  end
-
   -- keys: ability keys in display order. slots: { [iconSpriteID] = { keybind, usable } } from the native
-  -- bars. A tile with no matching slot counts as usable.
+  -- bars. A tile whose icon no slot shows takes the name, icon and slot of the first form a slot does show.
+  -- A tile with no matching slot counts as usable.
   function tracker.tiles(keys, slots)
     local tiles = {}
     for _, key in ipairs(keys) do
       local a = abilities[key] or {}
-      local name = a.name or nameFromKey(key)
+      local name, icon = a.name or nameFromKey(key), a.icon
       local left = (now ~= nil and a.finish ~= nil) and a.finish - now or 0
-      local slot = a.icon and slots[a.icon]
+      local slot = icon and slots[icon]
+      for _, form in ipairs(slot == nil and a.forms or NO_FORMS) do
+        if slots[form.icon] ~= nil then
+          name, icon, slot = form.name, form.icon, slots[form.icon]
+          break
+        end
+      end
       tiles[#tiles + 1] = {
         key = key,
         name = name,
         initials = initials(name),
-        icon = a.icon,
+        icon = icon,
         keybind = slot and slot.keybind,
         usable = not slot or slot.usable,
         ready = left <= 0,
-        seconds = left > 0 and secondsLeft(left) or nil,
+        remaining = left > 0 and left * 6 / 10 or nil,
         cooldown = (a.start ~= nil and a.finish ~= nil) and secondsLeft(a.finish - a.start) or nil,
       }
     end
