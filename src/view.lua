@@ -160,11 +160,6 @@ function view.setLook(elements, look)
   return moved
 end
 
--- Sets every element layer's alpha, from 0 to 1.
-function view.setOpacity(elements, alpha)
-  for _, element in pairs(elements) do set(element.layer, "alpha", alpha) end
-end
-
 local POWER_HEIGHT = 6
 -- The value label's width at the right of a unit frame, and the space the name leaves for it.
 local VALUE_WIDTH, VALUE_SPACE = 95, 110

@@ -1,6 +1,6 @@
 -- Saved settings: element positions and anchors, cooldown groups with their display settings and ability
 -- lists, marker percents, appearance (HUD text, unit frame colours, border and size, bar texture, aura bars,
--- opacity with no target, and whether the default target panel, buff bars and cast bar are hidden), edit mode
+-- and whether the default target panel, buff bars and cast bar are hidden), edit mode
 -- snapping, learned ability names and icons, aura names by icon, the aura row each buff icon belongs to, which
 -- debuffs each debuff row tracks, the upkeep buffs kept up, and the order of each kind of aura icon.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
@@ -59,11 +59,10 @@ settings.LAYOUT_VERSION = 2
 local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 -- Bar fills: one flat colour, or a gradient from top to bottom or across the bar.
 settings.TEXTURES = { "flat", "vertical", "horizontal" }
--- Points every HUD text role moves from its size, unit frame sizes, and the HUD's opacities with no target.
+-- Points every HUD text role moves from its size, and unit frame sizes.
 settings.TEXT_STEP_MIN, settings.TEXT_STEP_MAX = -3, 6
 settings.FRAME_WIDTH = { min = 180, max = 400, step = 10 }
 settings.FRAME_HEIGHT = { min = 30, max = 80, step = 5 }
-settings.IDLE_ALPHAS = { 100, 80, 60, 40, 20 }
 
 -- Combat styles a cooldown group keeps a separate ability list for, and the directions a group grows in.
 settings.STYLES = { "necromancy", "magic", "ranged", "melee" }
@@ -361,7 +360,6 @@ local APPEARANCE = {
   lifepoints = { "short", option(frames.LIFEPOINTS) },
   frameWidth = { 250, steps(settings.FRAME_WIDTH.min, settings.FRAME_WIDTH.max, settings.FRAME_WIDTH.step) },
   frameHeight = { 55, steps(settings.FRAME_HEIGHT.min, settings.FRAME_HEIGHT.max, settings.FRAME_HEIGHT.step) },
-  idleAlpha = { 100, oneOf(settings.IDLE_ALPHAS) },
 }
 
 -- A saved appearance field's value, or its default when unknown or malformed.
@@ -686,9 +684,9 @@ function settings.load(store, windowHeight)
   end
 
   -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars, font, textStep, edge, textColour,
-  -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight, idleAlpha }. The game's own cast
-  -- bar is hidden until chosen otherwise, since RuneUI draws one; auraBars draws a draining bar under each aura
-  -- icon; idleAlpha is the HUD's opacity in percent with no target. Read-only.
+  -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight }. The game's own cast bar is
+  -- hidden until chosen otherwise, since RuneUI draws one; auraBars draws a draining bar under each aura icon.
+  -- Read-only.
   function s.appearance()
     return appearance
   end

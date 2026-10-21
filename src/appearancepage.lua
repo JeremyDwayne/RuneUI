@@ -43,16 +43,9 @@ local SAMPLE_PLAYER = { available = true, name = "Player", lifepoints = 12242, l
 local SAMPLE_TARGET = { target = 1, name = "Rasial", lifepointsLabel = "58,000", healthPercent = 58 }
 local TILE_SIZE, PREVIEW_X, PREVIEW_Y, PREVIEW_GAP = 36, 20, 14, 6
 
-local function labelled(list, format)
-  local out = {}
-  for i, value in ipairs(list) do out[i] = { id = value, label = format(value) } end
-  return out
-end
-
 local TEXTURES = { { id = "flat", label = "Flat" }, { id = "vertical", label = "Vertical" },
   { id = "horizontal", label = "Horizontal" } }
 local SHOW_HIDE = { { id = false, label = "Show" }, { id = true, label = "Hide" } }
-local IDLE_ALPHAS = labelled(settings.IDLE_ALPHAS, function(percent) return percent .. "%" end)
 
 -- page: the options window's page layer, width by height. deps: { saved = src/settings, view = src/view,
 -- tooltip = view.tooltip, auraInfo(sprite), tracker = src/cooldowns tracker for the equipped style, refresh()
@@ -420,7 +413,6 @@ function appearancepage.create(page, width, height, deps)
     settings.FRAME_WIDTH.max, px)
   stepperRow("Frame height", "frameHeight", settings.FRAME_HEIGHT.step, settings.FRAME_HEIGHT.min,
     settings.FRAME_HEIGHT.max, px)
-  scrolledChoices("Out of combat", IDLE_ALPHAS, "idleAlpha", 80)
 
   heading("Game interfaces")
   scrolledChoices("Default target panel", SHOW_HIDE, "hideTargetPanel", 90)

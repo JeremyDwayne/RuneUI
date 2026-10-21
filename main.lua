@@ -109,10 +109,8 @@ end)
 Event.InventoryAdded.Subscribe("lantern", adapter.inventoryChanged)
 Event.InventoryUpdated.Subscribe("lantern", adapter.inventoryChanged)
 
--- The src/style look every element shows, rebuilt only after an appearance change or a weapon swap, and the HUD
--- opacity shown.
+-- The src/style look every element shows, rebuilt only after an appearance change or a weapon swap.
 local look, lookVersion, lookStyle = nil, nil, nil
-local opacity = 1
 
 -- Gives every element the current look. Returns whether a unit frame's bounds changed.
 local function restyle()
@@ -131,11 +129,6 @@ local function refresh()
   elements.player.update(frames.player(adapter.playerReads(), appearance.lifepoints))
   local target = frames.target(adapter.targetReads(), appearance.lifepoints)
   elements.target.update(target)
-  local alpha = target.hidden and appearance.idleAlpha / 100 or 1
-  if alpha ~= opacity then
-    opacity = alpha
-    view.setOpacity(elements, alpha)
-  end
   elements.resource.update(frames.resource(adapter.resourceReads(frames.SPENDERS), saved.markers()))
   -- This redraw covers any change waiting for the next Logic tick.
   channelTracker.changed()
