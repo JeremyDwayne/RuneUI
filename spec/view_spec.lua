@@ -481,7 +481,7 @@ describe("view", function()
     assert.is_true(setLook(elements, big))
     for _, name in ipairs({ "player", "target" }) do
       local frame = elements[name]
-      assert.are.same({ 400, 80, 400, 80 }, { frame.layer.width, frame.layer.height, frame.bounds.w, frame.bounds.h })
+      assert.are.same({ 400, 400, 80 }, { frame.layer.width, frame.bounds.w, frame.bounds.h })
     end
     fake.writes = 0
     assert.is_false(setLook(elements, big))
@@ -493,7 +493,7 @@ describe("view", function()
     local bar = elements.resource
     bar.update({ hidden = false, fill = 0.4, text = "40%", markers = { { at = 0.5 }, { at = 1 } }, spenders = {} })
     assert.is_true(setLook(elements, look({ barWidth = 402, barHeight = 30 })))
-    assert.are.same({ 402, 50, 402, 50 }, { bar.layer.width, bar.layer.height, bar.bounds.w, bar.bounds.h })
+    assert.are.same({ 402, 402, 30 }, { bar.layer.width, bar.bounds.w, bar.bounds.h })
     local xs = {}
     for _, c in ipairs(fake.created) do
       if c.parent == bar.layer and c.width == 1 and c.height == 28 then xs[#xs + 1] = c.x end
@@ -523,6 +523,25 @@ describe("view", function()
     assert.are.same({ true, false }, { filled(0x123456), filled(style.CAST_COLOUR) })
     setLook(elements, look({ castColour = "ability" }))
     assert.is_true(filled(style.CAST_COLOUR))
+  end)
+
+  it("grows the adrenaline bar's bounds by its spender rows below or above it, or the player frame's", function()
+    local elements = shownHud()
+    local bar, player = elements.resource, elements.player
+    local spenders = { { key = "souls", count = 1, max = 3 }, { key = "necrosis", count = 4, max = 12 } }
+    local model = { hidden = false, fill = 0.4, text = "40%", markers = {}, spenders = spenders }
+    local function boxes() return { bar.bounds.y, bar.bounds.h, player.bounds.h } end
+    local barY, barH = bar.bounds.y, bar.bounds.h
+    assert.is_true(bar.update(model))
+    player.showSpenders(spenders)
+    assert.are.same({ barY, barH + 20, 55 }, boxes())
+    setLook(elements, look({ spenders = "above" }))
+    assert.are.same({ barY - 20, barH + 20, 55 }, boxes())
+    setLook(elements, look({ spenders = "player" }))
+    assert.are.same({ barY, barH, 75 }, boxes())
+    fake.writes = 0
+    assert.are.same({ false, false }, { bar.update(model), player.showSpenders(spenders) })
+    assert.are.equal(0, fake.writes)
   end)
 
   it("draws Auto text dark over a bright fill only", function()

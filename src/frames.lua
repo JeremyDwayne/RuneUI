@@ -107,7 +107,9 @@ function frames.target(reads, format)
 end
 
 -- reads: { adrenaline = SA_ENERGY in tenths of a percent, spenders = { [varName] = count },
---         lantern = whether a Soulbound lantern is equipped }
+--         lantern = whether a Soulbound lantern is equipped, necromancy = whether a Necromancy weapon is worn }
+-- Each spender with stacks gets a row, and every one does while a Necromancy weapon is worn, so the rows and the
+-- elements they push stay put between casts.
 -- markers: { threshold = percent, ultimate = percent }
 function frames.resource(reads, markers)
   if reads.adrenaline == nil then return { hidden = true } end
@@ -120,8 +122,8 @@ function frames.resource(reads, markers)
     spenders = {},
   }
   for _, spender in ipairs(frames.SPENDERS) do
-    local count = reads.spenders[spender.var]
-    if count ~= nil and count > 0 then
+    local count = reads.spenders[spender.var] or 0
+    if count > 0 or reads.necromancy then
       local max = reads.lantern and spender.lanternMax or spender.max
       model.spenders[#model.spenders + 1] = { key = spender.key, count = math.min(count, max), max = max }
     end

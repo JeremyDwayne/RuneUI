@@ -4,7 +4,7 @@ local DEFAULTS = {
   font = "museo", textStep = 0, edge = "shadow", textColour = "auto", playerColour = "runeui",
   targetColour = "runeui", border = "runeui", texture = "flat", frameWidth = 250, frameHeight = 55,
   barWidth = 278, barHeight = 20, castWidth = 278, castHeight = 22, castMatchWidth = false, castColour = "ability",
-  castFont = "hud", castTextSize = "hud",
+  castFont = "hud", castTextSize = "hud", spenders = "below",
 }
 
 local function appearance(changes)

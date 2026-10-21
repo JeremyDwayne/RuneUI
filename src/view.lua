@@ -203,13 +203,73 @@ end
 -- The value label's width at the right of a unit frame, and the space the name leaves for it.
 local VALUE_WIDTH, VALUE_SPACE = 95, 110
 
+-- Spender rows: each SPENDER_ROW tall, SPENDER_STEP apart, so a host grows SPENDER_STEP per shown row.
+local SPENDER_ROW = 8
+local SPENDER_STEP = SPENDER_ROW + 2
+local SPENDER_COLOURS = { souls = COLOURS.spender, necrosis = COLOURS.necrosis }
+
+-- Left edges and widths of count blocks spread evenly across width with 2px gaps, using every pixel.
+local function blockSpans(count, width)
+  local spans = {}
+  for i = 1, count do
+    local left = math.floor((i - 1) * (width + 2) / count)
+    local right = math.floor(i * (width + 2) / count) - 2
+    spans[i] = { x = left, w = right - left }
+  end
+  return spans
+end
+
+-- One row of spender blocks per src/frames spender on layer, hidden. show(spenders, w, y) draws spenders, a
+-- src/frames resource model's list, in rows w wide from y down, each canvas redrawn only when its spender,
+-- count, max or width changes, and hides the rest.
+local function spenderRows(layer)
+  local rows = {}
+  for r = 1, #frames.SPENDERS do
+    rows[r] = { canvas = ui.Canvas.new(layer) }
+    set(rows[r].canvas, "hidden", true)
+  end
+
+  -- Black-edged blocks, filled up to the spender's count.
+  local function drawBlocks(canvas, spender, w)
+    canvas:Clear()
+    local edge = draw.opaque(COLOURS.border)
+    for i, span in ipairs(blockSpans(spender.max, w)) do
+      local rgb = i <= spender.count and SPENDER_COLOURS[spender.key] or COLOURS.emptyBlock
+      canvas:AddRectangle(span.x, 0, span.w, SPENDER_ROW, edge)
+      canvas:AddRectangle(span.x + 1, 1, span.w - 2, SPENDER_ROW - 2, draw.opaque(rgb))
+    end
+  end
+
+  local function show(spenders, w, y)
+    for r, row in ipairs(rows) do
+      local spender = spenders[r]
+      set(row.canvas, "hidden", spender == nil)
+      if spender ~= nil then
+        pos(row.canvas, 0, y + (r - 1) * SPENDER_STEP)
+        draw.size(row.canvas, w, SPENDER_ROW)
+        if row.key ~= spender.key or row.count ~= spender.count or row.max ~= spender.max or row.w ~= w then
+          row.key, row.count, row.max, row.w = spender.key, spender.count, spender.max, w
+          drawBlocks(row.canvas, spender, w)
+        end
+      end
+    end
+  end
+
+  return { show = show }
+end
+
+local NO_SPENDERS = {}
+
 -- A unit frame of look.frameWidth by look.frameHeight: a black border, the game's window border over it or none as
 -- look.border picks, a health bar in the look's colour for
 -- kind, "player" or "target", with the name on the left and the value on the right, and with power a 6px prayer
 -- bar along the bottom. Both frames share one box height, whether or not a power bar shows in it. Auto text goes
--- dark over a bright fill once the fill reaches the label's right end.
+-- dark over a bright fill once the fill reaches the label's right end. The player frame, built with power, also
+-- hosts spender rows under it when look.spenders is "player": showSpenders(spenders) draws a src/frames resource
+-- model's list there and returns whether the bounds, which span the frame and those rows, changed.
 local function unitFrame(root, kind, power)
   local layer = ui.Layer.new(root)
+  local rows = power and spenderRows(layer)
   local border = rect(layer, COLOURS.border, 0, 0, 0, 0)
   local track = rect(layer, COLOURS.healthTrack, 1, 1, 0, 0)
   local health = draw.bar(layer, style.FRAME_COLOURS[kind], COLOURS.healthTrack, 1, 1, 0, 0)
@@ -224,11 +284,13 @@ local function unitFrame(root, kind, power)
   -- sits wholly on it.
   local shown, bright, fill = nil, false, nil
   local nameAt, valueAt = 1, 1
+  -- The spenders last given to showSpenders.
+  local spenders = NO_SPENDERS
 
   local function resize(w, h)
     local inner, healthHeight = w - 2, power and h - POWER_HEIGHT - 3 or h - 2
     frame.width, frame.height, bounds.w, bounds.h = w, h, w, h
-    draw.size(layer, w, h)
+    draw.size(layer, w, h + (rows and 2 + #frames.SPENDERS * SPENDER_STEP or 0))
     draw.size(border, w, h)
     draw.size(track, inner, healthHeight)
     health.setBox(1, 1, inner, healthHeight)
@@ -263,13 +325,25 @@ local function unitFrame(root, kind, power)
     end
   end
 
+  function frame.showSpenders(list)
+    if not rows then return false end
+    spenders = list or NO_SPENDERS
+    local shownList = shown.spenders == "player" and spenders or NO_SPENDERS
+    rows.show(shownList, frame.width, frame.height + 2)
+    local h = frame.height + #shownList * SPENDER_STEP
+    if h == bounds.h then return false end
+    bounds.h = h
+    return true
+  end
+
   -- Restyles the frame for a src/style look, returning at once for the look it shows. Returns whether its
   -- bounds changed.
   function frame.setLook(look)
     if look == shown then return false end
     shown = look
-    local moved = bounds.w ~= look.frameWidth or bounds.h ~= look.frameHeight
+    local moved = frame.width ~= look.frameWidth or frame.height ~= look.frameHeight
     if moved then resize(look.frameWidth, look.frameHeight) end
+    if frame.showSpenders(spenders) then moved = true end
     local rgb = look[kind]
     bright = look.auto and style.dark(rgb)
     health.setColour(rgb)
@@ -295,23 +369,10 @@ function view.targetFrame(root)
   return unitFrame(root, "target", false)
 end
 
-local SPENDER_ROW = 8
--- Spender rows stack upward from just above the bar, one per spender with stacks.
-local BAR_Y = 2 * (SPENDER_ROW + 2)
-local SPENDER_COLOURS = { souls = COLOURS.spender, necrosis = COLOURS.necrosis }
+-- Room the adrenaline bar's layer keeps above its bar for spender rows.
+local BAR_Y = #frames.SPENDERS * SPENDER_STEP
 -- Fill fraction at which the centred percent label sits entirely on the fill.
 local PERCENT_ON_FILL = 0.56
-
--- Left edges and widths of count blocks spread evenly across width with 2px gaps, using every pixel.
-local function blockSpans(count, width)
-  local spans = {}
-  for i = 1, count do
-    local left = math.floor((i - 1) * (width + 2) / count)
-    local right = math.floor(i * (width + 2) / count) - 2
-    spans[i] = { x = left, w = right - left }
-  end
-  return spans
-end
 
 -- Bar marks are faint 1px lines across a bar: dark where the fill has passed them, light ahead of it.
 local MARK_DARK_ALPHA, MARK_LIGHT_ALPHA = 0.4, 0.3
@@ -329,17 +390,12 @@ local function shadeMark(mark, passed)
   set(mark, "alpha", passed and MARK_DARK_ALPHA or MARK_LIGHT_ALPHA)
 end
 
--- look.barWidth wide: up to two rows of spender blocks and a look.barHeight adrenaline bar with its percent and a
--- bar mark at each of its two markers.
+-- A look.barWidth by look.barHeight adrenaline bar with its percent and a bar mark at each of its two markers,
+-- and spender rows above or below it as look.spenders picks. Its bounds span the bar and the rows it shows.
+-- update(model) takes a src/frames resource model and returns whether the bounds changed.
 function view.resourceBar(root)
   local layer = ui.Layer.new(root)
-
-  -- One canvas per spender row, redrawn only when its spender, count, max or width changes.
-  local rows = {}
-  for r = 1, #frames.SPENDERS do
-    rows[r] = { canvas = ui.Canvas.new(layer) }
-  end
-
+  local rows = spenderRows(layer)
   local border = rect(layer, COLOURS.border, 0, BAR_Y, 0, 0)
   local track = rect(layer, COLOURS.track, 1, BAR_Y + 1, 0, 0)
   local fill = draw.bar(layer, COLOURS.adrenaline, COLOURS.track, 1, BAR_Y + 1, 0, 0)
@@ -347,43 +403,30 @@ function view.resourceBar(root)
   local percent = draw.edgedText(layer, FONTS.body, ui.AlignMode.CENTRE, 0, BAR_Y + 1, 0, 0)
   local bounds = { x = 0, y = 0, w = 0, h = 0 }
   local bar = { layer = layer, bounds = bounds }
-  -- The look shown, whether it wants dark text once the fill passes the label, the fill shown, and the model
-  -- shown, redrawn after a resize.
-  local shown, bright, fillShown, last = nil, false, 0, nil
-
-  -- Black-edged blocks, filled up to the spender's count.
-  local function drawBlocks(canvas, spender)
-    canvas:Clear()
-    local edge = draw.opaque(COLOURS.border)
-    for i, span in ipairs(blockSpans(spender.max, bounds.w)) do
-      local rgb = i <= spender.count and SPENDER_COLOURS[spender.key] or COLOURS.emptyBlock
-      canvas:AddRectangle(span.x, 0, span.w, SPENDER_ROW, edge)
-      canvas:AddRectangle(span.x + 1, 1, span.w - 2, SPENDER_ROW - 2, draw.opaque(rgb))
-    end
-  end
-
-  local function updateSpenders(spenders)
-    for r, row in ipairs(rows) do
-      local spender = spenders[r]
-      set(row.canvas, "hidden", spender == nil)
-      if spender ~= nil then
-        pos(row.canvas, 0, BAR_Y - (#spenders - r + 1) * (SPENDER_ROW + 2))
-        if row.key ~= spender.key or row.count ~= spender.count or row.max ~= spender.max or row.w ~= bounds.w then
-          row.key, row.count, row.max, row.w = spender.key, spender.count, spender.max, bounds.w
-          drawBlocks(row.canvas, spender)
-        end
-      end
-    end
-  end
+  -- The look shown, whether it wants dark text once the fill passes the label, the fill shown, the model shown,
+  -- redrawn after a resize, and the bar's height.
+  local shown, bright, fillShown, last, barH = nil, false, 0, nil, 0
 
   local function stylePercent()
     styleText(percent, "body", shown, bright and fillShown >= PERCENT_ON_FILL)
   end
 
+  -- Lays out the spender rows the look puts on the bar and fits the bounds to them; returns whether they moved.
+  local function placeSpenders(spenders)
+    if shown.spenders == "player" then spenders = NO_SPENDERS end
+    local w, rowsH = bounds.w, #spenders * SPENDER_STEP
+    local above = shown.spenders == "above"
+    rows.show(spenders, w, above and BAR_Y - rowsH or BAR_Y + barH + 2)
+    local y, h = above and BAR_Y - rowsH or BAR_Y, barH + rowsH
+    if y == bounds.y and h == bounds.h then return false end
+    bounds.y, bounds.h, bar.height = y, h, h
+    return true
+  end
+
   local function update(model)
     last = model
     set(layer, "hidden", model.hidden)
-    if model.hidden then return end
+    if model.hidden then return placeSpenders(NO_SPENDERS) end
     local w = bounds.w
     fill.setFill(model.fill)
     set(percent, "content", model.text)
@@ -393,32 +436,31 @@ function view.resourceBar(root)
       pos(markers[i], math.min(math.floor(marker.at * (w - 2)), w - 3) + 1, BAR_Y + 1)
       shadeMark(markers[i], model.fill >= marker.at)
     end
-    updateSpenders(model.spenders)
+    return placeSpenders(model.spenders)
   end
 
   local function resize(w, h)
-    local height = BAR_Y + h
-    bar.width, bar.height, bounds.w, bounds.h = w, height, w, height
-    draw.size(layer, w, height)
-    for _, row in ipairs(rows) do draw.size(row.canvas, w, SPENDER_ROW) end
+    barH, bounds.w, bar.width = h, w, w
+    draw.size(layer, w, 2 * BAR_Y + h + 2)
     draw.size(border, w, h)
     draw.size(track, w - 2, h - 2)
     fill.setBox(1, BAR_Y + 1, w - 2, h - 2)
     for _, mark in ipairs(markers) do draw.size(mark, 1, h - 2) end
     draw.size(percent, w, h - 2)
-    if last ~= nil then update(last) end
   end
 
   -- Restyles the bar for a src/style look, returning at once for the look it shows. Returns whether its bounds
   -- changed.
   function bar.setLook(look)
     if look == shown then return false end
+    local resized = bounds.w ~= look.barWidth or barH ~= look.barHeight
     shown, bright = look, look.auto and style.dark(COLOURS.adrenaline)
-    local moved = bounds.w ~= look.barWidth or bounds.h ~= BAR_Y + look.barHeight
-    if moved then resize(look.barWidth, look.barHeight) end
+    if resized then resize(look.barWidth, look.barHeight) end
     fill.setTexture(look.texture)
     stylePercent()
-    return moved
+    local moved = placeSpenders(last and not last.hidden and last.spenders or NO_SPENDERS)
+    if last ~= nil and resized then update(last) end
+    return resized or moved
   end
 
   bar.update = update

@@ -81,6 +81,12 @@ describe("frames.resource", function()
     assert.are.same({}, empty.spenders)
   end)
 
+  it("keeps empty spender rows while a Necromancy weapon is worn", function()
+    local model = frames.resource({ adrenaline = 0, spenders = {}, necromancy = true }, MARKERS)
+    assert.are.same({ { key = "souls", count = 0, max = 3 }, { key = "necrosis", count = 0, max = 12 } },
+      model.spenders)
+  end)
+
   it("caps souls at 5 with a Soulbound lantern equipped and 3 without", function()
     local with = frames.resource({ adrenaline = 0, spenders = { [SOULS] = 5 }, lantern = true }, MARKERS)
     assert.are.same({ key = "souls", count = 5, max = 5 }, with.spenders[1])

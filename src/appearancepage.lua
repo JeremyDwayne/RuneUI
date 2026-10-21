@@ -46,8 +46,10 @@ local SAMPLE_PLAYER = { available = true, name = "Player", lifepoints = 12242, l
   prayerValue = 640, prayerLabel = "64/99" }
 local SAMPLE_TARGET = { target = 1, name = "Rasial", lifepointsLabel = "58,000", healthPercent = 58 }
 local TILE_SIZE, PREVIEW_X, PREVIEW_Y, PREVIEW_GAP = 36, 20, 14, 6
--- The Bars preview: adrenaline at 89% and a channel two ticks from its end with two hits ahead.
-local SAMPLE_ADRENALINE = { adrenaline = 890, spenders = {} }
+-- The Bars preview: adrenaline at 89% with two souls and six necrosis stacks, and a channel two ticks from its
+-- end with two hits ahead.
+local SAMPLE_ADRENALINE = { adrenaline = 890, necromancy = true,
+  spenders = { COMBATV2_BUFF_NECROMANCY_RESIDUAL_SOUL_STACKS = 2, COMBATV2_BUFF_NECROMANCY_NECROSIS_STACKS = 6 } }
 local SAMPLE_CAST = { start = 1, name = "Greater Concentrated Blast", icon = 13310, style = "magic", duration = 3.6,
   ticksLeft = 2, hits = { 0, 1.2, 2.4 } }
 
@@ -527,8 +529,8 @@ function appearancepage.create(page, width, height, deps)
   end)
 end
 
--- The Bars page: the adrenaline bar's markers and size, and the cast bar's width, height, colour, font and text
--- size; see settingsPage.
+-- The Bars page: the adrenaline bar's markers and size, where the spender rows sit, and the cast bar's width,
+-- height, colour, font and text size; see settingsPage.
 function appearancepage.bars(page, width, height, deps)
   local view, saved = deps.view, deps.saved
   return settingsPage(page, width, height, deps, function(b)
@@ -545,6 +547,7 @@ function appearancepage.bars(page, width, height, deps)
     end
     b.stepper("Bar width", "barWidth", settings.BAR_WIDTH.min, settings.BAR_WIDTH.max)
     b.stepper("Bar height", "barHeight", settings.BAR_HEIGHT.min, settings.BAR_HEIGHT.max)
+    b.choices("Spenders", style.SPENDER_PLACES, "spenders", 150)
 
     b.heading("Cast bar")
     b.choices("Width from", WIDTH_FROM, "castMatchWidth", 160)
@@ -572,8 +575,8 @@ function appearancepage.bars(page, width, height, deps)
       view.setLook({ resource, cast }, look)
       resource.update(frames.resource(SAMPLE_ADRENALINE, saved.markers()))
       cast.update(SAMPLE_CAST)
-      draw.pos(resource.layer, PREVIEW_X, PREVIEW_Y)
-      draw.pos(cast.layer, PREVIEW_X, PREVIEW_Y + resource.height + PREVIEW_GAP)
+      draw.pos(resource.layer, PREVIEW_X, PREVIEW_Y - resource.bounds.y)
+      draw.pos(cast.layer, PREVIEW_X, PREVIEW_Y + resource.bounds.h + PREVIEW_GAP)
     end
   end)
 end

@@ -129,7 +129,11 @@ local function refresh()
   elements.player.update(frames.player(adapter.playerReads(), appearance.lifepoints))
   local target = frames.target(adapter.targetReads(), appearance.lifepoints)
   elements.target.update(target)
-  elements.resource.update(frames.resource(adapter.resourceReads(frames.SPENDERS), saved.markers()))
+  local reads = adapter.resourceReads(frames.SPENDERS)
+  reads.necromancy = tracker.style() == "necromancy"
+  local resource = frames.resource(reads, saved.markers())
+  if elements.resource.update(resource) then moved = true end
+  if elements.player.showSpenders(resource.spenders) then moved = true end
   -- This redraw covers any change waiting for the next Logic tick.
   channelTracker.changed()
   tracker.changed()

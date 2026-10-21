@@ -73,6 +73,20 @@ local function shows(content)
   return fake.find(function(_, d) return d.content == content end) ~= nil
 end
 
+-- Starts an anchor pick on an element too short for its own header: hovering it shows the shared header above
+-- it, built after every overlay, so its Anchor is the last one shown.
+local function pickSmall(element)
+  local tint = fake.find(function(c, d)
+    return fake.hasHook(c, "ONMOUSEOVER") and d.width == element.bounds.w and d.height == element.bounds.h
+  end)
+  fake.hook(tint, "ONMOUSEOVER")
+  local count = 0
+  for _, c in ipairs(fake.created) do
+    if c.content == "Anchor" and fake.shown(c) then count = count + 1 end
+  end
+  fake.press("Anchor", count)
+end
+
 -- Hovers each spot in the open anchor menu until its name reads label, then clicks it.
 local function chooseSpot(label)
   for _, c in ipairs(fake.created) do
@@ -176,7 +190,7 @@ describe("edit mode", function()
 
   it("cancels a pick on Esc and saves nothing", function()
     local elements, saved = enterEditMode()
-    fake.press("Anchor")
+    pickSmall(elements.resource)
     fake.hook(overlayOf(elements.player), "ONCLICK")
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
     assert.is_nil(saved.anchors().resource)
@@ -187,7 +201,7 @@ describe("edit mode", function()
 
   it("refuses a target anchored to the picking element and says why", function()
     local elements, saved = enterEditMode()
-    fake.press("Anchor")
+    pickSmall(elements.resource)
     fake.hook(overlayOf(elements.major), "ONCLICK")
     assert.is_true(shows("Major is anchored to Resource bar"))
     assert.is_false(shows("Anchor Resource bar to Major"))

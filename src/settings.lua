@@ -373,6 +373,7 @@ local APPEARANCE = {
   castMatchWidth = { false, isBoolean },
   castColour = { "ability", colour(styling.CAST_PRESETS) },
   castFont = { "hud", function(value) return value == "hud" or styling.find(styling.FAMILIES, value) ~= nil end },
+  spenders = { "below", option(styling.SPENDER_PLACES) },
   castTextSize = { "hud", function(value)
     return value == "hud" or wholeIn(value, styling.ROLES.body + settings.TEXT_STEP_MIN,
       styling.ROLES.body + settings.TEXT_STEP_MAX)
@@ -702,7 +703,8 @@ function settings.load(store, windowHeight)
 
   -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars, font, textStep, edge, textColour,
   -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight, barWidth, barHeight, castWidth,
-  -- castHeight, castMatchWidth, castColour, castFont, castTextSize }. castFont and castTextSize are "hud" to
+  -- castHeight, castMatchWidth, castColour, castFont, castTextSize, spenders }. spenders is a src/style
+  -- SPENDER_PLACES id. castFont and castTextSize are "hud" to
   -- follow the HUD text or a family id and a size in points. The game's own cast bar is
   -- hidden until chosen otherwise, since RuneUI draws one; auraBars draws a draining bar under each aura icon.
   -- Read-only.

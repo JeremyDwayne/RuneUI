@@ -310,7 +310,7 @@ describe("settings", function()
       font = "museo", textStep = 0, edge = "shadow", textColour = "auto", playerColour = "runeui",
       targetColour = "runeui", border = "runeui", lifepoints = "short", frameWidth = 250, frameHeight = 55,
       barWidth = 278, barHeight = 20, castWidth = 278, castHeight = 22, castMatchWidth = false,
-      castColour = "ability", castFont = "hud", castTextSize = "hud",
+      castColour = "ability", castFont = "hud", castTextSize = "hud", spenders = "below",
     }, s.appearance())
     local chosen = { font = "cinzel", textStep = -3, edge = "outlineShadow", textColour = "yellow",
       playerColour = 0x123456, targetColour = "equipped", border = "game", lifepoints = "percent",

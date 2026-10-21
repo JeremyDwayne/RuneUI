@@ -73,6 +73,12 @@ style.CAST_PRESETS = {
   { id = "necro", label = "Necro", rgb = style.STYLE_COLOURS.necromancy },
 }
 
+-- Where the spender rows sit: under the adrenaline bar, over it, or under the player frame.
+style.SPENDER_PLACES = {
+  { id = "below", label = "Below the bar" }, { id = "above", label = "Above the bar" },
+  { id = "player", label = "Under player frame" },
+}
+
 style.BORDERS = {
   { id = "runeui", label = "RuneUI" }, { id = "game", label = "Game frame" }, { id = "none", label = "None" },
 }
@@ -180,9 +186,9 @@ end
 
 -- The look every element's setLook takes, from src/settings appearance and the worn weapon's combat style:
 -- { fonts = { [role] = font name }, outline, shadow, auto, text, player, target, texture, border, frameWidth,
--- frameHeight, barWidth, barHeight, castWidth, castHeight, castColour }. fonts.cast is the cast bar's body font,
--- the HUD's unless the cast bar has its own font or size; castColour is nil for Ability style. Build it only when
--- one of them changes, as setLook skips a look it already shows.
+-- frameHeight, barWidth, barHeight, castWidth, castHeight, castColour, spenders }. fonts.cast is the cast bar's
+-- body font, the HUD's unless the cast bar has its own font or size; castColour is nil for Ability style. Build
+-- it only when one of them changes, as setLook skips a look it already shows.
 function style.look(appearance, equippedStyle)
   local fonts = {}
   for role in pairs(style.ROLES) do fonts[role] = style.font(appearance.font, role, appearance.textStep) end
@@ -208,6 +214,7 @@ function style.look(appearance, equippedStyle)
     castWidth = appearance.castMatchWidth and appearance.barWidth or appearance.castWidth,
     castHeight = appearance.castHeight,
     castColour = castColour(appearance.castColour),
+    spenders = appearance.spenders,
   }
 end
 
