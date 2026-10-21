@@ -347,8 +347,18 @@ local function placeTile(parts, x, y, size)
   set(parts.seconds, "font", size >= LARGE_TILE and FONTS.seconds or FONTS.smallSeconds)
 end
 
--- Shows a src/cooldowns tile model on parts.
-local function showTile(parts, model)
+-- Shows a cooling tile's whole seconds left, since seconds after the server tick its model was read at, rounded
+-- up so it reads 1 until the tick that readies it. Returns whether the label changed.
+local function showSeconds(parts, since)
+  local shown = math.max(1, math.ceil(parts.remaining - since - 1e-6))
+  if shown == parts.shown then return false end
+  parts.shown = shown
+  set(parts.seconds, "content", tostring(shown))
+  return true
+end
+
+-- Shows a src/cooldowns tile model on parts, since seconds after the server tick it was read at.
+local function showTile(parts, model, since)
   set(parts.edge, "hidden", false)
   set(parts.background, "hidden", false)
   draw.iconOrInitials(parts.icon, parts.initials, model)
@@ -356,7 +366,8 @@ local function showTile(parts, model)
   set(parts.keybind, "hidden", model.keybind == nil)
   set(parts.keybind, "content", model.keybind or "")
   set(parts.seconds, "hidden", model.ready)
-  set(parts.seconds, "content", model.seconds and tostring(model.seconds) or "")
+  parts.remaining = model.remaining
+  if model.remaining ~= nil then showSeconds(parts, since) end
   local usable = model.usable ~= false
   set(parts.icon, "rgb", usable and UNTINTED or BLOCKED_ICON)
   local labelColour = not usable and BLOCKED_TEXT or model.ready and COLOURS.text or COLOURS.dimText
@@ -369,8 +380,9 @@ end
 
 -- A cooldown group of up to settings.MAX_GROUP_KEYS ability tiles laid out by layout.grid. configure takes
 -- { size, perRow, grow }, returns whether it changed, and redraws on the next update. update takes
--- src/cooldowns tiles and returns whether bounds changed; bounds spans the shown tiles, and an empty group's
--- sides meet at its axis. setInUse(false)
+-- src/cooldowns tiles and the seconds since the server tick they were read at, and returns whether bounds
+-- changed; bounds spans the shown tiles, and an empty group's sides meet at its axis. step(since) counts the
+-- cooling tiles down from that tick, and returns at once when none is cooling. setInUse(false)
 -- hides a custom group that is not in use and collapses its bounds. Tiles are built as the group first needs
 -- them, inside its layer, and never destroyed. Ready tiles are bright with their keybind; cooling tiles are
 -- dimmed with whole seconds left; tiles whose ability can't be cast are tinted dark. Hovering a tile shows
@@ -382,6 +394,8 @@ function view.cooldownGroup(root, tooltip)
   local display = nil
   local inUse = true
   local current = {}
+  -- Shown tiles, and how many of them are cooling.
+  local count, cooling = 0, 0
   local bounds = { x = 0, y = 0, w = 0, h = 0 }
   local group = { layer = layer, bounds = bounds, inUse = true }
 
@@ -396,7 +410,7 @@ function view.cooldownGroup(root, tooltip)
       title = model.name,
       left = model.cooldown and ("Cooldown " .. model.cooldown .. "s") or nil,
       right = model.keybind and ("Key " .. model.keybind) or nil,
-      line = model.ready and "Ready" or ("Ready in " .. model.seconds .. "s"),
+      line = model.ready and "Ready" or ("Ready in " .. tiles[i].shown .. "s"),
     }, x, y, display.size)
   end
 
@@ -418,9 +432,9 @@ function view.cooldownGroup(root, tooltip)
     set(layer, "hidden", not on)
   end
 
-  function group.update(models)
+  function group.update(models, since)
     if not inUse then
-      current = {}
+      current, count, cooling = {}, 0, 0
       for _, parts in ipairs(tiles) do draw.hideAll(parts.all, true) end
       local moved = bounds.w ~= 0 or bounds.h ~= 0
       bounds.w, bounds.h = 0, 0
@@ -431,7 +445,7 @@ function view.cooldownGroup(root, tooltip)
       return moved
     end
     current = models
-    local count = math.min(#models, max)
+    count, cooling = math.min(#models, max), 0
     while #tiles < count do
       tiles[#tiles + 1] = tile(layer)
       hover.add(tiles[#tiles])
@@ -445,24 +459,31 @@ function view.cooldownGroup(root, tooltip)
         draw.hideAll(parts.all, true)
       else
         placeTile(parts, g.tiles[i].x, g.tiles[i].y, display.size)
-        showTile(parts, models[i])
+        showTile(parts, models[i], since or 0)
+        if models[i].remaining ~= nil then cooling = cooling + 1 end
       end
     end
     if hover.index ~= nil then showTooltip(hover.index) end
     return moved
   end
 
+  function group.step(since)
+    if cooling == 0 then return end
+    for i = 1, count do
+      local parts = tiles[i]
+      if parts.remaining ~= nil and showSeconds(parts, since) and hover.index == i then showTooltip(i) end
+    end
+  end
+
   return group
 end
 
 local CAST_WIDTH, CAST_HEIGHT, CAST_ICON = 278, 22, 20
--- Seconds between server ticks, the most a step moves the bar on.
-local TICK_SECONDS = 0.6
 
 -- 278x22, as wide as the resource bar: the channelled ability's icon, its name, and its time left as "1.2s"
--- over a fill of the time spent. update takes a src/channel model each server tick, or nil to hide the bar
--- while keeping its bounds, so anchored elements stay put. step(elapsed) counts the shown channel down by
--- elapsed seconds since that tick, for a smooth bar between ticks, and does nothing between channels.
+-- over a fill of the time spent. update takes a src/channel model, or nil to hide the bar while keeping its
+-- bounds, so anchored elements stay put. A model with a new start begins the countdown at its duration.
+-- step(seconds) counts the shown channel down and hides it at 0, and does nothing between channels.
 function view.castBar(root)
   local layer = ui.Layer.new(root)
   layer:SetSize(CAST_WIDTH, CAST_HEIGHT)
@@ -477,7 +498,8 @@ function view.castBar(root)
   local name = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, barX + 5, 1, 180, CAST_HEIGHT - 2)
   local time = text(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, CAST_WIDTH - 78, 1, 72, CAST_HEIGHT - 2)
   set(layer, "hidden", true)
-  local current, shownTenths = nil, nil
+  -- The shown channel's model and seconds left, nil once it ends, and the start of the latest channel shown.
+  local current, left, shownStart, shownTenths = nil, nil, nil, nil
 
   -- Fills the bar to the share of the channel spent and shows remaining seconds to a tenth, rounded up,
   -- formatting the label only when its tenth changes.
@@ -490,19 +512,31 @@ function view.castBar(root)
   end
 
   local function update(model)
-    current = model
-    set(layer, "hidden", model == nil)
-    if model == nil then return end
+    if model ~= nil and model.start ~= shownStart then
+      shownStart, left = model.start, model.duration
+    end
+    current = left ~= nil and model or nil
+    set(layer, "hidden", current == nil)
+    if current == nil then
+      left = nil
+      return
+    end
     set(iconBack, "hidden", model.icon == nil)
     set(icon, "hidden", model.icon == nil)
     if model.icon ~= nil then set(icon, "sprite", model.icon) end
     set(name, "content", model.name or "")
-    show(model.seconds)
+    show(left)
   end
 
-  local function step(elapsed)
+  local function step(seconds)
     if current == nil then return end
-    show(math.max(0, current.seconds - math.min(elapsed, TICK_SECONDS)))
+    left = left - seconds
+    if left > 0 then
+      show(left)
+    else
+      current, left = nil, nil
+      set(layer, "hidden", true)
+    end
   end
 
   return {

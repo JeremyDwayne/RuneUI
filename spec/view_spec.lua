@@ -34,8 +34,8 @@ local function hud()
 end
 
 -- The src/channel model of Asphyxiate with seconds left.
-local function asphyxiate(seconds)
-  return { name = "Asphyxiate", icon = 14660, seconds = seconds, duration = 4.2 }
+local function asphyxiate(start)
+  return { start = start or 227269, name = "Asphyxiate", icon = 14660, duration = 4.2 }
 end
 
 describe("view", function()
@@ -43,7 +43,7 @@ describe("view", function()
 
   it("makes no client writes when a cooldown group redraws unchanged tiles", function()
     local tiles = readyTiles(9)
-    tiles[2] = { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, keybind = "Q", seconds = 4 }
+    tiles[2] = { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, keybind = "Q", remaining = 3.6 }
     for _, grow in ipairs(settings.GROWS) do
       local g = group(36, 7, grow)
       g.update(tiles)
@@ -52,6 +52,25 @@ describe("view", function()
       g.update(tiles)
       assert.are.equal(0, fake.writes, grow)
     end
+  end)
+
+  it("counts a cooling tile's whole seconds down between server ticks, writing only when they change", function()
+    local g = group()
+    g.update({ { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, remaining = 4.2 } }, 0)
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "5" end))
+    g.step(0.2)
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "4" end))
+    fake.writes = 0
+    g.step(0.58)
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("makes no writes stepping a group with no cooling tile", function()
+    local g = group()
+    g.update(readyTiles(3))
+    fake.writes = 0
+    g.step(0.3)
+    assert.are.equal(0, fake.writes)
   end)
 
   it("tints a tile's icon and keybind as the native bar does while its ability can't be cast", function()
@@ -207,14 +226,13 @@ describe("view", function()
     assert.are.same({ 0, 0 }, { g.bounds.w, g.bounds.h })
   end)
 
-  it("shows the channel's name and time, hides between channels, and makes no writes when steady", function()
+  it("shows the channel's name and length, hides between channels, and makes no writes when steady", function()
     local bar = view.castBar(fake.component())
-    bar.update(asphyxiate(4.2))
+    bar.update(asphyxiate())
+    assert.is_not_nil(fake.find(function(_, d) return d.content == "Asphyxiate" end))
     assert.is_not_nil(fake.find(function(_, d) return d.content == "4.2s" end))
-    bar.update(asphyxiate(3))
-    assert.is_not_nil(fake.find(function(_, d) return d.content == "3.0s" end))
     fake.writes = 0
-    bar.update(asphyxiate(3))
+    bar.update(asphyxiate())
     assert.are.equal(0, fake.writes)
     bar.update(nil)
     assert.is_true(bar.layer.hidden)
@@ -224,19 +242,28 @@ describe("view", function()
     assert.are.same({ x = 0, y = 0, w = 278, h = 22 }, bar.bounds)
   end)
 
-  it("counts the cast bar down between server ticks, and makes no writes stepping between channels", function()
+  it("counts the channel down each step without restarting it on update, and ends it at 0", function()
     local bar = view.castBar(fake.component())
-    bar.update(asphyxiate(4.2))
+    bar.update(asphyxiate())
     local fill = fake.find(function(_, d) return d.rgb == draw.COLOURS.cast end)
-    bar.step(0.3)
     local width = fill.width
+    bar.step(0.3)
+    bar.update(asphyxiate())
     assert.is_not_nil(fake.find(function(_, d) return d.content == "3.9s" end))
-    bar.step(5)
-    assert.is_not_nil(fake.find(function(_, d) return d.content == "3.6s" end))
     assert.is_true(fill.width > width)
+    bar.step(4)
+    assert.is_true(bar.layer.hidden)
+    bar.update(asphyxiate())
+    assert.is_true(bar.layer.hidden)
+    bar.update(asphyxiate(227280))
+    assert.is_false(bar.layer.hidden)
+  end)
+
+  it("makes no writes stepping between channels", function()
+    local bar = view.castBar(fake.component())
     bar.update(nil)
     fake.writes = 0
-    bar.step(0.1)
+    bar.step(0.02)
     assert.are.equal(0, fake.writes)
   end)
 

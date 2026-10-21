@@ -18,15 +18,26 @@ local function justUsedChanged(tracker)
 end
 
 describe("cooldowns.tracker", function()
-  it("counts whole seconds down with server ticks and turns ready at the end", function()
+  it("gives the seconds left at each server tick and turns ready at the end", function()
     local tracker = cooldowns.tracker()
     fire(tracker, CB, 1000, 9)
     tracker.onTick(noAbility)
     local tile = tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1]
     assert.is_false(tile.ready)
-    assert.are.equal(5, tile.seconds)
+    assert.are.equal(4.8, tile.remaining)
     for _ = 1, 8 do tracker.onTick(noAbility) end
     assert.is_true(tracker.tiles({ "MAGIC_CONCENTRATED_BLAST" }, {})[1].ready)
+  end)
+
+  it("reports a change once after a cooldown or weapon style var changes, and not after other vars", function()
+    local tracker = cooldowns.tracker()
+    fire(tracker, CB, 1000, 9)
+    assert.is_true(tracker.changed())
+    assert.is_false(tracker.changed())
+    tracker.onVar("COMBATV2_MAINHAND_STYLE", 1, 8)
+    assert.is_true(tracker.changed())
+    tracker.onVar("SA_ENERGY", 0, 100)
+    assert.is_false(tracker.changed())
   end)
 
   it("follows the combat style of the latest started cooldown, skipping style-free ones", function()
@@ -53,7 +64,7 @@ describe("cooldowns.tracker", function()
     fire(tracker, "COMBATV2_ABILITY_WEAPON_COOLDOWN_INSTABILITY", 1000, 100)
     tracker.onTick(noAbility)
     local tile = tracker.tiles({ "WEAPON_INSTABILITY" }, {})[1]
-    assert.are.same({ "Instability", 60, 60 }, { tile.name, tile.seconds, tile.cooldown })
+    assert.are.same({ "Instability", 59.4, 60 }, { tile.name, tile.remaining, tile.cooldown })
     assert.are.same({ "WEAPON_INSTABILITY" }, tracker.known())
   end)
 

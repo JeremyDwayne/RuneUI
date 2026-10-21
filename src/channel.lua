@@ -1,18 +1,17 @@
 -- Tracks the player's current channel, such as Asphyxiate or Rapid Fire, for the cast bar.
--- Pure: main.lua feeds it var changes and server ticks, and src/adapter reads the channelled ability's struct.
+-- Pure: main.lua feeds it var changes, and src/adapter reads the channelled ability's struct.
 local channel = {}
 
--- Returns a tracker. onVar takes every var change; onTick runs once per server tick with a function returning
--- { name, icon } for a struct id, or nil, called each tick of a channel until it returns the struct's info.
--- model() returns { name, icon, seconds, duration } while a channel runs, else nil: seconds left at this
--- server tick, counting down 0.6 a tick from (END - START + 1) x 0.6 as the game's own cast bar does, and
--- duration, that first value.
+-- Returns a tracker. onVar takes every var change, and changed() reports once whether a channel var changed
+-- since the last call. read takes a function returning { name, icon } for a struct id, or nil, and calls it
+-- until it returns the current channel's info. model() returns { start, name, icon, duration } while a channel
+-- runs, else nil: start is its first server tick, and duration (END - START + 1) x 0.6 s, as the game's own
+-- cast bar first reads.
 function channel.tracker()
   local start, finish, struct = nil, nil, nil
   -- END_REASON reads -1 while a channel runs.
   local running = false
-  -- Ticks since the channel started, and whether it started on the current tick.
-  local elapsed, fresh = 0, false
+  local changed = false
   local info, infoFor = nil, nil
 
   local tracker = {}
@@ -21,38 +20,41 @@ function channel.tracker()
   function tracker.onVar(name, old, new)
     if old == new then return end
     if name == "COMBATV2_CHANNEL_START" then
-      start, elapsed, fresh = new, 0, true
+      start = new
     elseif name == "COMBATV2_CHANNEL_END" then
       finish = new
     elseif name == "COMBATV2_CHANNEL_ABILITY_STRUCT" then
       struct = new
     elseif name == "COMBATV2_CHANNEL_END_REASON" then
       running = new == -1
+    else
+      return
     end
+    changed = true
   end
 
-  function tracker.onTick(readStruct)
-    if fresh then
-      fresh = false
-    else
-      elapsed = elapsed + 1
-    end
+  function tracker.changed()
+    local was = changed
+    changed = false
+    return was
+  end
+
+  function tracker.read(readStruct)
     if running and struct ~= nil and infoFor ~= struct then
       info = readStruct(struct)
       if info ~= nil then infoFor = struct end
     end
   end
 
+  -- An END from the previous channel sits before the new START until the new END arrives.
   function tracker.model()
-    if not running or start == nil or finish == nil then return nil end
-    local total = finish - start + 1
-    if elapsed >= total then return nil end
+    if not running or start == nil or finish == nil or finish < start then return nil end
     local found = infoFor == struct and info or nil
     return {
+      start = start,
       name = found and found.name,
       icon = found and found.icon,
-      seconds = (total - elapsed) * 6 / 10,
-      duration = total * 6 / 10,
+      duration = (finish - start + 1) * 6 / 10,
     }
   end
 

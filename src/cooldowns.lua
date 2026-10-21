@@ -54,12 +54,14 @@ end
 
 -- Returns a tracker. onVar takes every numeric var change, onTick runs once per server tick with a
 -- function returning the just-used ability as { key, name, icon } or nil, and returns what it learned.
+-- changed() reports once whether a cooldown or the weapon style changed since the last call.
 function cooldowns.tracker()
   local abilities = {}
   local order = {}
   local now = nil
   local startedThisTick = {}
   local justUsedChanged = false
+  local changed = false
   -- The style of the latest styled cooldown to start, and of the worn main-hand weapon.
   local abilityStyle, weaponStyle = nil, nil
 
@@ -87,6 +89,7 @@ function cooldowns.tracker()
     end
     if name == "COMBATV2_MAINHAND_STYLE" then
       if new ~= BARE_HANDED then weaponStyle = cooldowns.ATTACK_STYLES[new] end
+      changed = true
       return
     end
     local key, edge = name:match("^COMBATV2_COOLDOWN_(.+)_(%u+)$")
@@ -94,6 +97,7 @@ function cooldowns.tracker()
       key, edge = name:match("^COMBATV2_ABILITY_WEAPON_COOLDOWN_(.+)_(%u+)$")
       key = key and "WEAPON_" .. key
     end
+    if edge == "START" or edge == "END" then changed = true end
     if edge == "START" then
       ability(key).start = new
       now = new
@@ -130,6 +134,12 @@ function cooldowns.tracker()
     justUsedChanged = false
     if now ~= nil then now = now + 1 end
     return learned
+  end
+
+  function tracker.changed()
+    local was = changed
+    changed = false
+    return was
   end
 
   -- The worn weapon's combat style as a STYLES value, else that of the latest started cooldown that has one,
@@ -178,7 +188,7 @@ function cooldowns.tracker()
         keybind = slot and slot.keybind,
         usable = not slot or slot.usable,
         ready = left <= 0,
-        seconds = left > 0 and secondsLeft(left) or nil,
+        remaining = left > 0 and left * 6 / 10 or nil,
         cooldown = (a.start ~= nil and a.finish ~= nil) and secondsLeft(a.finish - a.start) or nil,
       }
     end
