@@ -64,6 +64,12 @@ The client API is thinly documented, and these facts came from probing it in the
 - On the buff bars 284 and 291, the client sets each filled slot's icon `:0:0` and `:0:2` opaque several times a tick, so alpha 0 does not hold there. Hiding those two keeps the label counting and the slot filling, and the client shows them again only when it fills the slot. A hidden icon reads `visibleGlobal` false, so read a slot's visibility from its label `:0:1`.
 - A buff bar slot can show an item instead of a sprite: an overload's icon reads `spriteID` -1 with `associatedObjectID` set to the item. `src/adapter.lua` reads such a slot as minus the item id, and `draw.icon` shows it with `SetAssociatedObject`.
 - Moving a native interface off screen freezes it: its labels stop counting and new icons wait until it returns.
+- A layer clips its children: a child reaching past its edge draws only the part inside, which edit mode's overlays depend on. A click hook on a part-clipped child reports y from the child's own top, clipped part included. Whether a clipped part takes clicks is unconfirmed, so `src/appearancepage.lua` checks each click lands where its row shows.
+- A layer's `alpha` reads back but does not fade its children. Fade each component instead.
+- A gradient with a transparent end blends over a canvas's earlier elements, so a filled rect, a white-to-clear `AddGradientH` and a clear-to-black `AddGradientV` draw a shade square.
+- A label's shadow colour cannot be set: writing `shadowRGBA` or `shadowColour` raises. `isShadowed` works.
+- No game font draws the check mark U+2713; each draws `?`. Mark a chosen option by fill and ring instead.
+- `NOTO_SANS_11PT_BOLD_OUTLINE`, `_13PT_` and `_21PT_` draw white text with a dark outline that reads on white.
 - The global `os` is nil, so there is no `os.clock` for timing. The two root layers report the whole window in UI units, such as 1710 by 1041 on a Retina Mac.
 
 ## Moderation
