@@ -15,6 +15,7 @@ local STYLES = {
 cooldowns.ATTACK_STYLES = { [1] = "magic", [5] = "melee", [6] = "melee", [8] = "ranged", [9] = "ranged",
   [10] = "ranged", [37] = "necromancy" }
 local BARE_HANDED = 7
+local NO_FORMS = {}
 
 -- Just-used struct keys shared by many abilities, which lend their icon but not their name: every weapon
 -- special reports the special attack, whose icon its action bar slot shows.
@@ -137,13 +138,14 @@ function cooldowns.tracker()
     return weaponStyle or abilityStyle
   end
 
-  -- Restores names and icons, { [key] = { name, icon } }, without adding to known(). A missing name or icon
-  -- keeps the one seeded before, so learned names can follow src/presets.
+  -- Restores names and icons, { [key] = { name, icon, forms } }, without adding to known(). A missing field
+  -- keeps the one seeded before, so learned names can follow src/presets. forms lists { name, icon } for
+  -- every form the ability's bar slot can show, such as Greater Sunshine.
   function tracker.seed(saved)
     for key, info in pairs(saved) do
       local a = abilities[key] or {}
       abilities[key] = a
-      a.name, a.icon = info.name or a.name, info.icon or a.icon
+      a.name, a.icon, a.forms = info.name or a.name, info.icon or a.icon, info.forms or a.forms
     end
   end
 
@@ -153,19 +155,26 @@ function cooldowns.tracker()
   end
 
   -- keys: ability keys in display order. slots: { [iconSpriteID] = { keybind, usable } } from the native
-  -- bars. A tile with no matching slot counts as usable.
+  -- bars. A tile whose icon no slot shows takes the name, icon and slot of the first form a slot does show.
+  -- A tile with no matching slot counts as usable.
   function tracker.tiles(keys, slots)
     local tiles = {}
     for _, key in ipairs(keys) do
       local a = abilities[key] or {}
-      local name = a.name or nameFromKey(key)
+      local name, icon = a.name or nameFromKey(key), a.icon
       local left = (now ~= nil and a.finish ~= nil) and a.finish - now or 0
-      local slot = a.icon and slots[a.icon]
+      local slot = icon and slots[icon]
+      for _, form in ipairs(slot == nil and a.forms or NO_FORMS) do
+        if slots[form.icon] ~= nil then
+          name, icon, slot = form.name, form.icon, slots[form.icon]
+          break
+        end
+      end
       tiles[#tiles + 1] = {
         key = key,
         name = name,
         initials = initials(name),
-        icon = a.icon,
+        icon = icon,
         keybind = slot and slot.keybind,
         usable = not slot or slot.usable,
         ready = left <= 0,

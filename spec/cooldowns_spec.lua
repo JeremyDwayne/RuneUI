@@ -178,6 +178,17 @@ describe("cooldowns.tracker", function()
     assert.is_nil(cooldowns.styleOf("DEFENCE_FREEDOM"))
   end)
 
+  it("takes the name, icon and keybind of an upgraded form the action bar shows instead", function()
+    local tracker = cooldowns.tracker()
+    tracker.seed({ MAGIC_SUNSHINE = { name = "Sunshine", icon = 20183, forms = {
+      { name = "Sunshine", icon = 20183 }, { name = "Greater Sunshine", icon = 20184 },
+    } } })
+    local tile = tracker.tiles({ "MAGIC_SUNSHINE" }, { [20184] = { keybind = "1", usable = true } })[1]
+    assert.are.same({ "Greater Sunshine", 20184, "1" }, { tile.name, tile.icon, tile.keybind })
+    tile = tracker.tiles({ "MAGIC_SUNSHINE" }, {})[1]
+    assert.are.same({ "Sunshine", 20183 }, { tile.name, tile.icon })
+  end)
+
   it("keeps a seeded name when a later seed gives only an icon", function()
     local tracker = cooldowns.tracker()
     tracker.seed({ MAGIC_SUNSHINE = { name = "Sunshine", icon = 20183 } })
