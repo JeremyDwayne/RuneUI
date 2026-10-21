@@ -1,6 +1,7 @@
 local fake = require("spec/support/fake_ui")
 local cooldowns = require("src/cooldowns")
 local options = require("src/options")
+local presets = require("src/presets")
 local settings = require("src/settings")
 local view = require("src/view")
 
@@ -9,9 +10,9 @@ local function fakeStore()
   return { get = function(key) return data[key] end, set = function(key, value) data[key] = value end }
 end
 
--- The options window over a player frame and a major group, after Sunshine, Soul Sap and then Wild Magic
--- fired, so magic is the current style unless mainhand gives the worn weapon's style. Opened from the ribbon
--- on the Major group. Returns the settings.
+-- The options window over a player frame and a major group, with groups filled from src/presets, after
+-- Sunshine, Soul Sap and then Wild Magic fired, so magic is the current style unless mainhand gives the worn
+-- weapon's style. Opened from the ribbon on the Major group. Returns the settings.
 local function openWindow(mainhand)
   local root = fake.component()
   local tracker = cooldowns.tracker()
@@ -100,8 +101,15 @@ describe("options", function()
     assert.are.same({ true, false }, { listed("Wild Magic"), listed("Soul Sap") })
     fake.press("Necromancy", 2)
     assert.are.same({ false, true }, { listed("Wild Magic"), listed("Soul Sap") })
+  end)
+
+  it("counts the abilities past the picker's last row and points to the search box", function()
+    openWindow()
+    openPicker()
     fake.press("All")
-    assert.are.same({ true, true }, { listed("Wild Magic"), listed("Soul Sap") })
+    local note = fake.find(function(_, d) return type(d.content) == "string" and d.content:find(" more. Search") end)
+    local hidden = tonumber(note.content:match("^(%d+) more"))
+    assert.is_true(hidden > 0)
   end)
 
   it("lists abilities matching the picker search from every style, leaving the All tab chosen", function()
@@ -111,8 +119,8 @@ describe("options", function()
     local function listed(name) return fake.find(function(_, d) return d.content == name end) ~= nil end
     fake.hook(search, "ONCONTENTCHANGED", 0, "soul")
     assert.are.same({ false, true }, { listed("Wild Magic"), listed("Soul Sap") })
-    fake.hook(search, "ONCONTENTCHANGED", 0, "")
-    assert.are.same({ true, true }, { listed("Wild Magic"), listed("Soul Sap") })
+    fake.hook(search, "ONCONTENTCHANGED", 0, "wild")
+    assert.are.same({ true, false }, { listed("Wild Magic"), listed("Soul Sap") })
   end)
 
   it("says when no ability matches the picker search", function()
@@ -144,9 +152,9 @@ describe("options", function()
     local equipped = fake.find(function(_, d) return d.content == "Equipped" end)
     local necromancy = fake.find(function(_, d) return d.content == "Necromancy" end)
     assert.are.equal(necromancy.x, equipped.x)
-    assert.are.equal(0, tileCount())
+    assert.are.equal(#presets.STYLES.necromancy.major, tileCount())
     fake.press("Magic")
-    assert.are.equal(1, tileCount())
+    assert.are.equal(#presets.STYLES.magic.major, tileCount())
   end)
 
   it("saves the chosen group's icon size, grow and abilities setting, and names the limit by grow", function()
@@ -160,12 +168,12 @@ describe("options", function()
     assert.is_false(shows("Icons per row"))
   end)
 
-  it("switches a group to every style before any edit and back, keeping its abilities for the style", function()
+  it("switches a group to every style and back, keeping its abilities for the style", function()
     local saved = openWindow()
     fake.press("Every style", 2)
     assert.are.same({}, saved.keys("major", "magic"))
     fake.press("Per style")
-    assert.are.same({ "MAGIC_SUNSHINE" }, saved.keys("major", "magic"))
+    assert.are.same(presets.STYLES.magic.major, saved.keys("major", "magic"))
   end)
 
   it("moves an ability picked from another group's section into the chosen group", function()
@@ -173,8 +181,11 @@ describe("options", function()
     openPicker()
     assert.is_true(shows("In Rotation"))
     fake.press("Wild Magic")
-    assert.are.same({ "MAGIC_SUNSHINE", "MAGIC_WILD_MAGIC" }, saved.keys("major", "magic"))
-    assert.are.same({}, saved.keys("rotation", "magic"))
+    local major = { table.unpack(presets.STYLES.magic.major) }
+    major[#major + 1] = "MAGIC_WILD_MAGIC"
+    assert.are.same(major, saved.keys("major", "magic"))
+    assert.is_false(saved.keys("rotation", "magic")[2] == "MAGIC_WILD_MAGIC")
+    assert.are.equal(#presets.STYLES.magic.rotation - 1, #saved.keys("rotation", "magic"))
   end)
 
   it("adds up to four new groups and hides New group once they are all in use", function()

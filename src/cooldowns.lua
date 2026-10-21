@@ -2,12 +2,12 @@
 -- Pure: main.lua feeds it var changes and server ticks, and src/adapter supplies the just-used ability.
 local cooldowns = {}
 
--- Abilities with a cooldown of at least this many ticks, 30 seconds, default to the major group.
-local LONG_COOLDOWN_TICKS = 50
-
 -- Cooldown key prefixes that name a combat style. Melee abilities are split by skill, such as
--- STRENGTH_DESTROY; DEFENCE and CONSTITUTION abilities belong to no style.
-local STYLES = { MAGIC = "magic", NECROMANCY = "necromancy", RANGED = "ranged", ATTACK = "melee", STRENGTH = "melee" }
+-- STRENGTH_DESTROY, and Dismember's cooldown is MELEE_DISMEMBER; DEFENCE and CONSTITUTION abilities belong to
+-- no style.
+local STYLES = {
+  MAGIC = "magic", NECROMANCY = "necromancy", RANGED = "ranged", ATTACK = "melee", STRENGTH = "melee", MELEE = "melee",
+}
 
 -- Combat style by COMBATV2_MAINHAND_STYLE, the main-hand weapon's attack type: 1 magic, 5 and 6 melee, 8 to 10
 -- ranged, 37 necromancy. 7, an empty main hand, keeps the current style, since it shows for a tick between two
@@ -15,9 +15,6 @@ local STYLES = { MAGIC = "magic", NECROMANCY = "necromancy", RANGED = "ranged", 
 cooldowns.ATTACK_STYLES = { [1] = "magic", [5] = "melee", [6] = "melee", [8] = "ranged", [9] = "ranged",
   [10] = "ranged", [37] = "necromancy" }
 local BARE_HANDED = 7
-
--- Cooldown key prefixes of defensive and utility abilities, which default to the shared utility group.
-local UTILITY_PREFIXES = { DEFENCE = true, CONSTITUTION = true }
 
 -- Just-used struct keys shared by many abilities, which lend their icon but not their name: every weapon
 -- special reports the special attack, whose icon its action bar slot shows.
@@ -58,8 +55,6 @@ function cooldowns.tracker()
   local justUsedChanged = false
   -- The style of the latest styled cooldown to start, and of the worn main-hand weapon.
   local abilityStyle, weaponStyle = nil, nil
-  -- The style current when each style-free key, such as a weapon special, last started.
-  local firedStyle = {}
 
   local fired = {}
 
@@ -96,9 +91,7 @@ function cooldowns.tracker()
       ability(key).start = new
       now = new
       startedThisTick[#startedThisTick + 1] = key
-      local keyStyle = cooldowns.styleOf(key)
-      abilityStyle = keyStyle or abilityStyle
-      if keyStyle == nil then firedStyle[key] = tracker.style() end
+      abilityStyle = cooldowns.styleOf(key) or abilityStyle
     elseif edge == "END" then
       ability(key).finish = new
     end
@@ -138,34 +131,19 @@ function cooldowns.tracker()
     return weaponStyle or abilityStyle
   end
 
-  -- Restores saved names and icons, { [key] = { name, icon } }, without adding to known().
+  -- Restores names and icons, { [key] = { name, icon } }, without adding to known(). A missing name or icon
+  -- keeps the one seeded before, so learned names can follow src/presets.
   function tracker.seed(saved)
     for key, info in pairs(saved) do
-      abilities[key] = abilities[key] or {}
-      abilities[key].name, abilities[key].icon = info.name, info.icon
+      local a = abilities[key] or {}
+      abilities[key] = a
+      a.name, a.icon = info.name or a.name, info.icon or a.icon
     end
   end
 
   -- Ability keys such as "MAGIC_DRAGON_BREATH" in the order they first fired.
   function tracker.known()
     return { table.unpack(order) }
-  end
-
-  -- { major, rotation, utility } key lists for style, filled in firing order: defensive and utility
-  -- abilities of any style in utility, then this style's weapon specials and 30 s cooldowns in major and the
-  -- rest in rotation. A style-free key counts as the style that was current when it fired.
-  function tracker.defaultGroups(style)
-    local groups = { major = {}, rotation = {}, utility = {} }
-    for _, key in ipairs(order) do
-      local a = abilities[key]
-      if UTILITY_PREFIXES[key:match("^(%u+)_")] then
-        table.insert(groups.utility, key)
-      elseif (cooldowns.styleOf(key) or firedStyle[key]) == style then
-        local long = a.start ~= nil and a.finish ~= nil and a.finish - a.start >= LONG_COOLDOWN_TICKS
-        table.insert((long or key:match("^WEAPON_")) and groups.major or groups.rotation, key)
-      end
-    end
-    return groups
   end
 
   -- keys: ability keys in display order. slots: { [iconSpriteID] = { keybind, usable } } from the native

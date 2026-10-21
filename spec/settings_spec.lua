@@ -1,3 +1,4 @@
+local presets = require("src/presets")
 local settings = require("src/settings")
 
 -- An in-memory stand-in for src/adapter's PersistentDB store that counts writes.
@@ -14,22 +15,29 @@ end
 -- Saved data from this layout version, so positions and anchors in it are kept.
 local CURRENT = { layout = settings.LAYOUT_VERSION }
 
+-- Saved groups that every style and Utility have been seeded into from src/presets.
+local SEEDED = { utility = true, necromancy = true, magic = true, ranged = true, melee = true }
+
+-- A store whose seeded groups hold groups, { [name] = saved group }.
+local function seededStore(groups)
+  return fakeStore({ cooldownGroups = { seeded = SEEDED, groups = groups or {} } })
+end
+
 -- Magic's major holds X and Y and its rotation A, B and C; the shared utility holds U.
 local function edited()
-  local s = settings.load(fakeStore())
-  s.adopt(function(style)
-    if style ~= "magic" then return { utility = { "U" } } end
-    return { major = { "X", "Y" }, rotation = { "A", "B", "C" }, utility = { "U" } }
-  end)
-  return s
+  return settings.load(seededStore({
+    major = { styles = { magic = { "X", "Y" } } },
+    rotation = { styles = { magic = { "A", "B", "C" } } },
+    utility = { keys = { "U" } },
+  }))
 end
 
 describe("settings", function()
   it("round-trips positions, groups, markers and known abilities through the store", function()
-    local store = fakeStore()
+    local store = seededStore()
     local s = settings.load(store)
     s.setPosition("player", { x = 10, y = -20, anchorX = 0.5, anchorY = 1 })
-    s.adopt(function(style) return { rotation = style == "magic" and { "MAGIC_DRAGON_BREATH" } or {} } end)
+    s.add("rotation", "magic", "MAGIC_DRAGON_BREATH")
     s.setMarker("threshold", 60)
     s.learn("MAGIC_DRAGON_BREATH", "Dragon Breath", 14730)
 
@@ -41,20 +49,36 @@ describe("settings", function()
     assert.are.same({ name = "Dragon Breath", icon = 14730 }, reloaded.known().MAGIC_DRAGON_BREATH)
   end)
 
-  it("has no group lists until some are adopted, so the caller can fill them automatically", function()
+  it("fills every style and Utility from the presets on the first load", function()
     local s = settings.load(fakeStore())
-    assert.is_nil(s.keys("rotation", "magic"))
-    s.adopt(function() return { rotation = { "A" } } end)
-    s.adopt(function() return { rotation = { "B" } } end)
-    assert.are.same({ "A" }, s.keys("rotation", "magic"))
+    for style, lists in pairs(presets.STYLES) do
+      assert.are.same(lists.major, s.keys("major", style), style)
+      assert.are.same(lists.rotation, s.keys("rotation", style), style)
+    end
+    assert.are.same(presets.UTILITY, s.keys("utility", "melee"))
   end)
 
-  it("gathers every style's list into a shared group on adopting", function()
-    local s = settings.load(fakeStore())
-    s.adopt(function(style)
-      return { utility = style == "magic" and { "DEFENCE_FREEDOM", "DEFENCE_SURGE" } or { "DEFENCE_FREEDOM" } }
-    end)
-    assert.are.same({ "DEFENCE_FREEDOM", "DEFENCE_SURGE" }, s.keys("utility", "melee"))
+  it("fills only styles with nothing in them, once, so a style emptied on purpose stays empty", function()
+    local store = fakeStore({ cooldownGroups = { groups = { rotation = { styles = { magic = { "A" } } } } } })
+    local s = settings.load(store)
+    assert.are.same({ { "A" }, {} }, { s.keys("rotation", "magic"), s.keys("major", "magic") })
+    assert.are.same(presets.STYLES.ranged.rotation, s.keys("rotation", "ranged"))
+    for _, key in ipairs(presets.STYLES.ranged.rotation) do s.remove(key, "ranged") end
+    assert.are.same({}, settings.load(store).keys("rotation", "ranged"))
+  end)
+
+  it("leaves a preset ability out of a style where another list already shows it", function()
+    local s = settings.load(fakeStore({ cooldownGroups = { seeded = { utility = true }, groups = {
+      utility = { keys = { "MAGIC_SUNSHINE" } },
+    } } }))
+    local major = { table.unpack(presets.STYLES.magic.major, 2) }
+    assert.are.equal("MAGIC_SUNSHINE", presets.STYLES.magic.major[1])
+    assert.are.same(major, s.keys("major", "magic"))
+    assert.are.same({ "MAGIC_SUNSHINE" }, s.keys("utility", "magic"))
+  end)
+
+  it("shows a per-style group as empty until a style is known", function()
+    assert.are.same({}, settings.load(fakeStore()).keys("major", nil))
   end)
 
   it("resets positions to the defaults and keeps groups", function()
@@ -232,6 +256,13 @@ describe("settings", function()
     assert.is_not_nil(store.data.groups.cooldowns)
   end)
 
+  it("fills a style the older version's groups left empty from the presets", function()
+    local s = settings.load(fakeStore({ groups = { rotation = { "MAGIC_WRACK" }, cooldowns = {} } }))
+    assert.are.same({ "MAGIC_WRACK" }, s.keys("rotation", "magic"))
+    assert.are.same(presets.STYLES.melee.major, s.keys("major", "melee"))
+    assert.are.same(presets.UTILITY, s.keys("utility", "magic"))
+  end)
+
   it("keeps aura names and unmatched icons by icon across loads, dropping malformed entries", function()
     local store = fakeStore({ debuffs = { ["1"] = "broken" } })
     local saved = settings.load(store)
@@ -314,7 +345,7 @@ describe("settings", function()
     local s = settings.load(fakeStore({
       version = CURRENT,
       layout = { player = { x = "far", y = 0 }, target = { x = 5, y = 6, anchorX = 0.5, anchorY = 1 }, bogus = {} },
-      cooldownGroups = { filled = true, groups = {
+      cooldownGroups = { seeded = SEEDED, groups = {
         rotation = { styles = { magic = { "A", 7 }, ranged = "nope" }, size = "big", grow = "sideways" },
         major = "broken", custom2 = 5, extra = { keys = { "Z" } },
       } },

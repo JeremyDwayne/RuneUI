@@ -16,7 +16,7 @@ A clean combat HUD for RuneScape 3. RuneUI draws compact unit frames, a resource
 
 A buff joins a row the first time RuneUI sees it: the combat row if it has a minute or less left, the long buff row if it has more, and no row if it has no timer, such as a percent. Target debuffs show no timer, because the game's target panel does not show one.
 
-Each combat style has its own Major and Rotation groups, and RuneUI shows the ones for the weapon in your main hand, switching when you change weapons. Abilities join a group the first time you use them. Weapon special attacks such as Instability and Black Hole, and abilities with a cooldown of 30 seconds or more, go in Major, and the rest go in Rotation. Defensive and Constitution abilities go in Utility, which shows the same abilities for every style. You can rearrange every group yourself in the options window.
+Each combat style has its own Major and Rotation groups, and RuneUI shows the ones for the weapon in your main hand, switching when you change weapons. The groups start with the cooldowns most PvM setups track: each style's big damage cooldowns, such as Living Death, Sunshine, Death's Swiftness and Berserk, in Major, its core rotation abilities in Rotation, and Freedom, Anticipation, Resonance, Devotion, Barricade, Reflect, Debilitate and Immortality in Utility, which shows the same abilities for every style. An icon shows its keybind once the ability is on your action bar. Weapon special attacks are left out, since they depend on your weapon. A style that already holds abilities, such as one carried over from an older version, keeps them. You can rearrange every group yourself in the options window.
 
 ## Install
 
@@ -30,7 +30,7 @@ RuneUI runs on the RuneScape beta while plugins are in testing.
 
 Open the plugin ribbon and press **Open RuneUI options**. Press Esc or **Done** to close the window.
 
-- The Cooldown manager page opens on your weapon's combat style, marked Equipped, with tabs for the other styles. Pick a group from the list on the left to set its icon size, how many icons fit in a row or column before it wraps, which way it grows, and whether its abilities change with the style or stay the same for every style. Drag an icon to reorder it, press **+** to add an ability you have used, and click an icon for a Remove option. The **+** list opens on the style you are editing, with tabs for the others and a search box for ability names, and choosing an ability from another group moves it here. **New group** adds a group of your own, up to four, which you can rename. Its **Delete** button asks for a second click.
+- The Cooldown manager page opens on your weapon's combat style, marked Equipped, with tabs for the other styles. Pick a group from the list on the left to set its icon size, how many icons fit in a row or column before it wraps, which way it grows, and whether its abilities change with the style or stay the same for every style. Drag an icon to reorder it, press **+** to add an ability, and click an icon for a Remove option. The **+** list opens on the style you are editing, with tabs for the others and a search box for ability names, and choosing an ability from another group moves it here. It lists the preset abilities and any other ability you have used, and when they run past its last row, that row says how many more the search box can find. **New group** adds a group of your own, up to four, which you can rename. Its **Delete** button asks for a second click.
 - The Resource bar page sets the threshold and ultimate marker percents.
 - The Appearance page picks a flat bar fill or a vertical or horizontal gradient. It can also hide the game's own target panel, since RuneUI's target frame replaces it. **Game buff bars** hides the game's own buff and debuff bars, since RuneUI's aura rows replace them. **Aura icons** picks plain icons or icons with a draining bar under each. With bars, an icon in that window gets a dashed white outline and a striped bar instead of the ring and plate.
 - Edit mode, turned on from the window's footer, lets you drag any HUD element to move it. Everything anchored to that element moves with it. Press Esc to finish, or **Done** to return to the window.
@@ -59,7 +59,7 @@ for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; d
 
 After saving a change, run `prl runeui` in the game console to reload the plugin.
 
-`src/adapter.lua` is the only module that reads the game client. `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure Lua with specs. `src/view.lua`, `src/options.lua` and `src/editmode.lua` draw the HUD, the options window and edit mode.
+`src/adapter.lua` is the only module that reads the game client. `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure Lua with specs. `src/presets.lua` holds the abilities each group starts with. `src/view.lua`, `src/options.lua` and `src/editmode.lua` draw the HUD, the options window and edit mode.
 
 ## Contributing
 

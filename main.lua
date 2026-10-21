@@ -8,6 +8,7 @@ local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
 local icons = require("src/icons")
 local options = require("src/options")
+local presets = require("src/presets")
 local settings = require("src/settings")
 local view = require("src/view")
 
@@ -34,6 +35,7 @@ local tracker = cooldowns.tracker()
 local channelTracker = channel.tracker()
 local auraTracker = auras.tracker()
 local optionsWindow
+tracker.seed(presets.INFO)
 tracker.seed(saved.known())
 tracker.onVar("COMBATV2_MAINHAND_STYLE", nil, adapter.mainhandStyle())
 -- Struct ids scanned per tick while an aura icon is unnamed, about 48 seconds for a full scan.
@@ -60,25 +62,15 @@ local function refresh()
   elements.target.update(target)
   elements.resource.update(frames.resource(adapter.resourceReads(frames.SPENDERS), saved.markers()))
   elements.castbar.update(channelTracker.model())
-  -- Groups show the lists for the worn weapon's style. Until the first edit in the options window, they fill
-  -- by cooldown length as abilities fire.
+  -- Groups show the lists for the worn weapon's style.
   local style = tracker.style()
   local slots = adapter.barSlots()
-  local defaults = nil
   local moved = false
   for _, name in ipairs(GROUP_NAMES) do
     local element, group = elements[name], saved.group(name)
     element.setInUse(group ~= nil)
-    local keys = {}
-    if group ~= nil then
-      if element.configure(group) then moved = true end
-      keys = saved.keys(name, style)
-      if keys == nil then
-        defaults = defaults or tracker.defaultGroups(style)
-        keys = defaults[name] or {}
-      end
-    end
-    if element.update(tracker.tiles(keys, slots)) then moved = true end
+    if group ~= nil and element.configure(group) then moved = true end
+    if element.update(tracker.tiles(saved.keys(name, style) or {}, slots)) then moved = true end
   end
   local bars = saved.auraBars()
   for name, models in pairs(auraTracker.rows(saved.auras(), target.debuffs or {})) do

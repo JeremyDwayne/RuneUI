@@ -5,6 +5,7 @@
 local draw = require("src/draw")
 local editmode = require("src/editmode")
 local editor = require("src/editor")
+local presets = require("src/presets")
 local settings = require("src/settings")
 
 local options = {}
@@ -125,16 +126,6 @@ function options.create(root, deps)
   -- The style whose lists the page edits, the group shown in the detail pane, and whether its Delete button
   -- has been clicked once.
   local editStyle, selected, confirmDelete = "magic", "major", false
-
-  -- The keys name's group shows with style, filled automatically until the first edit.
-  local function keysOf(name, style)
-    return saved.keys(name, style) or tracker.defaultGroups(style)[name] or {}
-  end
-
-  -- Groups become the user's own on the first edit, so later automatic filling stops.
-  local function adopt()
-    saved.adopt(tracker.defaultGroups)
-  end
 
   -- Style tabs: the chosen one underlined, the equipped one marked Equipped.
   local styleTabs = {}
@@ -266,8 +257,6 @@ function options.create(root, deps)
       set(b.label, "content", option.label)
       on(b.bg, "ONCLICK", function()
         if saved.group(selected) == nil then return end
-        -- Switching lists is an edit, so the automatically filled lists are kept for switching back.
-        if field == "shared" then adopt() end
         saved.setGroup(selected, field, option.value)
         changed()
       end)
@@ -369,7 +358,7 @@ function options.create(root, deps)
         set(r.hit, "rgb", name == selected and COLOURS.line or COLOURS.panel)
         set(r.title, "content", group.title)
         set(r.title, "rgb", name == selected and COLOURS.text or COLOURS.mutedText)
-        set(r.count, "content", tostring(#keysOf(name, editStyle)))
+        set(r.count, "content", tostring(#saved.keys(name, editStyle)))
       end
     end
     local full = #names >= #listRows
@@ -396,7 +385,7 @@ function options.create(root, deps)
     set(perRowLabel, "content", columns and "Icons per column" or "Icons per row")
     showSettingChoices(group)
 
-    local models = knownTiles(keysOf(selected, editStyle))
+    local models = knownTiles(saved.keys(selected, editStyle))
     count = math.min(#models, settings.MAX_GROUP_KEYS)
     for i, t in ipairs(editorTiles) do
       local model = models[i]
@@ -469,7 +458,6 @@ function options.create(root, deps)
   local menuKey = nil
   button(menu, "Remove", 1, 1, 138, 28, false, function()
     if menuKey ~= nil then
-      adopt()
       saved.remove(menuKey, editStyle)
       closePopups()
       changed()
@@ -500,8 +488,7 @@ function options.create(root, deps)
       return
     end
     if d.target == nil then return end
-    adopt()
-    local action = editor.dropAction(keysOf(selected, editStyle), d.tile.key, d.target)
+    local action = editor.dropAction(saved.keys(selected, editStyle), d.tile.key, d.target)
     if action == nil then return end
     if action.op == "swap" then
       saved.swap(d.tile.key, action.other, selected, editStyle)
@@ -567,7 +554,6 @@ function options.create(root, deps)
     on(r.bg, "ONMOUSELEAVE", function() set(r.hover, "hidden", true) end)
     on(r.bg, "ONCLICK", function()
       if r.key == nil or not pickerOpen then return end
-      adopt()
       saved.add(selected, editStyle, r.key)
       changed()
       fillPicker()
@@ -575,13 +561,16 @@ function options.create(root, deps)
     pickerRows[i] = r
   end
 
+  -- Every ability fired this session, saved as seen, or in src/presets, sorted by name, and its tile model.
   local function allKnownKeys()
     local keys, seen = {}, {}
     for _, key in ipairs(tracker.known()) do
       keys[#keys + 1], seen[key] = key, true
     end
-    for key in pairs(saved.known()) do
-      if not seen[key] then keys[#keys + 1], seen[key] = key, true end
+    for _, source in ipairs({ saved.known(), presets.INFO }) do
+      for key in pairs(source) do
+        if not seen[key] then keys[#keys + 1], seen[key] = key, true end
+      end
     end
     local models = {}
     for _, t in ipairs(knownTiles(keys)) do models[t.key] = t end
@@ -605,7 +594,7 @@ function options.create(root, deps)
     local entries = {}
     local groupLists = {}
     for _, name in ipairs(saved.groupNames()) do
-      groupLists[#groupLists + 1] = { name = name, title = saved.group(name).title, keys = keysOf(name, editStyle) }
+      groupLists[#groupLists + 1] = { name = name, title = saved.group(name).title, keys = saved.keys(name, editStyle) }
     end
     for _, section in ipairs(editor.pickerSections(selected, groupLists, keys, pickerStyle)) do
       if #section.keys > 0 then
@@ -615,6 +604,14 @@ function options.create(root, deps)
     end
     if #entries == 0 then
       entries[1] = { title = query ~= "" and "No ability matches" or "Use an ability to add it here" }
+    end
+    -- Past the last row, a note counts the abilities left out and points to the search box.
+    if #entries > MAX_PICKER_ROWS then
+      local hidden = 0
+      for i = MAX_PICKER_ROWS, #entries do
+        if entries[i].key ~= nil then hidden = hidden + 1 end
+      end
+      entries[MAX_PICKER_ROWS] = { title = hidden .. " more. Search to find them." }
     end
     for i, r in ipairs(pickerRows) do
       local entry = entries[i]

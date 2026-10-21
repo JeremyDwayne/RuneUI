@@ -173,25 +173,17 @@ describe("cooldowns.tracker", function()
     assert.are.equal("MAGIC_CONCENTRATED_BLAST", tiles[2].key)
   end)
 
-  it("defaults a style's 30 second cooldowns to major, the rest to rotation, and every style's defensives to utility",
-    function()
-      local tracker = cooldowns.tracker()
-      fire(tracker, CB, 1000, 9)
-      fire(tracker, "COMBATV2_COOLDOWN_MAGIC_SUNSHINE", 1001, 100)
-      fire(tracker, "COMBATV2_COOLDOWN_DEFENCE_FREEDOM", 1002, 50)
-      fire(tracker, "COMBATV2_COOLDOWN_NECROMANCY_SOUL_SAP", 1003, 9)
-      assert.are.same({ major = { "MAGIC_SUNSHINE" }, rotation = { "MAGIC_CONCENTRATED_BLAST" },
-        utility = { "DEFENCE_FREEDOM" } }, tracker.defaultGroups("magic"))
-      assert.are.same({ major = {}, rotation = { "NECROMANCY_SOUL_SAP" }, utility = { "DEFENCE_FREEDOM" } },
-        tracker.defaultGroups("necromancy"))
-    end)
+  it("counts Dismember's MELEE_ cooldown as melee and defensives as no style", function()
+    assert.are.same({ "melee", "melee" }, { cooldowns.styleOf("MELEE_DISMEMBER"), cooldowns.styleOf("ATTACK_FLURRY") })
+    assert.is_nil(cooldowns.styleOf("DEFENCE_FREEDOM"))
+  end)
 
-  it("defaults a weapon special to major in the style current when it fired", function()
+  it("keeps a seeded name when a later seed gives only an icon", function()
     local tracker = cooldowns.tracker()
-    tracker.onVar("COMBATV2_MAINHAND_STYLE", nil, 1)
-    fire(tracker, "COMBATV2_ABILITY_WEAPON_COOLDOWN_INSTABILITY", 1000, 100)
-    assert.are.same({ "WEAPON_INSTABILITY" }, tracker.defaultGroups("magic").major)
-    assert.are.same({}, tracker.defaultGroups("ranged").major)
+    tracker.seed({ MAGIC_SUNSHINE = { name = "Sunshine", icon = 20183 } })
+    tracker.seed({ MAGIC_SUNSHINE = { icon = 20184 } })
+    local tile = tracker.tiles({ "MAGIC_SUNSHINE" }, {})[1]
+    assert.are.same({ "Sunshine", 20184 }, { tile.name, tile.icon })
   end)
 
   it("takes the style from the main-hand weapon, keeping it through an empty hand", function()

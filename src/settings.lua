@@ -5,6 +5,7 @@
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local cooldowns = require("src/cooldowns")
 local layout = require("src/layout")
+local presets = require("src/presets")
 
 local settings = {}
 
@@ -76,6 +77,8 @@ local CUSTOM_DEFAULT = { size = 36, perRow = 8, grow = "down", shared = true }
 -- Aura rows a buff icon can be sorted into.
 local AURA_CATEGORIES = { combat = true, upkeep = true, hidden = true }
 local POSITION_FIELDS = { "x", "y", "anchorX", "anchorY" }
+-- The list a per-style group shows before any combat style is known.
+local NO_KEYS = {}
 
 -- PersistentDB hands numbers back as floats, so -427 returns as -427.0; whole numbers become integers again.
 local function whole(n)
@@ -200,11 +203,54 @@ local function customDefault(name)
   return default
 end
 
-local function append(list, key)
-  for _, k in ipairs(list) do
-    if k == key then return end
+local function indexOf(list, key)
+  for i, k in ipairs(list) do
+    if k == key then return i end
   end
-  list[#list + 1] = key
+end
+
+local function append(list, key)
+  if indexOf(list, key) == nil then list[#list + 1] = key end
+end
+
+-- Whether any list that shows with style holds key.
+local function held(groups, key, style)
+  for _, group in pairs(groups) do
+    if indexOf(group.shared and group.keys or group.styles[style], key) ~= nil then return true end
+  end
+  return false
+end
+
+-- Fills each style whose per-style lists are all empty with its src/presets lists, and an empty utility list
+-- with the utility preset, once each, skipping keys another list already shows. seeded records which are done,
+-- so a list emptied on purpose stays empty. Returns whether anything was done.
+local function seed(groups, seeded)
+  local changed = false
+  for _, style in ipairs(settings.STYLES) do
+    if not seeded[style] then
+      seeded[style], changed = true, true
+      local empty = true
+      for _, group in pairs(groups) do
+        if #group.styles[style] > 0 then empty = false end
+      end
+      for name, keys in pairs(empty and presets.STYLES[style] or {}) do
+        for _, key in ipairs(keys) do
+          if not held(groups, key, style) then append(groups[name].styles[style], key) end
+        end
+      end
+    end
+  end
+  if not seeded.utility then
+    seeded.utility, changed = true, true
+    for _, key in ipairs(#groups.utility.keys == 0 and presets.UTILITY or {}) do
+      local free = true
+      for _, style in ipairs(settings.STYLES) do
+        if held(groups, key, style) then free = false end
+      end
+      if free then append(groups.utility.keys, key) end
+    end
+  end
+  return changed
 end
 
 -- Splits groups saved as { rotation, cooldowns } across the styles: each style's rotation and major take its
@@ -225,9 +271,9 @@ local function migrateGroups(old, groups)
   end
 end
 
--- { filled, groups = { [name] = group record } } from the saved cooldownGroups, or from groups saved by an
--- older version, which counts as filled, and whether it migrated. Every built-in group is present; a custom
--- one only once added.
+-- { seeded = { [style or "utility"] = true }, groups = { [name] = group record } } from the saved
+-- cooldownGroups, or from groups saved by an older version, then seeded from src/presets, and whether it
+-- changed. Every built-in group is present; a custom one only once added.
 local function readCooldownGroups(saved, old)
   local stored = type(saved) == "table" and type(saved.groups) == "table" and saved.groups or {}
   local groups = {}
@@ -235,11 +281,13 @@ local function readCooldownGroups(saved, old)
   for _, name in ipairs(settings.CUSTOM_GROUPS) do
     if type(stored[name]) == "table" then groups[name] = readGroup(stored[name], customDefault(name)) end
   end
-  if type(saved) ~= "table" and type(old) == "table" then
-    migrateGroups(old, groups)
-    return { filled = true, groups = groups }, true
-  end
-  return { filled = type(saved) == "table" and saved.filled == true, groups = groups }, false
+  local seeded = {}
+  local savedSeeded = type(saved) == "table" and type(saved.seeded) == "table" and saved.seeded or {}
+  for _, name in ipairs({ "utility", table.unpack(settings.STYLES) }) do seeded[name] = savedSeeded[name] == true end
+  local migrated = type(saved) ~= "table" and type(old) == "table"
+  if migrated then migrateGroups(old, groups) end
+  local changed = seed(groups, seeded)
+  return { seeded = seeded, groups = groups }, migrated or changed
 end
 
 local function readMarkers(saved)
@@ -299,12 +347,6 @@ local function readKnown(saved)
   return known
 end
 
-local function indexOf(list, key)
-  for i, k in ipairs(list) do
-    if k == key then return i end
-  end
-end
-
 -- DEFAULT_POSITIONS raised or lowered together so the major group sits MAJOR_HEIGHT of windowHeight above the
 -- bottom. With no windowHeight they are DEFAULT_POSITIONS as written.
 local function defaultPositions(windowHeight)
@@ -332,7 +374,7 @@ function settings.load(store, windowHeight)
   end
   local savedEditMode = store.get("editMode")
   local editMode = { snap = type(savedEditMode) ~= "table" or savedEditMode.snap ~= false }
-  local cooldownGroups, migrated = readCooldownGroups(store.get("cooldownGroups"), store.get("groups"))
+  local cooldownGroups, changed = readCooldownGroups(store.get("cooldownGroups"), store.get("groups"))
   local groups = cooldownGroups.groups
   local markers = readMarkers(store.get("markers"))
   local known = readKnown(store.get("known"))
@@ -341,7 +383,7 @@ function settings.load(store, windowHeight)
   local auras = readAuras(store.get("auras"))
 
   local function saveGroups() store.set("cooldownGroups", cooldownGroups) end
-  if migrated then saveGroups() end
+  if changed then saveGroups() end
 
   -- The list of name's group that shows with style: its shared list, or style's own.
   local function listFor(name, style)
@@ -460,24 +502,13 @@ function settings.load(store, windowHeight)
     saveGroups()
   end
 
-  -- The keys name's group shows with style, or nil while groups fill automatically or name is not in use.
+  -- The keys name's group shows with style, empty for a per-style group while style is nil, or nil when name
+  -- is not in use. Read only.
   function s.keys(name, style)
-    if not cooldownGroups.filled or groups[name] == nil then return nil end
+    local group = groups[name]
+    if group == nil then return nil end
+    if not group.shared and style == nil then return NO_KEYS end
     return listFor(name, style)
-  end
-
-  -- Saves automatically filled groups as the user's own, before their first edit. fill(style) returns
-  -- { [name] = { key } } for style; a shared group gathers every style's list. No-op once filled.
-  function s.adopt(fill)
-    if cooldownGroups.filled then return end
-    for _, style in ipairs(settings.STYLES) do
-      local filled = fill(style)
-      for name, group in pairs(groups) do
-        for _, key in ipairs(filled[name] or {}) do append(group.shared and group.keys or group.styles[style], key) end
-      end
-    end
-    cooldownGroups.filled = true
-    saveGroups()
   end
 
   -- Adds key to the end of name's list for style, taking it out of every other list that shows with style.
