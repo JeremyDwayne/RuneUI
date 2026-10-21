@@ -153,9 +153,9 @@ function adapter.justUsed()
   return abilityInfo(varValue("VarClient", "COMBATV2_JUST_USED_ABILITY"))
 end
 
--- COMBATV2_MAINHAND_STYLE, the worn main-hand weapon's attack type, or nil before login.
-function adapter.mainhandStyle()
-  return varValue("VarPlayer", "COMBATV2_MAINHAND_STYLE")
+-- The value of the VarPlayer var name, such as COMBATV2_MAINHAND_STYLE, or nil before login.
+function adapter.playerVar(name)
+  return varValue("VarPlayer", name)
 end
 
 -- { [iconSpriteID] = { keybind, usable } } for every filled native action bar slot. keybind is nil on a slot

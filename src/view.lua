@@ -211,7 +211,6 @@ local SPENDER_ROW = 8
 -- Spender rows stack upward from just above the bar, one per spender with stacks.
 local BAR_Y = 2 * (SPENDER_ROW + 2)
 local BAR_HEIGHT = 20
-local NOTCH = 7
 local SPENDER_COLOURS = { souls = COLOURS.spender, necrosis = COLOURS.necrosis }
 -- Fill fraction at which the centred percent label sits entirely on the fill.
 local PERCENT_ON_FILL = 0.56
@@ -227,10 +226,26 @@ local function blockSpans(count, width)
   return spans
 end
 
--- 278 wide: up to two rows of spender blocks, the adrenaline bar with its percent, and marker notches
--- below the bar so they never cross the percent.
+-- Bar marks are faint 1px lines across a bar: dark where the fill has passed them, light ahead of it.
+local MARK_DARK_ALPHA, MARK_LIGHT_ALPHA = 0.4, 0.3
+
+-- A bar mark at x, y as tall as height.
+local function barMark(layer, x, y, height)
+  local mark = rect(layer, COLOURS.highlight, x, y, 1, height)
+  set(mark, "alpha", MARK_LIGHT_ALPHA)
+  return mark
+end
+
+-- Shades a bar mark for whether the fill has passed it.
+local function shadeMark(mark, passed)
+  set(mark, "rgb", passed and COLOURS.border or COLOURS.highlight)
+  set(mark, "alpha", passed and MARK_DARK_ALPHA or MARK_LIGHT_ALPHA)
+end
+
+-- 278 wide: up to two rows of spender blocks and the adrenaline bar with its percent and a bar mark at each of
+-- its two markers.
 function view.resourceBar(root)
-  local height = BAR_Y + BAR_HEIGHT + NOTCH
+  local height = BAR_Y + BAR_HEIGHT
   local layer = ui.Layer.new(root)
   layer:SetSize(BAR_WIDTH, height)
 
@@ -245,14 +260,7 @@ function view.resourceBar(root)
   rect(layer, COLOURS.border, 0, BAR_Y, BAR_WIDTH, BAR_HEIGHT)
   rect(layer, COLOURS.track, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
   local fill = draw.bar(layer, COLOURS.adrenaline, COLOURS.track, 1, BAR_Y + 1, BAR_WIDTH - 2, BAR_HEIGHT - 2)
-  -- Light notches with black edges hang from the bar's bottom edge.
-  local markers = {}
-  for i = 1, 2 do
-    markers[i] = {
-      edge = rect(layer, COLOURS.border, 0, BAR_Y + BAR_HEIGHT, 4, NOTCH),
-      line = rect(layer, COLOURS.marker, 0, BAR_Y + BAR_HEIGHT, 2, NOTCH - 1),
-    }
-  end
+  local markers = { barMark(layer, 0, BAR_Y + 1, BAR_HEIGHT - 2), barMark(layer, 0, BAR_Y + 1, BAR_HEIGHT - 2) }
   local percent = text(layer, FONTS.body, ui.AlignMode.CENTRE, 0, BAR_Y + 1, BAR_WIDTH, BAR_HEIGHT - 2)
 
   -- Black-edged blocks, filled up to the spender's count.
@@ -290,9 +298,8 @@ function view.resourceBar(root)
     set(percent, "rgb", onFill and COLOURS.darkText or COLOURS.text)
     set(percent, "isShadowed", not onFill)
     for i, marker in ipairs(model.markers) do
-      local x = math.min(math.floor(marker.at * (BAR_WIDTH - 2)), BAR_WIDTH - 3)
-      pos(markers[i].edge, x - 1, BAR_Y + BAR_HEIGHT)
-      pos(markers[i].line, x, BAR_Y + BAR_HEIGHT)
+      pos(markers[i], math.min(math.floor(marker.at * (BAR_WIDTH - 2)), BAR_WIDTH - 3) + 1, BAR_Y + 1)
+      shadeMark(markers[i], model.fill >= marker.at)
     end
     updateSpenders(model.spenders)
   end
@@ -479,18 +486,28 @@ function view.cooldownGroup(root, tooltip)
 end
 
 local CAST_WIDTH, CAST_HEIGHT, CAST_ICON = 278, 22, 20
+-- Hit marks built for the cast bar, more than any channel deals.
+local MAX_HITS = 12
+local NO_HITS = {}
 
--- 278x22, as wide as the resource bar: the channelled ability's icon, its name, and its time left as "1.2s"
--- over a fill of the time spent. update takes a src/channel model, or nil to hide the bar while keeping its
--- bounds, so anchored elements stay put. A model with a new start begins the countdown at its duration.
--- step(seconds) counts the shown channel down and hides it at 0, and does nothing between channels.
+-- 278x22, as wide as the resource bar: the channelled ability's icon, its name, and its time left as "1.2s" over
+-- a fill of the time spent, with a bar mark at each hit that lands inside the bar rather than at its ends.
+-- update takes a src/channel model, or nil to hide the bar while
+-- keeping its bounds, so anchored elements stay put. A model with a new start begins the countdown at its
+-- duration. step(seconds) counts the shown channel down and hides it at 0, and does nothing between channels.
 function view.castBar(root)
   local layer = ui.Layer.new(root)
   layer:SetSize(CAST_WIDTH, CAST_HEIGHT)
   rect(layer, COLOURS.border, 0, 0, CAST_WIDTH, CAST_HEIGHT)
   rect(layer, COLOURS.track, 1, 1, CAST_WIDTH - 2, CAST_HEIGHT - 2)
   local barX = CAST_ICON + 2
-  local fill = draw.bar(layer, COLOURS.cast, COLOURS.track, barX, 1, CAST_WIDTH - barX - 1, CAST_HEIGHT - 2)
+  local barWidth = CAST_WIDTH - barX - 1
+  local fill = draw.bar(layer, COLOURS.cast, COLOURS.track, barX, 1, barWidth, CAST_HEIGHT - 2)
+  local marks = {}
+  for i = 1, MAX_HITS do
+    marks[i] = barMark(layer, barX, 1, CAST_HEIGHT - 2)
+    set(marks[i], "hidden", true)
+  end
   local iconBack = rect(layer, COLOURS.tile, 1, 1, CAST_ICON, CAST_ICON)
   local icon = ui.Sprite.new(layer)
   icon:SetPos(1, 1)
@@ -500,11 +517,37 @@ function view.castBar(root)
   set(layer, "hidden", true)
   -- The shown channel's model and seconds left, nil once it ends, and the start of the latest channel shown.
   local current, left, shownStart, shownTenths = nil, nil, nil, nil
+  -- Seconds into the channel of each shown mark, the hits they were placed for, and how many the fill has passed.
+  local markAt, placedFor, placed, passedShown = {}, nil, 0, nil
 
-  -- Fills the bar to the share of the channel spent and shows remaining seconds to a tenth, rounded up,
-  -- formatting the label only when its tenth changes.
+  local function placeMarks(model)
+    placedFor, placed, passedShown = model.hits, 0, nil
+    for _, at in ipairs(model.hits or NO_HITS) do
+      if at > 0 and at < model.duration and placed < MAX_HITS then
+        placed = placed + 1
+        markAt[placed] = at
+        pos(marks[placed], barX + math.floor(barWidth * at / model.duration + 0.5), 1)
+      end
+    end
+    for i, mark in ipairs(marks) do set(mark, "hidden", i > placed) end
+  end
+
+  -- Shades the marks for the seconds spent, only when the fill passes one.
+  local function shadeMarks(spent)
+    local passed = 0
+    for i = 1, placed do
+      if markAt[i] <= spent then passed = i end
+    end
+    if passed == passedShown then return end
+    passedShown = passed
+    for i = 1, placed do shadeMark(marks[i], i <= passed) end
+  end
+
+  -- Fills the bar to the share of the channel spent, shades the marks it passed and shows remaining seconds to a
+  -- tenth, rounded up, formatting the label only when its tenth changes.
   local function show(remaining)
     fill.setFill(1 - remaining / current.duration)
+    shadeMarks(current.duration - remaining)
     local tenths = math.ceil(remaining * 10 - 1e-6)
     if tenths == shownTenths then return end
     shownTenths = tenths
@@ -525,6 +568,7 @@ function view.castBar(root)
     set(icon, "hidden", model.icon == nil)
     if model.icon ~= nil then set(icon, "sprite", model.icon) end
     set(name, "content", model.name or "")
+    if model.hits ~= placedFor then placeMarks(model) end
     show(left)
   end
 

@@ -271,7 +271,7 @@ describe("edit mode", function()
       logicTick()
       fake.hook(tint, "ONRELEASE")
       local bottom = saved.positions().player.y + elements.player.height
-      assert.are.equal(held and -337 or -341, bottom)
+      assert.are.equal(held and -344 or -348, bottom)
     end
   end)
 

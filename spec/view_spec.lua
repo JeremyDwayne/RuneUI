@@ -35,7 +35,20 @@ end
 
 -- The src/channel model of Asphyxiate with seconds left.
 local function asphyxiate(start)
-  return { start = start or 227269, name = "Asphyxiate", icon = 14660, duration = 4.2 }
+  return { start = start or 227269, name = "Asphyxiate", icon = 14660, duration = 4.2, hits = { 0, 1.2, 2.4, 3.6 } }
+end
+
+-- Shown 1px bar marks, as tall as the cast bar's fill unless height is given: { dark ones over the fill, light
+-- ones ahead of it }.
+local function marks(height)
+  local dark, light = 0, 0
+  for _, c in ipairs(fake.created) do
+    if fake.shown(c) and c.width == 1 and c.height == (height or 20) then
+      if c.rgb == draw.COLOURS.border then dark = dark + 1 end
+      if c.rgb == draw.COLOURS.highlight then light = light + 1 end
+    end
+  end
+  return { dark, light }
 end
 
 describe("view", function()
@@ -257,6 +270,29 @@ describe("view", function()
     assert.is_true(bar.layer.hidden)
     bar.update(asphyxiate(227280))
     assert.is_false(bar.layer.hidden)
+  end)
+
+  it("marks each hit inside the cast bar but not at its ends, dark once the fill passes it", function()
+    local bar = view.castBar(fake.component())
+    bar.update(asphyxiate())
+    assert.are.same({ 0, 3 }, marks())
+    bar.step(1.3)
+    assert.are.same({ 1, 2 }, marks())
+    fake.writes = 0
+    bar.step(0.02)
+    assert.are.equal(1, fake.writes)
+    bar.update({ start = 1, name = "Greater Concentrated Blast", duration = 1.8, hits = { 0, 0.6, 1.2 } })
+    assert.are.same({ 0, 2 }, marks())
+    bar.update({ start = 2, name = "Asphyxiate", duration = 3.6 })
+    assert.are.same({ 0, 0 }, marks())
+  end)
+
+  it("draws each adrenaline marker as a faint line across the bar, dark once the fill reaches it", function()
+    local bar = view.resourceBar(fake.component())
+    bar.update({ hidden = false, fill = 0.6, text = "60%", markers = { { at = 0.5 }, { at = 1 } }, spenders = {} })
+    assert.are.same({ 1, 1 }, marks(18))
+    bar.update({ hidden = false, fill = 1, text = "100%", markers = { { at = 0.5 }, { at = 1 } }, spenders = {} })
+    assert.are.same({ 2, 0 }, marks(18))
   end)
 
   it("makes no writes stepping between channels", function()

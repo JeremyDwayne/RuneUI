@@ -5,9 +5,10 @@ local function asphyxiate(structID)
   if structID == CHOKE then return { name = "Asphyxiate", icon = 14660 } end
 end
 
--- Starts Asphyxiate's channel on server ticks 227269 to 227275, as the game sets it.
+-- Starts Asphyxiate's channel on server ticks 227269 to 227275, 3 iterations 2 ticks apart, as the game sets it.
 local function startAsphyxiate(tracker)
   tracker.onVar("COMBATV2_CHANNEL_END_REASON", 1, -1)
+  tracker.onVar("COMBATV2_CHANNEL_ABILITY_ITERATIONS", 2, 3)
   tracker.onVar("COMBATV2_CHANNEL_END", 227265, 227275)
   tracker.onVar("COMBATV2_CHANNEL_START", 227263, 227269)
   tracker.onVar("COMBATV2_CHANNEL_ABILITY_STRUCT", 45450, CHOKE)
@@ -20,12 +21,15 @@ describe("channel.tracker", function()
     assert.is_nil(tracker.model())
   end)
 
-  it("names the channel and gives its length as soon as its vars arrive", function()
-    local tracker = channel.tracker()
-    startAsphyxiate(tracker)
-    tracker.read(asphyxiate)
-    assert.are.same({ start = 227269, name = "Asphyxiate", icon = 14660, duration = 4.2 }, tracker.model())
-  end)
+  it("names the channel, lasts as long as the game's cast bar and times a hit on START and each iteration",
+    function()
+      local tracker = channel.tracker()
+      startAsphyxiate(tracker)
+      tracker.read(asphyxiate)
+      local expected = { start = 227269, name = "Asphyxiate", icon = 14660, duration = 4.2 }
+      expected.hits = { 0, 1.2, 2.4, 3.6 }
+      assert.are.same(expected, tracker.model())
+    end)
 
   it("reports a change once after channel vars change, and not after other vars", function()
     local tracker = channel.tracker()
