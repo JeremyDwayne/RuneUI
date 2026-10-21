@@ -418,15 +418,25 @@ function view.cooldownGroup(root, tooltip)
   end
 
   function group.update(models)
+    if not inUse then
+      current = {}
+      for _, parts in ipairs(tiles) do draw.hideAll(parts.all, true) end
+      local moved = bounds.w ~= 0 or bounds.h ~= 0
+      bounds.w, bounds.h = 0, 0
+      if hover.index ~= nil then
+        hover.index = nil
+        tooltip.hide()
+      end
+      return moved
+    end
     current = models
-    local count = inUse and math.min(#models, max) or 0
+    local count = math.min(#models, max)
     while #tiles < count do
       tiles[#tiles + 1] = tile(layer)
       hover.add(tiles[#tiles])
     end
     local g = layout.grid(count, display.size, TILE_GAP, display.perRow, display.grow, max)
     local shown = g.bounds
-    if not inUse then shown = { x = shown.x, y = shown.y, w = 0, h = 0 } end
     local moved = bounds.x ~= shown.x or bounds.y ~= shown.y or bounds.w ~= shown.w or bounds.h ~= shown.h
     bounds.x, bounds.y, bounds.w, bounds.h = shown.x, shown.y, shown.w, shown.h
     for i, parts in ipairs(tiles) do

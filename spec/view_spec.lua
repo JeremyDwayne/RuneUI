@@ -199,6 +199,13 @@ describe("view", function()
     assert.is_true(g.layer.hidden)
   end)
 
+  it("updates a custom group that was never configured while it is not in use", function()
+    local g = view.cooldownGroup(fake.component(), view.tooltip(fake.component()))
+    g.setInUse(false)
+    assert.has_no.errors(function() g.update({}) end)
+    assert.are.same({ 0, 0 }, { g.bounds.w, g.bounds.h })
+  end)
+
   it("shows the channel's name and time, hides between channels, and makes no writes when steady", function()
     local bar = view.castBar(fake.component())
     bar.update(asphyxiate(4.2))
