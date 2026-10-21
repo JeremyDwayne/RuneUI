@@ -67,18 +67,14 @@ describe("settings", function()
     assert.are.same({ "MAGIC_SURGE", "RANGED_ESCAPE" }, s.keys("utility", "magic"))
   end)
 
-  it("loads a name saved under a second charge or recast stage as its ability's, a base entry winning", function()
+  it("loads a name saved under a second charge as its ability's and drops one saved under a recast stage", function()
     local s = settings.load(fakeStore({
       known = {
         MAGIC_SURGE_CHARGE2 = { name = "Surge", icon = 14233 },
-        MELEE_DISMEMBER = { name = "Dismember", icon = 21239 },
-        MELEE_DISMEMBER_RECAST_1 = { name = "Slaughter", icon = 21362 },
+        MELEE_DISMEMBER_RECAST_2 = { name = "Slaughter", icon = 21362 },
       },
     }))
-    assert.are.same({
-      MAGIC_SURGE = { name = "Surge", icon = 14233 },
-      MELEE_DISMEMBER = { name = "Dismember", icon = 21239 },
-    }, s.known())
+    assert.are.same({ MAGIC_SURGE = { name = "Surge", icon = 14233 } }, s.known())
   end)
 
   it("fills every style and Utility from the presets on the first load", function()

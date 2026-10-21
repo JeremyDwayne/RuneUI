@@ -601,15 +601,16 @@ local function readAuras(saved)
   return out
 end
 
--- Saved names and icons by ability key. An entry under a second charge's or recast stage's key loads under its
--- ability's, unless the ability has its own entry.
+-- Saved names and icons by ability key. An entry under a second charge's key loads under its ability's, unless
+-- the ability has its own entry. An entry under a recast stage's key names the stage, not the ability, so it is
+-- dropped.
 local function readKnown(saved)
   local known = {}
   if type(saved) ~= "table" then
     return known
   end
   for key, info in pairs(saved) do
-    if type(key) == "string" and type(info) == "table" then
+    if type(key) == "string" and type(info) == "table" and not key:match("_RECAST_%d+$") then
       local base = cooldowns.baseKey(key)
       if key == base or known[base] == nil then
         local icon = type(info.icon) == "number" and whole(info.icon) or nil
