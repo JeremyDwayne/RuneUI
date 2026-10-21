@@ -284,7 +284,7 @@ end
 
 -- A bar fill over its track, flat or with a settings.TEXTURES gradient. The gradient is drawn once per
 -- texture on a canvas, and a track-coloured cover hides the empty part, so a fill change moves one rect.
--- Returns { setFill(fill from 0 to 1, or nil to hide), setTexture(texture) }.
+-- Returns { setFill(fill from 0 to 1, or nil to hide), setTexture(texture), parts }, parts listing its components.
 function draw.bar(parent, rgb, trackRgb, x, y, width, height)
   local solid = draw.rect(parent, rgb, x, y, width, height)
   local canvas = ui.Canvas.new(parent)
@@ -308,7 +308,7 @@ function draw.bar(parent, rgb, trackRgb, x, y, width, height)
     end
   end
 
-  local bar = {}
+  local bar = { parts = { solid, canvas, cover } }
 
   function bar.setFill(value)
     fill = value

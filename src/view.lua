@@ -497,8 +497,13 @@ local function castSeconds(ticks)
   return string.format("%d.%ds", tenths // 10, tenths % 10)
 end
 
+-- A cancelled channel shows "Cancelled" for CANCEL_HOLD seconds, then the bar fades out over CANCEL_FADE seconds
+-- in CANCEL_STEPS alpha steps, from 0.8 down to 0.
+local CANCEL_HOLD, CANCEL_FADE, CANCEL_STEPS = 0.6, 0.4, 5
+
 -- 278x22, as wide as the resource bar: the channelled ability's icon, its name, and its time left as "1.2s" over
--- a fill of the time spent, with a bar mark at each hit that lands inside the bar rather than at its ends.
+-- a fill of the time spent, with a bar mark at each hit that lands inside the bar rather than at its ends. A
+-- cancelled channel shows "Cancelled" in place of its time and fades out, whatever updates arrive meanwhile.
 -- update takes a src/channel model, or nil to hide the bar while keeping its bounds, so anchored elements stay
 -- put. The time steps with the model's ticks left, as the game's label does, and each new count sets the fill to
 -- that tick. step(seconds) moves the fill on smoothly up to the next tick, hides the bar once its last tick runs
@@ -506,8 +511,8 @@ end
 function view.castBar(root)
   local layer = ui.Layer.new(root)
   layer:SetSize(CAST_WIDTH, CAST_HEIGHT)
-  rect(layer, COLOURS.border, 0, 0, CAST_WIDTH, CAST_HEIGHT)
-  rect(layer, COLOURS.track, 1, 1, CAST_WIDTH - 2, CAST_HEIGHT - 2)
+  local border = rect(layer, COLOURS.border, 0, 0, CAST_WIDTH, CAST_HEIGHT)
+  local track = rect(layer, COLOURS.track, 1, 1, CAST_WIDTH - 2, CAST_HEIGHT - 2)
   local barX = CAST_ICON + 2
   local barWidth = CAST_WIDTH - barX - 1
   local fill = draw.bar(layer, COLOURS.cast, COLOURS.track, barX, 1, barWidth, CAST_HEIGHT - 2)
@@ -522,6 +527,11 @@ function view.castBar(root)
   icon:SetSize(CAST_ICON, CAST_ICON)
   local name = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, barX + 5, 1, 180, CAST_HEIGHT - 2)
   local time = text(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, CAST_WIDTH - 78, 1, 72, CAST_HEIGHT - 2)
+  -- Every component the cancel fade dims. Marks hide on a cancel, so they are left out.
+  local faded = { border, track, iconBack, icon, name, time }
+  for _, part in ipairs(fill.parts) do faded[#faded + 1] = part end
+  -- Seconds left showing a cancel, or nil.
+  local cancelLeft = nil
   set(layer, "hidden", true)
   -- The shown channel's model and seconds left, nil once it ends, the start of the latest channel shown and the
   -- ticks left its label shows.
@@ -559,7 +569,31 @@ function view.castBar(root)
     shadeMarks(current.duration - remaining)
   end
 
+  local function setAlpha(alpha)
+    for _, part in ipairs(faded) do set(part, "alpha", alpha) end
+  end
+
+  -- Hides the bar and ends its channel.
+  local function finish()
+    current, left, cancelLeft = nil, nil, nil
+    set(layer, "hidden", true)
+    setAlpha(1)
+  end
+
   local function update(model)
+    local cancel = model ~= nil and model.cancelled
+    if cancelLeft ~= nil and (model == nil or cancel or model.start == shownStart) then return end
+    if cancel then
+      if current ~= nil and model.start == shownStart then
+        cancelLeft = CANCEL_HOLD + CANCEL_FADE
+        set(time, "content", "Cancelled")
+        draw.hideAll(marks, true)
+      else
+        finish()
+      end
+      return
+    end
+    if cancelLeft ~= nil then finish() end
     if model ~= nil and model.start ~= shownStart then
       shownStart, left, shownTicks = model.start, model.duration, nil
     end
@@ -583,12 +617,20 @@ function view.castBar(root)
 
   local function step(seconds)
     if current == nil then return end
+    if cancelLeft ~= nil then
+      cancelLeft = cancelLeft - seconds
+      if cancelLeft <= 0 then
+        finish()
+      elseif cancelLeft < CANCEL_FADE then
+        setAlpha((math.ceil(cancelLeft / CANCEL_FADE * CANCEL_STEPS) - 1) / CANCEL_STEPS)
+      end
+      return
+    end
     left = math.max(left - seconds, (shownTicks - 1) * 6 / 10)
     if left > 0 then
       show(left)
     else
-      current, left = nil, nil
-      set(layer, "hidden", true)
+      finish()
     end
   end
 

@@ -11,11 +11,13 @@ local RUNNING, FINISHED = -1, 1
 -- { start, name, icon, duration, ticksLeft, hits } while the game's own cast bar shows the channel, else nil:
 -- start is its first server tick, duration (END - START + 1) x 0.6 s, as the game's label first reads,
 -- ticksLeft the ticks its label counts down from that, and hits the seconds after START of each hit, one on START
--- and one every RATE ticks after up to END, or nil when the iterations are unknown.
+-- and one every RATE ticks after up to END, or nil when the iterations are unknown. On the tick a channel is
+-- cancelled, model() returns { start, cancelled = true }.
 function channel.tracker()
   local start, finish, struct, iterations, reason = nil, nil, nil, nil, nil
-  -- Server ticks since START. The channel's vars arrive right after the server tick of START.
-  local elapsed = 0
+  -- Server ticks since START, and the count when the channel was cancelled. The channel's vars arrive right after
+  -- the server tick of START.
+  local elapsed, cancelledAt = 0, nil
   local changed = false
   local info, infoFor = nil, nil
 
@@ -34,6 +36,7 @@ function channel.tracker()
       iterations = new
     elseif name == "COMBATV2_CHANNEL_END_REASON" then
       reason = new
+      cancelledAt = (new ~= RUNNING and new ~= FINISHED) and elapsed or nil
     else
       return
     end
@@ -68,9 +71,11 @@ function channel.tracker()
   -- An END from the previous channel sits before the new START until the new END arrives. The game finishes a
   -- channel on its last hit, at END, and its cast bar shows 0.6s for one more tick.
   function tracker.model()
-    if (reason ~= RUNNING and reason ~= FINISHED) or start == nil or finish == nil or finish <= start then
-      return nil
+    if start == nil then return nil end
+    if cancelledAt ~= nil then
+      return cancelledAt == elapsed and { start = start, cancelled = true } or nil
     end
+    if (reason ~= RUNNING and reason ~= FINISHED) or finish == nil or finish <= start then return nil end
     local total = finish - start + 1
     if elapsed >= total then return nil end
     local found = infoFor == struct and info or nil
