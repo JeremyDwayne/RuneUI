@@ -70,7 +70,7 @@ describe("options", function()
     fake.hook(tile, "ONCLICK", 5, 5)
     fake.mouse.x = 540
     logicTick()
-    assert.are.equal(0.3, tile.alpha)
+    assert.are.equal(0, tile.alpha)
 
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
     assert.are.equal(1, tile.alpha)
@@ -88,10 +88,25 @@ describe("options", function()
     fake.hook(tile, "ONCLICK", 5, 5)
     fake.mouse.x, fake.mouse.y = 540, 310
     logicTick()
-    assert.are.same({ x + 40, y + 10 }, { tile.x, tile.y })
+    local cx, cy = x + 45, y + 15
+    assert.is_true(tile.x <= cx - 60 and tile.x + tile.width >= cx + 60)
+    assert.is_true(tile.y <= cy - 60 and tile.y + tile.height >= cy + 60)
 
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
     assert.are.same({ x, y }, { tile.x, tile.y })
+  end)
+
+  it("swaps a tile with the one it is dropped on", function()
+    local saved = openWindow()
+    local first, second = table.unpack(saved.keys("major", "magic"))
+    local tile = editorTile()
+    fake.mouse.x, fake.mouse.y = 500, 300
+    fake.hook(tile, "ONCLICK", 5, 5)
+    fake.mouse.x, fake.mouse.y = 500 + 38 + 13, 300 + 13
+    logicTick()
+    fake.hook(tile, "ONRELEASE")
+    local keys = saved.keys("major", "magic")
+    assert.are.same({ second, first }, { keys[1], keys[2] })
   end)
 
   it("opens the picker on the current combat style's tab and switches style by tab", function()

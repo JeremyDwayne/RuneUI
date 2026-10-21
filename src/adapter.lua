@@ -100,11 +100,16 @@ function adapter.targetReads()
 end
 
 -- { sprite, label } for each shown icon on bar, a BUFF_BARS entry, stopping after EMPTY_RUN empty slots.
+-- A slot that shows an item, as an overload's does, reads as minus the item id.
 local function barReads(bar)
   local list, empty, filled = {}, 0, bar.first - 1
   for staticID = bar.first, bar.last do
     local icon = ui.Interfaces:GetComponent(bar.id, staticID, 0, 0)
     local sprite = icon and read(icon, "spriteID")
+    if sprite == -1 then
+      local objID = read(icon, "associatedObjectID")
+      if objID ~= nil and objID >= 0 then sprite = -objID end
+    end
     local label = ui.Interfaces:GetComponent(bar.id, staticID, 0, 1)
     local text = label and read(label, "content")
     if type(text) ~= "string" or text == "" then text = nil end
@@ -418,24 +423,24 @@ local function readIconStruct(structID)
   iconParams = iconParams or {
     icon = config.Param.COMBATV2_ABILITY_ICON,
     name = config.Param.COMBATV2_ABILITY_NAME,
-    info = config.Param.COMBATV2_ABILITY_INFO,
   }
   local struct = config.Struct.FromID(structID)
   if struct == nil then return nil end
   local configName = struct.configName
-  if type(configName) ~= "string" or configName:sub(1, 9) ~= "COMBATV2_" then return nil end
+  if type(configName) ~= "string" or not (configName:sub(1, 9) == "COMBATV2_" or configName:sub(1, 6) == "MAGIC_") then
+    return nil
+  end
   if not struct:HasParam(iconParams.icon) or not struct:HasParam(iconParams.name) then return nil end
   return {
     configName = configName,
     icon = struct:GetParamValue(iconParams.icon),
     name = struct:GetParamValue(iconParams.name),
-    info = iconParams.info ~= nil and struct:HasParam(iconParams.info) and struct:GetParamValue(iconParams.info) or nil,
   }
 end
 
--- The COMBATV2_ struct at structID as { configName, icon, name, info }, or nil, for src/icons and the struct
--- id COMBATV2_CHANNEL_ABILITY_STRUCT holds. Reads only these params, since reading some others logs a
--- conversion error to the console.
+-- The combat or spell struct at structID, named COMBATV2_ or MAGIC_ such as MAGIC_VULNERABILITY, as
+-- { configName, icon, name }, or nil, for src/icons and the struct id COMBATV2_CHANNEL_ABILITY_STRUCT holds.
+-- Reads only these params, since reading some others logs a conversion error to the console.
 function adapter.iconStruct(structID)
   local ok, struct = pcall(readIconStruct, structID)
   return ok and struct or nil
@@ -443,6 +448,28 @@ end
 
 local function readSpriteName(sprite)
   return id.Sprite.FromID(sprite)
+end
+
+local function readStructInfo(structID)
+  local param = config.Param.COMBATV2_ABILITY_INFO
+  local struct = config.Struct.FromID(structID)
+  if struct ~= nil and struct:HasParam(param) then return struct:GetParamValue(param) end
+end
+
+-- src/icons descriptions: the COMBATV2_ABILITY_INFO text of the struct at structID, or nil.
+function adapter.structInfo(structID)
+  local ok, info = pcall(readStructInfo, structID)
+  return ok and type(info) == "string" and info or nil
+end
+
+local function readItemName(objID)
+  return config.Obj.FromID(objID).name
+end
+
+-- src/icons item names: the name of an item id, or nil.
+function adapter.itemName(objID)
+  local ok, name = pcall(readItemName, objID)
+  return ok and type(name) == "string" and name or nil
 end
 
 -- src/icons sprite names: the config name of a sprite id, or nil.

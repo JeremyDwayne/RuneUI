@@ -25,8 +25,8 @@ When goals conflict, settle them in this order:
 ## Architecture
 
 - `src/adapter.lua` is the only module that calls the client. Every read goes through `pcall` and comes back as a plain table, and a read can always be nil: interfaces unload, and vars are nil before login.
-- `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua`, `src/icons.lua` and `src/presets.lua` are pure. Keep client globals out of them.
-- `src/view.lua`, `src/options.lua` and `src/editmode.lua` draw through `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values.
+- `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua`, `src/icons.lua` and `src/presets.lua` are pure. Keep client globals out of them.
+- `src/view.lua`, `src/options.lua`, `src/buffspage.lua`, `src/dragdrop.lua` and `src/editmode.lua` draw through `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values.
 - `main.lua` wires events: `VarTransmit` feeds the cooldown and channel trackers, `ServerLogic` reads the adapter and redraws, `Logic` redraws the cast bar and cooldown groups after their vars change and counts them down, and `PluginShutdown` destroys every component.
 
 ## Hot path
@@ -46,7 +46,7 @@ The client API is thinly documented, and these facts came from probing it in the
 
 - `MoveToFront` on a hidden component, or on a layer holding one, stops it drawing for good, even after it is shown. Raise only while visible, as the tooltip does on its first show.
 - Stacking follows creation order. Build what must sit on top last.
-- `ONRELEASE` fires as soon as the cursor leaves the pressed component, with the button still held. A drag keeps the pressed component under the cursor until release.
+- `ONRELEASE` fires as soon as the cursor leaves the pressed component, with the button still held. A drag keeps the pressed component under the cursor until release. A 30px hit area that follows the cursor loses fast moves; `src/dragdrop.lua` grows it into a transparent 160px square centred on the cursor, which holds the press even under components created after it.
 - A component hidden during its own press gets no `ONRELEASE`.
 - Hooks cannot tell mouse buttons apart, so a right click fires `ONCLICK` too. A destructive action needs a second step.
 - `Mouse.GetX` and `GetY` report physical pixels, twice the UI units on a Retina display. Convert with the ratio taken in a press hook, as `pressAt` in `src/draw.lua` does.
@@ -62,6 +62,7 @@ The client API is thinly documented, and these facts came from probing it in the
 - A server tick's var changes arrive right after its `Event.ServerLogic`, before the next Draw frame.
 - On the cast bar 764, the client fades the spark's glow `:19` in from opaque around each tick, so alpha 0 does not hold there. Hiding it holds.
 - On the buff bars 284 and 291, the client sets each filled slot's icon `:0:0` and `:0:2` opaque several times a tick, so alpha 0 does not hold there. Hiding those two keeps the label counting and the slot filling, and the client shows them again only when it fills the slot. A hidden icon reads `visibleGlobal` false, so read a slot's visibility from its label `:0:1`.
+- A buff bar slot can show an item instead of a sprite: an overload's icon reads `spriteID` -1 with `associatedObjectID` set to the item. `src/adapter.lua` reads such a slot as minus the item id, and `draw.icon` shows it with `SetAssociatedObject`.
 - Moving a native interface off screen freezes it: its labels stop counting and new icons wait until it returns.
 - The global `os` is nil, so there is no `os.clock` for timing. The two root layers report the whole window in UI units, such as 1710 by 1041 on a Retina Mac.
 

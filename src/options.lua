@@ -1,7 +1,9 @@
 -- The options window and its ribbon button: a sidebar of pages, a cooldown manager with combat style tabs, a
 -- group list with New group, and the chosen group's display settings and abilities with a "+" picker, drag to
--- swap or insert and a Remove menu; marker steppers, appearance choices, the reset dialog, and a footer toggle
--- into src/editmode.
+-- swap or insert and a Remove menu; the src/buffspage Buffs page, marker steppers, appearance choices, the reset
+-- dialog, and a footer toggle into src/editmode.
+local buffspage = require("src/buffspage")
+local dragdrop = require("src/dragdrop")
 local draw = require("src/draw")
 local editmode = require("src/editmode")
 local editor = require("src/editor")
@@ -12,7 +14,6 @@ local options = {}
 
 local set, rect, text, outline, placeOutline = draw.set, draw.rect, draw.text, draw.outline, draw.placeOutline
 local hideAll, hitArea, on, button = draw.hideAll, draw.hitArea, draw.on, draw.button
-local pressAt, cursor = draw.pressAt, draw.cursor
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
 local WIDTH, HEIGHT = 900, 620
@@ -20,8 +21,6 @@ local SIDEBAR, HEADER, FOOTER = 200, 64, 56
 local PAGE_X, PAGE_Y = SIDEBAR + 1, HEADER + 1
 local PAGE_W = WIDTH - PAGE_X - 1
 local PAGE_H = HEIGHT - PAGE_Y - FOOTER - 1
--- Pixels the cursor must travel after a press before it counts as a drag.
-local DRAG_START = 3
 local GAP = 2
 -- Cooldown manager layout: style tabs across the top, the group list on the left, and the chosen group's
 -- setting rows then its ability tiles, in rows of GRID_PER_ROW, on the right.
@@ -54,8 +53,9 @@ local function indexOf(list, value)
 end
 
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
--- view = src/view, refresh = function redrawing the HUD }. Returns { placeAll, shutdown }; placeAll places
--- the HUD and edit mode's overlays from the saved positions and anchors.
+-- view = src/view, auraInfo(sprite) naming an aura icon, refresh = function redrawing the HUD }. Returns
+-- { placeAll, redrawBuffs, shutdown }; placeAll places the HUD and edit mode's overlays from the saved
+-- positions and anchors, and redrawBuffs redraws the Buffs page while it is shown.
 function options.create(root, deps)
   local saved, tracker, elements = deps.saved, deps.tracker, deps.elements
 
@@ -74,7 +74,7 @@ function options.create(root, deps)
   set(brand, "content", "RuneUI")
   local title = text(window, FONTS.seconds, ui.AlignMode.TOPLEFT, PAGE_X + 24, 1, PAGE_W - 48, HEADER)
 
-  local closePopups, rebuildEditor, drop, fillPicker, openPicker
+  local closePopups, rebuildEditor, fillPicker, openPicker, buffsPage, editorDrag
 
   local function changed()
     rebuildEditor()
@@ -86,12 +86,17 @@ function options.create(root, deps)
   local pages, navRows = {}, {}
   local PAGE_LIST = {
     { id = "cooldowns", label = "Cooldown manager" },
+    { id = "buffs", label = "Buffs" },
     { id = "resource", label = "Resource bar" },
     { id = "appearance", label = "Appearance" },
   }
 
+  local currentPage = nil
+
   local function showPage(pageID)
     closePopups()
+    currentPage = pageID
+    if pageID == "buffs" then buffsPage.redraw() end
     for _, entry in ipairs(PAGE_LIST) do
       local active = entry.id == pageID
       set(pages[entry.id], "hidden", not active)
@@ -270,37 +275,22 @@ function options.create(root, deps)
   settingLabel(5, "Abilities")
   settingChoice(5, "shared", { { value = false, label = "Per style" }, { value = true, label = "Every style" } }, 110)
 
-  -- The window's top-left in game-window pixels, measured from the last press, for following the cursor.
-  local origin = { x = 0, y = 0 }
-  local drag = nil
-
   -- Page position of grid slot i.
   local function slotPos(i)
     return DETAIL_X + (i - 1) % GRID_PER_ROW * STEP, GRID_Y + (i - 1) // GRID_PER_ROW * STEP
   end
 
-  -- An editor tile as a draw.group. Its edge is the hit area.
+  -- An editor tile as a draw.group. Its edge is the hit area, which src/dragdrop drags.
   local function tile()
     local group = draw.group()
     local t = {
-      group = group,
+      group = group, size = TILE,
       edge = group.add(hitArea(rect(page, COLOURS.border, 0, 0, TILE, TILE)), 0, 0),
       bg = group.add(rect(page, COLOURS.editorTile, 0, 0, TILE - 2, TILE - 2), 1, 1),
       icon = group.add(ui.Sprite.new(page), 1, 1),
       initials = group.add(text(page, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, TILE - 6, 12), 4, TILE - 15),
     }
     t.icon:SetSize(TILE - 2, TILE - 2)
-    on(t.edge, "ONCLICK", function(_, x, py)
-      if t.key == nil then return end
-      closePopups()
-      pressAt(t.edge, x)
-      local mx, my = cursor()
-      if mx == nil then return end
-      origin.x = mx - (PAGE_X + group.x + x)
-      origin.y = my - (PAGE_Y + group.y + py)
-      drag = { tile = t, startX = mx, startY = my, pressX = x, pressY = py, moved = false }
-    end)
-    on(t.edge, "ONRELEASE", function() if drag ~= nil and drag.tile == t then drop() end end)
     return t
   end
 
@@ -393,7 +383,8 @@ function options.create(root, deps)
       if model == nil then
         t.group.set("hidden", true)
       else
-        t.group.place(slotPos(i))
+        t.x, t.y = slotPos(i)
+        t.group.place(t.x, t.y)
         hideAll({ t.edge, t.bg }, false)
         draw.iconOrInitials(t.icon, t.initials, model)
       end
@@ -404,34 +395,30 @@ function options.create(root, deps)
     draw.pos(hint, DETAIL_X, GRID_Y + rows * STEP + 8)
   end
 
-  -- Drag feedback: a half-size ghost, a faded source tile, and either a swap outline or an insertion line.
-  local ghost = ui.Sprite.new(page)
-  local ghostInitials = text(page, FONTS.small, ui.AlignMode.CENTRE, 0, 0, 24, 24)
+  -- Drop feedback: a swap outline or an insertion line.
   local swapBox = outline(page, COLOURS.accent, 2)
   local insertLine = rect(page, COLOURS.accent, 0, 0, 2, 0)
-  set(ghost, "alpha", 0.7)
 
   local function hideDragFeedback()
-    hideAll({ ghost, ghostInitials, insertLine }, true)
+    set(insertLine, "hidden", true)
     hideAll(swapBox, true)
   end
   hideDragFeedback()
 
-  -- The drop target under the window position (wx, wy), or nil off the tile grid.
-  local function targetAt(wx, wy)
-    local gx, gy = wx - PAGE_X - DETAIL_X, wy - PAGE_Y - GRID_Y
+  -- The drop target under page position (px, py), or nil off the tile grid.
+  local function targetAt(px, py)
+    local gx, gy = px - DETAIL_X, py - GRID_Y
     local rows = math.max(1, (count + GRID_PER_ROW - 1) // GRID_PER_ROW)
     if gx < -10 or gx > DETAIL_W or gy < -10 or gy > rows * STEP + 10 then return nil end
     return editor.gridDropTarget({ count = count, step = STEP, size = TILE, perRow = GRID_PER_ROW }, gx, gy)
   end
 
-  local function showDragFeedback(wx, wy)
-    local half = TILE // 2
-    draw.size(ghost, half, half)
-    draw.pos(ghost, wx - PAGE_X + 8, wy - PAGE_Y + 8)
-    draw.pos(ghostInitials, wx - PAGE_X + 8, wy - PAGE_Y + 8)
-    local target = targetAt(wx, wy)
-    drag.target = target
+  -- The target under the cursor during a drag.
+  local dropTarget = nil
+
+  local function showDragFeedback(px, py)
+    local target = targetAt(px, py)
+    dropTarget = target
     local swap = target ~= nil and target.kind == "swap"
     hideAll(swapBox, not swap)
     set(insertLine, "hidden", target == nil or swap)
@@ -443,12 +430,6 @@ function options.create(root, deps)
       draw.pos(insertLine, x - GAP, y - 4)
       draw.size(insertLine, 2, TILE + 8)
     end
-  end
-
-  local function startDrag(t)
-    drag.moved = true
-    t.group.set("alpha", 0.3)
-    draw.iconOrInitials(ghost, ghostInitials, knownTiles({ t.key })[1])
   end
 
   -- Tile menu: one Remove row under the clicked tile.
@@ -470,33 +451,34 @@ function options.create(root, deps)
     set(menu, "hidden", false)
   end
 
-  -- Ends a drag without dropping: the feedback hides and the source tile returns to its slot at full alpha.
-  local function cancelDrag()
-    if drag == nil then return end
-    local group = drag.tile.group
-    group.set("alpha", 1)
-    group.place(group.x, group.y)
-    drag = nil
-    hideDragFeedback()
-  end
-
-  function drop()
-    local d = drag
-    cancelDrag()
-    if not d.moved then
-      openMenu(d.tile)
-      return
-    end
-    if d.target == nil then return end
-    local action = editor.dropAction(saved.keys(selected, editStyle), d.tile.key, d.target)
-    if action == nil then return end
-    if action.op == "swap" then
-      saved.swap(d.tile.key, action.other, selected, editStyle)
-    else
-      saved.move(d.tile.key, selected, editStyle, action.index)
-    end
-    changed()
-  end
+  editorDrag = dragdrop.create(page, TILE // 2, {
+    press = function(t)
+      if t.key == nil then return false end
+      closePopups()
+      return true
+    end,
+    ghost = function(t) return knownTiles({ t.key })[1] end,
+    start = function(t) t.group.set("alpha", 0.3) end,
+    move = function(_, px, py) showDragFeedback(px, py) end,
+    drop = function(t)
+      if dropTarget == nil then return end
+      local action = editor.dropAction(saved.keys(selected, editStyle), t.key, dropTarget)
+      if action == nil then return end
+      if action.op == "swap" then
+        saved.swap(t.key, action.other, selected, editStyle)
+      else
+        saved.move(t.key, selected, editStyle, action.index)
+      end
+      changed()
+    end,
+    click = openMenu,
+    finish = function(t)
+      t.group.set("alpha", 1)
+      dropTarget = nil
+      hideDragFeedback()
+    end,
+  })
+  for _, t in ipairs(editorTiles) do editorDrag.attach(t) end
 
   -- Picker: known abilities under the "+" tile, in sections, one combat style tab at a time, narrowed by a
   -- search box. It opens on the style being edited and stays open for several adds. A search covers every
@@ -648,10 +630,21 @@ function options.create(root, deps)
   end
 
   function closePopups()
+    buffsPage.close()
     set(menu, "hidden", true)
     set(picker, "hidden", true)
     pickerOpen, menuKey = false, nil
   end
+
+  -- Buffs page ----------------------------------------------------------------------------------------
+
+  buffsPage = buffspage.create(pages.buffs, PAGE_W, PAGE_H, {
+    saved = saved,
+    info = deps.auraInfo,
+    tooltip = deps.view.tooltip(root),
+    toScreen = function(px, py) return window.x + PAGE_X + px, window.y + PAGE_Y + py end,
+    refresh = deps.refresh,
+  })
 
   -- Resource bar page ---------------------------------------------------------------------------------
 
@@ -676,9 +669,10 @@ function options.create(root, deps)
 
   -- Appearance page ----------------------------------------------------------------------------------
 
-  local appearancePage = pages.appearance
   local CHOICE_W = 150
   local choiceRows = {}
+  -- Choice rows built so far on each parent, which sets the next row's position.
+  local rowCounts = {}
 
   -- The chosen option takes the accent fill and dark text; the others are plain buttons.
   local function showChoices()
@@ -692,19 +686,21 @@ function options.create(root, deps)
     end
   end
 
-  -- A labelled row of right-aligned option buttons. choices: { { value, label } }; current() returns the
-  -- chosen value and choose(value) saves one.
-  local function choiceRow(label, choices, current, choose)
-    local ry = 18 + #choiceRows * 50
-    rect(appearancePage, #choiceRows % 2 == 0 and COLOURS.sidebar or COLOURS.panel, 24, ry, PAGE_W - 48, 50)
-    local rowLabel = text(appearancePage, FONTS.body, ui.AlignMode.TOPLEFT, 40, ry, 200, 50)
+  -- A labelled row of right-aligned option buttons on parent, below its earlier rows. choices:
+  -- { { value, label } }; current() returns the chosen value and choose(value) saves one.
+  local function choiceRow(parent, label, choices, current, choose)
+    local n = rowCounts[parent] or 0
+    rowCounts[parent] = n + 1
+    local ry = 18 + n * 50
+    rect(parent, n % 2 == 0 and COLOURS.sidebar or COLOURS.panel, 24, ry, PAGE_W - 48, 50)
+    local rowLabel = text(parent, FONTS.body, ui.AlignMode.TOPLEFT, 40, ry, 200, 50)
     set(rowLabel, "content", label)
     local row = { choices = {}, current = current }
     choiceRows[#choiceRows + 1] = row
     for i, option in ipairs(choices) do
       local x = PAGE_W - 40 - (#choices - i + 1) * (CHOICE_W + 4) + 4
-      local bg = hitArea(rect(appearancePage, COLOURS.button, x, ry + 11, CHOICE_W, 28))
-      local optionLabel = text(appearancePage, FONTS.body, ui.AlignMode.CENTRE, x, ry + 11, CHOICE_W, 28)
+      local bg = hitArea(rect(parent, COLOURS.button, x, ry + 11, CHOICE_W, 28))
+      local optionLabel = text(parent, FONTS.body, ui.AlignMode.CENTRE, x, ry + 11, CHOICE_W, 28)
       set(optionLabel, "content", option.label)
       row.choices[option.value] = { bg = bg, label = optionLabel }
       on(bg, "ONMOUSEOVER", function()
@@ -722,15 +718,13 @@ function options.create(root, deps)
   local TEXTURE_LABELS = { flat = "Flat", vertical = "Vertical gradient", horizontal = "Horizontal gradient" }
   local textures = {}
   for i, texture in ipairs(settings.TEXTURES) do textures[i] = { value = texture, label = TEXTURE_LABELS[texture] } end
-  choiceRow("Bar texture", textures, saved.texture, saved.setTexture)
-  choiceRow("Default target panel", { { value = false, label = "Show" }, { value = true, label = "Hide" } },
-    saved.hideTargetPanel, saved.setHideTargetPanel)
-  choiceRow("Game buff bars", { { value = false, label = "Show" }, { value = true, label = "Hide" } },
-    saved.hideBuffBars, saved.setHideBuffBars)
-  choiceRow("Game cast bar", { { value = false, label = "Show" }, { value = true, label = "Hide" } },
-    saved.hideCastBar, saved.setHideCastBar)
-  choiceRow("Aura icons", { { value = false, label = "Plain" }, { value = true, label = "With bars" } },
-    saved.auraBars, saved.setAuraBars)
+  local showHide = { { value = false, label = "Show" }, { value = true, label = "Hide" } }
+  choiceRow(pages.appearance, "Bar texture", textures, saved.texture, saved.setTexture)
+  choiceRow(pages.appearance, "Default target panel", showHide, saved.hideTargetPanel, saved.setHideTargetPanel)
+  choiceRow(pages.appearance, "Game cast bar", showHide, saved.hideCastBar, saved.setHideCastBar)
+  choiceRow(buffsPage.display, "Game buff bars", showHide, saved.hideBuffBars, saved.setHideBuffBars)
+  local auraIcons = { { value = false, label = "Plain" }, { value = true, label = "With bars" } }
+  choiceRow(buffsPage.display, "Aura icons", auraIcons, saved.auraBars, saved.setAuraBars)
 
   -- Edit mode ----------------------------------------------------------------------------------------
 
@@ -783,7 +777,7 @@ function options.create(root, deps)
 
   local function closeWindow()
     closeDialog()
-    cancelDrag()
+    editorDrag.cancel()
     closePopups()
     confirmDelete = false
     windowOpen = false
@@ -825,24 +819,12 @@ function options.create(root, deps)
 
   -- Ticks ---------------------------------------------------------------------------------------------
 
-  -- Moves the drag ghost with the cursor. It runs every frame through Event.Draw so a drag keeps up with the
-  -- mouse, and on Event.Logic as well in case Draw does not fire. It returns before reading the mouse unless a
-  -- drag is under way, and before drawing unless the cursor moved.
-  local lastX, lastY = nil, nil
+  -- Moves a drag with the cursor. It runs every frame through Event.Draw so a drag keeps up with the mouse,
+  -- and on Event.Logic as well in case Draw does not fire. Each returns before reading the mouse unless a
+  -- press is held.
   local function followCursor()
-    if drag == nil then return end
-    local mx, my = cursor()
-    if mx == nil or (mx == lastX and my == lastY) then return end
-    lastX, lastY = mx, my
-    if not drag.moved and math.abs(mx - drag.startX) + math.abs(my - drag.startY) > DRAG_START then
-      startDrag(drag.tile)
-    end
-    if drag.moved then
-      local wx, wy = mx - origin.x, my - origin.y
-      -- The client releases a press once the cursor leaves the pressed component, so the hit area follows.
-      draw.pos(drag.tile.edge, wx - PAGE_X - drag.pressX, wy - PAGE_Y - drag.pressY)
-      showDragFeedback(wx, wy)
-    end
+    buffsPage.follow()
+    editorDrag.follow()
   end
   Event.Draw.Subscribe("runeuiOptions", followCursor)
   Event.Logic.Subscribe("runeuiOptions", followCursor)
@@ -867,7 +849,11 @@ function options.create(root, deps)
 
   return {
     placeAll = editMode.placeAll,
+    redrawBuffs = function()
+      if windowOpen and currentPage == "buffs" then buffsPage.redraw() end
+    end,
     shutdown = function()
+      buffsPage.destroy()
       window:Destroy()
       editMode.shutdown()
       dialog:Destroy()
