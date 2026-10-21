@@ -240,6 +240,14 @@ local function held(groups, key, style)
   return false
 end
 
+-- Whether any list held with any style holds key.
+local function heldAnywhere(groups, key)
+  for _, style in ipairs(settings.STYLES) do
+    if held(groups, key, style) then return true end
+  end
+  return false
+end
+
 -- Fills each style whose per-style lists are all empty with its src/presets lists, an empty utility list with
 -- the utility preset, and an unused first custom group with the Defensives preset, once each, skipping keys
 -- another list already shows. seeded records which are done, so a list emptied or a group deleted on purpose
@@ -263,11 +271,7 @@ local function seed(groups, seeded)
   if not seeded.utility then
     seeded.utility, changed = true, true
     for _, key in ipairs(#groups.utility.keys == 0 and presets.UTILITY or {}) do
-      local free = true
-      for _, style in ipairs(settings.STYLES) do
-        if held(groups, key, style) then free = false end
-      end
-      if free then append(groups.utility.keys, key) end
+      if not heldAnywhere(groups, key) then append(groups.utility.keys, key) end
     end
   end
   if not seeded.defensives then
@@ -275,7 +279,7 @@ local function seed(groups, seeded)
     if groups[DEFENSIVES.name] == nil then
       local group = readGroup(nil, DEFENSIVES)
       for _, key in ipairs(presets.DEFENSIVES) do
-        if not held(groups, key, settings.STYLES[1]) then append(group.keys, key) end
+        if not heldAnywhere(groups, key) then append(group.keys, key) end
       end
       groups[DEFENSIVES.name] = group
     end

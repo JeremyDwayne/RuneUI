@@ -16,6 +16,13 @@ end
 local CURRENT = { layout = settings.LAYOUT_VERSION }
 
 -- Saved groups that every style and Utility have been seeded into from src/presets.
+-- The position of key in list, or nil.
+local function indexOfKey(list, key)
+  for i, k in ipairs(list) do
+    if k == key then return i end
+  end
+end
+
 local SEEDED = { utility = true, defensives = true, necromancy = true, magic = true, ranged = true, melee = true }
 
 -- A store whose seeded groups hold groups, { [name] = saved group }.
@@ -224,6 +231,15 @@ describe("settings", function()
     local major = settings.load(store).group("major")
     assert.are.same({ 56, 1, "left" }, { major.size, major.perRow, major.grow })
     assert.are.equal("integer", math.type(major.size))
+  end)
+
+  it("leaves out of Defensives a defensive another style's list already holds", function()
+    local seeded = { utility = true, necromancy = true, magic = true, ranged = true, melee = true }
+    local s = settings.load(fakeStore({ version = CURRENT, cooldownGroups = { seeded = seeded, groups = {
+      rotation = { styles = { magic = { "DEFENCE_FREEDOM" } } },
+    } } }))
+    assert.is_nil(indexOfKey(s.group("custom1").keys, "DEFENCE_FREEDOM"))
+    assert.are.equal(#presets.DEFENSIVES - 1, #s.group("custom1").keys)
   end)
 
   it("starts with Defensives as the first custom group, adds up to three more, and deletes only custom ones", function()
