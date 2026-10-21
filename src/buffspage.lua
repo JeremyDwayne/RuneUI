@@ -1,9 +1,11 @@
 -- The options window's Buffs page: tabs for buffs, target debuffs, your debuffs and display options. Each
--- tab holds wrapping groups of icons. Dragging an icon to another group moves it there; clicking one opens a
--- menu of the same moves, plus Keep up for upkeep buffs. Hovering shows the icon's name.
+-- tab holds wrapping groups of icons in their sorted order. Dragging an icon swaps it with the icon it lands
+-- on or inserts it between two, within its group or into another, as the cooldown editor does; clicking one
+-- opens a menu of the group moves, plus Keep up for upkeep buffs. Hovering shows the icon's name.
 local auralists = require("src/auralists")
 local dragdrop = require("src/dragdrop")
 local draw = require("src/draw")
+local editor = require("src/editor")
 
 local buffspage = {}
 
@@ -113,21 +115,49 @@ function buffspage.create(page, width, height, deps)
     marks[i] = m
   end
 
-  local targetBox = draw.outline(page, COLOURS.accent, 2)
-  draw.hideAll(targetBox, true)
+  -- Drop feedback: a swap outline or an insertion line.
+  local swapBox = draw.outline(page, COLOURS.accent, 2)
+  local insertLine = rect(page, COLOURS.accent, 0, 0, 2, SIZE + 8)
+
+  local function hideDropFeedback()
+    draw.hideAll(swapBox, true)
+    set(insertLine, "hidden", true)
+  end
+  hideDropFeedback()
+
+  -- Each kind's full display order, from the last redraw.
+  local orders = {}
 
   local function sprites(groups, def)
     if def.kind == "buff" then return groups[def.value] end
     return def.value and groups[def.kind].tracked or groups[def.kind].untracked
   end
 
-  -- Moves sprite into the group def describes.
-  local function apply(def, sprite)
+  -- The saved order kind of a group def: "buffs", "target" or "player".
+  local function kindOf(def)
+    return def.kind == "buff" and "buffs" or def.kind
+  end
+
+  -- Puts sprite in the group def describes.
+  local function assign(def, sprite)
     if def.kind == "buff" then
       saved.setAuraCategory(sprite, def.value)
     else
       saved.setTracked(def.kind, sprite, def.value)
     end
+  end
+
+  -- Drops t's icon on target, a src/editor drop target, in slot's group: it joins that group at the target,
+  -- or trades places and groups with the icon it lands on.
+  local function place(t, slot, target)
+    local kind = kindOf(t.def)
+    local moved = auralists.drop(orders[kind], slot.list, t.sprite, target)
+    if moved == nil then return end
+    if slot.def ~= t.def then
+      if moved.other ~= nil then assign(t.def, moved.other) end
+      assign(slot.def, t.sprite)
+    end
+    saved.setOrder(kind, moved.order)
     redraw()
     deps.refresh()
   end
@@ -137,6 +167,7 @@ function buffspage.create(page, width, height, deps)
     if drag ~= nil and drag.dragging() then return end
     local choices = { target = saved.tracked("target"), player = saved.tracked("player") }
     local groups = auralists.groups(saved.auras(), choices, saved.orders())
+    orders = groups.order
     local current = nil
     for _, def in ipairs(TABS) do
       local active = def.id == tab
@@ -163,7 +194,7 @@ function buffspage.create(page, width, height, deps)
         draw.pos(slot.note, MARGIN + 140, y + 2)
         draw.pos(slot.box, MARGIN, boxY)
         draw.size(slot.box, width - 2 * MARGIN, boxH)
-        slot.top, slot.bottom = boxY, boxY + boxH
+        slot.top, slot.bottom, slot.list, slot.lines = boxY, boxY + boxH, list, lines
         local shown = 0
         for k, sprite in ipairs(list) do
           if used >= TILES then break end
@@ -243,7 +274,8 @@ function buffspage.create(page, width, height, deps)
         entries[#entries + 1] = {
           label = def.kind == "buff" and def.label or (def.value and "Track" or "Stop tracking"),
           current = current,
-          action = not current and function(tile) apply(def, tile.sprite) end or nil,
+          action = not current and function(tile) place(tile, slot, { kind = "insert", index = #slot.list + 1 }) end
+            or nil,
         }
       end
     end
@@ -288,16 +320,22 @@ function buffspage.create(page, width, height, deps)
 
   -- Drag ------------------------------------------------------------------------------------------------
 
-  -- The group slot under page y other than def's, or nil.
-  local function slotAt(def, py)
+  -- The group slot under page position (px, py) with the src/editor drop target there, its index counted
+  -- through the whole group, and the wrapped line holding it; or nil.
+  local function targetAt(px, py)
     for _, slot in ipairs(slots) do
-      if slot.def ~= nil and slot.def ~= def and py >= slot.top - PAD and py <= slot.bottom + PAD then
-        return slot
+      if slot.def ~= nil and py >= slot.top - PAD and py <= slot.bottom + PAD then
+        local line = math.max(0, math.min(slot.lines - 1, (py - slot.top - PAD) // STEP))
+        local first = line * cols
+        local count = math.max(0, math.min(cols, #slot.list - first))
+        local target = editor.dropTarget({ count = count, step = STEP, size = SIZE, offset = 0 }, px - MARGIN - PAD)
+        target.index = target.index + first
+        return slot, target, line
       end
     end
   end
 
-  local target = nil
+  local dropSlot, dropTarget = nil, nil
   drag = dragdrop.create(page, SIZE // 2, {
     press = function(t)
       if t.sprite == nil then return false end
@@ -307,21 +345,29 @@ function buffspage.create(page, width, height, deps)
     end,
     ghost = function(t) return { icon = t.sprite, initials = "" } end,
     start = function(t) set(t.icon, "alpha", 0.3) end,
-    move = function(t, _, py)
-      target = slotAt(t.def, py)
-      draw.hideAll(targetBox, target == nil)
-      if target ~= nil then
-        draw.placeOutline(targetBox, MARGIN, target.top, width - 2 * MARGIN, target.bottom - target.top)
+    move = function(_, px, py)
+      local slot, target, line = targetAt(px, py)
+      dropSlot, dropTarget = slot, target
+      local swap = target ~= nil and target.kind == "swap"
+      draw.hideAll(swapBox, not swap)
+      set(insertLine, "hidden", target == nil or swap)
+      if target == nil then return end
+      local column = target.index - 1 - line * cols
+      local x, y = MARGIN + PAD + column * STEP, slot.top + PAD + line * STEP
+      if swap then
+        draw.placeOutline(swapBox, x, y, SIZE, SIZE)
+      else
+        draw.pos(insertLine, x - GAP, y - 4)
       end
     end,
     drop = function(t)
-      if target ~= nil and t.sprite ~= nil then apply(target.def, t.sprite) end
+      if dropTarget ~= nil and t.sprite ~= nil then place(t, dropSlot, dropTarget) end
     end,
     click = openMenu,
     finish = function(t)
       set(t.icon, "alpha", t.def.dim and DIM or 1)
-      draw.hideAll(targetBox, true)
-      target = nil
+      hideDropFeedback()
+      dropSlot, dropTarget = nil, nil
     end,
   })
   for _, t in ipairs(tiles) do drag.attach(t) end
@@ -339,7 +385,7 @@ function buffspage.create(page, width, height, deps)
     deps.tooltip.show({
       title = found and found.name or "Unknown",
       left = found == nil and "Looking up name" or nil,
-      line = "Drag to another group, or click for options",
+      line = "Drag to sort or move it, or click for options",
     }, x, y, SIZE)
   end)
 

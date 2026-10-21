@@ -36,6 +36,16 @@ local function tileEdge(sprite)
   return fake.find(function(c, d) return fake.hasHook(c, "ONRELEASE") and d.x == icon.x - 1 and d.y == icon.y - 1 end)
 end
 
+-- Drags the icon of sprite from its middle to page position (x, y) and lets go.
+local function dragTo(page, sprite, x, y)
+  local edge = tileEdge(sprite)
+  fake.mouse.x, fake.mouse.y = edge.x + 15, edge.y + 15
+  fake.hook(edge, "ONCLICK", 15, 15)
+  fake.mouse.x, fake.mouse.y = x, y
+  page.follow()
+  fake.hook(edge, "ONRELEASE")
+end
+
 local function click(edge)
   fake.mouse.x, fake.mouse.y = 100, 100
   fake.hook(edge, "ONCLICK", 5, 5)
@@ -68,6 +78,24 @@ describe("buffspage", function()
     local at = { edge.x, edge.y, edge.width }
     page.redraw()
     assert.are.same(at, { edge.x, edge.y, edge.width })
+  end)
+
+  it("inserts a dragged icon between two others in its group, in the saved order", function()
+    local page, saved = open()
+    saved.learnAura(34177, "combat")
+    saved.learnAura(34178, "combat")
+    page.redraw()
+    local after = tileEdge(34178)
+    dragTo(page, BONE_SHIELD, after.x - 1, after.y + 15)
+    assert.are.same({ ANTIFIRE, 34177, BONE_SHIELD, 34178 }, saved.orders().buffs)
+  end)
+
+  it("swaps a dragged icon with the one it lands on, trading groups", function()
+    local page, saved = open()
+    local other = tileEdge(ANTIFIRE)
+    dragTo(page, BONE_SHIELD, other.x + 15, other.y + 15)
+    assert.are.same({ "upkeep", "combat" }, { saved.auras()[tostring(BONE_SHIELD)], saved.auras()[tostring(ANTIFIRE)] })
+    assert.are.same({ BONE_SHIELD, ANTIFIRE }, saved.orders().buffs)
   end)
 
   it("stops tracking a target debuff from the menu a click opens", function()
