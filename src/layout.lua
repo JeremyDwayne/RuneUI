@@ -74,6 +74,43 @@ function layout.capture(child, target, side, align)
   return anchor
 end
 
+-- Tile layout for a cooldown group of count tiles, each size wide with gap between, in rows of up to perRow
+-- that stack in the grow direction: "down" or "up" rows, or "left" or "right" columns. Every row is centred on
+-- the group's axis. The box fits max tiles, and the edge opposite grow stays put as rows are added. Returns
+-- { w, h, tiles = { { x, y } }, bounds = { x, y, w, h } }, bounds spanning the shown tiles; an empty group's
+-- bounds are one row deep with their sides meeting at the axis.
+function layout.grid(count, size, gap, perRow, grow, max)
+  local step = size + gap
+  local vertical = grow == "up" or grow == "down"
+  local along = math.min(max, perRow) * step - gap
+  local across = math.ceil(max / perRow) * step - gap
+  local w, h = along, across
+  if not vertical then w, h = across, along end
+
+  -- x, y of a span along and across the axis, flipping across from the far edge for up and left.
+  local function place(alongAt, acrossAt, acrossSize)
+    if grow == "up" then return alongAt, h - acrossAt - acrossSize end
+    if grow == "left" then return w - acrossAt - acrossSize, alongAt end
+    if vertical then return alongAt, acrossAt end
+    return acrossAt, alongAt
+  end
+
+  local tiles = {}
+  for i = 0, count - 1 do
+    local row = i // perRow
+    local inRow = math.min(perRow, count - row * perRow)
+    local x, y = place((along - (inRow * step - gap)) // 2 + (i % perRow) * step, row * step, size)
+    tiles[#tiles + 1] = { x = x, y = y }
+  end
+
+  local widest = math.min(count, perRow) * step - gap
+  if count == 0 then widest = 0 end
+  local deep = math.max(1, math.ceil(count / perRow)) * step - gap
+  local bx, by = place((along - widest) // 2, 0, deep)
+  local bounds = { x = bx, y = by, w = vertical and widest or deep, h = vertical and deep or widest }
+  return { w = w, h = h, tiles = tiles, bounds = bounds }
+end
+
 -- Every element anchored to name, directly or through a chain.
 function layout.chain(anchors, name)
   local found, seen = {}, { [name] = true }
