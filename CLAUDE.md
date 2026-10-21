@@ -60,6 +60,7 @@ The client API is thinly documented, and these facts came from probing it in the
 - `Keyboard.IsShiftDown()` and `IsGameKeyDown(GameKey.SHIFT)` read false inside `Event.Logic` with Shift held. Track Shift from `KeyDown` and `KeyUp`, as `src/editmode.lua` does.
 - Hiding target panel components stops its debuff slots updating, even when only the frame containers `:25` and `:26` are hidden: a debuff appeared and never cleared. Make the panel transparent instead.
 - On the buff bars 284 and 291, the client sets each filled slot's icon `:0:0` and `:0:2` opaque several times a tick, so alpha 0 does not hold there. Hiding those two keeps the label counting and the slot filling, and the client shows them again only when it fills the slot. A hidden icon reads `visibleGlobal` false, so read a slot's visibility from its label `:0:1`.
+- A buff bar slot can show an item instead of a sprite: an overload's icon reads `spriteID` -1 with `associatedObjectID` set to the item. `src/adapter.lua` reads such a slot as minus the item id, and `draw.icon` shows it with `SetAssociatedObject`.
 - Moving a native interface off screen freezes it: its labels stop counting and new icons wait until it returns.
 - The global `os` is nil, so there is no `os.clock` for timing. The two root layers report the whole window in UI units, such as 1710 by 1041 on a Retina Mac.
 
