@@ -121,6 +121,19 @@ describe("view", function()
     assert.are.equal(0, fake.writes)
   end)
 
+  it("writes a tile's count in the 13 pt body font on a small tile", function()
+    local g = group(30)
+    g.update({
+      { key = "MAGIC_SURGE", name = "Surge", initials = "S", icon = 14233, ready = true, count = "1", charges = 1 },
+    })
+    local look = style.look(settings.defaultAppearance(), nil)
+    local body = look.outline and style.outlineFont(look.fonts.body) or look.fonts.body
+    local count = fake.find(function(_, d)
+      return d.content == "1"
+    end)
+    assert.are.equal(body, count.font)
+  end)
+
   it("fills a spender's tile bar to its count in the row colour, growing it with whole casts gold", function()
     local g = group(36)
     local tile = { key = "NECROMANCY_FINGER_OF_DEATH", name = "Finger of Death", initials = "FOD", icon = 30077 }

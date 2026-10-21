@@ -603,7 +603,7 @@ local function tile(layer)
     gold = rect(layer, GOLD, 0, 0, 0, 0),
     notchEdge = rect(layer, COLOURS.border, 0, 0, 0, 0),
     notch = rect(layer, COLOURS.highlight, 0, 0, 0, 0),
-    count = draw.edgedText(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, 0, COUNT_HEIGHT),
+    count = draw.edgedText(layer, FONTS.body, ui.AlignMode.TOPLEFT, 0, 0, 0, COUNT_HEIGHT),
     keybind = draw.edgedText(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12),
     seconds = draw.edgedText(layer, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, 0, 0),
   }
@@ -734,7 +734,7 @@ local function showTile(parts, model, since, look, size)
     end
     pos(parts.count, parts.x + 4, parts.y + size - 3 - lift - COUNT_HEIGHT)
     draw.size(parts.count, size - 8, COUNT_HEIGHT)
-    styleText(parts.count, size >= LARGE_TILE and "body" or "small", look, false)
+    styleText(parts.count, "body", look, false)
   end
   local usable = model.usable ~= false
   set(parts.icon, "rgb", usable and UNTINTED or BLOCKED_ICON)
