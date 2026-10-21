@@ -50,6 +50,13 @@ describe("auras.tracker", function()
     assert.is_nil(shown(tracker, "combatBuffs", SONIC, { [tostring(SONIC)] = "hidden" }))
   end)
 
+  it("tracks an icon with an empty label as an aura with no timer", function()
+    local tracker = auras.tracker()
+    for _ = 1, 2 do tracker.onTick(buffs(AFTERSHOCK, nil)) end
+    local model = shown(tracker, "combatBuffs", AFTERSHOCK, { [tostring(AFTERSHOCK)] = "combat" })
+    assert.are.same({ sprite = AFTERSHOCK, highlight = false }, model)
+  end)
+
   it("shows the label's time and stacks, and drops a buff the bar no longer shows", function()
     local tracker = auras.tracker()
     tracker.onTick(buffs(INCITE, "20<br>(5)"))

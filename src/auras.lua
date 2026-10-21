@@ -73,7 +73,7 @@ function auras.tracker()
       if state == nil then
         state = bar.states[read.sprite]
         if state == nil then
-          state = { sprite = read.sprite }
+          state = { sprite = read.sprite, still = 0 }
           follow(state, read.label)
           state.category = category(state.seconds)
           if appeared ~= nil then appeared[#appeared + 1] = { sprite = read.sprite, category = state.category } end
