@@ -26,7 +26,7 @@ When goals conflict, settle them in this order:
 
 - `src/adapter.lua` is the only module that calls the client. Every read goes through `pcall` and comes back as a plain table, and a read can always be nil: interfaces unload, and vars are nil before login.
 - `src/frames.lua`, `src/cooldowns.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure. Keep client globals out of them.
-- `src/view.lua`, `src/options.lua`, `src/buffspage.lua` and `src/editmode.lua` draw through `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values.
+- `src/view.lua`, `src/options.lua`, `src/buffspage.lua`, `src/dragdrop.lua` and `src/editmode.lua` draw through `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values.
 - `main.lua` wires events: `VarTransmit` feeds the cooldown tracker, `ServerLogic` reads the adapter and redraws, and `PluginShutdown` destroys every component.
 
 ## Hot path
@@ -46,7 +46,7 @@ The client API is thinly documented, and these facts came from probing it in the
 
 - `MoveToFront` on a hidden component, or on a layer holding one, stops it drawing for good, even after it is shown. Raise only while visible, as the tooltip does on its first show.
 - Stacking follows creation order. Build what must sit on top last.
-- `ONRELEASE` fires as soon as the cursor leaves the pressed component, with the button still held. A drag keeps the pressed component under the cursor until release.
+- `ONRELEASE` fires as soon as the cursor leaves the pressed component, with the button still held. A drag keeps the pressed component under the cursor until release. A 30px hit area that follows the cursor loses fast moves; `src/dragdrop.lua` grows it into a transparent 160px square centred on the cursor, which holds the press even under components created after it.
 - A component hidden during its own press gets no `ONRELEASE`.
 - Hooks cannot tell mouse buttons apart, so a right click fires `ONCLICK` too. A destructive action needs a second step.
 - `Mouse.GetX` and `GetY` report physical pixels, twice the UI units on a Retina display. Convert with the ratio taken in a press hook, as `pressAt` in `src/draw.lua` does.

@@ -24,11 +24,13 @@ local function openWindow()
     player = view.playerFrame(root),
     cooldowns = view.cooldownGroup(root, view.TILE_STYLES.cooldowns, view.tooltip(root)),
   }
+  local saved = settings.load(fakeStore())
   options.create(root, {
-    saved = settings.load(fakeStore()), tracker = tracker, elements = elements, view = view, refresh = function() end,
+    saved = saved, tracker = tracker, elements = elements, view = view, refresh = function() end,
   })
   fake.fire("ContentLayerReady", { component = fake.component() })
   fake.press("Open RuneUI options")
+  return saved
 end
 
 local function logicTick()
@@ -49,7 +51,7 @@ describe("options", function()
     fake.hook(tile, "ONCLICK", 5, 5)
     fake.mouse.x = 540
     logicTick()
-    assert.are.equal(0.3, tile.alpha)
+    assert.are.equal(0, tile.alpha)
 
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
     assert.are.equal(1, tile.alpha)
@@ -67,10 +69,25 @@ describe("options", function()
     fake.hook(tile, "ONCLICK", 5, 5)
     fake.mouse.x, fake.mouse.y = 540, 310
     logicTick()
-    assert.are.same({ x + 40, y + 10 }, { tile.x, tile.y })
+    local cx, cy = x + 45, y + 15
+    assert.is_true(tile.x <= cx - 60 and tile.x + tile.width >= cx + 60)
+    assert.is_true(tile.y <= cy - 60 and tile.y + tile.height >= cy + 60)
 
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
     assert.are.same({ x, y }, { tile.x, tile.y })
+  end)
+
+  it("moves a tile to the row it is dropped on", function()
+    local saved = openWindow()
+    local tile = editorTile()
+    local rotation = fake.find(function(_, d) return d.content == "Rotation" end)
+    fake.mouse.x, fake.mouse.y = 500, 300
+    fake.hook(tile, "ONCLICK", 5, 5)
+    fake.mouse.y = 300 + rotation.y + 32 - (tile.y + 5)
+    logicTick()
+    fake.hook(tile, "ONRELEASE")
+    local groups = saved.groups()
+    assert.are.same({ {}, "MAGIC_SUNSHINE" }, { groups.cooldowns, groups.rotation[1] })
   end)
 
   it("opens the picker on the current combat style's tab and switches style by tab", function()

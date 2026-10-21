@@ -60,7 +60,7 @@ for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; d
 
 After saving a change, run `prl runeui` in the game console to reload the plugin.
 
-`src/adapter.lua` is the only module that reads the game client. `src/frames.lua`, `src/cooldowns.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure Lua with specs. `src/view.lua`, `src/options.lua`, `src/buffspage.lua` and `src/editmode.lua` draw the HUD, the options window, its Buffs page and edit mode.
+`src/adapter.lua` is the only module that reads the game client. `src/frames.lua`, `src/cooldowns.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua` and `src/icons.lua` are pure Lua with specs. `src/view.lua`, `src/options.lua`, `src/buffspage.lua` and `src/editmode.lua` draw the HUD, the options window, its Buffs page and edit mode. `src/dragdrop.lua` drags icons in the options window.
 
 ## Contributing
 

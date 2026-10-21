@@ -2,6 +2,7 @@
 -- with a "+" picker, drag to swap or insert and a Remove menu, the src/buffspage Buffs page, marker
 -- steppers, appearance choices, the reset dialog, and a footer toggle into src/editmode.
 local buffspage = require("src/buffspage")
+local dragdrop = require("src/dragdrop")
 local draw = require("src/draw")
 local editmode = require("src/editmode")
 local editor = require("src/editor")
@@ -11,15 +12,12 @@ local options = {}
 
 local set, rect, text, outline, placeOutline = draw.set, draw.rect, draw.text, draw.outline, draw.placeOutline
 local hideAll, hitArea, on, button = draw.hideAll, draw.hitArea, draw.on, draw.button
-local pressAt, cursor = draw.pressAt, draw.cursor
 local FONTS, COLOURS = draw.FONTS, draw.COLOURS
 
 local WIDTH, HEIGHT = 900, 620
 local SIDEBAR, HEADER, FOOTER = 200, 64, 56
 local PAGE_X, PAGE_Y = SIDEBAR + 1, HEADER + 1
 local PAGE_W = WIDTH - PAGE_X - 1
--- Pixels the cursor must travel after a press before it counts as a drag.
-local DRAG_START = 3
 local MAX_TILES = 10
 local GAP = 2
 local PICKER_WIDTH, PICKER_ROW, PICKER_SEARCH, PICKER_TABS = 340, 26, 36, 34
@@ -60,7 +58,7 @@ function options.create(root, deps)
     return saved.groups()
   end
 
-  local closePopups, rebuildEditor, drop, fillPicker, openPicker, buffsPage
+  local closePopups, rebuildEditor, fillPicker, openPicker, buffsPage, editorDrag
 
   local function changed()
     rebuildEditor()
@@ -136,33 +134,18 @@ function options.create(root, deps)
   set(hint, "content", "Drag to reorder or move between rows. Click + to add. Click an icon to remove it.")
   set(hint, "rgb", COLOURS.mutedText)
 
-  -- The window's top-left in game-window pixels, measured from the last press, for following the cursor.
-  local origin = { x = 0, y = 0 }
-  local drag = nil
-
-  -- An editor tile as a draw.group. Its edge is the hit area.
+  -- An editor tile as a draw.group. Its edge is the hit area, which src/dragdrop drags.
   local function tile(row)
     local size = row.size
     local group = draw.group()
     local t = {
-      row = row, group = group,
+      row = row, group = group, size = size,
       edge = group.add(hitArea(rect(page, COLOURS.border, 0, 0, size, size)), 0, 0),
       bg = group.add(rect(page, COLOURS.editorTile, 0, 0, size - 2, size - 2), 1, 1),
       icon = group.add(ui.Sprite.new(page), 1, 1),
       initials = group.add(text(page, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, size - 6, 12), 4, size - 15),
     }
     t.icon:SetSize(size - 2, size - 2)
-    on(t.edge, "ONCLICK", function(_, x, py)
-      if t.key == nil then return end
-      closePopups()
-      pressAt(t.edge, x)
-      local mx, my = cursor()
-      if mx == nil then return end
-      origin.x = mx - (PAGE_X + group.x + x)
-      origin.y = my - (PAGE_Y + group.y + py)
-      drag = { tile = t, startX = mx, startY = my, pressX = x, pressY = py, moved = false }
-    end)
-    on(t.edge, "ONRELEASE", function() if drag ~= nil and drag.tile == t then drop() end end)
     return t
   end
 
@@ -200,7 +183,8 @@ function options.create(root, deps)
         if model == nil then
           t.group.set("hidden", true)
         else
-          t.group.place(row.x + (i - 1) * (row.size + GAP), row.y)
+          t.x, t.y = row.x + (i - 1) * (row.size + GAP), row.y
+          t.group.place(t.x, t.y)
           hideAll({ t.edge, t.bg }, false)
           draw.iconOrInitials(t.icon, t.initials, model)
         end
@@ -212,52 +196,24 @@ function options.create(root, deps)
     end
   end
 
-  -- Drag feedback: a half-size ghost, a faded source tile, and either a swap outline or an insertion line.
-  local ghost = ui.Sprite.new(page)
-  local ghostInitials = text(page, FONTS.small, ui.AlignMode.CENTRE, 0, 0, 24, 24)
+  -- Drop feedback: a swap outline or an insertion line.
   local swapBox = outline(page, COLOURS.accent, 2)
   local insertLine = rect(page, COLOURS.accent, 0, 0, 2, 0)
-  set(ghost, "alpha", 0.7)
 
   local function hideDragFeedback()
-    hideAll({ ghost, ghostInitials, insertLine }, true)
+    set(insertLine, "hidden", true)
     hideAll(swapBox, true)
   end
   hideDragFeedback()
 
-  -- The row and drop target under the window position (wx, wy), or nil.
-  local function targetAt(wx, wy)
+  -- The row and drop target under page position (px, py), or nil.
+  local function targetAt(px, py)
     for _, row in ipairs(ROWS) do
-      local top = PAGE_Y + row.y
-      if wy >= top - 10 and wy <= top + row.size + 10 then
+      if py >= row.y - 10 and py <= row.y + row.size + 10 then
         local geometry = { count = row.count, step = row.size + GAP, size = row.size, offset = 0 }
-        return row, editor.dropTarget(geometry, wx - PAGE_X - row.x)
+        return row, editor.dropTarget(geometry, px - row.x)
       end
     end
-  end
-
-  local function showDragFeedback(t, wx, wy)
-    local half = math.floor(t.row.size / 2)
-    draw.size(ghost, half, half)
-    draw.pos(ghost, wx - PAGE_X + 8, wy - PAGE_Y + 8)
-    draw.pos(ghostInitials, wx - PAGE_X + 8, wy - PAGE_Y + 8)
-    local row, target = targetAt(wx, wy)
-    drag.row, drag.target = row, target
-    local swap = target ~= nil and target.kind == "swap"
-    hideAll(swapBox, not swap)
-    set(insertLine, "hidden", target == nil or swap)
-    if swap then
-      placeOutline(swapBox, row.x + (target.index - 1) * (row.size + GAP), row.y, row.size, row.size)
-    elseif target ~= nil then
-      draw.pos(insertLine, row.x + (target.index - 1) * (row.size + GAP) - GAP, row.y - 4)
-      draw.size(insertLine, 2, row.size + 8)
-    end
-  end
-
-  local function startDrag(t)
-    drag.moved = true
-    t.group.set("alpha", 0.3)
-    draw.iconOrInitials(ghost, ghostInitials, knownTiles({ t.key })[1])
   end
 
   -- Tile menu: one Remove row under the clicked tile.
@@ -280,33 +236,50 @@ function options.create(root, deps)
     set(menu, "hidden", false)
   end
 
-  -- Ends a drag without dropping: the feedback hides and the source tile returns to its slot at full alpha.
-  local function cancelDrag()
-    if drag == nil then return end
-    local group = drag.tile.group
-    group.set("alpha", 1)
-    group.place(group.x, group.y)
-    drag = nil
-    hideDragFeedback()
-  end
+  -- The row and target under the cursor during a drag.
+  local dropRow, dropTarget = nil, nil
 
-  function drop()
-    local d = drag
-    cancelDrag()
-    if not d.moved then
-      openMenu(d.tile)
-      return
-    end
-    if d.target == nil then return end
-    local current = groups()
-    local action = editor.dropAction(current, d.tile.key, d.row.name, d.target)
-    if action == nil then return end
-    if action.op == "swap" then
-      saved.swap(d.tile.key, action.other)
-    else
-      saved.move(d.tile.key, action.group, action.index)
-    end
-    changed()
+  editorDrag = dragdrop.create(page, 21, {
+    press = function(t)
+      if t.key == nil then return false end
+      closePopups()
+      return true
+    end,
+    ghost = function(t) return knownTiles({ t.key })[1] end,
+    start = function(t) t.group.set("alpha", 0.3) end,
+    move = function(_, px, py)
+      local row, target = targetAt(px, py)
+      dropRow, dropTarget = row, target
+      local swap = target ~= nil and target.kind == "swap"
+      hideAll(swapBox, not swap)
+      set(insertLine, "hidden", target == nil or swap)
+      if swap then
+        placeOutline(swapBox, row.x + (target.index - 1) * (row.size + GAP), row.y, row.size, row.size)
+      elseif target ~= nil then
+        draw.pos(insertLine, row.x + (target.index - 1) * (row.size + GAP) - GAP, row.y - 4)
+        draw.size(insertLine, 2, row.size + 8)
+      end
+    end,
+    drop = function(t)
+      if dropTarget == nil then return end
+      local action = editor.dropAction(groups(), t.key, dropRow.name, dropTarget)
+      if action == nil then return end
+      if action.op == "swap" then
+        saved.swap(t.key, action.other)
+      else
+        saved.move(t.key, action.group, action.index)
+      end
+      changed()
+    end,
+    click = openMenu,
+    finish = function(t)
+      t.group.set("alpha", 1)
+      dropRow, dropTarget = nil, nil
+      hideDragFeedback()
+    end,
+  })
+  for _, row in ipairs(ROWS) do
+    for _, t in ipairs(row.tiles) do editorDrag.attach(t) end
   end
 
   -- Picker: known abilities under a row's "+" tile, in sections, one combat style tab at a time, narrowed by
@@ -585,7 +558,7 @@ function options.create(root, deps)
 
   local function closeWindow()
     closeDialog()
-    cancelDrag()
+    editorDrag.cancel()
     closePopups()
     windowOpen = false
     set(window, "hidden", true)
@@ -625,25 +598,12 @@ function options.create(root, deps)
 
   -- Ticks ---------------------------------------------------------------------------------------------
 
-  -- Moves the drag ghost with the cursor. It runs every frame through Event.Draw so a drag keeps up with the
-  -- mouse, and on Event.Logic as well in case Draw does not fire. It returns before reading the mouse unless a
-  -- drag is under way, and before drawing unless the cursor moved.
-  local lastX, lastY = nil, nil
+  -- Moves a drag with the cursor. It runs every frame through Event.Draw so a drag keeps up with the mouse,
+  -- and on Event.Logic as well in case Draw does not fire. Each returns before reading the mouse unless a
+  -- press is held.
   local function followCursor()
     buffsPage.follow()
-    if drag == nil then return end
-    local mx, my = cursor()
-    if mx == nil or (mx == lastX and my == lastY) then return end
-    lastX, lastY = mx, my
-    if not drag.moved and math.abs(mx - drag.startX) + math.abs(my - drag.startY) > DRAG_START then
-      startDrag(drag.tile)
-    end
-    if drag.moved then
-      local wx, wy = mx - origin.x, my - origin.y
-      -- The client releases a press once the cursor leaves the pressed component, so the hit area follows.
-      draw.pos(drag.tile.edge, wx - PAGE_X - drag.pressX, wy - PAGE_Y - drag.pressY)
-      showDragFeedback(drag.tile, wx, wy)
-    end
+    editorDrag.follow()
   end
   Event.Draw.Subscribe("runeuiOptions", followCursor)
   Event.Logic.Subscribe("runeuiOptions", followCursor)

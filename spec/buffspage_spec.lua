@@ -57,6 +57,18 @@ describe("buffspage", function()
     assert.are.equal(1, refreshed.count)
   end)
 
+  it("keeps a dragged icon's grab area under the cursor when the page redraws", function()
+    local page = open()
+    local edge = tileEdge(BONE_SHIELD)
+    fake.mouse.x, fake.mouse.y = edge.x + 5, edge.y + 5
+    fake.hook(edge, "ONCLICK", 5, 5)
+    fake.mouse.y = edge.y + 45
+    page.follow()
+    local at = { edge.x, edge.y, edge.width }
+    page.redraw()
+    assert.are.same(at, { edge.x, edge.y, edge.width })
+  end)
+
   it("stops tracking a target debuff from the menu a click opens", function()
     local _, saved = open()
     fake.press("Target debuffs")

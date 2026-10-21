@@ -2,6 +2,7 @@
 -- tab holds wrapping groups of icons. Dragging an icon to another group moves it there; clicking one opens a
 -- menu of the same moves, plus Keep up for upkeep buffs. Hovering shows the icon's name.
 local auralists = require("src/auralists")
+local dragdrop = require("src/dragdrop")
 local draw = require("src/draw")
 
 local buffspage = {}
@@ -18,8 +19,6 @@ local DIM = 0.38
 local MARGIN, TAB_Y, TAB_H, TAB_W = 24, 14, 28, 130
 local HEADER = 20
 local PAD = 6
--- Pixels the cursor must travel after a press before it counts as a drag.
-local DRAG_START = 3
 local MENU_W, MENU_ROW = 160, 28
 
 -- Each group lists the sprites groups(...) files under kind and value: a buff row, or a debuff kind's
@@ -52,10 +51,7 @@ function buffspage.create(page, width, height, deps)
   local saved = deps.saved
   local cols = (width - 2 * MARGIN - 2 * PAD + GAP) // STEP
   local tab = "buffs"
-  local drag = nil
-  -- The cursor's offset from page coordinates, measured on each press.
-  local origin = { x = 0, y = 0 }
-  local redraw, closeMenu
+  local redraw, closeMenu, drag
 
   -- Tabs ------------------------------------------------------------------------------------------------
 
@@ -101,6 +97,7 @@ function buffspage.create(page, width, height, deps)
     local t = {
       edge = hitArea(rect(page, COLOURS.border, 0, 0, SIZE, SIZE)),
       icon = ui.Sprite.new(page),
+      size = SIZE,
     }
     t.icon:SetSize(SIZE - 2, SIZE - 2)
     tiles[i] = t
@@ -117,9 +114,7 @@ function buffspage.create(page, width, height, deps)
   end
 
   local targetBox = draw.outline(page, COLOURS.accent, 2)
-  local ghost = ui.Sprite.new(page)
-  ghost:SetSize(SIZE // 2, SIZE // 2)
-  set(ghost, "alpha", 0.7)
+  draw.hideAll(targetBox, true)
 
   local function sprites(groups, def)
     if def.kind == "buff" then return groups[def.value] end
@@ -137,7 +132,9 @@ function buffspage.create(page, width, height, deps)
     deps.refresh()
   end
 
+  -- Draws the page, unless an icon is being dragged, so a refresh cannot move the grab area.
   function redraw()
+    if drag ~= nil and drag.dragging() then return end
     local choices = { target = saved.tracked("target"), player = saved.tracked("player") }
     local groups = auralists.groups(saved.auras(), choices)
     local current = nil
@@ -291,80 +288,49 @@ function buffspage.create(page, width, height, deps)
 
   -- Drag ------------------------------------------------------------------------------------------------
 
-  local function cancelDrag()
-    if drag == nil then return end
-    local t = drag.tile
-    draw.pos(t.edge, t.x, t.y)
-    set(t.icon, "alpha", t.def.dim and DIM or 1)
-    draw.hideAll(targetBox, true)
-    set(ghost, "hidden", true)
-    drag = nil
-  end
-  draw.hideAll(targetBox, true)
-  set(ghost, "hidden", true)
-
-  local function drop()
-    local d = drag
-    cancelDrag()
-    if not d.moved then
-      openMenu(d.tile)
-    elseif d.target ~= nil and d.tile.sprite ~= nil then
-      apply(d.target.def, d.tile.sprite)
-    end
-  end
-
-  for _, t in ipairs(tiles) do
-    on(t.edge, "ONCLICK", function(_, x, y)
-      if t.sprite == nil then return end
-      closeMenu()
-      deps.tooltip.hide()
-      draw.pressAt(t.edge, x)
-      local mx, my = draw.cursor()
-      if mx == nil then return end
-      origin.x, origin.y = mx - (t.x + x), my - (t.y + y)
-      drag = { tile = t, startX = mx, startY = my, pressX = x, pressY = y, moved = false }
-    end)
-    on(t.edge, "ONRELEASE", function() if drag ~= nil and drag.tile == t then drop() end end)
-  end
-
-  -- The group slot under page y other than the dragged icon's own, or nil.
-  local function slotAt(py)
+  -- The group slot under page y other than def's, or nil.
+  local function slotAt(def, py)
     for _, slot in ipairs(slots) do
-      if slot.def ~= nil and slot.def ~= drag.tile.def and py >= slot.top - PAD and py <= slot.bottom + PAD then
+      if slot.def ~= nil and slot.def ~= def and py >= slot.top - PAD and py <= slot.bottom + PAD then
         return slot
       end
     end
   end
 
-  local lastX, lastY = nil, nil
-  local function follow()
-    if drag == nil then return end
-    local mx, my = draw.cursor()
-    if mx == nil or (mx == lastX and my == lastY) then return end
-    lastX, lastY = mx, my
-    local t = drag.tile
-    if not drag.moved and math.abs(mx - drag.startX) + math.abs(my - drag.startY) > DRAG_START then
-      drag.moved = true
-      set(t.icon, "alpha", 0.3)
-      set(ghost, "sprite", t.sprite)
-      set(ghost, "hidden", false)
-    end
-    if not drag.moved then return end
-    local px, py = mx - origin.x, my - origin.y
-    -- The client releases a press once the cursor leaves the pressed component, so the hit area follows.
-    draw.pos(t.edge, px - drag.pressX, py - drag.pressY)
-    draw.pos(ghost, px + 8, py + 8)
-    local slot = slotAt(py)
-    drag.target = slot
-    draw.hideAll(targetBox, slot == nil)
-    if slot ~= nil then draw.placeOutline(targetBox, MARGIN, slot.top, width - 2 * MARGIN, slot.bottom - slot.top) end
-  end
+  local target = nil
+  drag = dragdrop.create(page, SIZE // 2, {
+    press = function(t)
+      if t.sprite == nil then return false end
+      closeMenu()
+      deps.tooltip.hide()
+      return true
+    end,
+    ghost = function(t) return { icon = t.sprite, initials = "" } end,
+    start = function(t) set(t.icon, "alpha", 0.3) end,
+    move = function(t, _, py)
+      target = slotAt(t.def, py)
+      draw.hideAll(targetBox, target == nil)
+      if target ~= nil then
+        draw.placeOutline(targetBox, MARGIN, target.top, width - 2 * MARGIN, target.bottom - target.top)
+      end
+    end,
+    drop = function(t)
+      if target ~= nil and t.sprite ~= nil then apply(target.def, t.sprite) end
+    end,
+    click = openMenu,
+    finish = function(t)
+      set(t.icon, "alpha", t.def.dim and DIM or 1)
+      draw.hideAll(targetBox, true)
+      target = nil
+    end,
+  })
+  for _, t in ipairs(tiles) do drag.attach(t) end
 
   -- Tooltip ---------------------------------------------------------------------------------------------
 
   deps.tooltip.hover(tiles, function(i)
     local t = tiles[i]
-    if t.sprite == nil or drag ~= nil then
+    if t.sprite == nil or drag.dragging() then
       deps.tooltip.hide()
       return
     end
@@ -379,9 +345,9 @@ function buffspage.create(page, width, height, deps)
   return {
     display = display,
     redraw = redraw,
-    follow = follow,
+    follow = drag.follow,
     close = function()
-      cancelDrag()
+      drag.cancel()
       closeMenu()
       deps.tooltip.hide()
     end,
