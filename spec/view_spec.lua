@@ -499,20 +499,22 @@ describe("view", function()
     assert.are.equal(0xffffff, rgb("Aviansie"))
   end)
 
-  it("draws a bronze line round both unit frames for Game frame, and no edge for None", function()
+  it("draws the game's window border round both unit frames for Game frame, and no edge for None", function()
     local elements = shownHud()
-    local function coloured(frame, rgb)
+    local function shownSprites(frame)
       local n = 0
       for _, c in ipairs(fake.created) do
-        if c.parent == frame.layer and c.rgb == rgb and fake.shown(c) then n = n + 1 end
+        if c.parent == frame.layer and c.isTiling ~= nil and fake.shown(c) then n = n + 1 end
       end
       return n
     end
-    local bronze = 0x6b5636
-    assert.are.same({ 0, 1 }, { coloured(elements.player, bronze), coloured(elements.player, draw.COLOURS.border) })
+    local function edgeShown(frame)
+      return fake.find(function(c, d) return c.parent == frame.layer and d.rgb == draw.COLOURS.border end) ~= nil
+    end
+    assert.are.same({ 0, true }, { shownSprites(elements.player), edgeShown(elements.player) })
     setLook(elements, look({ border = "game" }))
-    assert.are.same({ 4, 4 }, { coloured(elements.player, bronze), coloured(elements.target, bronze) })
+    assert.are.same({ 8, 8 }, { shownSprites(elements.player), shownSprites(elements.target) })
     setLook(elements, look({ border = "none" }))
-    assert.are.same({ 0, 0 }, { coloured(elements.target, bronze), coloured(elements.target, draw.COLOURS.border) })
+    assert.are.same({ 0, false }, { shownSprites(elements.target), edgeShown(elements.target) })
   end)
 end)
