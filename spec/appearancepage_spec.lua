@@ -79,6 +79,31 @@ describe("appearance page", function()
     assert.are.equal(0, content.y)
   end)
 
+  it("scrolls by dragging the scrollbar's thumb, in proportion to its travel", function()
+    local page = open()
+    local viewport, content = scrollParts("Game cast bar")
+    local grip = fake.find(function(c, d)
+      return d.parent ~= viewport and d.alpha == 0 and fake.hasHook(c, "ONRELEASE")
+    end)
+    fake.mouse.x, fake.mouse.y = 690, 200
+    fake.hook(grip, "ONCLICK", 2, 2)
+    fake.mouse.y = 260
+    page.follow()
+    local moved = -content.y
+    assert.is_true(moved > 60)
+    fake.writes = 0
+    page.follow()
+    assert.are.equal(0, fake.writes)
+    fake.mouse.y = 2000
+    page.follow()
+    fake.hook(grip, "ONRELEASE")
+    local _, _, last = scrollParts("Game cast bar")
+    assert.are.equal(viewport.height - 32, last.y + last.height + content.y)
+    fake.writes, fake.mouse.y = 0, 100
+    page.follow()
+    assert.are.equal(0, fake.writes)
+  end)
+
   it("takes no click on a row scrolled out of view or on its clipped part", function()
     local _, saved = open()
     wheel(-1, 2)

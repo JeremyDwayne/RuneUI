@@ -721,6 +721,7 @@ function options.create(root, deps)
   local function closeWindow()
     closeDialog()
     editorDrag.cancel()
+    appearance.cancel()
     closePopups()
     confirmDelete = false
     windowOpen = false
@@ -769,6 +770,7 @@ function options.create(root, deps)
   local function followCursor()
     buffsPage.follow()
     editorDrag.follow()
+    appearance.follow()
   end
   Event.Draw.Subscribe("runeuiOptions", followCursor)
   Event.Logic.Subscribe("runeuiOptions", followCursor)

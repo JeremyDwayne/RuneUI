@@ -20,6 +20,8 @@ local BACKDROPS = {
 }
 local ROW_H, HEADING_H, END_SPACE, MARGIN = 50, 40, 32, 16
 local SCROLLBAR_W, WHEEL_STEP = 10, 40
+-- Side of the transparent square that holds a thumb drag under the cursor, which a fast move cannot leave.
+local GRAB = 160
 local OPTION_H = 28
 -- Colour rows: two lines of swatches and the hex field, and the picker's shade square and hue strip under them.
 local SWATCH_W, SWATCH_GAP, HEX_W, HEX_H = 84, 4, 86, 24
@@ -49,9 +51,10 @@ local SHOW_HIDE = { { id = false, label = "Show" }, { id = true, label = "Hide" 
 
 -- page: the options window's page layer, width by height. deps: { saved = src/settings, view = src/view,
 -- tooltip = view.tooltip, auraInfo(sprite), tracker = src/cooldowns tracker for the equipped style, refresh()
--- redrawing the HUD }. Returns { open, choiceRow }: open redraws the page from settings, and choiceRow(parent,
--- x, y, w, label, choices, field, optionW) builds a row of option buttons on another page, such as the Buffs
--- page's Display tab.
+-- redrawing the HUD }. Returns { open, choiceRow, follow, cancel }: open redraws the page from settings,
+-- choiceRow(parent, x, y, w, label, choices, field, optionW) builds a row of option buttons on another page,
+-- such as the Buffs page's Display tab, follow runs every frame to move a held scrollbar thumb, and cancel ends
+-- one.
 function appearancepage.create(page, width, height, deps)
   local saved, view = deps.saved, deps.view
   local redraw
@@ -170,6 +173,18 @@ function appearancepage.create(page, width, height, deps)
     return max == 0 and 0 or math.floor((viewH - h) * scroll / max + 0.5), math.floor(h)
   end
 
+  -- The thumb's grab area, built on the page above the settings, and the drag it holds: { origin, y, scroll },
+  -- with the cursor's offset from page coordinates, or nil.
+  local grip, held
+
+  -- Puts the grab area over the thumb.
+  local function placeGrip()
+    local ty, th = thumbBox()
+    draw.pos(grip, width - SCROLLBAR_W - 4, STRIP_H + 1 + ty)
+    draw.size(grip, SCROLLBAR_W, th)
+    set(grip, "hidden", maxScroll() == 0)
+  end
+
   local function scrollTo(y)
     scroll = math.max(0, math.min(maxScroll(), y))
     draw.pos(content, 0, -scroll)
@@ -178,6 +193,7 @@ function appearancepage.create(page, width, height, deps)
     draw.pos(thumb, width - SCROLLBAR_W - 3, ty)
     draw.size(thumb, SCROLLBAR_W - 2, th)
     set(thumb, "hidden", maxScroll() == 0)
+    if grip ~= nil and held == nil then placeGrip() end
   end
 
   local function wheel(c)
@@ -417,7 +433,35 @@ function appearancepage.create(page, width, height, deps)
   heading("Game interfaces")
   scrolledChoices("Default target panel", SHOW_HIDE, "hideTargetPanel", 90)
   scrolledChoices("Game cast bar", SHOW_HIDE, "hideCastBar", 90)
+
+  grip = hitArea(rect(page, COLOURS.panel, 0, 0, 0, 0))
+  set(grip, "alpha", 0)
+  wheel(grip)
+  on(grip, "ONCLICK", function(_, x, y)
+    draw.pressAt(grip, x)
+    local mx, my = draw.cursor()
+    if mx == nil then return end
+    local ty = thumbBox()
+    held = { origin = { x = mx - (width - SCROLLBAR_W - 4 + x), y = my - (STRIP_H + 1 + ty + y) }, y = my,
+      scroll = scroll }
+  end)
+  on(grip, "ONRELEASE", function()
+    held = nil
+    placeGrip()
+  end)
   relayout()
+
+  -- Moves a held thumb with the cursor, every frame. Returns before reading the mouse unless it is held.
+  local function follow()
+    if held == nil then return end
+    local mx, my = draw.cursor()
+    if mx == nil or (mx == held.lastX and my == held.lastY) then return end
+    held.lastX, held.lastY = mx, my
+    local _, th = thumbBox()
+    if viewH > th then scrollTo(held.scroll + (my - held.y) * maxScroll() / (viewH - th)) end
+    draw.size(grip, GRAB, GRAB)
+    draw.pos(grip, math.floor(mx - held.origin.x) - GRAB // 2, math.floor(my - held.origin.y) - GRAB // 2)
+  end
 
   function redraw()
     local appearance = saved.appearance()
@@ -434,7 +478,12 @@ function appearancepage.create(page, width, height, deps)
       scrollTo(scroll)
     end,
     choiceRow = choiceRow,
-    showChoices = showChoices,
+    follow = follow,
+    -- Ends a thumb drag, as when the window closes.
+    cancel = function()
+      held = nil
+      placeGrip()
+    end,
   }
 end
 
