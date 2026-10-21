@@ -16,10 +16,12 @@ local function call(method)
     end
     local data = dataOf[c]
     if method == "SetPos" then
-      data.x, data.y = a, b
+      data.x = a
+      data.y = b
     end
     if method == "SetSize" then
-      data.width, data.height = a, b
+      data.width = a
+      data.height = b
     end
     if method == "SetWidth" then
       data.width = a
@@ -70,8 +72,11 @@ function fake.component(parent)
 end
 
 function fake.reset()
-  fake.writes, fake.created, fake.handlers = 0, {}, {}
-  fake.mouse.x, fake.mouse.y = 0, 0
+  fake.writes = 0
+  fake.created = {}
+  fake.handlers = {}
+  fake.mouse.x = 0
+  fake.mouse.y = 0
 end
 
 -- Whether c and every parent it has are shown.
@@ -108,7 +113,8 @@ function fake.press(label, nth)
     return d.content == label and seen == (nth or 1)
   end)
   assert(text, "no shown label " .. label)
-  local t, hit = dataOf[text], nil
+  local t = dataOf[text]
+  local hit = nil
   for _, c in ipairs(fake.created) do
     local d = dataOf[c]
     if

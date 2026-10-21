@@ -13,14 +13,27 @@ local settings = require("src/settings")
 
 local options = {}
 
-local set, rect, text, outline, placeOutline = draw.set, draw.rect, draw.windowText, draw.outline, draw.placeOutline
-local hideAll, hitArea, on, button = draw.hideAll, draw.hitArea, draw.on, draw.button
-local FONTS, COLOURS = draw.FONTS, draw.WINDOW
+local set = draw.set
+local rect = draw.rect
+local text = draw.windowText
+local outline = draw.outline
+local placeOutline = draw.placeOutline
+local hideAll = draw.hideAll
+local hitArea = draw.hitArea
+local on = draw.on
+local button = draw.button
+local FONTS = draw.FONTS
+local COLOURS = draw.WINDOW
 
-local WIDTH, HEIGHT = 900, 620
+local WIDTH = 900
+local HEIGHT = 620
 -- The sidebar's brand sits above its menu rows; pages take the window's full height above the footer.
-local SIDEBAR, BRAND, NAV_ROW, FOOTER = 200, 64, 42, 56
-local PAGE_X, PAGE_Y = SIDEBAR + 1, 1
+local SIDEBAR = 200
+local BRAND = 64
+local NAV_ROW = 42
+local FOOTER = 56
+local PAGE_X = SIDEBAR + 1
+local PAGE_Y = 1
 local PAGE_W = WIDTH - PAGE_X - 1
 local PAGE_H = HEIGHT - PAGE_Y - FOOTER - 1
 local GAP = 2
@@ -32,15 +45,22 @@ local STYLE_TABS = {
   { label = "Ranged", style = "ranged", width = 84 },
   { label = "Melee", style = "melee", width = 76 },
 }
-local TABS_H, LIST_W, LIST_Y, LIST_ROW = 44, 170, 56, 44
+local TABS_H = 44
+local LIST_W = 170
+local LIST_Y = 56
+local LIST_ROW = 44
 local DETAIL_X = LIST_W + 24
 local DETAIL_W = PAGE_W - DETAIL_X - 24
-local SETTING_H, SETTING_ROWS = 46, 5
+local SETTING_H = 46
+local SETTING_ROWS = 5
 local TILE = 36
 local STEP = TILE + GAP
 local GRID_Y = LIST_Y + SETTING_ROWS * SETTING_H + 16
 local GRID_PER_ROW = (DETAIL_W + GAP) // STEP
-local PICKER_WIDTH, PICKER_ROW, PICKER_SEARCH, PICKER_TABS = 340, 26, 36, 34
+local PICKER_WIDTH = 340
+local PICKER_ROW = 26
+local PICKER_SEARCH = 36
+local PICKER_TABS = 34
 local PICKER_HEAD = PICKER_SEARCH + PICKER_TABS
 -- Picker tabs left to right; style nil lists every style.
 local PICKER_TAB_LIST = {
@@ -64,7 +84,9 @@ end
 -- { placeAll, redrawBuffs, shutdown }; placeAll places the HUD and edit mode's overlays from the saved
 -- positions and anchors, and redrawBuffs redraws the Buffs page while it is shown.
 function options.create(root, deps)
-  local saved, tracker, elements = deps.saved, deps.tracker, deps.elements
+  local saved = deps.saved
+  local tracker = deps.tracker
+  local elements = deps.elements
 
   local window = ui.Layer.new(root)
   window:SetSize(WIDTH, HEIGHT)
@@ -90,7 +112,8 @@ function options.create(root, deps)
 
   -- Pages ---------------------------------------------------------------------------------------------
 
-  local pages, navRows = {}, {}
+  local pages = {}
+  local navRows = {}
   local PAGE_LIST = {
     { id = "appearance", label = "Appearance" },
     { id = "cooldowns", label = "Cooldown manager" },
@@ -151,7 +174,9 @@ function options.create(root, deps)
   local page = pages.cooldowns
   -- The style whose lists the page edits, the group shown in the detail pane, and whether its Delete button
   -- has been clicked once.
-  local editStyle, selected, confirmDelete = "magic", "major", false
+  local editStyle = "magic"
+  local selected = "major"
+  local confirmDelete = false
 
   -- Style tabs: the chosen one underlined, the equipped one marked Equipped.
   local styleTabs = {}
@@ -196,7 +221,8 @@ function options.create(root, deps)
       if r.name == nil then
         return
       end
-      selected, confirmDelete = r.name, false
+      selected = r.name
+      confirmDelete = false
       closePopups()
       rebuildEditor()
     end)
@@ -207,7 +233,8 @@ function options.create(root, deps)
     if name == nil then
       return
     end
-    selected, confirmDelete = name, false
+    selected = name
+    confirmDelete = false
     closePopups()
     changed()
   end)
@@ -253,7 +280,8 @@ function options.create(root, deps)
       return
     end
     saved.deleteGroup(selected)
-    selected, confirmDelete = "major", false
+    selected = "major"
+    confirmDelete = false
     changed()
   end)
 
@@ -453,7 +481,8 @@ function options.create(root, deps)
 
   -- The drop target under page position (px, py), or nil off the tile grid.
   local function targetAt(px, py)
-    local gx, gy = px - DETAIL_X, py - GRID_Y
+    local gx = px - DETAIL_X
+    local gy = py - GRID_Y
     local rows = math.max(1, (count + GRID_PER_ROW - 1) // GRID_PER_ROW)
     if gx < -10 or gx > DETAIL_W or gy < -10 or gy > rows * STEP + 10 then
       return nil
@@ -548,8 +577,11 @@ function options.create(root, deps)
   -- search box. It opens on the style being edited and stays open for several adds. A search covers every
   -- style.
   local picker = ui.Layer.new(page)
-  local pickerRows, pickerTabs = {}, {}
-  local pickerOpen, pickerStyle, query = false, nil, ""
+  local pickerRows = {}
+  local pickerTabs = {}
+  local pickerOpen = false
+  local pickerStyle = nil
+  local query = ""
   local MAX_PICKER_ROWS = 14
   picker:SetSize(PICKER_WIDTH, PICKER_HEAD + MAX_PICKER_ROWS * PICKER_ROW + 2)
   local pickerEdge = hitArea(rect(picker, COLOURS.border, 0, 0, PICKER_WIDTH, 0))
@@ -615,7 +647,8 @@ function options.create(root, deps)
 
   -- Every ability fired this session, saved as seen, or in src/presets, sorted by name, and its tile model.
   local function allKnownKeys()
-    local keys, seen = {}, {}
+    local keys = {}
+    local seen = {}
     for _, key in ipairs(tracker.known()) do
       keys[#keys + 1], seen[key] = key, true
     end
@@ -706,7 +739,8 @@ function options.create(root, deps)
     if wasOpen then
       return
     end
-    pickerOpen, pickerStyle = true, editStyle
+    pickerOpen = true
+    pickerStyle = editStyle
     if query ~= "" then
       query = ""
       search.content = ""
@@ -719,7 +753,8 @@ function options.create(root, deps)
     buffsPage.close()
     set(menu, "hidden", true)
     set(picker, "hidden", true)
-    pickerOpen, menuKey = false, nil
+    pickerOpen = false
+    menuKey = nil
   end
 
   -- Buffs page ----------------------------------------------------------------------------------------
@@ -773,13 +808,15 @@ function options.create(root, deps)
 
   -- Reset dialog: confirms Reset positions over the window, which it dims when open. Built after the window
   -- and edit mode so it draws above them.
-  local DIALOG_W, DIALOG_H = 320, 150
+  local DIALOG_W = 320
+  local DIALOG_H = 150
   local dialog = ui.Layer.new(root)
   dialog:SetSize(WIDTH, HEIGHT)
   dialog:SetPos(-WIDTH // 2, -HEIGHT // 2, 0.5, 0.5)
   local dim = hitArea(rect(dialog, COLOURS.border, 0, 0, WIDTH, HEIGHT))
   set(dim, "alpha", 0.6)
-  local dialogX, dialogY = (WIDTH - DIALOG_W) // 2, (HEIGHT - DIALOG_H) // 2
+  local dialogX = (WIDTH - DIALOG_W) // 2
+  local dialogY = (HEIGHT - DIALOG_H) // 2
   rect(dialog, COLOURS.border, dialogX, dialogY, DIALOG_W, DIALOG_H)
   hitArea(rect(dialog, COLOURS.popup, dialogX + 1, dialogY + 1, DIALOG_W - 2, DIALOG_H - 2))
   local dialogTitle = text(dialog, FONTS.body, ui.AlignMode.TOPLEFT, dialogX + 16, dialogY + 12, DIALOG_W - 32, 20)

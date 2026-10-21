@@ -1,6 +1,11 @@
 local auras = require("src/auras")
 
-local ANTIFIRE, INCITE, SONIC, AFTERSHOCK, STUN, BLOODLUST = 30093, 14766, 27432, 26466, 14695, 23876
+local ANTIFIRE = 30093
+local INCITE = 14766
+local SONIC = 27432
+local AFTERSHOCK = 26466
+local STUN = 14695
+local BLOODLUST = 23876
 
 local function buffs(...)
   local list = {}

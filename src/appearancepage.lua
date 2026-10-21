@@ -10,8 +10,13 @@ local style = require("src/style")
 
 local appearancepage = {}
 
-local set, rect, text, hitArea, on = draw.set, draw.rect, draw.windowText, draw.hitArea, draw.on
-local FONTS, COLOURS = draw.FONTS, draw.WINDOW
+local set = draw.set
+local rect = draw.rect
+local text = draw.windowText
+local hitArea = draw.hitArea
+local on = draw.on
+local FONTS = draw.FONTS
+local COLOURS = draw.WINDOW
 
 local STRIP_H = 168
 -- Preview backdrops: black, light lilac, or none to show the game world.
@@ -20,18 +25,28 @@ local BACKDROPS = {
   { id = "light", label = "Light", rgb = 0xd8c6da },
   { id = "game", label = "Game" },
 }
-local ROW_H, HEADING_H, END_SPACE, MARGIN = 50, 40, 32, 16
+local ROW_H = 50
+local HEADING_H = 40
+local END_SPACE = 32
+local MARGIN = 16
 -- The wheel reports many small deltas per turn, negative while scrolling down; each moves WHEEL_STEP px.
-local SCROLLBAR_W, WHEEL_STEP = 10, 8
+local SCROLLBAR_W = 10
+local WHEEL_STEP = 8
 -- Side of the transparent square that holds a thumb drag under the cursor, which a fast move cannot leave.
 local GRAB = 160
 local OPTION_H = 28
 -- Alpha of a stepper whose setting another choice overrides.
 local FADED = 0.45
 -- Colour rows: two lines of swatches and the hex field, and the picker's shade square and hue strip under them.
-local SWATCH_W, SWATCH_GAP, HEX_W, HEX_H = 84, 4, 86, 24
+local SWATCH_W = 84
+local SWATCH_GAP = 4
+local HEX_W = 86
+local HEX_H = 24
 local COLOUR_ROW_H = 10 + 2 * OPTION_H + 8 + 10
-local PICKER_W, PICKER_H, HUE_W, PICKER_SPACE = 180, 110, 18, 12
+local PICKER_W = 180
+local PICKER_H = 110
+local HUE_W = 18
+local PICKER_SPACE = 12
 -- The hue strip's colours from top to bottom, at hues 360 down to 0.
 local HUE_STOPS = { 0xFF0000FF, 0xFF00FFFF, 0x0000FFFF, 0x00FFFFFF, 0x00FF00FF, 0xFFFF00FF, 0xFF0000FF }
 
@@ -54,7 +69,10 @@ local SAMPLE_PLAYER = {
   prayerLabel = "64/99",
 }
 local SAMPLE_TARGET = { target = 1, name = "Rasial", lifepointsLabel = "58,000", healthPercent = 58 }
-local TILE_SIZE, PREVIEW_X, PREVIEW_Y, PREVIEW_GAP = 36, 20, 14, 6
+local TILE_SIZE = 36
+local PREVIEW_X = 20
+local PREVIEW_Y = 14
+local PREVIEW_GAP = 6
 -- The Bars preview: adrenaline at 89% with two souls and six necrosis stacks, and a channel two ticks from its
 -- end with two hits ahead.
 local SAMPLE_ADRENALINE = {
@@ -95,7 +113,8 @@ local function settingsPage(page, width, height, deps, define)
   -- Option rows -------------------------------------------------------------------------------------------
 
   -- Every choice row, each { choices = { [id] = draw.option }, field }, and every stepper's redraw.
-  local choiceRows, steppers = {}, {}
+  local choiceRows = {}
+  local steppers = {}
 
   local function showChoices()
     local appearance = saved.appearance()
@@ -187,7 +206,9 @@ local function settingsPage(page, width, height, deps, define)
   local track = hitArea(rect(viewport, COLOURS.sidebar, width - SCROLLBAR_W - 4, 0, SCROLLBAR_W, viewH))
   local thumb = rect(viewport, COLOURS.bronze, width - SCROLLBAR_W - 3, 0, SCROLLBAR_W - 2, 0)
   -- Rows from the top: { layer, y, h }, the content's height and how far it is scrolled.
-  local rows, contentH, scroll = {}, 0, 0
+  local rows = {}
+  local contentH = 0
+  local scroll = 0
 
   local function maxScroll()
     return math.max(0, contentH - viewH)
@@ -372,9 +393,11 @@ local function settingsPage(page, width, height, deps, define)
       return shows(row, y)
     end
     local lineY = { 10, 10 + OPTION_H + 8 }
-    local swatches, perLine = {}, 5
+    local swatches = {}
+    local perLine = 5
     for i, preset in ipairs(presets) do
-      local line, slot = (i - 1) // perLine + 1, (i - 1) % perLine
+      local line = (i - 1) // perLine + 1
+      local slot = (i - 1) % perLine
       local x = rowRight - perLine * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP + slot * (SWATCH_W + SWATCH_GAP)
       swatches[preset.id] = swatch(row.layer, x, lineY[line], preset.label, function(y)
         if allowed(y) then
@@ -394,7 +417,8 @@ local function settingsPage(page, width, height, deps, define)
     end)
 
     -- The picker, built on first open: { square, hue, mark, hueMark, hue value }.
-    local picker, open = nil, false
+    local picker = nil
+    local open = false
     local pickerY = COLOUR_ROW_H
     local squareX = rowRight - PICKER_W - HUE_W - 8
 
@@ -422,11 +446,13 @@ local function settingsPage(page, width, height, deps, define)
     -- Saves the colour picked at x, y on the shade square, or at y on the hue strip when onHue.
     local function pick(x, y, onHue)
       local _, sat, v = style.hsv(colourRows[field].rgb)
-      local h, fy = picker.hueValue, math.max(0, math.min(1, y / PICKER_H))
+      local h = picker.hueValue
+      local fy = math.max(0, math.min(1, y / PICKER_H))
       if onHue then
         h = (1 - fy) * 360 % 360
       else
-        sat, v = math.max(0, math.min(1, x / PICKER_W)), 1 - fy
+        sat = math.max(0, math.min(1, x / PICKER_W))
+        v = 1 - fy
       end
       picker.hueValue = h
       choose(field, style.rgb(h, sat, v))
@@ -548,7 +574,8 @@ local function settingsPage(page, width, height, deps, define)
     if mx == nil or (mx == held.lastX and my == held.lastY) then
       return
     end
-    held.lastX, held.lastY = mx, my
+    held.lastX = mx
+    held.lastY = my
     local _, th = thumbBox()
     if viewH > th then
       scrollTo(held.scroll + (my - held.y) * maxScroll() / (viewH - th))
@@ -590,7 +617,8 @@ function appearancepage.create(page, width, height, deps)
     local tiles = view.cooldownGroup(b.preview, deps.tooltip)
     tiles.configure({ size = TILE_SIZE, perRow = #SAMPLE_TILES, grow = "down" })
     local aura = view.auraRow(b.preview, view.AURA_STYLES.combatBuffs, deps.tooltip, deps.auraInfo)
-    local player, target = view.playerFrame(b.preview), view.targetFrame(b.preview)
+    local player = view.playerFrame(b.preview)
+    local target = view.targetFrame(b.preview)
     local elements = { tiles, aura, player, target }
 
     b.heading("Text")
@@ -664,9 +692,11 @@ end
 -- The Bars page: the adrenaline bar's markers and size, where the spender rows sit, and the cast bar's width,
 -- height, colour, font and text size; see settingsPage.
 function appearancepage.bars(page, width, height, deps)
-  local view, saved = deps.view, deps.saved
+  local view = deps.view
+  local saved = deps.saved
   return settingsPage(page, width, height, deps, function(b)
-    local resource, cast = view.resourceBar(b.preview), view.castBar(b.preview)
+    local resource = view.resourceBar(b.preview)
+    local cast = view.castBar(b.preview)
 
     b.heading("Adrenaline bar")
     for _, marker in ipairs({
@@ -708,7 +738,8 @@ function appearancepage.bars(page, width, height, deps)
     for _, family in ipairs(style.FAMILIES) do
       set(fonts[family.id].label, "font", id.Font[family.sizes[13]])
     end
-    local low, high = style.ROLES.body + settings.TEXT_STEP_MIN, style.ROLES.body + settings.TEXT_STEP_MAX
+    local low = style.ROLES.body + settings.TEXT_STEP_MIN
+    local high = style.ROLES.body + settings.TEXT_STEP_MAX
     local size = b.number("Text size", low, high, function(appearance)
       return appearance.castTextSize == "hud" and style.ROLES.body + appearance.textStep or appearance.castTextSize
     end, function(n)

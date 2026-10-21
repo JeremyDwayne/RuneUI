@@ -1,7 +1,13 @@
 local auralists = require("src/auralists")
 
-local BLOATED, STUN_IMMUNE, STUNNED, BONE_SHIELD, ANTIFIRE = 30098, 26104, 26103, 30099, 30093
-local VULNERABILITY, DEATH_MARK, HAUNTED = 14395, 30100, 30212
+local BLOATED = 30098
+local STUN_IMMUNE = 26104
+local STUNNED = 26103
+local BONE_SHIELD = 30099
+local ANTIFIRE = 30093
+local VULNERABILITY = 14395
+local DEATH_MARK = 30100
+local HAUNTED = 30212
 
 describe("auralists.tracked", function()
   it("tracks a default debuff with no saved choice and leaves others untracked", function()
@@ -44,7 +50,10 @@ describe("auralists.groups", function()
 end)
 
 describe("auralists.drop", function()
-  local A, B, C, D = 1, 2, 3, 4
+  local A = 1
+  local B = 2
+  local C = 3
+  local D = 4
 
   it("inserts an icon between two others in its own group", function()
     local moved = auralists.drop({ A, B, C, D }, { A, B, C }, A, { kind = "insert", index = 3 })

@@ -103,11 +103,13 @@ local function ordered(set, saved, defaults)
   end
   local huge = math.huge
   table.sort(list, function(a, b)
-    local sa, sb = savedAt[a] or huge, savedAt[b] or huge
+    local sa = savedAt[a] or huge
+    local sb = savedAt[b] or huge
     if sa ~= sb then
       return sa < sb
     end
-    local da, db = defaults[a] or huge, defaults[b] or huge
+    local da = defaults[a] or huge
+    local db = defaults[b] or huge
     if da ~= db then
       return da < db
     end
@@ -134,7 +136,8 @@ end
 -- sprite seen or on its defaults, and order holds each kind's full display order.
 function auralists.groups(categories, choices, orders)
   local groups = { order = {} }
-  local members, all = {}, {}
+  local members = {}
+  local all = {}
   for _, name in ipairs(CATEGORIES) do
     members[name] = {}
   end
@@ -150,7 +153,9 @@ function auralists.groups(categories, choices, orders)
     groups[name] = filter(groups.order.buffs, members[name])
   end
   for kind, defaults in pairs(DEFAULTS) do
-    local tracked, untracked, seen = {}, {}, {}
+    local tracked = {}
+    local untracked = {}
+    local seen = {}
     local function place(sprite)
       seen[sprite] = true
       if auralists.tracked(kind, choices[kind], sprite) then
@@ -206,7 +211,8 @@ function auralists.drop(order, list, sprite, target)
     if other == nil or other == sprite then
       return nil
     end
-    local a, b = indexOf(out, sprite), indexOf(out, other)
+    local a = indexOf(out, sprite)
+    local b = indexOf(out, other)
     out[a], out[b] = other, sprite
     return { order = out, other = other }
   end

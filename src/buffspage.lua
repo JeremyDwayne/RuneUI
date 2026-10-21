@@ -9,19 +9,30 @@ local editor = require("src/editor")
 
 local buffspage = {}
 
-local set, rect, text, hitArea, on = draw.set, draw.rect, draw.windowText, draw.hitArea, draw.on
-local FONTS, COLOURS = draw.FONTS, draw.WINDOW
-local SIZE, GAP = 30, 3
+local set = draw.set
+local rect = draw.rect
+local text = draw.windowText
+local hitArea = draw.hitArea
+local on = draw.on
+local FONTS = draw.FONTS
+local COLOURS = draw.WINDOW
+local SIZE = 30
+local GAP = 3
 local STEP = SIZE + GAP
 -- Icons a tab can show, and Keep up marks the upkeep group can show.
-local TILES, KEEP_MARKS = 120, 24
+local TILES = 120
+local KEEP_MARKS = 24
 local MARK = 11
 -- Untracked and hidden icons draw dim inside a dashed box.
 local DIM = 0.38
-local MARGIN, TAB_Y, TAB_H, TAB_W = 24, 14, 28, 130
+local MARGIN = 24
+local TAB_Y = 14
+local TAB_H = 28
+local TAB_W = 130
 local HEADER = 20
 local PAD = 6
-local MENU_W, MENU_ROW = 160, 28
+local MENU_W = 160
+local MENU_ROW = 28
 
 -- Each group lists the sprites groups(...) files under kind and value: a buff row, or a debuff kind's
 -- tracked or untracked list.
@@ -196,7 +207,9 @@ function buffspage.create(page, width, height, deps)
     end
     set(display, "hidden", current.groups ~= nil)
     local keepUp = saved.keepUp()
-    local y, used, marked = top, 0, 0
+    local y = top
+    local used = 0
+    local marked = 0
     for i, slot in ipairs(slots) do
       local def = current.groups and current.groups[i]
       draw.hideAll({ slot.label, slot.note, slot.box, slot.dashes }, def == nil)
@@ -212,15 +225,20 @@ function buffspage.create(page, width, height, deps)
         draw.pos(slot.note, MARGIN + 140, y + 2)
         draw.pos(slot.box, MARGIN, boxY)
         draw.size(slot.box, width - 2 * MARGIN, boxH)
-        slot.top, slot.bottom, slot.list, slot.lines = boxY, boxY + boxH, list, lines
+        slot.top = boxY
+        slot.bottom = boxY + boxH
+        slot.list = list
+        slot.lines = lines
         local shown = 0
         for k, sprite in ipairs(list) do
           if used >= TILES then
             break
           end
-          used, shown = used + 1, k
+          used = used + 1
+          shown = k
           local t = tiles[used]
-          t.sprite, t.def = sprite, def
+          t.sprite = sprite
+          t.def = def
           t.x = MARGIN + PAD + ((k - 1) % cols) * STEP
           t.y = boxY + PAD + ((k - 1) // cols) * STEP
           draw.pos(t.edge, t.x, t.y)
@@ -273,7 +291,8 @@ function buffspage.create(page, width, height, deps)
       label = text(menu, FONTS.body, ui.AlignMode.TOPLEFT, 12, 1 + (i - 1) * MENU_ROW, MENU_W - 20, MENU_ROW),
     }
     on(r.bg, "ONCLICK", function()
-      local action, t = r.action, menuTile
+      local action = r.action
+      local t = menuTile
       closeMenu()
       if action ~= nil and t ~= nil and t.sprite ~= nil then
         action(t)
@@ -295,13 +314,21 @@ function buffspage.create(page, width, height, deps)
       local def = slot.def
       if def ~= nil then
         local current = def == t.def
-        entries[#entries + 1] = {
-          label = def.kind == "buff" and def.label or (def.value and "Track" or "Stop tracking"),
-          current = current,
-          action = not current and function(tile)
+        local label
+        if def.kind == "buff" then
+          label = def.label
+        elseif def.value then
+          label = "Track"
+        else
+          label = "Stop tracking"
+        end
+        local action = nil
+        if not current then
+          action = function(tile)
             place(tile, slot, { kind = "insert", index = #slot.list + 1 })
-          end or nil,
-        }
+          end
+        end
+        entries[#entries + 1] = { label = label, current = current, action = action }
       end
     end
     if t.def.value == "upkeep" then
@@ -362,7 +389,8 @@ function buffspage.create(page, width, height, deps)
     end
   end
 
-  local dropSlot, dropTarget = nil, nil
+  local dropSlot = nil
+  local dropTarget = nil
   drag = dragdrop.create(page, SIZE // 2, {
     press = function(t)
       if t.sprite == nil then
@@ -380,7 +408,8 @@ function buffspage.create(page, width, height, deps)
     end,
     move = function(_, px, py)
       local slot, target, line = targetAt(px, py)
-      dropSlot, dropTarget = slot, target
+      dropSlot = slot
+      dropTarget = target
       local swap = target ~= nil and target.kind == "swap"
       draw.hideAll(swapBox, not swap)
       set(insertLine, "hidden", target == nil or swap)
@@ -388,7 +417,8 @@ function buffspage.create(page, width, height, deps)
         return
       end
       local column = target.index - 1 - line * cols
-      local x, y = MARGIN + PAD + column * STEP, slot.top + PAD + line * STEP
+      local x = MARGIN + PAD + column * STEP
+      local y = slot.top + PAD + line * STEP
       if swap then
         draw.placeOutline(swapBox, x, y, SIZE, SIZE)
       else
@@ -404,7 +434,8 @@ function buffspage.create(page, width, height, deps)
     finish = function(t)
       set(t.icon, "alpha", t.def.dim and DIM or 1)
       hideDropFeedback()
-      dropSlot, dropTarget = nil, nil
+      dropSlot = nil
+      dropTarget = nil
     end,
   })
   for _, t in ipairs(tiles) do

@@ -51,7 +51,8 @@ end
 -- Shown 1px bar marks on bar, as tall as the cast bar's fill unless height is given: { dark ones over the fill,
 -- light ones ahead of it }.
 local function marks(bar, height)
-  local dark, light = 0, 0
+  local dark = 0
+  local light = 0
   for _, c in ipairs(fake.created) do
     if fake.shown(c) and c.parent == bar.layer and c.width == 1 and c.height == (height or 20) then
       if c.rgb == draw.COLOURS.border then
@@ -274,7 +275,8 @@ describe("view", function()
   end)
 
   it("keeps an up group's last tile on its bottom row and a left group's on its right column", function()
-    local up, left = group(36, 7, "up"), group(30, 2, "left")
+    local up = group(36, 7, "up")
+    local left = group(30, 2, "left")
     up.update(readyTiles(3))
     left.update(readyTiles(3))
     assert.are.same({ x = 76, y = 76, w = 112, h = 36 }, up.bounds)
@@ -646,13 +648,15 @@ describe("view", function()
 
   it("grows the adrenaline bar's bounds by its spender rows below or above it, or the player frame's", function()
     local elements = shownHud()
-    local bar, player = elements.resource, elements.player
+    local bar = elements.resource
+    local player = elements.player
     local spenders = { { key = "souls", count = 1, max = 3 }, { key = "necrosis", count = 4, max = 12 } }
     local model = { hidden = false, fill = 0.4, text = "40%", markers = {}, spenders = spenders }
     local function boxes()
       return { bar.bounds.y, bar.bounds.h, player.bounds.h }
     end
-    local barY, barH = bar.bounds.y, bar.bounds.h
+    local barY = bar.bounds.y
+    local barH = bar.bounds.h
     assert.is_true(bar.update(model))
     player.showSpenders(spenders)
     assert.are.same({ barY, barH + 20, 55 }, boxes())

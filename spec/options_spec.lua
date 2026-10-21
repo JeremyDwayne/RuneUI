@@ -117,7 +117,8 @@ describe("options", function()
   it("cancels a tile drag on Esc, restoring the tile and leaving the logic tick idle", function()
     openWindow()
     local tile = editorTile()
-    fake.mouse.x, fake.mouse.y = 500, 300
+    fake.mouse.x = 500
+    fake.mouse.y = 300
     fake.hook(tile, "ONCLICK", 5, 5)
     fake.mouse.x = 540
     logicTick()
@@ -134,12 +135,16 @@ describe("options", function()
   it("keeps the pressed tile under the cursor during a drag so the client does not release it", function()
     openWindow()
     local tile = editorTile()
-    local x, y = tile.x, tile.y
-    fake.mouse.x, fake.mouse.y = 500, 300
+    local x = tile.x
+    local y = tile.y
+    fake.mouse.x = 500
+    fake.mouse.y = 300
     fake.hook(tile, "ONCLICK", 5, 5)
-    fake.mouse.x, fake.mouse.y = 540, 310
+    fake.mouse.x = 540
+    fake.mouse.y = 310
     logicTick()
-    local cx, cy = x + 45, y + 15
+    local cx = x + 45
+    local cy = y + 15
     assert.is_true(tile.x <= cx - 60 and tile.x + tile.width >= cx + 60)
     assert.is_true(tile.y <= cy - 60 and tile.y + tile.height >= cy + 60)
 
@@ -151,9 +156,11 @@ describe("options", function()
     local saved = openWindow()
     local first, second = table.unpack(saved.keys("major", "magic"))
     local tile = editorTile()
-    fake.mouse.x, fake.mouse.y = 500, 300
+    fake.mouse.x = 500
+    fake.mouse.y = 300
     fake.hook(tile, "ONCLICK", 5, 5)
-    fake.mouse.x, fake.mouse.y = 500 + 38 + 13, 300 + 13
+    fake.mouse.x = 500 + 38 + 13
+    fake.mouse.y = 300 + 13
     logicTick()
     fake.hook(tile, "ONRELEASE")
     local keys = saved.keys("major", "magic")
@@ -312,7 +319,8 @@ describe("options", function()
 
   it("makes no client writes while a tile drag is held still", function()
     openWindow()
-    fake.mouse.x, fake.mouse.y = 500, 300
+    fake.mouse.x = 500
+    fake.mouse.y = 300
     fake.hook(editorTile(), "ONCLICK", 5, 5)
     fake.mouse.x = 540
     logicTick()

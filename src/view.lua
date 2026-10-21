@@ -10,8 +10,12 @@ local frames = require("src/frames")
 local layout = require("src/layout")
 local settings = require("src/settings")
 local style = require("src/style")
-local set, pos, rect, text = draw.set, draw.pos, draw.rect, draw.text
-local FONTS, COLOURS = draw.FONTS, draw.COLOURS
+local set = draw.set
+local pos = draw.pos
+local rect = draw.rect
+local text = draw.text
+local FONTS = draw.FONTS
+local COLOURS = draw.COLOURS
 
 -- Tile backgrounds are translucent so the game shows through empty tiles.
 local TILE_ALPHA = 0.6
@@ -35,7 +39,9 @@ function view.arrange(elements, positions, anchors)
   return resolved
 end
 
-local TOOLTIP_WIDTH, TOOLTIP_PAD, TOOLTIP_GAP = 200, 8, 6
+local TOOLTIP_WIDTH = 200
+local TOOLTIP_PAD = 8
+local TOOLTIP_GAP = 6
 -- Characters of info that fit one tooltip line in the small font.
 local TOOLTIP_LINE_CHARS = 34
 
@@ -72,7 +78,10 @@ function view.tooltip(root)
     set(left, "content", content.left or "")
     set(right, "content", content.right or "")
     set(line, "content", content.line or "")
-    local lines = content.line == nil and 0 or (#content.line > TOOLTIP_LINE_CHARS and 2 or 1)
+    local lines = 0
+    if content.line ~= nil then
+      lines = #content.line > TOOLTIP_LINE_CHARS and 2 or 1
+    end
     local h = 46 + lines * 14 - (lines == 0 and 6 or 0)
     if h ~= height then
       height = h
@@ -118,7 +127,8 @@ function view.tooltip(root)
   -- whose index is the hovered item's, or nil, so an update can redraw the tooltip it shows, and whose
   -- add(item) wires one more item as the next index.
   function tooltip.hover(items, show)
-    local hover, count = {}, 0
+    local hover = {}
+    local count = 0
 
     function hover.add(item)
       count = count + 1
@@ -158,9 +168,17 @@ local function styleText(label, role, look, dark, rgb)
   local font = look.fonts[role]
   local native = look.outline and not dark and style.outlineFont(font)
   set(label, "font", id.Font[native or font])
-  set(label, "rgb", dark and style.DARK_TEXT or rgb or look.text)
+  local colour = rgb or look.text
+  if dark then
+    colour = style.DARK_TEXT
+  end
+  set(label, "rgb", colour)
   set(label, "isShadowed", look.shadow and not dark)
-  draw.setEdge(label, look.outline and not native and (dark and style.LIGHT_EDGE or style.DARK_EDGE) or nil)
+  local edge = nil
+  if look.outline and not native then
+    edge = dark and style.LIGHT_EDGE or style.DARK_EDGE
+  end
+  draw.setEdge(label, edge)
 end
 
 -- Gives each element its look; returns whether any element's bounds changed.
@@ -193,10 +211,14 @@ local function gameFrame(layer)
     return c
   end
   local S = GAME_SPRITES
-  local topLeft, topRight = part(S.cornerTop, false, false), part(S.cornerTop, true, false)
-  local bottomLeft, bottomRight = part(S.cornerBottom, false, false), part(S.cornerBottom, true, false)
-  local top, bottom = part(S.top, false, true), part(S.bottom, false, true)
-  local left, right = part(S.side, false, true), part(S.side, true, true)
+  local topLeft = part(S.cornerTop, false, false)
+  local topRight = part(S.cornerTop, true, false)
+  local bottomLeft = part(S.cornerBottom, false, false)
+  local bottomRight = part(S.cornerBottom, true, false)
+  local top = part(S.top, false, true)
+  local bottom = part(S.bottom, false, true)
+  local left = part(S.side, false, true)
+  local right = part(S.side, true, true)
   local e = GAME_EDGE
   local frame = { parts = parts }
 
@@ -219,7 +241,8 @@ local function gameFrame(layer)
   return frame
 end
 -- The value label's width at the right of a unit frame, and the space the name leaves for it.
-local VALUE_WIDTH, VALUE_SPACE = 95, 110
+local VALUE_WIDTH = 95
+local VALUE_SPACE = 110
 
 -- Spender rows: each SPENDER_ROW tall, SPENDER_STEP apart, so a host grows SPENDER_STEP per shown row.
 local SPENDER_ROW = 8
@@ -266,7 +289,10 @@ local function spenderRows(layer)
         pos(row.canvas, 0, y + (r - 1) * SPENDER_STEP)
         draw.size(row.canvas, w, SPENDER_ROW)
         if row.key ~= spender.key or row.count ~= spender.count or row.max ~= spender.max or row.w ~= w then
-          row.key, row.count, row.max, row.w = spender.key, spender.count, spender.max, w
+          row.key = spender.key
+          row.count = spender.count
+          row.max = spender.max
+          row.w = w
           drawBlocks(row.canvas, spender, w)
         end
       end
@@ -300,14 +326,21 @@ local function unitFrame(root, kind, power)
   local frame = { layer = layer, bounds = bounds }
   -- The look shown, whether its fill wants Auto's dark text, the fill shown, and the fills at which each label
   -- sits wholly on it.
-  local shown, bright, fill = nil, false, nil
-  local nameAt, valueAt = 1, 1
+  local shown = nil
+  local bright = false
+  local fill = nil
+  local nameAt = 1
+  local valueAt = 1
   -- The spenders last given to showSpenders.
   local spenders = NO_SPENDERS
 
   local function resize(w, h)
-    local inner, healthHeight = w - 2, power and h - POWER_HEIGHT - 3 or h - 2
-    frame.width, frame.height, bounds.w, bounds.h = w, h, w, h
+    local inner = w - 2
+    local healthHeight = power and h - POWER_HEIGHT - 3 or h - 2
+    frame.width = w
+    frame.height = h
+    bounds.w = w
+    bounds.h = h
     draw.size(layer, w, h + (rows and 2 + #frames.SPENDERS * SPENDER_STEP or 0))
     draw.size(border, w, h)
     draw.size(track, inner, healthHeight)
@@ -315,7 +348,8 @@ local function unitFrame(root, kind, power)
     draw.size(name, w - VALUE_SPACE, healthHeight)
     pos(value, w - VALUE_WIDTH - 6, 1)
     draw.size(value, VALUE_WIDTH, healthHeight)
-    nameAt, valueAt = (6 + w - VALUE_SPACE) / inner, (inner - 5) / inner
+    nameAt = (6 + w - VALUE_SPACE) / inner
+    valueAt = (inner - 5) / inner
     game.place(w, h)
     if power then
       pos(prayerTrack, 1, healthHeight + 2)
@@ -407,7 +441,8 @@ local BAR_Y = #frames.SPENDERS * SPENDER_STEP
 local PERCENT_ON_FILL = 0.56
 
 -- Bar marks are faint 1px lines across a bar: dark where the fill has passed them, light ahead of it.
-local MARK_DARK_ALPHA, MARK_LIGHT_ALPHA = 0.4, 0.3
+local MARK_DARK_ALPHA = 0.4
+local MARK_LIGHT_ALPHA = 0.3
 
 -- A bar mark at x, y as tall as height.
 local function barMark(layer, x, y, height)
@@ -437,7 +472,11 @@ function view.resourceBar(root)
   local bar = { layer = layer, bounds = bounds }
   -- The look shown, whether it wants dark text once the fill passes the label, the fill shown, the model shown,
   -- redrawn after a resize, and the bar's height.
-  local shown, bright, fillShown, last, barH = nil, false, 0, nil, 0
+  local shown = nil
+  local bright = false
+  local fillShown = 0
+  local last = nil
+  local barH = 0
 
   local function stylePercent()
     styleText(percent, "body", shown, bright and fillShown >= PERCENT_ON_FILL)
@@ -448,14 +487,18 @@ function view.resourceBar(root)
     if shown.spenders == "player" then
       spenders = NO_SPENDERS
     end
-    local w, rowsH = bounds.w, #spenders * SPENDER_STEP
+    local w = bounds.w
+    local rowsH = #spenders * SPENDER_STEP
     local above = shown.spenders == "above"
     rows.show(spenders, w, above and BAR_Y - rowsH or BAR_Y + barH + 2)
-    local y, h = above and BAR_Y - rowsH or BAR_Y, barH + rowsH
+    local y = above and BAR_Y - rowsH or BAR_Y
+    local h = barH + rowsH
     if y == bounds.y and h == bounds.h then
       return false
     end
-    bounds.y, bounds.h, bar.height = y, h, h
+    bounds.y = y
+    bounds.h = h
+    bar.height = h
     return true
   end
 
@@ -478,7 +521,9 @@ function view.resourceBar(root)
   end
 
   local function resize(w, h)
-    barH, bounds.w, bar.width = h, w, w
+    barH = h
+    bounds.w = w
+    bar.width = w
     draw.size(layer, w, 2 * BAR_Y + h + 2)
     draw.size(border, w, h)
     draw.size(track, w - 2, h - 2)
@@ -496,7 +541,8 @@ function view.resourceBar(root)
       return false
     end
     local resized = bounds.w ~= look.barWidth or barH ~= look.barHeight
-    shown, bright = look, look.auto and style.dark(COLOURS.adrenaline)
+    shown = look
+    bright = look.auto and style.dark(COLOURS.adrenaline)
     if resized then
       resize(look.barWidth, look.barHeight)
     end
@@ -521,7 +567,10 @@ local MAX_TILES = 10
 local COOLING_DIM = 0.62
 -- A tile whose ability can't be cast takes the native action bar's look: a dark icon tint and a faded grey
 -- keybind.
-local UNTINTED, BLOCKED_ICON, BLOCKED_TEXT, BLOCKED_ALPHA = 0xffffff, 0x333333, 0xa5a5a5, 0.6
+local UNTINTED = 0xffffff
+local BLOCKED_ICON = 0x333333
+local BLOCKED_TEXT = 0xa5a5a5
+local BLOCKED_ALPHA = 0.6
 
 -- Builds one cooldown tile's components. placeTile positions and sizes them.
 local function tile(layer)
@@ -543,7 +592,8 @@ end
 
 -- Moves and sizes a tile's parts for a size pixel tile at x, y.
 local function placeTile(parts, x, y, size)
-  parts.x, parts.y = x, y
+  parts.x = x
+  parts.y = y
   pos(parts.edge, x, y)
   draw.size(parts.edge, size, size)
   for _, inner in ipairs(parts.inner) do
@@ -585,7 +635,12 @@ local function showTile(parts, model, since, look, size)
   end
   local usable = model.usable ~= false
   set(parts.icon, "rgb", usable and UNTINTED or BLOCKED_ICON)
-  local labelColour = not usable and BLOCKED_TEXT or model.ready and look.text or COLOURS.dimText
+  local labelColour = COLOURS.dimText
+  if not usable then
+    labelColour = BLOCKED_TEXT
+  elseif model.ready then
+    labelColour = look.text
+  end
   local labelAlpha = usable and 1 or BLOCKED_ALPHA
   styleText(parts.initials, "small", look, false, labelColour)
   styleText(parts.keybind, "small", look, false, labelColour)
@@ -611,9 +666,11 @@ function view.cooldownGroup(root, tooltip)
   local inUse = true
   local current = {}
   -- Shown tiles, and how many of them are cooling.
-  local count, cooling = 0, 0
+  local count = 0
+  local cooling = 0
   -- The look shown and the seconds since the server tick of the models shown.
-  local look, shownSince = DEFAULT_LOOK, 0
+  local look = DEFAULT_LOOK
+  local shownSince = 0
   local bounds = { x = 0, y = 0, w = 0, h = 0 }
   local group = { layer = layer, bounds = bounds, inUse = true }
 
@@ -652,20 +709,25 @@ function view.cooldownGroup(root, tooltip)
 
   function group.update(models, since)
     if not inUse then
-      current, count, cooling = {}, 0, 0
+      current = {}
+      count = 0
+      cooling = 0
       for _, parts in ipairs(tiles) do
         draw.hideAll(parts.all, true)
       end
       local moved = bounds.w ~= 0 or bounds.h ~= 0
-      bounds.w, bounds.h = 0, 0
+      bounds.w = 0
+      bounds.h = 0
       if hover.index ~= nil then
         hover.index = nil
         tooltip.hide()
       end
       return moved
     end
-    current, shownSince = models, since or 0
-    count, cooling = math.min(#models, max), 0
+    current = models
+    shownSince = since or 0
+    count = math.min(#models, max)
+    cooling = 0
     while #tiles < count do
       tiles[#tiles + 1] = tile(layer)
       hover.add(tiles[#tiles])
@@ -673,7 +735,10 @@ function view.cooldownGroup(root, tooltip)
     local g = layout.grid(count, display.size, TILE_GAP, display.perRow, display.grow, max)
     local shown = g.bounds
     local moved = bounds.x ~= shown.x or bounds.y ~= shown.y or bounds.w ~= shown.w or bounds.h ~= shown.h
-    bounds.x, bounds.y, bounds.w, bounds.h = shown.x, shown.y, shown.w, shown.h
+    bounds.x = shown.x
+    bounds.y = shown.y
+    bounds.w = shown.w
+    bounds.h = shown.h
     for i, parts in ipairs(tiles) do
       if i > count then
         draw.hideAll(parts.all, true)
@@ -732,19 +797,26 @@ end
 
 -- A cancelled channel shows "Cancelled" for CANCEL_HOLD seconds, then the bar fades out over CANCEL_FADE seconds
 -- in CANCEL_STEPS alpha steps, from 0.8 down to 0.
-local CANCEL_HOLD, CANCEL_FADE, CANCEL_STEPS = 0.6, 0.4, 5
+local CANCEL_HOLD = 0.6
+local CANCEL_FADE = 0.4
+local CANCEL_STEPS = 5
 
 -- Fill colour by the channelled ability's src/cooldowns combat style, for Ability style. A channel with none keeps
 -- the RuneUI fill.
 local CAST_COLOURS = style.STYLE_COLOURS
 -- The time label's width and its gap from the bar's right end.
-local CAST_TIME_W, CAST_TIME_GAP = 72, 6
+local CAST_TIME_W = 72
+local CAST_TIME_GAP = 6
 
 -- The spark at the fill's edge: a 2px white core with a glow of SPARK_GLOW 1px white strips behind it, their alpha
 -- rising evenly to GLOW_PEAK by the core, times the glow level. The level sits at GLOW_BASE and flashes on each
 -- server tick, stepping down through FLASH_LEVELS over FLASH seconds, as the game's spark glow does.
-local SPARK_GLOW, SPARK_CORE, GLOW_PEAK = 12, 2, 0.9
-local GLOW_BASE, FLASH, FLASH_LEVELS = 0.5, 0.2, { 1, 0.8, 0.65 }
+local SPARK_GLOW = 12
+local SPARK_CORE = 2
+local GLOW_PEAK = 0.9
+local GLOW_BASE = 0.5
+local FLASH = 0.2
+local FLASH_LEVELS = { 1, 0.8, 0.65 }
 
 -- look.castWidth by look.castHeight: the channelled ability's icon, its name, and its time left as "1.2s" over a
 -- fill of the time spent in look.castColour, or its combat style's colour for Ability style, with a spark at the
@@ -760,7 +832,8 @@ function view.castBar(root)
   local border = rect(layer, COLOURS.border, 0, 0, 0, 0)
   local track = rect(layer, COLOURS.track, 1, 1, 0, 0)
   -- The bar's left edge and width, right of the icon, set by resize.
-  local barX, barWidth = 0, 0
+  local barX = 0
+  local barWidth = 0
   local fill = draw.bar(layer, style.CAST_COLOUR, COLOURS.track, 0, 1, 0, 0)
   local marks = {}
   for i = 1, MAX_HITS do
@@ -775,7 +848,8 @@ function view.castBar(root)
   end
   local core = rect(spark, COLOURS.highlight, sparkWidth - SPARK_CORE, 0, SPARK_CORE, 0)
   -- The glow level shown, and seconds left in a flash.
-  local glowLevel, flashLeft = nil, 0
+  local glowLevel = nil
+  local flashLeft = 0
   local iconBack = rect(layer, COLOURS.tile, 1, 1, 0, 0)
   local icon = ui.Sprite.new(layer)
   icon:SetPos(1, 1)
@@ -795,13 +869,23 @@ function view.castBar(root)
   set(layer, "hidden", true)
   -- The shown channel's model and seconds left, nil once it ends, the start of the latest channel shown and the
   -- ticks left its label shows.
-  local current, left, shownStart, shownTicks = nil, nil, nil, nil
+  local current = nil
+  local left = nil
+  local shownStart = nil
+  local shownTicks = nil
   -- Seconds into the channel of each shown mark, the start and hit count they were placed for, and how many the
   -- fill has passed.
-  local markAt, placedFor, placedHits, placed, passedShown = {}, nil, nil, 0, nil
+  local markAt = {}
+  local placedFor = nil
+  local placedHits = nil
+  local placed = 0
+  local passedShown = nil
 
   local function placeMarks(model)
-    placedFor, placedHits, placed, passedShown = model.start, model.hits and #model.hits, 0, nil
+    placedFor = model.start
+    placedHits = model.hits and #model.hits
+    placed = 0
+    passedShown = nil
     for _, at in ipairs(model.hits or NO_HITS) do
       if at > 0 and at < model.duration and placed < MAX_HITS then
         placed = placed + 1
@@ -867,7 +951,9 @@ function view.castBar(root)
 
   -- Hides the bar and ends its channel.
   local function finish()
-    current, left, cancelLeft = nil, nil, nil
+    current = nil
+    left = nil
+    cancelLeft = nil
     set(layer, "hidden", true)
     setAlpha(1)
   end
@@ -892,10 +978,14 @@ function view.castBar(root)
       finish()
     end
     if model ~= nil and model.start ~= shownStart then
-      shownStart, left, shownTicks = model.start, model.duration, nil
+      shownStart = model.start
+      left = model.duration
+      shownTicks = nil
     end
     if model ~= nil and left ~= nil and model.ticksLeft ~= shownTicks then
-      shownTicks, left, flashLeft = model.ticksLeft, model.ticksLeft * 6 / 10, FLASH
+      shownTicks = model.ticksLeft
+      left = model.ticksLeft * 6 / 10
+      flashLeft = FLASH
       set(time, "content", castSeconds(shownTicks))
       setGlow(FLASH_LEVELS[1])
     end
@@ -948,8 +1038,12 @@ function view.castBar(root)
   -- Sizes every part for a w by h bar, the icon a square filling its height, and redraws a running channel.
   local function resize(w, h)
     local inner = h - 2
-    bar.width, bar.height, bounds.w, bounds.h = w, h, w, h
-    barX, barWidth = inner + 2, w - inner - 3
+    bar.width = w
+    bar.height = h
+    bounds.w = w
+    bounds.h = h
+    barX = inner + 2
+    barWidth = w - inner - 3
     draw.size(layer, w, h)
     draw.size(border, w, h)
     draw.size(track, w - 2, inner)
@@ -994,7 +1088,8 @@ function view.castBar(root)
     return moved
   end
 
-  bar.update, bar.step = update, step
+  bar.update = update
+  bar.step = step
   bar.setLook(DEFAULT_LOOK)
   return bar
 end
@@ -1011,9 +1106,11 @@ local AURA_GAP = 2
 -- Room around the tiles for the highlight, which draws up to 3px outside a tile.
 local AURA_MARGIN = 3
 -- With bars on, each tile has a 4px bar 1px below it.
-local AURA_BAR, AURA_BAR_SPACE = 4, 5
+local AURA_BAR = 4
+local AURA_BAR_SPACE = 5
 -- Bar stripes in the refresh window: white and black runs across the bar.
-local STRIPE, STRIPE_GAP = 3, 2
+local STRIPE = 3
+local STRIPE_GAP = 2
 -- A missing Keep up buff's icon alpha.
 local MISSING_ALPHA = 0.35
 
@@ -1066,7 +1163,8 @@ end
 local function showAura(parts, model, x, y, size, bars)
   parts.group.place(x, y)
   local timed = model.left ~= nil
-  local ring, dashed = model.highlight and not bars, model.highlight and bars or model.missing == true
+  local ring = model.highlight and not bars
+  local dashed = model.highlight and bars or model.missing == true
   draw.hideAll(parts.ring, not ring)
   set(parts.dashed, "hidden", not dashed)
   set(parts.edge, "hidden", false)
@@ -1133,10 +1231,15 @@ function view.auraRow(root, aura, tooltip, info)
     end
     local found = info(model.sprite)
     local x, y = screenPos(layer, tiles[i].group.x, AURA_MARGIN)
-    tooltip.show({
-      title = found and found.name or (aura.debuff and "Unknown debuff" or "Unknown buff"),
-      left = found and found.info or (found == nil and "Looking up name" or nil),
-    }, x, y, size)
+    local title = aura.debuff and "Unknown debuff" or "Unknown buff"
+    local detail = nil
+    if found then
+      title = found.name or title
+      detail = found.info
+    elseif found == nil then
+      detail = "Looking up name"
+    end
+    tooltip.show({ title = title, left = detail }, x, y, size)
   end
 
   local hover = tooltip.hover(tiles, showTooltip)
@@ -1145,9 +1248,13 @@ function view.auraRow(root, aura, tooltip, info)
     current = models
     local count = math.min(#models, MAX_TILES)
     local shown = math.max(count, 1)
-    local x, w, h = left(shown), shown * step - AURA_GAP, size + (bars and AURA_BAR_SPACE or 0)
+    local x = left(shown)
+    local w = shown * step - AURA_GAP
+    local h = size + (bars and AURA_BAR_SPACE or 0)
     local moved = bounds.x ~= x or bounds.w ~= w or bounds.h ~= h
-    bounds.x, bounds.w, bounds.h = x, w, h
+    bounds.x = x
+    bounds.w = w
+    bounds.h = h
     local first = left(count)
     for i, parts in ipairs(tiles) do
       local model = models[i]

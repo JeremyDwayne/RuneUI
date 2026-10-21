@@ -129,7 +129,8 @@ describe("appearance page", function()
     local grip = fake.find(function(c, d)
       return d.parent ~= viewport and d.alpha == 0 and fake.hasHook(c, "ONRELEASE")
     end)
-    fake.mouse.x, fake.mouse.y = 690, 200
+    fake.mouse.x = 690
+    fake.mouse.y = 200
     fake.hook(grip, "ONCLICK", 2, 2)
     fake.mouse.y = 260
     page.follow()
@@ -143,7 +144,8 @@ describe("appearance page", function()
     fake.hook(grip, "ONRELEASE")
     local _, _, last = scrollParts("Game cast bar")
     assert.are.equal(viewport.height - 32, last.y + last.height + content.y)
-    fake.writes, fake.mouse.y = 0, 100
+    fake.writes = 0
+    fake.mouse.y = 100
     page.follow()
     assert.are.equal(0, fake.writes)
   end)

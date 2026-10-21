@@ -56,7 +56,8 @@ tracker.seed(saved.known())
 tracker.onVar("COMBATV2_MAINHAND_STYLE", nil, adapter.playerVar("COMBATV2_MAINHAND_STYLE"))
 channelTracker.seed(adapter.playerVar)
 -- Each aura kind's sorted order as { [sprite] = position }, rebuilt only after a saved aura choice changes.
-local auraRanks, ranksVersion = nil, nil
+local auraRanks = nil
+local ranksVersion = nil
 local function rank(kind)
   if ranksVersion ~= saved.auraVersion() then
     local choices = { target = saved.tracked("target"), player = saved.tracked("player") }
@@ -90,14 +91,17 @@ Event.Draw.Subscribe("castBar", adapter.keepCastBarHidden)
 -- Event.Logic runs 50 times a second, so each of its ticks is 0.02 s.
 local LOGIC_SECONDS = 0.02
 -- Logic ticks since the last server tick, and the action bar slots read on it.
-local logicTicks, slots = 0, {}
+local logicTicks = 0
+local slots = {}
 
 -- Shows each group's tiles for the worn weapon's style. Returns whether a group's bounds changed.
 local function updateGroups()
-  local style, since = tracker.style(), logicTicks * LOGIC_SECONDS
+  local style = tracker.style()
+  local since = logicTicks * LOGIC_SECONDS
   local moved = false
   for _, name in ipairs(GROUP_NAMES) do
-    local element, group = elements[name], saved.group(name)
+    local element = elements[name]
+    local group = saved.group(name)
     element.setInUse(group ~= nil)
     if group ~= nil and element.configure(group) then
       moved = true
@@ -130,7 +134,9 @@ Event.InventoryAdded.Subscribe("lantern", adapter.inventoryChanged)
 Event.InventoryUpdated.Subscribe("lantern", adapter.inventoryChanged)
 
 -- The src/style look every element shows, rebuilt only after an appearance change or a weapon swap.
-local look, lookVersion, lookStyle = nil, nil, nil
+local look = nil
+local lookVersion = nil
+local lookStyle = nil
 
 -- Gives every element the current look. Returns whether a unit frame's bounds changed.
 local function restyle()
@@ -138,7 +144,9 @@ local function restyle()
   if look ~= nil and lookVersion == saved.appearanceVersion() and lookStyle == equipped then
     return false
   end
-  look, lookVersion, lookStyle = styling.look(saved.appearance(), equipped), saved.appearanceVersion(), equipped
+  look = styling.look(saved.appearance(), equipped)
+  lookVersion = saved.appearanceVersion()
+  lookStyle = equipped
   return view.setLook(elements, look)
 end
 

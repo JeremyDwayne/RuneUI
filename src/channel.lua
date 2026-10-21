@@ -5,7 +5,8 @@ local cooldowns = require("src/cooldowns")
 local channel = {}
 
 -- END_REASON while a channel runs, and once it finished on its last hit. Any other value, such as 2, cancelled it.
-local RUNNING, FINISHED = -1, 1
+local RUNNING = -1
+local FINISHED = 1
 -- Vars a new channel sends no change for when it repeats the last channel's value.
 local HELD = { "COMBATV2_CHANNEL_ABILITY_STRUCT", "COMBATV2_CHANNEL_ABILITY_ITERATIONS" }
 
@@ -19,13 +20,20 @@ local HELD = { "COMBATV2_CHANNEL_ABILITY_STRUCT", "COMBATV2_CHANNEL_ABILITY_ITER
 -- after up to END, or nil when the iterations are unknown. On the tick a channel is cancelled, model() returns
 -- { start, cancelled = true }.
 function channel.tracker()
-  local start, finish, struct, iterations, reason = nil, nil, nil, nil, nil
+  local start = nil
+  local finish = nil
+  local struct = nil
+  local iterations = nil
+  local reason = nil
   -- Server ticks since START, and the count when the channel was cancelled. The channel's vars arrive right after
   -- the server tick of START.
-  local elapsed, cancelledAt = 0, nil
+  local elapsed = 0
+  local cancelledAt = nil
   local changed = false
   -- The ability's info and combat style, read once per channel: the struct changes on some channels' last hit.
-  local info, infoStart, style = nil, nil, nil
+  local info = nil
+  local infoStart = nil
+  local style = nil
 
   local tracker = {}
 
@@ -35,7 +43,8 @@ function channel.tracker()
       return
     end
     if name == "COMBATV2_CHANNEL_START" then
-      start, elapsed = new, 0
+      start = new
+      elapsed = 0
     elseif name == "COMBATV2_CHANNEL_END" then
       finish = new
     elseif name == "COMBATV2_CHANNEL_ABILITY_STRUCT" then

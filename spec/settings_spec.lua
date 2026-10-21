@@ -123,7 +123,8 @@ describe("settings", function()
     local s = settings.load(store)
     s.setAnchor("player", { target = "target", side = "top", align = "left", gap = 4, offset = -3 })
     local saved = store.data.anchors.player
-    saved.gap, saved.offset = 4.0, -3.0
+    saved.gap = 4.0
+    saved.offset = -3.0
     local anchor = settings.load(store).anchors().player
     assert.are.same({ target = "target", side = "top", align = "left", gap = 4, offset = -3 }, anchor)
     assert.are.equal("integer", math.type(anchor.gap))

@@ -235,7 +235,8 @@ function draw.setEdge(label, rgb)
   if edge.rgb == rgb and edge.on == (rgb ~= nil) then
     return
   end
-  edge.on, edge.rgb = rgb ~= nil, rgb
+  edge.on = rgb ~= nil
+  edge.rgb = rgb
   if rgb == nil then
     draw.hideAll(edge.copies, true)
     return
@@ -279,12 +280,14 @@ end
 local scale = 1
 
 function draw.pressAt(c, x)
-  local g, mx = c.xyGlobal, Mouse.GetX()
+  local g = c.xyGlobal
+  local mx = Mouse.GetX()
   scale = g ~= nil and mx ~= nil and g.x + x > 0 and mx / (g.x + x) or 1
 end
 
 function draw.cursor()
-  local mx, my = Mouse.GetX(), Mouse.GetY()
+  local mx = Mouse.GetX()
+  local my = Mouse.GetY()
   if mx == nil or my == nil then
     return nil
   end
@@ -306,7 +309,8 @@ local FILLS = {
 -- { bg, label, group }: bg is the hit area, and group, a draw.group of every part, moves and hides the button.
 function draw.button(parent, label, x, y, w, h, fill, onClick)
   local colours = FILLS[fill or "plain"]
-  local normal, hover = colours[1], colours[2]
+  local normal = colours[1]
+  local hover = colours[2]
   local group = draw.group()
   local bg = group.add(draw.hitArea(draw.rect(parent, colours.edge or normal, x, y, w, h)), 0, 0)
   local face = colours.edge and group.add(draw.rect(parent, normal, x + 1, y + 1, w - 2, h - 2), 1, 1) or bg
@@ -328,7 +332,8 @@ function draw.button(parent, label, x, y, w, h, fill, onClick)
   draw.on(bg, "ONCLICK", function(_, cx, cy)
     onClick(cx, cy)
   end)
-  group.x, group.y = x, y
+  group.x = x
+  group.y = y
   return { bg = bg, label = t, group = group }
 end
 
@@ -438,7 +443,8 @@ function draw.group()
   end
 
   function group.place(x, y)
-    group.x, group.y = x, y
+    group.x = x
+    group.y = y
     for _, m in ipairs(members) do
       draw.pos(m.c, x + m.dx, y + m.dy)
     end
@@ -506,7 +512,8 @@ function draw.placeOutline(box, x, y, w, h)
   draw.size(box[4], t, h)
 end
 
-local DASH, DASH_GAP = 6, 4
+local DASH = 6
+local DASH_GAP = 4
 
 -- Redraws canvas as a w by h box outline of dashes thickness wide, inside its edges. rgba is 0xRRGGBBAA.
 function draw.dashedBox(canvas, w, h, thickness, rgba)
@@ -529,13 +536,15 @@ function draw.dashedBoxAt(canvas, x0, y0, w, h, thickness, rgba)
 end
 
 -- Gradient ends as fractions toward white and black.
-local LIGHTEN, DARKEN = 0.15, 0.35
+local LIGHTEN = 0.15
+local DARKEN = 0.35
 
 -- Moves each channel of a 0xRRGGBB colour toward target by amount, from 0 to 1.
 local function mix(rgb, target, amount)
   local out = 0
   for shift = 16, 0, -8 do
-    local from, to = (rgb >> shift) & 0xFF, (target >> shift) & 0xFF
+    local from = (rgb >> shift) & 0xFF
+    local to = (target >> shift) & 0xFF
     out = out | (math.floor(from + (to - from) * amount + 0.5) << shift)
   end
   return out
@@ -556,7 +565,8 @@ function draw.bar(parent, rgb, trackRgb, x, y, width, height)
   draw.pos(canvas, x, y)
   draw.size(canvas, width, height)
   local cover = draw.rect(parent, trackRgb, x, y, width, height)
-  local texture, fill = "flat", nil
+  local texture = "flat"
+  local fill = nil
 
   local function redraw()
     local gradient = texture ~= "flat"
@@ -585,7 +595,8 @@ function draw.bar(parent, rgb, trackRgb, x, y, width, height)
   -- Draws the gradient for the texture and colour, once per change.
   local function paint()
     if texture ~= "flat" then
-      local light, dark = draw.opaque(mix(rgb, 0xffffff, LIGHTEN)), draw.opaque(mix(rgb, 0x000000, DARKEN))
+      local light = draw.opaque(mix(rgb, 0xffffff, LIGHTEN))
+      local dark = draw.opaque(mix(rgb, 0x000000, DARKEN))
       canvas:Clear()
       if texture == "vertical" then
         canvas:AddGradientV(0, 0, width, height, light, dark)
@@ -619,7 +630,10 @@ function draw.bar(parent, rgb, trackRgb, x, y, width, height)
       return
     end
     local resized = w ~= width or h ~= height
-    x, y, width, height = newX, newY, w, h
+    x = newX
+    y = newY
+    width = w
+    height = h
     for _, part in ipairs(bar.parts) do
       draw.pos(part, x, y)
       draw.size(part, w, h)

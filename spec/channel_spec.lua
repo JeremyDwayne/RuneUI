@@ -30,7 +30,8 @@ describe("channel.tracker", function()
     startAsphyxiate(tracker)
     tracker.read(asphyxiate)
     local expected = { start = 227269, name = "Asphyxiate", icon = 14660, duration = 4.2, ticksLeft = 7 }
-    expected.hits, expected.style = { 0, 1.2, 2.4, 3.6 }, "magic"
+    expected.hits = { 0, 1.2, 2.4, 3.6 }
+    expected.style = "magic"
     assert.are.same(expected, tracker.model())
   end)
 

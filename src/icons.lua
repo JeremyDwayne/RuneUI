@@ -50,7 +50,8 @@ end
 -- How well struct fits a sprite with words, lower is better: 1 when every word of its name is a sprite word,
 -- as "Poisoned" for DEBUFF_ICON_POISONED, 2 for a debuff struct, 3 for any other.
 local function rank(struct, words)
-  local any, all = false, true
+  local any = false
+  local all = true
   for word in tostring(struct.name):lower():gmatch("%a+") do
     any = true
     if not words[word] then
@@ -148,7 +149,9 @@ function icons.index(saved, client, count)
         if r == 1 then
           found[#found + 1] = name(struct.icon, struct, id)
         elseif want.best == nil or r < want.bestRank or (r == want.bestRank and id < want.bestID) then
-          want.best, want.bestRank, want.bestID = struct, r, id
+          want.best = struct
+          want.bestRank = r
+          want.bestID = id
         end
       end
       if next(wanted) == nil then

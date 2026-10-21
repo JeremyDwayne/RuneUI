@@ -74,7 +74,8 @@ function cooldowns.tracker()
   local justUsedChanged = false
   local changed = false
   -- The style of the latest styled cooldown to start, and of the worn main-hand weapon.
-  local abilityStyle, weaponStyle = nil, nil
+  local abilityStyle = nil
+  local weaponStyle = nil
 
   local fired = {}
 
@@ -180,7 +181,9 @@ function cooldowns.tracker()
     for key, info in pairs(saved) do
       local a = abilities[key] or {}
       abilities[key] = a
-      a.name, a.icon, a.forms = info.name or a.name, info.icon or a.icon, info.forms or a.forms
+      a.name = info.name or a.name
+      a.icon = info.icon or a.icon
+      a.forms = info.forms or a.forms
     end
   end
 
@@ -196,12 +199,15 @@ function cooldowns.tracker()
     local tiles = {}
     for _, key in ipairs(keys) do
       local a = abilities[key] or {}
-      local name, icon = a.name or nameFromKey(key), a.icon
+      local name = a.name or nameFromKey(key)
+      local icon = a.icon
       local left = (now ~= nil and a.finish ~= nil) and a.finish - now or 0
       local slot = icon and slots[icon]
       for _, form in ipairs(slot == nil and a.forms or NO_FORMS) do
         if slots[form.icon] ~= nil then
-          name, icon, slot = form.name, form.icon, slots[form.icon]
+          name = form.name
+          icon = form.icon
+          slot = slots[form.icon]
           break
         end
       end

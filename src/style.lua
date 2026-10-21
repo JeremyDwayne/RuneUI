@@ -48,7 +48,9 @@ style.TEXT_COLOURS = {
   { id = "yellow", label = "Game yellow", rgb = 0xffea00 },
   { id = "auto", label = "Auto", rgb = 0xffffff },
 }
-style.DARK_TEXT, style.LIGHT_EDGE, style.DARK_EDGE = 0x111316, 0xffffff, 0x000000
+style.DARK_TEXT = 0x111316
+style.LIGHT_EDGE = 0xffffff
+style.DARK_EDGE = 0x000000
 
 -- Fill colours by src/cooldowns combat style, shared by the cast bar and the Equipped preset.
 style.STYLE_COLOURS = { magic = 0x2a5fa8, ranged = 0x2f7a33, melee = 0x8e2a26, necromancy = 0x6b3fa0 }
@@ -109,12 +111,17 @@ end
 function style.font(family, role, step)
   local available = (style.find(style.FAMILIES, family) or style.FAMILIES[1]).sizes
   local want = style.ROLES[role] + step
-  local best, bestGap = nil, math.huge
+  local best = nil
+  local bestGap = math.huge
   for size in pairs(available) do
     local gap = math.abs(size - want)
-    local better = gap < bestGap or gap == bestGap and (step < 0) == (size < best)
+    local better = gap < bestGap
+    if gap == bestGap then
+      better = (step < 0) == (size < best)
+    end
     if better then
-      best, bestGap = size, gap
+      best = size
+      bestGap = gap
     end
   end
   return available[best]
@@ -148,7 +155,8 @@ end
 -- Hue in degrees from 0 to 360, saturation and value from 0 to 1.
 function style.hsv(rgb)
   local r, g, b = channels(rgb)
-  local max, min = math.max(r, g, b), math.min(r, g, b)
+  local max = math.max(r, g, b)
+  local min = math.min(r, g, b)
   local d = max - min
   local h = 0
   if d > 0 then
@@ -220,7 +228,8 @@ function style.look(appearance, equippedStyle)
   local castStep = appearance.castTextSize == "hud" and appearance.textStep
     or appearance.castTextSize - style.ROLES.body
   fonts.cast = style.font(castFamily, "body", castStep)
-  local edge, textColour = appearance.edge, style.find(style.TEXT_COLOURS, appearance.textColour)
+  local edge = appearance.edge
+  local textColour = style.find(style.TEXT_COLOURS, appearance.textColour)
   return {
     fonts = fonts,
     outline = edge == "outline" or edge == "outlineShadow",

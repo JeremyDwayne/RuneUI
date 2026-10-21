@@ -3,7 +3,10 @@ local buffspage = require("src/buffspage")
 local settings = require("src/settings")
 local view = require("src/view")
 
-local BONE_SHIELD, ANTIFIRE, BLOATED, STUN_IMMUNE = 30099, 30093, 30098, 26104
+local BONE_SHIELD = 30099
+local ANTIFIRE = 30093
+local BLOATED = 30098
+local STUN_IMMUNE = 26104
 
 local function fakeStore()
   local data = {}
@@ -56,15 +59,18 @@ end
 -- Drags the icon of sprite from its middle to page position (x, y) and lets go.
 local function dragTo(page, sprite, x, y)
   local edge = tileEdge(sprite)
-  fake.mouse.x, fake.mouse.y = edge.x + 15, edge.y + 15
+  fake.mouse.x = edge.x + 15
+  fake.mouse.y = edge.y + 15
   fake.hook(edge, "ONCLICK", 15, 15)
-  fake.mouse.x, fake.mouse.y = x, y
+  fake.mouse.x = x
+  fake.mouse.y = y
   page.follow()
   fake.hook(edge, "ONRELEASE")
 end
 
 local function click(edge)
-  fake.mouse.x, fake.mouse.y = 100, 100
+  fake.mouse.x = 100
+  fake.mouse.y = 100
   fake.hook(edge, "ONCLICK", 5, 5)
   fake.hook(edge, "ONRELEASE")
 end
@@ -78,7 +84,8 @@ describe("buffspage", function()
     local hidden = fake.find(function(_, d)
       return d.content == "Hidden"
     end)
-    fake.mouse.x, fake.mouse.y = edge.x + 5, edge.y + 5
+    fake.mouse.x = edge.x + 5
+    fake.mouse.y = edge.y + 5
     fake.hook(edge, "ONCLICK", 5, 5)
     fake.mouse.y = hidden.y + 30
     page.follow()
@@ -90,7 +97,8 @@ describe("buffspage", function()
   it("keeps a dragged icon's grab area under the cursor when the page redraws", function()
     local page = open()
     local edge = tileEdge(BONE_SHIELD)
-    fake.mouse.x, fake.mouse.y = edge.x + 5, edge.y + 5
+    fake.mouse.x = edge.x + 5
+    fake.mouse.y = edge.y + 5
     fake.hook(edge, "ONCLICK", 5, 5)
     fake.mouse.y = edge.y + 45
     page.follow()

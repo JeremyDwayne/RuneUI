@@ -68,18 +68,25 @@ function auras.tracker()
     if parsed.seconds ~= nil and state.seconds ~= nil and parsed.seconds < state.seconds then
       state.fell = true
     end
-    state.label, state.text, state.stacks, state.still = label, parsed.text, parsed.stacks, 0
+    state.label = label
+    state.text = parsed.text
+    state.stacks = parsed.stacks
+    state.still = 0
     if parsed.seconds == nil then
-      state.seconds, state.left = nil, nil
+      state.seconds = nil
+      state.left = nil
       return
     end
     local left = parsed.seconds * 10
     state.full = math.max(state.full or 0, left)
-    state.seconds, state.low, state.left = parsed.seconds, parsed.low, left
+    state.seconds = parsed.seconds
+    state.low = parsed.low
+    state.left = left
   end
 
   local function update(bar, reads, appeared)
-    local states, order = {}, {}
+    local states = {}
+    local order = {}
     for _, read in ipairs(reads) do
       local state = states[read.sprite]
       if state == nil then
@@ -98,7 +105,8 @@ function auras.tracker()
         order[#order + 1] = read.sprite
       end
     end
-    bar.states, bar.order = states, order
+    bar.states = states
+    bar.order = order
   end
 
   local tracker = {}
@@ -116,7 +124,8 @@ function auras.tracker()
   local function model(state)
     local m = { sprite = state.sprite, text = state.text, stacks = state.stacks, highlight = false }
     if state.left ~= nil and not state.count then
-      m.left, m.full = state.left / 10, state.full / 10
+      m.left = state.left / 10
+      m.full = state.full / 10
       m.fill = state.full > 0 and state.left / state.full or 0
       m.highlight = state.fell == true and (state.left * 10 <= state.full or state.left <= HIGHLIGHT_SECONDS * 10)
     end
@@ -135,7 +144,8 @@ function auras.tracker()
     end
     local huge = math.huge
     table.sort(row, function(a, b)
-      local ra, rb = rank[a.sprite] or huge, rank[b.sprite] or huge
+      local ra = rank[a.sprite] or huge
+      local rb = rank[b.sprite] or huge
       if ra ~= rb then
         return ra < rb
       end

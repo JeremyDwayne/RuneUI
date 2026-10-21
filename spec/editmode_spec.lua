@@ -122,7 +122,8 @@ end
 -- Presses element's overlay with the cursor at 300, 300, holding Shift so the move ignores snapping.
 local function grab(element)
   local tint = overlayOf(element)
-  fake.mouse.x, fake.mouse.y = 300, 300
+  fake.mouse.x = 300
+  fake.mouse.y = 300
   shift(true)
   fake.hook(tint, "ONCLICK")
   return tint
@@ -154,7 +155,8 @@ describe("edit mode", function()
   it("puts a moved element back on Esc", function()
     local elements = enterEditMode()
     local layer = elements.player.layer
-    local x, y = layer.x, layer.y
+    local x = layer.x
+    local y = layer.y
     grab(elements.player)
     fake.mouse.x = 350
     logicTick()
@@ -174,7 +176,8 @@ describe("edit mode", function()
     local x = layer.x
     local tint = overlayOf(elements.player)
     tint.xyGlobal = { x = 150, y = 150 }
-    fake.mouse.x, fake.mouse.y = 300, 300
+    fake.mouse.x = 300
+    fake.mouse.y = 300
     shift(true)
     fake.hook(tint, "ONCLICK")
     fake.mouse.x = 400
@@ -270,7 +273,8 @@ describe("edit mode", function()
 
   it("removes an anchor when its button is pressed, leaving the element where it is", function()
     local elements, saved = enterEditMode()
-    local x, y = elements.player.layer.x, elements.player.layer.y
+    local x = elements.player.layer.x
+    local y = elements.player.layer.y
     fake.press("Rotation, left, center")
     assert.is_nil(saved.anchors().player)
     assert.are.same({ x = x, y = y, anchorX = 0.5, anchorY = 1 }, saved.positions().player)
@@ -300,7 +304,8 @@ describe("edit mode", function()
   it("saves a dragged anchored element's new gap and offset", function()
     local elements, saved = enterEditMode()
     local tint = grab(elements.player)
-    fake.mouse.x, fake.mouse.y = 280, 310
+    fake.mouse.x = 280
+    fake.mouse.y = 310
     logicTick()
     fake.hook(tint, "ONRELEASE")
     assert.are.same(
@@ -340,7 +345,8 @@ describe("edit mode", function()
     fake.press("Rotation, left, center")
     local tint = overlayOf(elements.player)
     tint.xyGlobal = { x = 149, y = 150 }
-    fake.mouse.x, fake.mouse.y = 300, 300
+    fake.mouse.x = 300
+    fake.mouse.y = 300
     shift(true)
     fake.hook(tint, "ONCLICK")
     fake.mouse.x = 401
@@ -352,7 +358,8 @@ describe("edit mode", function()
   it("snaps a dragged group's center onto the window's center line before a nearer grid line", function()
     local elements = enterEditMode()
     local tint = overlayOf(elements.major)
-    fake.mouse.x, fake.mouse.y = 300, 300
+    fake.mouse.x = 300
+    fake.mouse.y = 300
     fake.hook(tint, "ONCLICK")
     fake.mouse.x = 303
     logicTick()

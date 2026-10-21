@@ -75,7 +75,8 @@ function editor.pickerSections(groupName, groups, keys, style)
       holder[key] = group.name
     end
   end
-  local notShown, held = {}, {}
+  local notShown = {}
+  local held = {}
   for _, key in ipairs(keys) do
     local keyStyle = style and cooldowns.styleOf(key)
     if keyStyle == nil or keyStyle == style then

@@ -4,14 +4,22 @@ local adapter = {}
 local MAIN_BAR = 1430
 local TARGET_PANEL = 1490
 -- The game's cast bar, with its highest static ID and its time left label.
-local CAST_BAR, CAST_BAR_LAST_STATIC, CAST_BAR_DURATION, CAST_BAR_GLOW = 764, 37, 5, 19
+local CAST_BAR = 764
+local CAST_BAR_LAST_STATIC = 37
+local CAST_BAR_DURATION = 5
+local CAST_BAR_GLOW = 19
 -- Target debuff icon sprites sit every 3 static IDs from :38 to :71. A slot is empty when its sprite is -1
 -- or it reads not visibleGlobal: an expired or switched-away debuff keeps its sprite while invisible.
-local DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP = 38, 71, 3
+local DEBUFF_FIRST = 38
+local DEBUFF_LAST = 71
+local DEBUFF_STEP = 3
 -- Native action bars: first slot background ID per interface. Slots are 13 IDs apart, with the icon
 -- sprite at +2 and the keybind label at +9. The client tints the icon SLOT_DIM while its ability can't be cast.
 local BAR_FIRST_SLOTS = { [1430] = 64, [1670] = 19, [1671] = 17, [1672] = 14, [1673] = 14 }
-local SLOTS_PER_BAR, SLOT_STRIDE, SLOT_ICON, SLOT_KEYBIND = 14, 13, 2, 9
+local SLOTS_PER_BAR = 14
+local SLOT_STRIDE = 13
+local SLOT_ICON = 2
+local SLOT_KEYBIND = 9
 local SLOT_DIM = 0x333333
 -- The target panel's static IDs run to :71; dynamic children of some hold its border and background.
 local TARGET_LAST_STATIC = 80
@@ -112,7 +120,9 @@ end
 -- { sprite, label } for each shown icon on bar, a BUFF_BARS entry, stopping after EMPTY_RUN empty slots.
 -- A slot that shows an item, as an overload's does, reads as minus the item id.
 local function barReads(bar)
-  local list, empty, filled = {}, 0, bar.first - 1
+  local list = {}
+  local empty = 0
+  local filled = bar.first - 1
   for staticID = bar.first, bar.last do
     local icon = ui.Interfaces:GetComponent(bar.id, staticID, 0, 0)
     local sprite = icon and read(icon, "spriteID")
@@ -133,7 +143,8 @@ local function barReads(bar)
         break
       end
     else
-      empty, filled = 0, staticID
+      empty = 0
+      filled = staticID
       if sprite ~= nil and sprite ~= -1 and read(label, "visibleGlobal") ~= false then
         list[#list + 1] = { sprite = sprite, label = text }
       end
@@ -300,13 +311,17 @@ local function transparency(interfaceID, lastStatic, watched, animated)
       if transparent and originals[key] == nil then
         originals[key] = read(c, "alpha") or 1
       end
-      local alpha = transparent and 0 or originals[key] or 1
+      local alpha = 0
+      if not transparent then
+        alpha = originals[key] or 1
+      end
       pcall(function()
         c.alpha = alpha
       end)
     end)
     for _, staticID in ipairs(animated or {}) do
-      local c, key = ui.Interfaces:GetComponent(interfaceID, staticID), "hidden " .. staticID
+      local c = ui.Interfaces:GetComponent(interfaceID, staticID)
+      local key = "hidden " .. staticID
       if c ~= nil and (transparent or originals[key] ~= nil) then
         if transparent and originals[key] == nil then
           originals[key] = read(c, "hidden") == true
@@ -376,7 +391,8 @@ adapter.hideCastBar = castBar.hide
 
 -- Original alpha of each buff bar component while RuneUI hides the bars, keyed "bar:static" or
 -- "bar:static:category:dynamic", and the keys of the icons it set hidden.
-local barAlpha, barHidden = nil, nil
+local barAlpha = nil
+local barHidden = nil
 -- Rendered frames since the last server tick, counted up to FILL_FRAMES.
 local framesSinceTick = FILL_FRAMES
 
@@ -407,7 +423,8 @@ local function eachSlotChild(bar, staticID, c, fn)
   local slot = staticID >= bar.first and staticID <= bar.last
   pcall(function()
     c:IterateDynamicComponents(function(child)
-      local category, dynamic = read(child, "categoryID"), read(child, "dynamicID")
+      local category = read(child, "categoryID")
+      local dynamic = read(child, "dynamicID")
       fn(
         bar.id .. ":" .. staticID .. ":" .. tostring(category) .. ":" .. tostring(dynamic),
         child,
@@ -456,7 +473,8 @@ function adapter.hideBuffBars(hidden)
   if hidden then
     framesSinceTick = 0
     if barAlpha == nil then
-      barAlpha, barHidden = {}, {}
+      barAlpha = {}
+      barHidden = {}
       eachBarComponent(hideBarComponent)
       return
     end
@@ -482,7 +500,8 @@ function adapter.hideBuffBars(hidden)
         end)
       end
     end)
-    barAlpha, barHidden = nil, nil
+    barAlpha = nil
+    barHidden = nil
   end
 end
 

@@ -32,7 +32,8 @@ function dragdrop.create(layer, ghostSize, handlers)
   local press = nil
   -- The cursor's offset from layer coordinates, measured on each press.
   local origin = { x = 0, y = 0 }
-  local lastX, lastY = nil, nil
+  local lastX = nil
+  local lastY = nil
 
   local d = {}
 
@@ -68,9 +69,11 @@ function dragdrop.create(layer, ghostSize, handlers)
       if mx == nil then
         return
       end
-      origin.x, origin.y = mx - (item.x + x), my - (item.y + y)
+      origin.x = mx - (item.x + x)
+      origin.y = my - (item.y + y)
       press = { item = item, startX = mx, startY = my, moved = false }
-      lastX, lastY = nil, nil
+      lastX = nil
+      lastY = nil
     end)
     draw.on(item.edge, "ONRELEASE", function()
       if press == nil or press.item ~= item then
@@ -95,7 +98,8 @@ function dragdrop.create(layer, ghostSize, handlers)
     if mx == nil or (mx == lastX and my == lastY) then
       return
     end
-    lastX, lastY = mx, my
+    lastX = mx
+    lastY = my
     local item = press.item
     if not press.moved then
       if math.abs(mx - press.startX) + math.abs(my - press.startY) <= DRAG_START then
@@ -107,7 +111,8 @@ function dragdrop.create(layer, ghostSize, handlers)
       draw.size(item.edge, GRAB, GRAB)
       draw.iconOrInitials(ghostIcon, ghostInitials, handlers.ghost(item))
     end
-    local x, y = mx - origin.x, my - origin.y
+    local x = mx - origin.x
+    local y = my - origin.y
     draw.pos(item.edge, x - GRAB // 2, y - GRAB // 2)
     ghost.place(x + GHOST_OFFSET, y + GHOST_OFFSET)
     handlers.move(item, x, y)

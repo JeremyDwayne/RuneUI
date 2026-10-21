@@ -60,7 +60,8 @@ local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 -- Bar fills: one flat colour, or a gradient from top to bottom or across the bar.
 settings.TEXTURES = { "flat", "vertical", "horizontal" }
 -- Points every HUD text role moves from its size, and unit frame, adrenaline bar and cast bar sizes.
-settings.TEXT_STEP_MIN, settings.TEXT_STEP_MAX = -3, 6
+settings.TEXT_STEP_MIN = -3
+settings.TEXT_STEP_MAX = 6
 settings.FRAME_WIDTH = { min = 180, max = 400 }
 settings.FRAME_HEIGHT = { min = 30, max = 80 }
 settings.BAR_WIDTH = { min = 120, max = 500 }
@@ -73,7 +74,8 @@ settings.STYLES = { "necromancy", "magic", "ranged", "melee" }
 settings.GROWS = { "up", "down", "left", "right" }
 -- The most abilities one group list holds, the range of a group's icon size, and its title length.
 settings.MAX_GROUP_KEYS = 20
-settings.SIZE_MIN, settings.SIZE_MAX = 24, 56
+settings.SIZE_MIN = 24
+settings.SIZE_MAX = 56
 local TITLE_MAX = 20
 -- Built-in cooldown groups in list order, with their default title and display settings. A shared group
 -- shows one ability list with every style; the others keep one list per style.
@@ -149,7 +151,8 @@ end
 
 -- Whether following targets from name leads back to name.
 local function cyclic(anchors, name)
-  local seen, at = {}, anchors[name]
+  local seen = {}
+  local at = anchors[name]
   while at ~= nil and not seen[at.target] do
     if at.target == name then
       return true
@@ -326,7 +329,8 @@ local function seed(groups, seeded)
     end
   end
   if not seeded.utility then
-    seeded.utility, changed = true, true
+    seeded.utility = true
+    changed = true
     for _, key in ipairs(#groups.utility.keys == 0 and presets.UTILITY or {}) do
       if not heldAnywhere(groups, key) then
         append(groups.utility.keys, key)
@@ -334,7 +338,8 @@ local function seed(groups, seeded)
     end
   end
   if not seeded.defensives then
-    seeded.defensives, changed = true, true
+    seeded.defensives = true
+    changed = true
     if groups[DEFENSIVES.name] == nil then
       local group = readGroup(nil, DEFENSIVES)
       for _, key in ipairs(presets.DEFENSIVES) do
@@ -352,7 +357,8 @@ end
 -- own abilities, weapon specials go to every style, and other style-free abilities to the shared utility.
 local function migrateGroups(old, groups)
   for _, pair in ipairs({ { "rotation", "rotation" }, { "cooldowns", "major" } }) do
-    local oldName, newName = pair[1], pair[2]
+    local oldName = pair[1]
+    local newName = pair[2]
     for _, key in ipairs(stringsOnly(old[oldName])) do
       local style = cooldowns.styleOf(key)
       if style ~= nil then
@@ -488,7 +494,8 @@ local APPEARANCE = {
 
 -- A saved appearance field's value, or its default when unknown or malformed.
 local function readField(field, value)
-  local default, valid = APPEARANCE[field][1], APPEARANCE[field][2]
+  local default = APPEARANCE[field][1]
+  local valid = APPEARANCE[field][2]
   if not valid(value) then
     return default
   end
@@ -545,7 +552,8 @@ end
 
 -- An icon order: a list of whole numbers, each once.
 local function readOrder(saved)
-  local out, seen = {}, {}
+  local out = {}
+  local seen = {}
   if type(saved) ~= "table" then
     return out
   end
@@ -628,7 +636,8 @@ function settings.load(store, windowHeight)
   local anchors = readAnchors(store.get("anchors"), positions)
   local version = store.get("version")
   if type(version) ~= "table" or version.layout ~= settings.LAYOUT_VERSION then
-    positions, anchors = {}, copyAnchors(settings.DEFAULT_ANCHORS)
+    positions = {}
+    anchors = copyAnchors(settings.DEFAULT_ANCHORS)
     store.set("layout", positions)
     store.set("anchors", anchors)
     store.set("version", { layout = settings.LAYOUT_VERSION })
@@ -844,7 +853,8 @@ function settings.load(store, windowHeight)
   -- Swaps keys a and b within name's list for style.
   function s.swap(a, b, name, style)
     local list = listFor(name, style)
-    local i, j = indexOf(list, a), indexOf(list, b)
+    local i = indexOf(list, a)
+    local j = indexOf(list, b)
     if i == nil or j == nil then
       return
     end

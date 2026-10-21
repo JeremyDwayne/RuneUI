@@ -29,7 +29,9 @@ end
 
 -- x and y of a w by h child placed by anchor against target, a rect.
 function layout.place(anchor, target, w, h)
-  local side, gap, offset = anchor.side, anchor.gap, anchor.offset
+  local side = anchor.side
+  local gap = anchor.gap
+  local offset = anchor.offset
   if side == "left" or side == "right" then
     local x = side == "left" and target.x - gap - w or target.x + target.w + gap
     return x, aligned(anchor.align, target.y, target.h, h) + offset
@@ -41,7 +43,8 @@ end
 -- Positions for every element in bounds: anchored ones placed against their targets' resolved rects, the
 -- rest at their entry in positions. bounds holds each element's shown rect inside its layer.
 function layout.resolve(positions, anchors, bounds)
-  local out, visiting = {}, {}
+  local out = {}
+  local visiting = {}
 
   local function resolveOne(name)
     if out[name] ~= nil then
@@ -71,13 +74,17 @@ function layout.capture(child, target, side, align)
   local anchor = { side = side, align = align, gap = 0, offset = 0 }
   local x, y = layout.place(anchor, target, child.w, child.h)
   if side == "left" then
-    anchor.gap, anchor.offset = x - child.x, child.y - y
+    anchor.gap = x - child.x
+    anchor.offset = child.y - y
   elseif side == "right" then
-    anchor.gap, anchor.offset = child.x - x, child.y - y
+    anchor.gap = child.x - x
+    anchor.offset = child.y - y
   elseif side == "top" then
-    anchor.gap, anchor.offset = y - child.y, child.x - x
+    anchor.gap = y - child.y
+    anchor.offset = child.x - x
   else
-    anchor.gap, anchor.offset = child.y - y, child.x - x
+    anchor.gap = child.y - y
+    anchor.offset = child.x - x
   end
   return anchor
 end
@@ -92,9 +99,11 @@ function layout.grid(count, size, gap, perRow, grow, max)
   local vertical = grow == "up" or grow == "down"
   local along = math.min(max, perRow) * step - gap
   local across = math.ceil(max / perRow) * step - gap
-  local w, h = along, across
+  local w = along
+  local h = across
   if not vertical then
-    w, h = across, along
+    w = across
+    h = along
   end
 
   -- x, y of a span along and across the axis, flipping across from the far edge for up and left.
@@ -131,7 +140,8 @@ end
 
 -- Every element anchored to name, directly or through a chain.
 function layout.chain(anchors, name)
-  local found, seen = {}, { [name] = true }
+  local found = {}
+  local seen = { [name] = true }
   local function walk(parent)
     for child, anchor in pairs(anchors) do
       if anchor.target == parent and not seen[child] then
@@ -161,15 +171,18 @@ end
 -- The shift along one axis that brings a span's start, center or end onto another rect's, the nearest within
 -- range, or else one of its ends onto a multiple of grid. Returns the shift and the line it lands on, or 0.
 local function snapAxis(start, length, others, pos, size, range, grid)
-  local best, line = nil, nil
+  local best = nil
+  local line = nil
   local function try(from, to)
     local d = to - from
     if math.abs(d) <= range and (best == nil or math.abs(d) < math.abs(best)) then
-      best, line = d, to
+      best = d
+      line = to
     end
   end
   for _, o in ipairs(others) do
-    local oStart, oLength = o[pos], o[size]
+    local oStart = o[pos]
+    local oLength = o[size]
     for _, to in ipairs({ oStart, oStart + oLength // 2, oStart + oLength }) do
       try(start, to)
       try(start + length // 2, to)

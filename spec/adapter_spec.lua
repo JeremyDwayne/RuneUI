@@ -115,7 +115,8 @@ describe("adapter.hideTargetPanel", function()
         error("no field " .. field)
       end,
     })
-    border.categoryID, border.dynamicID = nil, nil
+    border.categoryID = nil
+    border.dynamicID = nil
     adapter.hideTargetPanel(true)
     assert.are.equal(0, border.alpha)
     adapter.hideTargetPanel(false)
