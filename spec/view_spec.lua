@@ -432,6 +432,15 @@ describe("view", function()
     end))
   end)
 
+  it("draws a cooldown's Ready line after an aura's tooltip showed first", function()
+    local tooltip = view.tooltip(fake.component())
+    tooltip.show({ title = "Sunshine", left = "Buff", right = "20s" }, 100, 300, 42)
+    tooltip.show({ title = "Finger of Death", right = "Key 4", foot = "Ready" }, 100, 300, 42)
+    assert.is_not_nil(fake.find(function(_, d)
+      return d.content == "Ready" and not d.undrawn
+    end))
+  end)
+
   it("keeps the tooltip inside the screen's side edges", function()
     local root = fake.component()
     root:SetSize(1000, 800)

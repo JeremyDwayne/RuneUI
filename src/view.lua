@@ -125,10 +125,10 @@ function view.tooltip(root)
         h = h + part.lines * TOOLTIP_LINE
       end
     end
-    set(foot, "hidden", content.foot == nil)
+    -- An empty foot stays shown, since the first show's MoveToFront would stop a hidden one drawing for good.
+    set(foot, "content", content.foot or "")
     if content.foot ~= nil then
       h = h + TOOLTIP_SPACE
-      set(foot, "content", content.foot)
       draw.pos(foot, TOOLTIP_PAD, h)
       h = h + TOOLTIP_LINE
     end
