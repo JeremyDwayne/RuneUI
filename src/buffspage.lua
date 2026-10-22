@@ -455,7 +455,7 @@ function buffspage.create(page, width, height, deps)
     deps.tooltip.show({
       title = found and found.name or "Unknown",
       left = found == nil and "Looking up name" or nil,
-      line = "Drag to sort or move it, or click for options",
+      info = "Drag to sort or move it, or click for options",
     }, x, y, SIZE)
   end)
 

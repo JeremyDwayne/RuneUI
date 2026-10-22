@@ -39,17 +39,45 @@ function view.arrange(elements, positions, anchors)
   return resolved
 end
 
-local TOOLTIP_WIDTH = 200
+local TOOLTIP_WIDTH = 240
 local TOOLTIP_PAD = 8
 local TOOLTIP_GAP = 6
+local TOOLTIP_LINE = 14
+-- Space above each description paragraph and the foot.
+local TOOLTIP_SPACE = 4
 -- Characters of info that fit one tooltip line in the small font.
-local TOOLTIP_LINE_CHARS = 34
+local TOOLTIP_LINE_CHARS = 41
+
+-- Description paragraphs at its <br> tags, each { text, lines }, with lines its wrapped line count. Tags such
+-- as <col=ffffff> stay in the text and count for nothing.
+local function paragraphs(info)
+  local out = {}
+  for part in (info .. "<br>"):gmatch("(.-)<br>") do
+    part = part:match("^%s*(.-)%s*$")
+    if part ~= "" then
+      local lines = 1
+      local width = 0
+      for word in part:gsub("<[^>]*>", ""):gmatch("%S+") do
+        if width == 0 then
+          width = #word
+        elseif width + 1 + #word > TOOLTIP_LINE_CHARS then
+          lines = lines + 1
+          width = #word
+        else
+          width = width + 1 + #word
+        end
+      end
+      out[#out + 1] = { text = part, lines = lines }
+    end
+  end
+  return out
+end
 
 -- One tooltip for every HUD icon: a dark panel above the hovered icon, below it when there is no room, kept
 -- inside the side edges, with a white outline on the icon. show(content, x, y, size) takes the icon's screen
--- position and { title, left, right, line }, where line may wrap to two lines; hide() clears it and
--- destroy() removes it. It draws above the HUD from its first show. hover(items, show) wires each item's
--- edge to the tooltip.
+-- position and { title, left, right, info, foot }: the name, a status row with left and right ends, the
+-- description split into paragraphs at <br>, and a last line; hide() clears it and destroy() removes it. It
+-- draws above the HUD from its first show. hover(items, show) wires each item's edge to the tooltip.
 function view.tooltip(root)
   local layer = ui.Layer.new(root)
   local edge = rect(layer, COLOURS.border, 0, 0, TOOLTIP_WIDTH, 0)
@@ -57,11 +85,13 @@ function view.tooltip(root)
   local panel = rect(layer, COLOURS.panel, 2, 2, TOOLTIP_WIDTH - 4, 0)
   local textWidth = TOOLTIP_WIDTH - 2 * TOOLTIP_PAD
   local title = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, TOOLTIP_PAD, 6, textWidth, 16)
-  local left = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, TOOLTIP_PAD, 24, textWidth, 14)
-  local right = text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, TOOLTIP_PAD, 24, textWidth, 14)
-  local line = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, TOOLTIP_PAD, 40, textWidth, 28)
+  local left = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, TOOLTIP_PAD, 24, textWidth, TOOLTIP_LINE)
+  local right = text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, TOOLTIP_PAD, 24, textWidth, TOOLTIP_LINE)
+  local foot = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, TOOLTIP_PAD, 0, textWidth, TOOLTIP_LINE)
   set(left, "rgb", COLOURS.dimText)
   set(right, "rgb", COLOURS.dimText)
+  -- Paragraph labels, built as a longer description first needs them.
+  local lines = {}
   local highlight = draw.outline(root, COLOURS.highlight, 2)
   local height = nil
   local raised = false
@@ -77,12 +107,31 @@ function view.tooltip(root)
     set(title, "content", content.title)
     set(left, "content", content.left or "")
     set(right, "content", content.right or "")
-    set(line, "content", content.line or "")
-    local lines = 0
-    if content.line ~= nil then
-      lines = #content.line > TOOLTIP_LINE_CHARS and 2 or 1
+    local h = 24 + TOOLTIP_LINE
+    local parts = content.info and paragraphs(content.info) or {}
+    for i = 1, math.max(#parts, #lines) do
+      local part = parts[i]
+      if lines[i] == nil then
+        lines[i] = text(layer, FONTS.small, ui.AlignMode.TOPLEFT, TOOLTIP_PAD, 0, textWidth, TOOLTIP_LINE)
+        set(lines[i], "rgb", COLOURS.dimText)
+      end
+      set(lines[i], "hidden", part == nil)
+      if part ~= nil then
+        h = h + TOOLTIP_SPACE
+        set(lines[i], "content", part.text)
+        draw.pos(lines[i], TOOLTIP_PAD, h)
+        draw.size(lines[i], textWidth, part.lines * TOOLTIP_LINE)
+        h = h + part.lines * TOOLTIP_LINE
+      end
     end
-    local h = 46 + lines * 14 - (lines == 0 and 6 or 0)
+    set(foot, "hidden", content.foot == nil)
+    if content.foot ~= nil then
+      h = h + TOOLTIP_SPACE
+      set(foot, "content", content.foot)
+      draw.pos(foot, TOOLTIP_PAD, h)
+      h = h + TOOLTIP_LINE
+    end
+    h = h + ((#parts > 0 or content.foot ~= nil) and 6 or 2)
     if h ~= height then
       height = h
       layer:SetSize(TOOLTIP_WIDTH, h)
@@ -760,8 +809,9 @@ end
 -- hides a custom group that is not in use and collapses its bounds. Tiles are built as the group first needs
 -- them, inside its layer, and never destroyed. Ready tiles are bright with their keybind; cooling tiles are
 -- dimmed with whole seconds left; tiles whose ability can't be cast are tinted dark. Hovering a tile shows
--- its tooltip. setLook(look) restyles the tiles' text and returns false, as it moves no bounds.
-function view.cooldownGroup(root, tooltip)
+-- its tooltip, with the description describe(key) returns, when given. setLook(look) restyles the tiles' text
+-- and returns false, as it moves no bounds.
+function view.cooldownGroup(root, tooltip, describe)
   local max = settings.MAX_GROUP_KEYS
   local layer = ui.Layer.new(root)
   local tiles = {}
@@ -788,7 +838,8 @@ function view.cooldownGroup(root, tooltip)
       title = model.name,
       left = model.cooldown and ("Cooldown " .. model.cooldown .. "s") or nil,
       right = model.keybind and ("Key " .. model.keybind) or nil,
-      line = model.ready and "Ready" or ("Ready in " .. tiles[i].shown .. "s"),
+      info = describe and describe(model.key),
+      foot = model.ready and "Ready" or ("Ready in " .. tiles[i].shown .. "s"),
     }, x, y, display.size)
   end
 
@@ -1203,10 +1254,24 @@ end
 -- Aura rows by HUD element: tile size, which end the icons gather at, and whether they are debuffs, which get
 -- an orange edge. timeRole, a src/style text role, and timeHeight size the time text along a tile's bottom.
 view.AURA_STYLES = {
-  targetDebuffs = { size = 26, align = "right", debuff = true, timeRole = "small", timeHeight = 11 },
-  playerDebuffs = { size = 26, align = "left", debuff = true, timeRole = "small", timeHeight = 11 },
-  upkeepBuffs = { size = 26, align = "left", timeRole = "small", timeHeight = 11 },
-  combatBuffs = { size = 36, align = "centre", timeRole = "body", timeHeight = 13 },
+  targetDebuffs = {
+    size = 26,
+    align = "right",
+    debuff = true,
+    timeRole = "small",
+    timeHeight = 11,
+    kind = "Debuff on target",
+  },
+  playerDebuffs = {
+    size = 26,
+    align = "left",
+    debuff = true,
+    timeRole = "small",
+    timeHeight = 11,
+    kind = "Debuff on you",
+  },
+  upkeepBuffs = { size = 26, align = "left", timeRole = "small", timeHeight = 11, kind = "Buff" },
+  combatBuffs = { size = 36, align = "centre", timeRole = "body", timeHeight = 13, kind = "Buff" },
 }
 local AURA_GAP = 2
 -- Room around the tiles for the highlight, which draws up to 3px outside a tile.
@@ -1296,12 +1361,25 @@ local function showAura(parts, model, x, y, size, bars)
   end
 end
 
+-- An aura model's time left, such as "20s" or "6m", with its stacks, or its count as stacks, or nil.
+local function auraStatus(model)
+  local stacks = model.stacks and (model.stacks .. " stacks")
+  if model.text == nil or model.text == "" then
+    return stacks
+  end
+  if model.left == nil then
+    return model.text .. " stacks"
+  end
+  local time = model.text:match("%d$") and (model.text .. "s") or model.text
+  return stacks and (time .. ", " .. stacks) or time
+end
+
 -- A row of up to 10 aura icons gathered at style.align's end. Each icon shows its time left and stacks, and
 -- in its refresh window a highlight: a white ring, or with bars on a dashed
 -- outline and a striped bar. update takes src/auras models and whether bars
 -- are on, and returns whether bounds changed. bounds spans the shown tiles, at least one, so an empty row
 -- can still be dragged in edit mode. Hovering an icon shows the name and info from info(sprite), which
--- returns { name, info } or nil.
+-- returns { name, info } or nil, over whether it is a buff or whose debuff, and its time left or stacks.
 function view.auraRow(root, aura, tooltip, info)
   local size = aura.size
   local step = size + AURA_GAP
@@ -1345,7 +1423,7 @@ function view.auraRow(root, aura, tooltip, info)
     elseif found == nil then
       detail = "Looking up name"
     end
-    tooltip.show({ title = title, left = detail }, x, y, size)
+    tooltip.show({ title = title, left = aura.kind, right = auraStatus(model), info = detail }, x, y, size)
   end
 
   local hover = tooltip.hover(tiles, showTooltip)

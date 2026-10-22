@@ -252,9 +252,68 @@ describe("view", function()
     assert.are.same({ 0xffffff, 1 }, { icon.rgb, keybind.alpha })
   end)
 
+  -- The shown label reading content, or nil.
+  local function label(content)
+    return fake.find(function(_, d)
+      return d.content == content
+    end)
+  end
+
+  -- The tooltip's panel layer: the shown component on root 240 wide.
+  local function tooltipLayer(root)
+    return fake.find(function(_, d)
+      return d.parent == root and d.width == 240
+    end)
+  end
+
+  it("splits a tooltip's description into paragraphs at <br>, sized to their lines", function()
+    local root = fake.component()
+    local tooltip = view.tooltip(root)
+    local first = "The power of Zamorak's flames causes a delayed eruption of chaos fire."
+    tooltip.show(
+      { title = "Flames of Zamorak", left = "Debuff on you", info = first .. "<br>Melts shields." },
+      0,
+      300,
+      42
+    )
+    local a = label(first)
+    local b = label("Melts shields.")
+    assert.is_true(b.y >= a.y + 2 * 14)
+    local twoParagraphs = tooltipLayer(root).height
+    tooltip.show({ title = "Flames of Zamorak", left = "Debuff on you", info = "Melts shields." }, 0, 300, 42)
+    assert.is_nil(label(first))
+    assert.are.equal(twoParagraphs - 2 * 14 - 4, tooltipLayer(root).height)
+  end)
+
+  it("shows only the name and the status row for an effect with no description", function()
+    local root = fake.component()
+    local tooltip = view.tooltip(root)
+    tooltip.show({ title = "Stunned", left = "Debuff on you", right = "4s", info = "Stuck." }, 0, 300, 42)
+    tooltip.show({ title = "Stunned", left = "Debuff on you", right = "4s" }, 0, 300, 42)
+    assert.is_nil(label("Stuck."))
+    assert.are.equal(40, tooltipLayer(root).height)
+  end)
+
+  it("adds an ability's description to its cooldown tooltip, ending with Ready", function()
+    local tooltip = view.tooltip(fake.component())
+    local g = view.cooldownGroup(fake.component(), tooltip, function(key)
+      return key == "K1" and "Inflict searing pain on the target." or nil
+    end)
+    g.configure({ size = 36, perRow = 7, grow = "down" })
+    g.update(readyTiles(1))
+    fake.hook(
+      fake.find(function(c)
+        return fake.hasHook(c, "ONMOUSEOVER")
+      end),
+      "ONMOUSEOVER"
+    )
+    local info = label("Inflict searing pain on the target.")
+    assert.is_true(label("Ready").y > info.y)
+  end)
+
   it("makes no client writes when the tooltip is shown again at the same icon", function()
     local tooltip = view.tooltip(fake.component())
-    local content = { title = "Sunshine", left = "Cooldown 60s", line = "Ready" }
+    local content = { title = "Sunshine", left = "Cooldown 60s", info = "Boosts damage.<br>Lasts 30s.", foot = "Ready" }
     tooltip.show(content, 100, 300, 42)
     fake.writes = 0
     tooltip.show(content, 100, 300, 42)
@@ -277,6 +336,9 @@ describe("view", function()
     )
     assert.is_not_nil(fake.find(function(_, d)
       return d.content == "Bloated"
+    end))
+    assert.is_not_nil(fake.find(function(_, d)
+      return d.content == "Debuff on target"
     end))
 
     row.update({}, false)
@@ -352,7 +414,7 @@ describe("view", function()
       return d.undrawn
     end))
     assert.is_not_nil(fake.find(function(_, d)
-      return d.fronted and d.width == 200
+      return d.fronted and d.width == 240
     end))
   end)
 
@@ -362,11 +424,11 @@ describe("view", function()
     local tooltip = view.tooltip(root)
     local function layerX()
       return fake.find(function(_, d)
-        return d.parent == root and d.width == 200
+        return d.parent == root and d.width == 240
       end).x
     end
     tooltip.show({ title = "Sunshine" }, 950, 300, 42)
-    assert.are.equal(800, layerX())
+    assert.are.equal(760, layerX())
     tooltip.show({ title = "Sunshine" }, -20, 300, 42)
     assert.are.equal(0, layerX())
   end)
