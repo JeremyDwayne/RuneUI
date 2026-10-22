@@ -44,7 +44,7 @@ Handlers run inside the player's frame. The rates are measured, not documented.
 
 The client API is thinly documented, and these facts came from probing it in the game. When code depends on behaviour not listed here, confirm it in the game with a small throwaway plugin before relying on it. Add what you learn to this list and, where specs can model it, to `spec/support/fake_ui.lua`.
 
-- `MoveToFront` on a hidden component, or on a layer holding one, stops it drawing for good, even after it is shown. Raise only while visible, as the tooltip does on its first show.
+- `MoveToFront` on a hidden component, or on a layer whose direct child is hidden, stops that component drawing for good, even after it is shown. Raise only while visible, as the tooltip does on its first show. A hidden component further down still draws once shown: PrettyUI's `Window:Show` raises the window's root over hidden tab pages and their hidden children, and each drew once shown.
 - Stacking follows creation order, for labels as for rects. Build what must sit on top last.
 - `ONSCROLLWHEEL` fires dozens of times per scroll with deltas from 1 to 14, so scale the delta by pixels.
 - `ONRELEASE` fires as soon as the cursor leaves the pressed component, with the button still held. A drag keeps the pressed component under the cursor until release. A 30px hit area that follows the cursor loses fast moves; `src/dragdrop.lua` grows it into a transparent 160px square centred on the cursor, which holds the press even under components created after it.
@@ -57,6 +57,7 @@ The client API is thinly documented, and these facts came from probing it in the
 - `ui.Text` draws `<br>` as a line break, `<br><br>` as a blank line, and `<col=ff8a1f>` text in that colour.
 - Alpha 0 is not hidden. Treat a transparent component as still taking clicks.
 - `ui.Text` draws nothing until `font` is set. A `ui.InputField` draws no text without a `stylesheetID`: `id.StyleSheet.INPUT_DEFAULT` draws a plain field and `INPUT_SEARCHBOX_24PX` a search box. No call gives a field focus, so it takes keys only once clicked. Its `ONCONTENTCHANGED` fires on each keystroke, and again on Enter, Esc and focus loss, possibly after its popup has closed.
+- A required dependency given by its mod.io id, `"prettyui": 6398181`, resolves against plugins installed from the plugin hub into `plugins/6398181`, not against `dev_plugins`. Without the hub install the client refuses to load the plugin with "Missing dependency 6398181".
 - Children of `TOPLEVEL_V2__GAME_AREA` draw under game windows such as the bank, so the HUD lives there. Children of `TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP` draw over everything, so the options window lives there. Both span the window.
 - A layer anchored with `SetPos(x, y, px, py)` reports its resolved position in `x` and `y`. `xyGlobal` holds absolute screen coordinates.
 - PersistentDB returns every number as a float, so convert with `math.tointeger` before indexing. A structured value of 400 entries of about 70 bytes saved and 800 failed, with the setter returning `false`, so check its result.

@@ -1,4 +1,5 @@
 local fake = require("spec/support/fake_ui")
+local pretty = require("spec/support/fake_prettyui")
 local cooldowns = require("src/cooldowns")
 local options = require("src/options")
 local settings = require("src/settings")
@@ -63,8 +64,8 @@ local function enterEditMode()
     refresh = function() end,
   })
   fake.fire("ContentLayerReady", { component = fake.component() })
-  fake.press("Open RuneUI options")
-  fake.press("Edit mode")
+  pretty.button("Options")
+  pretty.button("Edit mode")
   return elements, saved, window
 end
 
@@ -130,7 +131,7 @@ local function grab(element)
 end
 
 describe("edit mode", function()
-  before_each(fake.reset)
+  before_each(pretty.reset)
 
   it("resets positions only once the dialog is confirmed", function()
     local elements = enterEditMode()
@@ -142,14 +143,12 @@ describe("edit mode", function()
     fake.hook(tint, "ONRELEASE")
 
     fake.press("Reset positions")
-    fake.press("Cancel")
+    pretty.fire(pretty.find("Confirm"), "cancel")
     assert.are.equal(x + 50, layer.x)
     fake.press("Reset positions")
-    fake.press("Reset positions", 3)
+    pretty.fire(pretty.find("Confirm"), "confirm")
     assert.are.equal(x, layer.x)
-    assert.is_nil(fake.find(function(_, d)
-      return d.content == "Cancel"
-    end))
+    assert.is_nil(pretty.find("Confirm"))
   end)
 
   it("puts a moved element back on Esc", function()
@@ -238,7 +237,7 @@ describe("edit mode", function()
     local elements, saved = enterEditMode()
     saved.setGroup("utility", "title", "Defensives")
     fake.press("Done")
-    fake.press("Edit mode")
+    pretty.button("Edit mode")
     fake.hook(overlayOf(elements.utility), "ONMOUSEOVER")
     assert.is_true(fake.shown(fake.find(function(_, d)
       return d.content == "Defensives"
@@ -316,7 +315,7 @@ describe("edit mode", function()
 
   it("snaps a drop 1 px from the rotation row's bottom edge flush with it, unless Shift is held", function()
     for _, held in ipairs({ false, true }) do
-      fake.reset()
+      pretty.reset()
       local elements, saved = enterEditMode()
       fake.press("Rotation, left, center")
       local tint = grab(elements.player)

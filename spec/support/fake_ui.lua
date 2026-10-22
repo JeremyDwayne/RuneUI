@@ -3,8 +3,8 @@
 -- and MoveToFront calls; component() builds a root; fire(name, payload) runs Event handlers; hook(c, name)
 -- runs a component's hook; find(predicate) returns the first created component that is shown and matches;
 -- press(label) clicks the hit area under a shown label; reset() forgets every component and handler, for a
--- before_each. MoveToFront marks a shown component fronted and a hidden one undrawn, along with every hidden
--- component it holds, as the client stops drawing a component moved to the front while hidden.
+-- before_each. MoveToFront marks a shown component fronted and a hidden one undrawn, along with each hidden
+-- direct child, as the client stops drawing those for good.
 local fake = { writes = 0, mouse = { x = 0, y = 0 }, created = {}, handlers = {} }
 
 local dataOf = setmetatable({}, { __mode = "k" })
@@ -36,7 +36,7 @@ local function call(method)
       if fake.shown(c) then
         data.fronted = true
         for _, other in ipairs(fake.created) do
-          if other ~= c and fake.holds(c, other) and not fake.shown(other) then
+          if dataOf[other].parent == c and dataOf[other].hidden then
             dataOf[other].undrawn = true
           end
         end
@@ -82,18 +82,6 @@ function fake.reset()
   fake.handlers = {}
   fake.mouse.x = 0
   fake.mouse.y = 0
-end
-
--- Whether layer holds c, as a parent or further up.
-function fake.holds(layer, c)
-  c = dataOf[c].parent
-  while c ~= nil do
-    if c == layer then
-      return true
-    end
-    c = dataOf[c].parent
-  end
-  return false
 end
 
 -- Whether c and every parent it has are shown.
@@ -199,12 +187,13 @@ _G.Mouse = {
   end,
 }
 _G.GameKey = { ESCAPE = 13, SHIFT = 81 }
--- Each font id is its name, so specs can read which font a label holds.
-_G.id = { Font = setmetatable({}, {
+-- Each font and sprite id is its name, so specs can read which font a label holds or which sprite shows.
+local byName = {
   __index = function(_, name)
     return name
   end,
-}), StyleSheet = {} }
+}
+_G.id = { Font = setmetatable({}, byName), Sprite = setmetatable({}, byName), StyleSheet = {} }
 _G.log = function() end
 
 return fake

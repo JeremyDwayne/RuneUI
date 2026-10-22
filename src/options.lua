@@ -1,7 +1,7 @@
--- The options window and its ribbon button: a sidebar of pages, a cooldown manager with combat style tabs, a
--- group list with New group, and the chosen group's display settings and abilities with a "+" picker, drag to
--- swap or insert and a Remove menu; the src/buffspage Buffs page, the src/appearancepage Appearance and Bars
--- pages, the reset dialog, and a footer toggle into src/editmode.
+-- The options window and its ribbon button: a PrettyUI window with a tab per page, a cooldown manager with
+-- combat style tabs, a group list with New group, and the chosen group's display settings and abilities with a
+-- "+" picker, drag to swap or insert and a Remove menu; the src/buffspage Buffs page, the src/appearancepage
+-- Appearance and Bars pages, and a footer with Edit mode into src/editmode, Reset positions and Done.
 local appearancepage = require("src/appearancepage")
 local buffspage = require("src/buffspage")
 local catalog = require("src/catalog")
@@ -27,16 +27,23 @@ local FONTS = draw.FONTS
 local COLOURS = draw.WINDOW
 
 local WIDTH = 900
-local HEIGHT = 620
--- The sidebar's brand sits above its menu rows; pages take the window's full height above the footer.
-local SIDEBAR = 200
-local BRAND = 64
-local NAV_ROW = 42
-local FOOTER = 56
-local PAGE_X = SIDEBAR + 1
-local PAGE_Y = 1
-local PAGE_W = WIDTH - PAGE_X - 1
-local PAGE_H = HEIGHT - PAGE_Y - FOOTER - 1
+local HEIGHT = 680
+-- The window's content sits inside its 8 px border under its 32 px title bar. Page tabs fill it above the
+-- footer, and each page sits under the tabs' 42 px strip.
+local CONTENT_X = 8
+local CONTENT_Y = 32
+local CONTENT_W = WIDTH - 2 * CONTENT_X
+local CONTENT_H = HEIGHT - CONTENT_Y - CONTENT_X
+local FOOTER = 46
+local TAB_STRIP = 42
+local PAGE_X = CONTENT_X
+local PAGE_Y = CONTENT_Y + TAB_STRIP
+local PAGE_W = CONTENT_W
+local PAGE_H = CONTENT_H - FOOTER - TAB_STRIP
+-- Footer buttons from the right, and the gap between them and at the window's edge.
+local FOOTER_BUTTONS = { "Done", "Reset positions", "Edit mode" }
+local FOOTER_GAP = 12
+local BUTTON_H = 27
 local GAP = 2
 -- Cooldown manager layout: style tabs across the top, the group list on the left, and the chosen group's
 -- setting rows then its ability tiles, in rows of GRID_PER_ROW, on the right.
@@ -90,28 +97,22 @@ function options.create(root, deps)
   local tracker = deps.tracker
   local elements = deps.elements
 
-  local window = ui.Layer.new(root)
-  window:SetSize(WIDTH, HEIGHT)
-  window:SetPos(-WIDTH // 2, -HEIGHT // 2, 0.5, 0.5)
-  set(window, "hidden", true)
+  local closePopups, rebuildEditor, fillPicker, openPicker, buffsPage, editorDrag, closeWindow
 
-  local closePopups, rebuildEditor, fillPicker, openPicker, buffsPage, editorDrag
-
-  -- Each page draws its own background, so the Appearance preview can show the game through the window. A
-  -- click on the sidebar's or footer's blank space closes the page's popups.
-  placeOutline(outline(window, COLOURS.edge, 1), 1, 1, WIDTH - 2, HEIGHT - 2)
-  local sidebarBg = hitArea(rect(window, COLOURS.sidebar, 1, 1, SIDEBAR - 1, HEIGHT - 2))
-  rect(window, COLOURS.line, SIDEBAR, 1, 1, HEIGHT - 2)
-  rect(window, COLOURS.line, PAGE_X, HEIGHT - FOOTER - 1, PAGE_W, 1)
-  local footerBg = hitArea(rect(window, COLOURS.panel, PAGE_X, HEIGHT - FOOTER, PAGE_W, FOOTER - 1))
-  for _, bg in ipairs({ sidebarBg, footerBg }) do
-    on(bg, "ONCLICK", function()
-      closePopups()
-    end)
-  end
-  local brand = text(window, id.Font.CINZEL_18PT_BOLD, ui.AlignMode.TOPLEFT, 18, 1, SIDEBAR - 20, BRAND)
-  set(brand, "content", "RuneUI")
-  set(brand, "rgb", COLOURS.accent)
+  -- Built open, as PrettyUI builds every window, and closed once the pages are built.
+  local window = prettyui.Window.new(root, {
+    title = "RuneUI",
+    width = WIDTH,
+    height = HEIGHT,
+    x = -WIDTH // 2,
+    y = -HEIGHT // 2,
+    xAnchor = 0.5,
+    yAnchor = 0.5,
+    scrollable = false,
+    onClose = function()
+      closeWindow()
+    end,
+  })
 
   local function changed()
     rebuildEditor()
@@ -121,7 +122,6 @@ function options.create(root, deps)
   -- Pages ---------------------------------------------------------------------------------------------
 
   local pages = {}
-  local navRows = {}
   local PAGE_LIST = {
     { id = "appearance", label = "Appearance" },
     { id = "cooldowns", label = "Cooldown manager" },
@@ -144,33 +144,27 @@ function options.create(root, deps)
     elseif pageID == "bars" then
       bars.open()
     end
-    for _, entry in ipairs(PAGE_LIST) do
-      local active = entry.id == pageID
-      set(pages[entry.id], "hidden", not active)
-      local row = navRows[entry.id]
-      set(row.bg, "hidden", not active)
-      set(row.bar, "hidden", not active)
-      set(row.label, "rgb", active and COLOURS.accent or COLOURS.text)
-    end
   end
 
-  -- Menu rows: the chosen one has a lighter fill, gold text and a gold bar on its left.
+  local tabValues = {}
   for i, entry in ipairs(PAGE_LIST) do
-    local y = BRAND + (i - 1) * NAV_ROW
-    local row = {
-      hit = hitArea(rect(window, COLOURS.sidebar, 1, y, SIDEBAR - 1, NAV_ROW)),
-      bg = rect(window, COLOURS.rowAlt, 1, y, SIDEBAR - 1, NAV_ROW),
-      bar = rect(window, COLOURS.accent, 1, y, 4, NAV_ROW),
-      label = text(window, FONTS.body, ui.AlignMode.TOPLEFT, 18, y, SIDEBAR - 24, NAV_ROW),
-    }
-    set(row.label, "content", entry.label)
-    on(row.hit, "ONCLICK", function()
-      showPage(entry.id)
-    end)
-    navRows[entry.id] = row
-    local page = ui.Layer.new(window)
+    tabValues[i] = { text = entry.label }
+  end
+  local pageTabs = window:AddTabs(tabValues, {
+    x = 0,
+    y = 0,
+    width = CONTENT_W,
+    height = CONTENT_H - FOOTER,
+    scrollable = false,
+    onChange = function(_, index)
+      showPage(PAGE_LIST[index].id)
+    end,
+  })
+
+  -- Each page is a layer on its tab's content, which the page's module draws on.
+  for i, entry in ipairs(PAGE_LIST) do
+    local page = ui.Layer.new(pageTabs:GetPage(i).content)
     page:SetSize(PAGE_W, PAGE_H)
-    page:SetPos(PAGE_X, PAGE_Y)
     -- A click on the page's background closes its popups.
     if entry.id ~= "appearance" and entry.id ~= "bars" then
       on(hitArea(rect(page, COLOURS.panel, 0, 0, PAGE_W, PAGE_H)), "ONCLICK", function()
@@ -627,7 +621,7 @@ function options.create(root, deps)
     pickerTabs[#pickerTabs + 1] = t
     pickerTabX = pickerTabX + tab.width
   end
-  draw.closeButton(picker, PICKER_WIDTH - 31, 6, 24, function()
+  draw.closeButton(picker, PICKER_WIDTH - 29, 8, function()
     closePopups()
   end)
   for i = 1, MAX_PICKER_ROWS do
@@ -782,7 +776,7 @@ function options.create(root, deps)
     learn = deps.learnName,
     tooltip = buffsTooltip,
     toScreen = function(px, py)
-      return window.x + PAGE_X + px, window.y + PAGE_Y + py
+      return window.root.x + PAGE_X + px, window.root.y + PAGE_Y + py
     end,
     refresh = deps.refresh,
   })
@@ -823,88 +817,79 @@ function options.create(root, deps)
     end,
   })
 
-  -- Reset dialog: confirms Reset positions over the window, which it dims when open. Built after the window
-  -- and edit mode so it draws above them.
-  local DIALOG_W = 320
-  local DIALOG_H = 150
-  local dialog = ui.Layer.new(root)
-  dialog:SetSize(WIDTH, HEIGHT)
-  dialog:SetPos(-WIDTH // 2, -HEIGHT // 2, 0.5, 0.5)
-  local dim = hitArea(rect(dialog, COLOURS.border, 0, 0, WIDTH, HEIGHT))
-  set(dim, "alpha", 0.6)
-  local dialogX = (WIDTH - DIALOG_W) // 2
-  local dialogY = (HEIGHT - DIALOG_H) // 2
-  rect(dialog, COLOURS.border, dialogX, dialogY, DIALOG_W, DIALOG_H)
-  hitArea(rect(dialog, COLOURS.popup, dialogX + 1, dialogY + 1, DIALOG_W - 2, DIALOG_H - 2))
-  local dialogTitle = text(dialog, FONTS.body, ui.AlignMode.TOPLEFT, dialogX + 16, dialogY + 12, DIALOG_W - 32, 20)
-  set(dialogTitle, "content", "Reset positions")
-  local dialogBody = text(dialog, FONTS.small, ui.AlignMode.TOPLEFT, dialogX + 16, dialogY + 40, DIALOG_W - 32, 44)
-  set(
-    dialogBody,
-    "content",
-    "Every frame, bar, ability group and aura row goes back to its default spot. Your groups and settings stay."
-  )
-  set(dialogBody, "rgb", COLOURS.dimText)
-  rect(dialog, COLOURS.line, dialogX + 1, dialogY + DIALOG_H - 56, DIALOG_W - 2, 1)
-  local dialogOpen = false
+  -- The open Reset positions confirm, or nil. It sits over the screen, so edit mode's toolbar can open it too.
+  local confirm = nil
 
-  local function closeDialog()
-    dialogOpen = false
-    set(dialog, "hidden", true)
+  local function closeConfirm()
+    if confirm ~= nil then
+      confirm:Destroy()
+      confirm = nil
+    end
   end
-  closeDialog()
-
-  local buttonsY = dialogY + DIALOG_H - 44
-  button(dialog, "Cancel", dialogX + DIALOG_W - 264, buttonsY, 90, 32, "dark", closeDialog)
-  button(dialog, "Reset positions", dialogX + DIALOG_W - 166, buttonsY, 150, 32, "gold", function()
-    closeDialog()
-    saved.resetPositions()
-    editMode.placeAll()
-  end)
 
   local windowOpen = false
 
-  local function closeWindow()
-    closeDialog()
+  function closeWindow()
+    closeConfirm()
     editorDrag.cancel()
     appearance.cancel()
     bars.cancel()
     closePopups()
     confirmDelete = false
     windowOpen = false
-    set(window, "hidden", true)
   end
 
   function resetPositions()
     closePopups()
-    dialogOpen = true
-    set(dim, "hidden", not windowOpen)
-    set(dialog, "hidden", false)
+    closeConfirm()
+    confirm = prettyui.Confirm.new(root, {
+      title = "Reset positions",
+      body = "Every frame, bar, ability group and aura row goes back to its default spot. "
+        .. "Your groups and settings stay.",
+      cancelLabel = "Cancel",
+      confirmLabel = "Reset positions",
+      onConfirm = function()
+        confirm = nil
+        saved.resetPositions()
+        editMode.placeAll()
+      end,
+      onCancel = function()
+        confirm = nil
+      end,
+    })
   end
 
   -- Footer --------------------------------------------------------------------------------------------
 
-  -- An unticked Edit mode checkbox: edit mode hides the window, which covers the HUD, and its toolbar's Done
-  -- returns to the window.
-  local footerY = HEIGHT - FOOTER
-  local toggleHit = hitArea(rect(window, COLOURS.panel, PAGE_X + 16, footerY, 130, FOOTER))
-  rect(window, COLOURS.bronze, PAGE_X + 24, footerY + 20, 16, 16)
-  rect(window, COLOURS.sidebar, PAGE_X + 25, footerY + 21, 14, 14)
-  local toggleLabel = text(window, FONTS.body, ui.AlignMode.TOPLEFT, PAGE_X + 50, footerY, 90, FOOTER)
-  set(toggleLabel, "content", "Edit mode")
-  on(toggleHit, "ONCLICK", function()
-    closeWindow()
-    editMode.open()
-  end)
-  button(window, "Reset positions", PAGE_X + 160, footerY + 12, 140, 32, "dark", resetPositions)
-  button(window, "Done", WIDTH - 24 - 90, footerY + 12, 90, 32, "gold", closeWindow)
+  -- Edit mode closes the window, which covers the HUD, and its toolbar's Done returns to the window.
+  local footerActions = {
+    Done = function()
+      window:Close()
+    end,
+    ["Reset positions"] = resetPositions,
+    ["Edit mode"] = function()
+      window:Close()
+      editMode.open()
+    end,
+  }
+  local footerX = CONTENT_W - FOOTER_GAP
+  for _, label in ipairs(FOOTER_BUTTONS) do
+    footerX = footerX - prettyui.FancyButton.getSize(label)
+    window:AddFancyButton(label, footerActions[label], {
+      x = footerX,
+      y = CONTENT_H - FOOTER + (FOOTER - BUTTON_H) // 2,
+      variant = label == "Done" and "positive" or "neutral",
+    })
+    footerX = footerX - FOOTER_GAP
+  end
 
   function openWindow()
     editStyle = tracker.style() or editStyle
-    rebuildEditor()
-    showPage("appearance")
+    window:Show()
     windowOpen = true
-    set(window, "hidden", false)
+    rebuildEditor()
+    draw.control(pageTabs, "SetActive", 1)
+    showPage("appearance")
   end
 
   -- Ticks ---------------------------------------------------------------------------------------------
@@ -925,23 +910,23 @@ function options.create(root, deps)
     if e.gameKey ~= GameKey.ESCAPE then
       return
     end
-    if dialogOpen then
-      closeDialog()
+    if confirm ~= nil then
+      closeConfirm()
     elseif editMode.editing() then
       editMode.escape()
     elseif pickerOpen or menuKey ~= nil or buffsPage.popupOpen() then
       closePopups()
     elseif windowOpen then
-      closeWindow()
+      window:Close()
     end
   end)
 
   Event.ContentLayerReady.Subscribe("runeuiRibbon", function(e)
-    button(e.component, "Open RuneUI options", 10, 10, 180, 32, "accent", openWindow)
+    prettyui.FancyButton.new(e.component, "Options", openWindow, { x = 10, y = 10 })
   end)
 
   editMode.placeAll()
-  closePopups()
+  window:Close()
 
   return {
     placeAll = editMode.placeAll,
@@ -951,10 +936,10 @@ function options.create(root, deps)
       end
     end,
     shutdown = function()
+      closeConfirm()
       buffsPage.destroy()
       window:Destroy()
       editMode.shutdown()
-      dialog:Destroy()
     end,
   }
 end
