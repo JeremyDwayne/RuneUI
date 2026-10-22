@@ -1,11 +1,15 @@
--- The options window's Buffs page: tabs for buffs, target debuffs, your debuffs and display options. Each
--- tab holds wrapping groups of icons in their sorted order. Dragging an icon swaps it with the icon it lands
--- on or inserts it between two, within its group or into another, as the cooldown editor does; clicking one
--- opens a menu of the group moves, plus Keep up for upkeep buffs. Hovering shows the icon's name.
+-- The options window's Buffs page: tabs for buffs on you, debuffs on you, debuffs you inflict and display
+-- options. Each icon tab holds wrapping groups of icons in their sorted order. Dragging an icon swaps it with
+-- the icon it lands on or inserts it between two, within its group or into another, as the cooldown editor
+-- does; clicking one opens a menu of the group moves, plus Keep up for upkeep buffs. Hovering shows the icon's
+-- name. Each icon tab's Find button opens a src/aurasearch popup over every effect of the tab's kind the game
+-- defines.
 local auralists = require("src/auralists")
+local aurasearch = require("src/aurasearch")
 local dragdrop = require("src/dragdrop")
 local draw = require("src/draw")
 local editor = require("src/editor")
+local search = require("src/search")
 
 local buffspage = {}
 
@@ -28,18 +32,23 @@ local DIM = 0.38
 local MARGIN = 24
 local TAB_Y = 14
 local TAB_H = 28
-local TAB_W = 130
 local HEADER = 20
 local PAD = 6
 local MENU_W = 160
 local MENU_ROW = 28
+local FIND_W = 130
+local FIND_H = 24
+local SEARCH_Y = 84
+local SEARCH_H = 440
 
 -- Each group lists the sprites groups(...) files under kind and value: a buff row, or a debuff kind's
--- tracked or untracked list.
+-- tracked or untracked list. A tab's search lists catalog rows of its kind.
 local TABS = {
   {
     id = "buffs",
-    label = "Buffs",
+    label = "Buffs on you",
+    w = 130,
+    find = { label = "Find buffs", kind = "buff", empty = "Find a buff or boss" },
     groups = {
       { label = "Combat buffs", note = "Above the cooldowns row", kind = "buff", value = "combat" },
       {
@@ -52,46 +61,54 @@ local TABS = {
     },
   },
   {
-    id = "target",
-    label = "Target debuffs",
-    groups = {
-      { label = "Tracked", note = "Shown above the target frame", kind = "target", value = true },
-      { label = "Not tracked", note = "Seen but not shown", kind = "target", value = false, dim = true },
-    },
-  },
-  {
     id = "player",
-    label = "Your debuffs",
+    label = "Debuffs on you",
+    w = 140,
+    find = { label = "Find debuffs", kind = "debuff", empty = "Find a debuff or boss" },
     groups = {
       { label = "Tracked", note = "Shown above the player frame", kind = "player", value = true },
       { label = "Not tracked", note = "Seen but not shown", kind = "player", value = false, dim = true },
     },
   },
-  { id = "display", label = "Display" },
+  {
+    id = "target",
+    label = "Debuffs you inflict",
+    w = 160,
+    find = { label = "Find debuffs", kind = "target", empty = "Find a debuff or ability" },
+    groups = {
+      { label = "Tracked", note = "Shown above the target frame", kind = "target", value = true },
+      { label = "Not tracked", note = "Seen but not shown", kind = "target", value = false, dim = true },
+    },
+  },
+  { id = "display", label = "Display", w = 100 },
 }
 local MAX_GROUPS = 3
 
 -- page: the options window's page layer, width by height. deps: { saved = src/settings, info(sprite) naming
 -- an icon, tooltip = view.tooltip, toScreen(x, y) turning page into screen coordinates, refresh() redrawing
--- the HUD }. Returns { display, redraw, follow, close, destroy }: display is the Display tab's layer for
--- option rows; redraw draws the page from settings; follow runs each frame to move a drag; close ends a drag
--- and closes the menu.
+-- the HUD, catalog = src/catalog rows, describe(struct) reading a struct's description, learn(sprite, name,
+-- struct) naming an icon at once and returning whether it was unnamed }. Returns { display, redraw, follow,
+-- close, popupOpen, destroy }: display is the Display tab's layer for option rows; redraw draws the page from
+-- settings; follow runs each frame to move a drag; close ends a drag and closes the menu and the search;
+-- popupOpen says whether either is open.
 function buffspage.create(page, width, height, deps)
   local saved = deps.saved
   local cols = (width - 2 * MARGIN - 2 * PAD + GAP) // STEP
   local tab = "buffs"
-  local redraw, closeMenu, drag
+  local redraw, closeMenu, drag, finder, openSearch
 
   -- Tabs ------------------------------------------------------------------------------------------------
 
   local tabParts = {}
-  for i, def in ipairs(TABS) do
-    local x = MARGIN + (i - 1) * (TAB_W + 6)
-    tabParts[def.id] = draw.option(page, def.label, x, TAB_Y, TAB_W, TAB_H, function()
+  local tabX = MARGIN
+  for _, def in ipairs(TABS) do
+    tabParts[def.id] = draw.option(page, def.label, tabX, TAB_Y, def.w, TAB_H, function()
       closeMenu()
+      finder.close()
       tab = def.id
       redraw()
     end)
+    tabX = tabX + def.w + 6
   end
 
   local top = TAB_Y + TAB_H + 12
@@ -114,6 +131,10 @@ function buffspage.create(page, width, height, deps)
     slot.dashes:SetPos(0, 0)
     slots[i] = slot
   end
+
+  local findButton = draw.button(page, "", width - MARGIN - FIND_W, top - 4, FIND_W, FIND_H, "dark", function()
+    openSearch()
+  end)
 
   local tiles = {}
   for i = 1, TILES do
@@ -206,6 +227,10 @@ function buffspage.create(page, width, height, deps)
       draw.showOption(tabParts[def.id], active)
     end
     set(display, "hidden", current.groups ~= nil)
+    findButton.group.set("hidden", current.find == nil)
+    if current.find ~= nil then
+      set(findButton.label, "content", current.find.label)
+    end
     local keepUp = saved.keepUp()
     local y = top
     local used = 0
@@ -392,7 +417,12 @@ function buffspage.create(page, width, height, deps)
   local dropSlot = nil
   local dropTarget = nil
   drag = dragdrop.create(page, SIZE // 2, {
+    -- A press while the search is open only closes it, as a click anywhere outside a popup does.
     press = function(t)
+      if finder.isOpen() then
+        finder.close()
+        return false
+      end
       if t.sprite == nil then
         return false
       end
@@ -442,6 +472,67 @@ function buffspage.create(page, width, height, deps)
     drag.attach(t)
   end
 
+  -- Search ----------------------------------------------------------------------------------------------
+
+  -- Whether the current tab shows sprite: a buff in combat or upkeep, or a tracked debuff.
+  local function trackedNow()
+    local kind = tab
+    return setmetatable({}, {
+      __index = function(_, sprite)
+        if kind == "buffs" then
+          local category = saved.auras()[tostring(sprite)]
+          return category == "combat" or category == "upkeep"
+        end
+        return auralists.tracked(kind, saved.tracked(kind), sprite)
+      end,
+    })
+  end
+
+  -- Tracks or untracks a search row on the current tab, naming its icon from the catalog when unnamed.
+  local function choose(row, track)
+    if tab == "buffs" then
+      saved.setAuraCategory(row.sprite, track and "combat" or "hidden")
+    else
+      saved.setTracked(tab, row.sprite, track)
+    end
+    if track and row.struct ~= nil and deps.learn(row.sprite, row.name, row.struct) then
+      saved.learnDebuff(row.sprite, row.name, row.struct)
+    end
+    redraw()
+    deps.refresh()
+  end
+
+  finder = aurasearch.create(page, MARGIN, SEARCH_Y, width - 2 * MARGIN, math.min(SEARCH_H, height - SEARCH_Y - 16), {
+    describe = deps.describe,
+    choose = choose,
+  })
+
+  function openSearch()
+    local def = nil
+    for _, d in ipairs(TABS) do
+      if d.id == tab then
+        def = d
+      end
+    end
+    closeMenu()
+    local seen = {}
+    for key in pairs(tab == "buffs" and saved.auras() or saved.tracked(tab)) do
+      seen[#seen + 1] = tonumber(key)
+    end
+    table.sort(seen)
+    local rows = search.withSeen(deps.catalog, def.find.kind, seen, function(sprite)
+      local found = deps.info(sprite)
+      return found and found.name
+    end)
+    finder.open({
+      title = def.label,
+      empty = def.find.empty,
+      kind = def.find.kind,
+      rows = rows,
+      tracked = trackedNow,
+    })
+  end
+
   -- Tooltip ---------------------------------------------------------------------------------------------
 
   deps.tooltip.hover(tiles, function(i)
@@ -455,18 +546,25 @@ function buffspage.create(page, width, height, deps)
     deps.tooltip.show({
       title = found and found.name or "Unknown",
       left = found == nil and "Looking up name" or nil,
-      line = "Drag to sort or move it, or click for options",
+      info = "Drag to sort or move it, or click for options",
     }, x, y, SIZE)
   end)
 
   return {
     display = display,
     redraw = redraw,
-    follow = drag.follow,
+    follow = function()
+      drag.follow()
+      finder.follow()
+    end,
     close = function()
       drag.cancel()
       closeMenu()
+      finder.close()
       deps.tooltip.hide()
+    end,
+    popupOpen = function()
+      return menuTile ~= nil or finder.isOpen()
     end,
     destroy = deps.tooltip.destroy,
   }

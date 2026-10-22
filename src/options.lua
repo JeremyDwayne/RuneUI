@@ -4,6 +4,7 @@
 -- pages, the reset dialog, and a footer toggle into src/editmode.
 local appearancepage = require("src/appearancepage")
 local buffspage = require("src/buffspage")
+local catalog = require("src/catalog")
 local dragdrop = require("src/dragdrop")
 local draw = require("src/draw")
 local editmode = require("src/editmode")
@@ -80,7 +81,8 @@ local function indexOf(list, value)
 end
 
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
--- view = src/view, auraInfo(sprite) naming an aura icon, refresh = function redrawing the HUD }. Returns
+-- view = src/view, auraInfo(sprite) naming an aura icon, describe(struct) reading a struct's description,
+-- learnName(sprite, name, struct) naming an aura icon at once, refresh = function redrawing the HUD }. Returns
 -- { placeAll, redrawBuffs, shutdown }; placeAll places the HUD and edit mode's overlays from the saved
 -- positions and anchors, and redrawBuffs redraws the Buffs page while it is shown.
 function options.create(root, deps)
@@ -93,17 +95,23 @@ function options.create(root, deps)
   window:SetPos(-WIDTH // 2, -HEIGHT // 2, 0.5, 0.5)
   set(window, "hidden", true)
 
-  -- Each page draws its own background, so the Appearance preview can show the game through the window.
+  local closePopups, rebuildEditor, fillPicker, openPicker, buffsPage, editorDrag
+
+  -- Each page draws its own background, so the Appearance preview can show the game through the window. A
+  -- click on the sidebar's or footer's blank space closes the page's popups.
   placeOutline(outline(window, COLOURS.edge, 1), 1, 1, WIDTH - 2, HEIGHT - 2)
-  hitArea(rect(window, COLOURS.sidebar, 1, 1, SIDEBAR - 1, HEIGHT - 2))
+  local sidebarBg = hitArea(rect(window, COLOURS.sidebar, 1, 1, SIDEBAR - 1, HEIGHT - 2))
   rect(window, COLOURS.line, SIDEBAR, 1, 1, HEIGHT - 2)
   rect(window, COLOURS.line, PAGE_X, HEIGHT - FOOTER - 1, PAGE_W, 1)
-  hitArea(rect(window, COLOURS.panel, PAGE_X, HEIGHT - FOOTER, PAGE_W, FOOTER - 1))
+  local footerBg = hitArea(rect(window, COLOURS.panel, PAGE_X, HEIGHT - FOOTER, PAGE_W, FOOTER - 1))
+  for _, bg in ipairs({ sidebarBg, footerBg }) do
+    on(bg, "ONCLICK", function()
+      closePopups()
+    end)
+  end
   local brand = text(window, id.Font.CINZEL_18PT_BOLD, ui.AlignMode.TOPLEFT, 18, 1, SIDEBAR - 20, BRAND)
   set(brand, "content", "RuneUI")
   set(brand, "rgb", COLOURS.accent)
-
-  local closePopups, rebuildEditor, fillPicker, openPicker, buffsPage, editorDrag
 
   local function changed()
     rebuildEditor()
@@ -163,8 +171,11 @@ function options.create(root, deps)
     local page = ui.Layer.new(window)
     page:SetSize(PAGE_W, PAGE_H)
     page:SetPos(PAGE_X, PAGE_Y)
+    -- A click on the page's background closes its popups.
     if entry.id ~= "appearance" and entry.id ~= "bars" then
-      hitArea(rect(page, COLOURS.panel, 0, 0, PAGE_W, PAGE_H))
+      on(hitArea(rect(page, COLOURS.panel, 0, 0, PAGE_W, PAGE_H)), "ONCLICK", function()
+        closePopups()
+      end)
     end
     pages[entry.id] = page
   end
@@ -587,7 +598,7 @@ function options.create(root, deps)
   local pickerEdge = hitArea(rect(picker, COLOURS.border, 0, 0, PICKER_WIDTH, 0))
   local pickerBg = rect(picker, COLOURS.popup, 1, 1, PICKER_WIDTH - 2, 0)
   rect(picker, COLOURS.line, 1, PICKER_HEAD, PICKER_WIDTH - 2, 1)
-  local search = draw.inputField(picker, 10, 6, PICKER_WIDTH - 20, 24, 30, true)
+  local search = draw.inputField(picker, 10, 6, PICKER_WIDTH - 49, 24, 30, true)
   set(search, "emptyText", "Find an ability")
   -- The field also reports its contents on Enter, Esc and focus loss, which can come after the picker closed.
   on(search, "ONCONTENTCHANGED", function(_, _, contents)
@@ -616,6 +627,9 @@ function options.create(root, deps)
     pickerTabs[#pickerTabs + 1] = t
     pickerTabX = pickerTabX + tab.width
   end
+  draw.closeButton(picker, PICKER_WIDTH - 31, 6, 24, function()
+    closePopups()
+  end)
   for i = 1, MAX_PICKER_ROWS do
     local ry = PICKER_HEAD + 1 + (i - 1) * PICKER_ROW
     local r = {
@@ -763,6 +777,9 @@ function options.create(root, deps)
   buffsPage = buffspage.create(pages.buffs, PAGE_W, PAGE_H, {
     saved = saved,
     info = deps.auraInfo,
+    catalog = catalog,
+    describe = deps.describe,
+    learn = deps.learnName,
     tooltip = buffsTooltip,
     toScreen = function(px, py)
       return window.x + PAGE_X + px, window.y + PAGE_Y + py
@@ -912,6 +929,8 @@ function options.create(root, deps)
       closeDialog()
     elseif editMode.editing() then
       editMode.escape()
+    elseif pickerOpen or menuKey ~= nil or buffsPage.popupOpen() then
+      closePopups()
     elseif windowOpen then
       closeWindow()
     end

@@ -5,6 +5,7 @@
 -- its row shows. Every change saves, then redraws the preview and the HUD.
 local draw = require("src/draw")
 local frames = require("src/frames")
+local scrollbar = require("src/scrollbar")
 local settings = require("src/settings")
 local style = require("src/style")
 
@@ -29,11 +30,6 @@ local ROW_H = 50
 local HEADING_H = 40
 local END_SPACE = 32
 local MARGIN = 16
--- The wheel reports many small deltas per turn, negative while scrolling down; each moves WHEEL_STEP px.
-local SCROLLBAR_W = 10
-local WHEEL_STEP = 8
--- Side of the transparent square that holds a thumb drag under the cursor, which a fast move cannot leave.
-local GRAB = 160
 local OPTION_H = 28
 -- Alpha of a stepper whose setting another choice overrides.
 local FADED = 0.45
@@ -201,67 +197,25 @@ local function settingsPage(page, width, height, deps, define)
   draw.size(viewport, width, viewH)
   local viewportBg = hitArea(rect(viewport, COLOURS.panel, 0, 0, width, viewH))
   local content = ui.Layer.new(viewport)
-  local rowW = width - 2 * MARGIN - SCROLLBAR_W - 4
+  local rowW = width - 2 * MARGIN - scrollbar.WIDTH - 4
   local rowRight = MARGIN + rowW - 12
-  local track = hitArea(rect(viewport, COLOURS.sidebar, width - SCROLLBAR_W - 4, 0, SCROLLBAR_W, viewH))
-  local thumb = rect(viewport, COLOURS.bronze, width - SCROLLBAR_W - 3, 0, SCROLLBAR_W - 2, 0)
   -- Rows from the top: { layer, y, h }, the content's height and how far it is scrolled.
   local rows = {}
   local contentH = 0
   local scroll = 0
-
-  local function maxScroll()
-    return math.max(0, contentH - viewH)
-  end
-
-  local function thumbBox()
-    local h = math.max(24, viewH * math.min(1, viewH / contentH))
-    local max = maxScroll()
-    return max == 0 and 0 or math.floor((viewH - h) * scroll / max + 0.5), math.floor(h)
-  end
-
-  -- The thumb's grab area, built on the page above the settings, and the drag it holds: { origin, y, scroll },
-  -- with the cursor's offset from page coordinates, or nil.
-  local grip, held
-
-  -- Puts the grab area over the thumb.
-  local function placeGrip()
-    local ty, th = thumbBox()
-    draw.pos(grip, width - SCROLLBAR_W - 4, STRIP_H + 1 + ty)
-    draw.size(grip, SCROLLBAR_W, th)
-    set(grip, "hidden", maxScroll() == 0)
-  end
+  local bar
 
   local function scrollTo(y)
-    scroll = math.max(0, math.min(maxScroll(), y))
+    scroll = bar.set(y, contentH)
     draw.pos(content, 0, -scroll)
     for _, row in ipairs(rows) do
       set(row.layer, "hidden", row.y + row.h <= scroll or row.y >= scroll + viewH)
     end
-    local ty, th = thumbBox()
-    draw.pos(thumb, width - SCROLLBAR_W - 3, ty)
-    draw.size(thumb, SCROLLBAR_W - 2, th)
-    set(thumb, "hidden", maxScroll() == 0)
-    if grip ~= nil and held == nil then
-      placeGrip()
-    end
   end
 
-  local function wheel(c)
-    on(c, "ONSCROLLWHEEL", function(_, delta)
-      scrollTo(scroll - delta * WHEEL_STEP)
-    end)
-  end
+  bar = scrollbar.create(viewport, width - scrollbar.WIDTH - 4, 0, viewH, scrollTo)
+  local wheel = bar.wheel
   wheel(viewportBg)
-  wheel(track)
-  on(track, "ONCLICK", function(_, _, y)
-    local ty, th = thumbBox()
-    if y < ty then
-      scrollTo(scroll - viewH)
-    elseif y > ty + th then
-      scrollTo(scroll + viewH)
-    end
-  end)
 
   -- A layer at the content's end, h tall, which hides once scrolled wholly out of view. relayout places it.
   local function addRow(h)
@@ -543,46 +497,8 @@ local function settingsPage(page, width, height, deps, define)
     end,
   })
 
-  grip = hitArea(rect(page, COLOURS.panel, 0, 0, 0, 0))
-  set(grip, "alpha", 0)
-  wheel(grip)
-  on(grip, "ONCLICK", function(_, x, y)
-    draw.pressAt(grip, x)
-    local mx, my = draw.cursor()
-    if mx == nil then
-      return
-    end
-    local ty = thumbBox()
-    held = {
-      origin = { x = mx - (width - SCROLLBAR_W - 4 + x), y = my - (STRIP_H + 1 + ty + y) },
-      y = my,
-      scroll = scroll,
-    }
-  end)
-  on(grip, "ONRELEASE", function()
-    held = nil
-    placeGrip()
-  end)
+  bar.grip(page, width - scrollbar.WIDTH - 4, STRIP_H + 1)
   relayout()
-
-  -- Moves a held thumb with the cursor, every frame. Returns before reading the mouse unless it is held.
-  local function follow()
-    if held == nil then
-      return
-    end
-    local mx, my = draw.cursor()
-    if mx == nil or (mx == held.lastX and my == held.lastY) then
-      return
-    end
-    held.lastX = mx
-    held.lastY = my
-    local _, th = thumbBox()
-    if viewH > th then
-      scrollTo(held.scroll + (my - held.y) * maxScroll() / (viewH - th))
-    end
-    draw.size(grip, GRAB, GRAB)
-    draw.pos(grip, math.floor(mx - held.origin.x) - GRAB // 2, math.floor(my - held.origin.y) - GRAB // 2)
-  end
 
   function redraw()
     local appearance = saved.appearance()
@@ -601,12 +517,8 @@ local function settingsPage(page, width, height, deps, define)
       scrollTo(scroll)
     end,
     choiceRow = choiceRow,
-    follow = follow,
-    -- Ends a thumb drag, as when the window closes.
-    cancel = function()
-      held = nil
-      placeGrip()
-    end,
+    follow = bar.follow,
+    cancel = bar.cancel,
   }
 end
 

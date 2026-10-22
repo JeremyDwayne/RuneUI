@@ -242,6 +242,54 @@ describe("options", function()
     end)
   end)
 
+  it("closes the picker by its X, leaving the window open", function()
+    openWindow()
+    openPicker()
+    local x = fake.find(function(c, d)
+      return fake.hasHook(c, "ONCLICK") and d.width == 24 and d.height == 24
+    end)
+    fake.hook(x, "ONCLICK")
+    assert.is_false(shows("Wild Magic"))
+    assert.is_true(shows("New group"))
+  end)
+
+  it("closes the picker on Esc, then the window on a second Esc", function()
+    openWindow()
+    openPicker()
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.is_false(shows("Wild Magic"))
+    assert.is_true(shows("New group"))
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.is_false(shows("New group"))
+  end)
+
+  it("closes the picker on a click on the page's background, leaving the window open", function()
+    openWindow()
+    openPicker()
+    local background = fake.find(function(c, d)
+      return fake.hasHook(c, "ONCLICK") and d.width == 698 and d.height == 562
+    end)
+    fake.hook(background, "ONCLICK")
+    assert.is_false(shows("Wild Magic"))
+    assert.is_true(shows("New group"))
+  end)
+
+  it("closes the picker on a click on the sidebar's or footer's blank space, leaving the window open", function()
+    for _, size in ipairs({ { 199, 618 }, { 698, 55 } }) do
+      openWindow()
+      openPicker()
+      fake.hook(
+        fake.find(function(c, d)
+          return fake.hasHook(c, "ONCLICK") and d.width == size[1] and d.height == size[2]
+        end),
+        "ONCLICK"
+      )
+      assert.is_false(shows("Wild Magic"))
+      assert.is_true(shows("New group"))
+      fake.reset()
+    end
+  end)
+
   it("opens on the worn weapon's style tab, marked Equipped, and switches style by tab", function()
     openWindow(37)
     local equipped = fake.find(function(_, d)

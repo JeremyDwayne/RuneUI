@@ -426,6 +426,55 @@ describe("adapter.structInfo", function()
     _G.config = { Param = { COMBATV2_ABILITY_INFO = info }, Struct = { FromID = fromID } }
     assert.are.same({ "Swollen.", nil, nil }, { adapter.structInfo(1), adapter.structInfo(2), adapter.structInfo(9) })
   end)
+
+  it("falls back to the text after the dash in a struct's name when it has no description", function()
+    local info = { id = 3 }
+    local name = { id = 4 }
+    local params = { [name] = "Drenched - Each stack slows you." }
+    local struct = {
+      HasParam = function(_, p)
+        return params[p] ~= nil
+      end,
+      GetParamValue = function(_, p)
+        return params[p]
+      end,
+    }
+    _G.config = {
+      Param = { COMBATV2_ABILITY_INFO = info, COMBATV2_ABILITY_NAME = name },
+      Struct = {
+        FromID = function()
+          return struct
+        end,
+      },
+    }
+    assert.are.equal("Each stack slows you.", adapter.structInfo(1))
+    params[name] = "Stunned"
+    assert.is_nil(adapter.structInfo(1))
+  end)
+end)
+
+describe("adapter.abilityInfo", function()
+  it("reads an ability's description by its key, or nil when its struct is missing", function()
+    local info = { id = 3 }
+    local struct = {
+      HasParam = function(_, p)
+        return p == info
+      end,
+      GetParamValue = function()
+        return "Inflict searing pain on the target."
+      end,
+    }
+    _G.config = {
+      Param = { COMBATV2_ABILITY_INFO = info },
+      Struct = setmetatable({ COMBATV2_ABILITY_MAGIC_FINGER_OF_DEATH = struct }, {
+        __index = function(_, structName)
+          error("no struct " .. structName)
+        end,
+      }),
+    }
+    assert.are.equal("Inflict searing pain on the target.", adapter.abilityInfo("MAGIC_FINGER_OF_DEATH"))
+    assert.is_nil(adapter.abilityInfo("MAGIC_DRAGON_BREATH"))
+  end)
 end)
 
 describe("adapter.itemName", function()

@@ -13,7 +13,7 @@ When goals conflict, settle them in this order:
 
 ## Working rules
 
-- Done means the four checks from `CONTRIBUTING.md` pass: `busted`, `luacheck .`, `luac5.4 -p` on every file and `stylua --check main.lua src spec`. Report their output, not "should pass".
+- Done means the four checks from `CONTRIBUTING.md` pass: `busted`, `luacheck .`, `luac5.4 -p` on every file and `stylua --check main.lua src spec tools`. Report their output, not "should pass".
 - A bug fix starts with a spec that fails without the fix. View and options specs drive real modules through `spec/support/fake_ui.lua`.
 - Specs prove logic and write counts, not what the client draws. Anything visible is done when it has been seen in the game after `prl runeui`. Say which in-game checks are still open.
 - Before building a visible change, agree on the look with a mockup or screenshot.
@@ -25,8 +25,8 @@ When goals conflict, settle them in this order:
 ## Architecture
 
 - `src/adapter.lua` is the only module that calls the client. Every read goes through `pcall` and comes back as a plain table, and a read can always be nil: interfaces unload, and vars are nil before login.
-- `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua`, `src/icons.lua`, `src/style.lua` and `src/presets.lua` are pure. Keep client globals out of them.
-- `src/view.lua`, `src/options.lua`, `src/appearancepage.lua`, `src/buffspage.lua`, `src/dragdrop.lua` and `src/editmode.lua` draw through `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values.
+- `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua`, `src/icons.lua`, `src/search.lua`, `src/style.lua`, `src/presets.lua` and `src/catalog.lua` are pure. Keep client globals out of them.
+- `src/view.lua`, `src/options.lua`, `src/appearancepage.lua`, `src/buffspage.lua`, `src/aurasearch.lua`, `src/scrollbar.lua`, `src/dragdrop.lua` and `src/editmode.lua` draw through `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values.
 - `main.lua` wires events: `VarTransmit` feeds the cooldown and channel trackers, `ServerLogic` reads the adapter and redraws, `Logic` redraws the cast bar and cooldown groups after their vars change and counts them down, and `PluginShutdown` destroys every component.
 
 ## Hot path
@@ -52,6 +52,9 @@ The client API is thinly documented, and these facts came from probing it in the
 - Hooks cannot tell mouse buttons apart, so a right click fires `ONCLICK` too. A destructive action needs a second step.
 - `Mouse.GetX` and `GetY` report physical pixels, twice the UI units on a Retina display. Convert with the ratio taken in a press hook, as `pressAt` in `src/draw.lua` does.
 - Plain components start with `enabled = false` and `clickthrough = true`. Hover still fires on them. Each clickable thing has one hit area with both flipped, drawn under its label.
+- A hit area stops a click from reaching hit areas under it, on other layers too, so a click on a popup row never also clicks the page behind it.
+- `ui.Text` reports no wrapped height or line count. A label's wrapped height is estimated from its character count, as `view.tooltip` does: `NOTOSANS_BOLD_10` lines sit 14 px apart, and 224 px holds 37 to 41 characters of prose.
+- `ui.Text` draws `<br>` as a line break, `<br><br>` as a blank line, and `<col=ff8a1f>` text in that colour.
 - Alpha 0 is not hidden. Treat a transparent component as still taking clicks.
 - `ui.Text` draws nothing until `font` is set. A `ui.InputField` draws no text without a `stylesheetID`: `id.StyleSheet.INPUT_DEFAULT` draws a plain field and `INPUT_SEARCHBOX_24PX` a search box. No call gives a field focus, so it takes keys only once clicked. Its `ONCONTENTCHANGED` fires on each keystroke, and again on Enter, Esc and focus loss, possibly after its popup has closed.
 - Children of `TOPLEVEL_V2__GAME_AREA` draw under game windows such as the bank, so the HUD lives there. Children of `TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP` draw over everything, so the options window lives there. Both span the window.

@@ -1,0 +1,218 @@
+-- Writes src/catalog.lua from a struct dump and tools/catalog_sources.lua. Run from the repo root:
+--
+--   lua5.4 tools/catalog.lua <dump.tsv> && stylua src/catalog.lua
+--
+-- The dump is tab separated with a header row naming at least id, configName, icon and name: one row per
+-- COMBATV2_ or MAGIC_ struct with an icon and a name. Warnings go to stderr: a boss token no struct matches, a
+-- shared or inflicted effect naming a struct the dump lacks, and names still too long to read as a name.
+local icons = require("src/icons")
+local sources = require("tools/catalog_sources")
+
+local OUTPUT = "src/catalog.lua"
+-- A name longer than this after splitting reads as a sentence and wants a hand name.
+local LONG_NAME = 36
+
+local function warn(...)
+  io.stderr:write(table.concat({ ... }, " "), "\n")
+end
+
+-- The fields of one tab separated line, empty ones included.
+local function fields(line)
+  local out = {}
+  for field in (line .. "\t"):gmatch("([^\t]*)\t") do
+    out[#out + 1] = field
+  end
+  return out
+end
+
+-- Every dump row as { struct, configName, icon, name }, skipping rows with no icon or name.
+local function readDump(path)
+  local file = assert(io.open(path, "r"))
+  local columns = {}
+  for i, column in ipairs(fields(file:read("l"))) do
+    columns[column] = i
+  end
+  for _, column in ipairs({ "id", "configName", "icon", "name" }) do
+    assert(columns[column], "the dump has no " .. column .. " column")
+  end
+  local rows = {}
+  for line in file:lines() do
+    local f = fields(line)
+    local icon = tonumber(f[columns.icon])
+    local name = f[columns.name]
+    if icon ~= nil and icon > 0 and name ~= nil and name ~= "" then
+      rows[#rows + 1] = {
+        struct = tonumber(f[columns.id]),
+        configName = f[columns.configName],
+        icon = icon,
+        name = name,
+      }
+    end
+  end
+  file:close()
+  return rows
+end
+
+-- Whether configName holds any of tokens.
+local function holds(configName, tokens)
+  for _, token in ipairs(tokens) do
+    if configName:find(token, 1, true) then
+      return true
+    end
+  end
+  return false
+end
+
+-- The source and kind a struct lists under, or nil when it is left out, counting each boss token it matches
+-- in hits. A boss's struct is a debuff on you unless it names a boss buff; any other is a buff on you unless
+-- it names a debuff.
+local function sourceOf(configName, hits)
+  if holds(configName, sources.left) then
+    return nil
+  end
+  if configName:sub(1, 6) == "MAGIC_" then
+    if sources.spells[configName] then
+      return "General", "buff"
+    end
+    return nil
+  end
+  local kind = holds(configName, sources.debuffs) and "debuff" or "buff"
+  if holds(configName, sources.general) then
+    return "General", kind
+  end
+  for _, rule in ipairs(sources.bosses) do
+    if configName:find(rule.token, 1, true) then
+      hits[rule.token] = (hits[rule.token] or 0) + 1
+      return rule.boss, holds(configName, sources.bossBuffs) and "buff" or "debuff"
+    end
+  end
+  for _, group in ipairs(sources.groups) do
+    if configName:sub(1, #group.prefix) == group.prefix then
+      return group.source, kind
+    end
+  end
+  return "General", kind
+end
+
+-- The rows of debuffs you inflict, by their struct's config name.
+local function inflictedRows()
+  local out = {}
+  for _, row in ipairs(sources.inflicted) do
+    out[row.effect] = row
+  end
+  return out
+end
+
+local function build(dump)
+  local rows = {}
+  local seen = {}
+  local hits = {}
+  local inflicted = inflictedRows()
+  -- Each struct's row by config name, for the shared and inflicted effects.
+  local byName = {}
+  for _, d in ipairs(dump) do
+    local hand = sources.names[d.configName]
+    local name = (hand or icons.split(d.name)):match("^%s*(.-)%s*$")
+    -- A struct named by a sentence keeps the sentence as its description.
+    local info = hand ~= nil and hand ~= d.name and d.name or nil
+    local source, kind = sourceOf(d.configName, hits)
+    byName[d.configName] = { sprite = d.icon, name = name, struct = d.struct, info = info }
+    -- A debuff you inflict lists on you too only when players suffer it as well, as Stunned.
+    if inflicted[d.configName] and not inflicted[d.configName].onYou then
+      source = nil
+    end
+    local key = source and table.concat({ d.icon, name, source, kind }, "\t")
+    if key and not seen[key] then
+      seen[key] = true
+      rows[#rows + 1] = { sprite = d.icon, name = name, struct = d.struct, source = source, kind = kind, info = info }
+      if #name > LONG_NAME then
+        warn("long name:", d.configName, name)
+      end
+    end
+  end
+  for _, rule in ipairs(sources.bosses) do
+    if hits[rule.token] == nil then
+      warn("no struct matches boss token", rule.token)
+    end
+  end
+  for _, shared in ipairs(sources.shared) do
+    local own = byName[shared.effect]
+    if own == nil then
+      warn("no struct", shared.effect, "for", shared.boss)
+    else
+      rows[#rows + 1] = {
+        sprite = own.sprite,
+        name = own.name,
+        struct = own.struct,
+        source = shared.boss,
+        kind = "debuff",
+        cause = shared.cause,
+      }
+    end
+  end
+  for _, row in ipairs(sources.inflicted) do
+    local own = byName[row.effect]
+    if own == nil then
+      warn("no struct", row.effect, "inflicted by", row.cause)
+    else
+      rows[#rows + 1] = {
+        sprite = own.sprite,
+        name = own.name,
+        struct = own.struct,
+        source = row.style,
+        kind = "target",
+        cause = row.cause,
+        info = own.info,
+      }
+    end
+  end
+  table.sort(rows, function(a, b)
+    if a.kind ~= b.kind then
+      return a.kind < b.kind
+    end
+    if a.source ~= b.source then
+      return a.source < b.source
+    end
+    if a.name ~= b.name then
+      return a.name < b.name
+    end
+    return a.struct < b.struct
+  end)
+  return rows
+end
+
+local function write(rows)
+  local out = {
+    "-- Generated by tools/catalog.lua from a struct dump and tools/catalog_sources.lua. Edit those, not this.",
+    "-- Every buff and debuff struct with an icon and a name, as { sprite, name, struct, source, kind, cause, info }:",
+    "-- kind is buff or debuff on you, or target for a debuff you inflict. Source is General, Prayers, Curses,",
+    "-- Abilities or a boss on you, and a combat style or Weapons and items on a target. Cause is the attack",
+    "-- behind a boss's shared effect or the ability, spell or item that inflicts one, and info the sentence a",
+    "-- struct is named by in the game, when it has a short name here.",
+    "return {",
+  }
+  for _, r in ipairs(rows) do
+    local cause = r.cause and string.format(", cause = %q", r.cause) or ""
+    local info = r.info and string.format(", info = %q", r.info) or ""
+    out[#out + 1] = string.format(
+      "  { sprite = %d, name = %q, struct = %d, source = %q, kind = %q%s%s },",
+      r.sprite,
+      r.name,
+      r.struct,
+      r.source,
+      r.kind,
+      cause,
+      info
+    )
+  end
+  out[#out + 1] = "}"
+  local file = assert(io.open(OUTPUT, "w"))
+  file:write(table.concat(out, "\n"), "\n")
+  file:close()
+end
+
+local path = arg[1]
+assert(path, "usage: lua5.4 tools/catalog.lua <dump.tsv>")
+local rows = build(readDump(path))
+write(rows)
+print(string.format("wrote %d rows to %s", #rows, OUTPUT))

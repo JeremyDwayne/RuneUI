@@ -12,3 +12,5 @@ globals = { "PluginShutdown" }
 files["spec"] = { std = "+busted" }
 -- .lua and .luarocks hold the toolchain CI installs into the checkout.
 exclude_files = { ".scratch", ".lua", ".luarocks" }
+-- Generated data: struct descriptions run past the line limit.
+files["src/catalog.lua"] = { max_line_length = false }
