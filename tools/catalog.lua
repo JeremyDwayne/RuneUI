@@ -94,11 +94,11 @@ local function sourceOf(configName, hits)
   return "General", kind
 end
 
--- The config names of structs listed as debuffs you inflict.
-local function inflictedNames()
+-- The rows of debuffs you inflict, by their struct's config name.
+local function inflictedRows()
   local out = {}
   for _, row in ipairs(sources.inflicted) do
-    out[row.effect] = true
+    out[row.effect] = row
   end
   return out
 end
@@ -107,7 +107,7 @@ local function build(dump)
   local rows = {}
   local seen = {}
   local hits = {}
-  local inflicted = inflictedNames()
+  local inflicted = inflictedRows()
   -- Each struct's row by config name, for the shared and inflicted effects.
   local byName = {}
   for _, d in ipairs(dump) do
@@ -117,8 +117,8 @@ local function build(dump)
     local info = hand ~= nil and hand ~= d.name and d.name or nil
     local source, kind = sourceOf(d.configName, hits)
     byName[d.configName] = { sprite = d.icon, name = name, struct = d.struct, info = info }
-    -- A debuff you inflict lists on you too only when it is a debuff on you, as Stunned is.
-    if inflicted[d.configName] and kind ~= "debuff" then
+    -- A debuff you inflict lists on you too only when players suffer it as well, as Stunned.
+    if inflicted[d.configName] and not inflicted[d.configName].onYou then
       source = nil
     end
     local key = source and table.concat({ d.icon, name, source, kind }, "\t")

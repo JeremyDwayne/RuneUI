@@ -2,7 +2,8 @@
 -- short names for structs named by a sentence, the shared effects each boss applies, and the debuffs players
 -- inflict.
 return {
-  -- Struct config name tokens of structs left out: a boss's or monster's own state, and interface buttons.
+  -- Struct config name tokens of structs left out: a boss's or monster's own state, interface buttons, and
+  -- debuffs players no longer inflict.
   left = {
     "BUTTON_DUMMY_STRUCT",
     "WORN_SLOT",
@@ -43,7 +44,10 @@ return {
     "BOSS_BUFF_RASIAL_MAINHAND_PASSIVE",
     "BOSS_BUFF_NECROMANCY_",
     "BOSS_BUFF_DEVOURERS_CORRUPTION",
-    "BUFF_BLOOD_KNIGHT_",
+    "COMBATV2_BUFF_BLOOD_KNIGHT_",
+    "DEBUFF_SEVERED",
+    "DEBUFF_LESSER_PULVERISED",
+    "DEBUFF_EXTREME_VULNERABILITY",
   },
 
   -- Spell structs listed as buffs on you, by config name. Other spells are left out.
@@ -61,7 +65,7 @@ return {
     "DEBUFF",
     "NERFED",
     "STUNNED_",
-    "BOUND_",
+    "COMBATV2_BOUND_",
     "POISONED_",
     "HOLDSPELL",
     "BLEED_DUMMY",
@@ -69,7 +73,7 @@ return {
     "SOUL_DRAIN",
     "MENAPHOS_CORRUPTION",
     "DINO_SLAYER_TOXIC",
-    "DRAGONFIRE_DUMMY",
+    "COMBATV2_DRAGONFIRE_DUMMY",
     "TELEBLOCKED",
     "MOLE2_SHIELD_DOT",
     "QUEST_DESERT_LEELA_CORRUPTION",
@@ -319,8 +323,57 @@ return {
     { boss = "Zamorak", effect = "COMBATV2_PRAYER_DEBUFF", cause = "Chaos Blast" },
   },
 
-  -- Debuffs players inflict on a target, each { style, effect, cause }: style is the combat style that
-  -- inflicts it, Any style or Weapons and items, effect the struct's config name, and cause the ability, spell
-  -- or item that inflicts it.
-  inflicted = {},
+  -- Debuffs players inflict on a target, each { style, effect, cause, onYou }: style is the combat style that
+  -- inflicts it, Any style or Weapons and items, effect the struct's config name, cause the ability, spell or
+  -- item that inflicts it, and onYou true when players suffer it too, so it lists as a debuff on you as well.
+  inflicted = {
+    { style = "Any style", effect = "COMBATV2_BOUND_DUMMY_ABILITY", cause = "Binds", onYou = true },
+    { style = "Any style", effect = "COMBATV2_ABILITY_DEFENCE_DEBILITATE", cause = "Debilitate" },
+    { style = "Any style", effect = "COMBATV2_ABILITY_CONSTITUTION_STORM_SHARDED", cause = "Storm Shards" },
+    { style = "Any style", effect = "COMBATV2_STUNNED_DUMMY_ABILITY", cause = "Stuns", onYou = true },
+    { style = "Magic", effect = "COMBATV2_ABILITY_MAGIC_GREATER_CHAIN_EFFECT", cause = "Chain" },
+    { style = "Magic", effect = "COMBATV2_ABILITY_MAGIC_COMBUST", cause = "Combust" },
+    { style = "Magic", effect = "MAGIC_CONFUSE", cause = "Confuse, Smoke and Shadow spells" },
+    { style = "Magic", effect = "COMBATV2_ABILITY_MAGIC_CORRUPTION", cause = "Corruption Blast" },
+    { style = "Magic", effect = "MAGIC_CURSE", cause = "Curse" },
+    { style = "Magic", effect = "MAGIC_ENFEEBLE", cause = "Enfeeble" },
+    { style = "Magic", effect = "MAGIC_SMOKE_CLOUD", cause = "Smoke Cloud" },
+    { style = "Magic", effect = "MAGIC_STAGGER", cause = "Stagger" },
+    { style = "Magic", effect = "MAGIC_VULNERABILITY", cause = "Vulnerability" },
+    { style = "Magic", effect = "MAGIC_WEAKEN", cause = "Weaken, Smoke and Shadow spells" },
+    { style = "Melee", effect = "COMBATV2_ABILITY_STRENGTH_ASSAULT", cause = "Assault" },
+    { style = "Melee", effect = "COMBATV2_ABILITY_STRENGTH_DISMEMBER", cause = "Dismember" },
+    { style = "Melee", effect = "COMBATV2_ABILITY_ATTACK_FLURRY_DOT", cause = "Flurry" },
+    { style = "Melee", effect = "COMBATV2_ABILITY_ATTACK_FLURRY_OVERRIDE_DOT", cause = "Greater Flurry" },
+    { style = "Melee", effect = "COMBATV2_ABILITY_MELEE_DISMEMBER_RECAST_2", cause = "Massacre" },
+    { style = "Melee", effect = "COMBATV2_ABILITY_ATTACK_EVISCERATE", cause = "Massacre" },
+    { style = "Melee", effect = "COMBATV2_DEBUFF_PULVERISED", cause = "Pulverise" },
+    { style = "Melee", effect = "COMBATV2_ABILITY_MELEE_DISMEMBER_RECAST_1", cause = "Slaughter" },
+    { style = "Melee", effect = "COMBATV2_ABILITY_ATTACK_HAEMORRHAGE", cause = "Slaughter" },
+    { style = "Necromancy", effect = "COMBATV2_DEBUFF_NECROMANCY_BLOATED", cause = "Bloat" },
+    { style = "Necromancy", effect = "COMBATV2_DEBUFF_HAUNTED", cause = "Command Vengeful Ghost" },
+    { style = "Necromancy", effect = "COMBATV2_DEBUFF_DEATH_MARK", cause = "Invoke Death" },
+    { style = "Necromancy", effect = "COMBATV2_DEBUFF_SHATTERING_BONES", cause = "Invoke Lord of Bones" },
+    { style = "Ranged", effect = "COMBATV2_ABILITY_RANGED_CORRUPTION", cause = "Corruption Shot" },
+    {
+      style = "Weapons and items",
+      effect = "COMBATV2_BARBASSAULT_INSIGNIA_ATTACK_DUMMY_ABILITY",
+      cause = "Attacker's insignia",
+    },
+    { style = "Weapons and items", effect = "COMBATV2_DINARROW_BIK_DUMMY_ABILITY", cause = "Bik arrows" },
+    {
+      style = "Weapons and items",
+      effect = "COMBATV2_DUNGEON_ULTHVEN_ARROW_DUMMY_ABILITY",
+      cause = "Black stone arrows",
+    },
+    {
+      style = "Weapons and items",
+      effect = "COMBATV2_AFFINITY_DEBUFF_DUMMY",
+      cause = "Bone dagger, Statius's warhammer",
+    },
+    { style = "Weapons and items", effect = "COMBATV2_BUFF_FLAMEBOUND_RIVAL", cause = "Ek-ZekKil" },
+    { style = "Weapons and items", effect = "COMBATV2_POISONED_DUMMY_ABILITY", cause = "Poison", onYou = true },
+    { style = "Weapons and items", effect = "COMBATV2_ABILITY_WEAPON_SOULFIRE_DOT_HIT", cause = "Roar of Awakening" },
+    { style = "Weapons and items", effect = "COMBATV2_SWORLDS_PUNCTURED_DUMMY_ABILITY", cause = "Splintering arrows" },
+  },
 }
