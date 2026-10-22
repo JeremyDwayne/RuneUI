@@ -6,9 +6,17 @@ local function state(part, level, hideStats)
 end
 
 describe("barfade.level", function()
-  it("fades only a bar with Fade on, and shows it at full while hovered if Show on hover is on", function()
-    local appearance = { barOpacity = 25, fadeBar1 = true, hoverBar1 = true, fadeBar2 = true, hoverBar2 = false }
-    assert.are.same({ 25, 100, 25, 100 }, {
+  it("fades a bar with Fade on to its own opacity, and at full while hovered with Show on hover on", function()
+    local appearance = {
+      barOpacity1 = 25,
+      fadeBar1 = true,
+      hoverBar1 = true,
+      barOpacity2 = 60,
+      fadeBar2 = true,
+      hoverBar2 = false,
+      barOpacity3 = 40,
+    }
+    assert.are.same({ 25, 100, 60, 100 }, {
       barfade.level(appearance, 1, false),
       barfade.level(appearance, 1, true),
       barfade.level(appearance, 2, true),
@@ -25,11 +33,12 @@ describe("barfade.state", function()
     assert.are.same({ { false, 0 }, { false, 0 } }, { state("other", 0, false), state("stats", 0, false) })
   end)
 
-  it("hides only the flash, queue and highlight between 5 and 95, and scales the rest by the level", function()
+  it("hides only the frame, flash, queue and highlight between 5 and 95, and scales the rest by the level", function()
     assert.are.same({ true, 1 }, state("flash", 25, false))
     assert.are.same({ true, 1 }, state("highlight", 95, false))
+    assert.are.same({ true, 1 }, state("frame", 5, false))
     assert.are.same({ false, 0.25 }, state("keybind", 25, false))
-    assert.are.same({ false, 0.05 }, state("frame", 5, false))
+    assert.are.same({ false, 0.05 }, state("other", 5, false))
   end)
 
   it("restores every part at 100", function()

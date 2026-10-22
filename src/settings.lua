@@ -499,15 +499,13 @@ local APPEARANCE = {
         or wholeIn(value, styling.ROLES.body + settings.TEXT_STEP_MIN, styling.ROLES.body + settings.TEXT_STEP_MAX)
     end,
   },
-  barOpacity = {
-    25,
-    function(value)
-      return wholeIn(value, 0, 100) and whole(value) % settings.OPACITY_STEP == 0
-    end,
-  },
   hideBarStats = { false, isBoolean },
 }
+local function isOpacity(value)
+  return wholeIn(value, 0, 100) and whole(value) % settings.OPACITY_STEP == 0
+end
 for bar = 1, settings.ACTION_BARS do
+  APPEARANCE["barOpacity" .. bar] = { 25, isOpacity }
   APPEARANCE["fadeBar" .. bar] = { false, isBoolean }
   APPEARANCE["hoverBar" .. bar] = { true, isBoolean }
 end
@@ -899,12 +897,13 @@ function settings.load(store, windowHeight)
 
   -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars, font, textStep, edge, textColour,
   -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight, barWidth, barHeight, castWidth,
-  -- castHeight, castMatchWidth, castColour, castFont, castTextSize, spenders, barOpacity, hideBarStats,
-  -- fadeBar1 to fadeBar5, hoverBar1 to hoverBar5 }. spenders is a src/style SPENDER_PLACES id. castFont and
-  -- castTextSize are "hud" to follow the HUD text or a family id and a size in points. The game's own cast bar is
-  -- hidden until chosen otherwise, since RuneUI draws one; auraBars draws a draining bar under each aura icon.
-  -- barOpacity is the percent each action bar with fadeBar<n> set draws at, and hoverBar<n> shows it at full
-  -- while the mouse is over it. Read-only.
+  -- castHeight, castMatchWidth, castColour, castFont, castTextSize, spenders, hideBarStats, and barOpacity,
+  -- fadeBar and hoverBar for each action bar 1 to 5, such as fadeBar1 }. spenders is a src/style
+  -- SPENDER_PLACES id. castFont and castTextSize are "hud" to follow the HUD text or a family id and a size in
+  -- points. The game's own cast bar is hidden until chosen otherwise, since RuneUI draws one; auraBars draws a
+  -- draining bar under each aura icon.
+  -- An action bar with fadeBar<n> set draws at barOpacity<n> percent, and hoverBar<n> shows it at full while
+  -- the mouse is over it. Read-only.
   function s.appearance()
     return appearance
   end

@@ -5,17 +5,17 @@ local barfade = {}
 -- A slot's parts by static ID offset from its background sprite. Any other offset is "other".
 barfade.SLOT_PARTS = { [-1] = "frame", [4] = "flash", [6] = "queue", [8] = "highlight", [9] = "keybind" }
 
--- Parts hidden at any opacity below 100: the client animates their alpha, so a fade cannot hold on them.
-local ANIMATED = { flash = true, queue = true, highlight = true }
--- Parts hidden as well at 0: the client resets their alpha, which a hidden component does not need.
-local RESET = { frame = true, keybind = true }
+-- Parts hidden at any opacity below 100. The client animates the flash, queue circle and highlight, and sets a
+-- slot's frame opaque on any frame of a tick, so a fade cannot hold on them.
+local HIDDEN = { frame = true, flash = true, queue = true, highlight = true }
 
--- Percent opacity bar, 1 for the main bar to 5, draws at: 100 while unfaded, or hovered with Show on hover on.
+-- Percent opacity bar, 1 for the main bar to 5, draws at: its barOpacity while faded, or 100 while unfaded or
+-- hovered with Show on hover on.
 function barfade.level(appearance, bar, hovered)
   if not appearance["fadeBar" .. bar] or (hovered and appearance["hoverBar" .. bar]) then
     return 100
   end
-  return appearance.barOpacity
+  return appearance["barOpacity" .. bar]
 end
 
 -- Whether a component of part, a SLOT_PARTS value, "stats" for the main bar's stats strip or "other", is
@@ -28,7 +28,7 @@ function barfade.state(part, level, hideStats)
   if level >= 100 then
     return false, 1
   end
-  if ANIMATED[part] or (level == 0 and RESET[part]) then
+  if HIDDEN[part] or (level == 0 and part == "keybind") then
     return true, 1
   end
   return false, level / 100

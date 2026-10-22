@@ -396,8 +396,12 @@ describe("settings", function()
       castFont = "hud",
       castTextSize = "hud",
       spenders = "below",
-      barOpacity = 25,
       hideBarStats = false,
+      barOpacity1 = 25,
+      barOpacity2 = 25,
+      barOpacity3 = 25,
+      barOpacity4 = 25,
+      barOpacity5 = 25,
       fadeBar1 = false,
       fadeBar2 = false,
       fadeBar3 = false,
@@ -471,20 +475,23 @@ describe("settings", function()
   it("saves the action bar fade settings and reads a bad opacity, flag or stats choice as its default", function()
     local store = fakeStore()
     local s = settings.load(store)
-    s.setAppearance("barOpacity", 40.0)
+    s.setAppearance("barOpacity2", 40.0)
     s.setAppearance("fadeBar3", true)
     s.setAppearance("hoverBar5", false)
     s.setAppearance("hideBarStats", true)
     local reloaded = settings.load(store).appearance()
     assert.are.same({ 40, true, false, true }, {
-      reloaded.barOpacity,
+      reloaded.barOpacity2,
       reloaded.fadeBar3,
       reloaded.hoverBar5,
       reloaded.hideBarStats,
     })
-    assert.are.equal(math.type(40), math.type(reloaded.barOpacity))
+    assert.are.equal(math.type(40), math.type(reloaded.barOpacity2))
     for _, opacity in ipairs({ 37, -5, 105, "x" }) do
-      assert.are.equal(25, settings.load(fakeStore({ appearance = { barOpacity = opacity } })).appearance().barOpacity)
+      assert.are.equal(
+        25,
+        settings.load(fakeStore({ appearance = { barOpacity1 = opacity } })).appearance().barOpacity1
+      )
     end
     local bad = settings.load(fakeStore({ appearance = { fadeBar1 = "yes", hoverBar2 = 0, hideBarStats = "hide" } }))
     assert.are.same({ false, true, false }, {
