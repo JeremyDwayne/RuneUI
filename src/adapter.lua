@@ -517,11 +517,10 @@ function adapter.hideBuffBars(hidden)
   end
 end
 
--- The window frame interface each action bar sits in, the main bar's stats strip and its four stat bars, which
--- a window resize rebuilds opaque, the rendered frames after each server tick in which the client resets keybind
+-- The window frame interface each action bar sits in, the main bar's four stat bars, which a window resize
+-- rebuilds opaque, the rendered frames after each server tick in which the client resets keybind
 -- labels, and the name RuneUI's hooks on game components go by.
 local WINDOWS = 1477
-local MAIN_STATS = 6
 local STAT_BARS = { 9, 16, 22, 57 }
 local KEEP_FRAMES = 2
 local FADE_HOOK = "runeuiFade"
@@ -539,7 +538,7 @@ for _, bar in ipairs(ACTION_BARS) do
   end
 end
 
--- Fade of each action bar RuneUI changes, by its number: { level, hideStats, base, written, hidden }. base holds
+-- Fade of each action bar RuneUI changes, by its number: { level, base, written, hidden }. base holds
 -- each component's alpha as the client last set it, written the alpha RuneUI wrote, and hidden whether each
 -- component RuneUI hid was hidden before, each keyed "interface:static" or "interface:static:category:dynamic".
 local fades = {}
@@ -558,9 +557,6 @@ end
 
 -- The part a static of bar is, as src/barfade names them.
 local function barPart(bar, staticID)
-  if bar.id == MAIN_BAR and staticID == MAIN_STATS then
-    return "stats"
-  end
   local offset = staticID - bar.first + 2
   if offset >= 0 and offset < SLOTS_PER_BAR * SLOT_STRIDE then
     return barfade.SLOT_PARTS[offset % SLOT_STRIDE - 2] or "other"
@@ -571,7 +567,7 @@ end
 -- Gives c the hidden state and alpha of part at the fade's level, writing only what changed. A component the
 -- client hid stays hidden, and one whose alpha scale is back to 1 gets the client's alpha back.
 local function fadeComponent(fade, key, c, part)
-  local hidden, scale = barfade.state(part, fade.level, fade.hideStats)
+  local hidden, scale = barfade.state(part, fade.level)
   if hidden and fade.hidden[key] == nil then
     fade.hidden[key] = read(c, "hidden") == true
     if not fade.hidden[key] then
@@ -655,17 +651,10 @@ local function fadeBar(bar, fade, root)
   end
 end
 
--- Whether the client rebuilt bar since RuneUI faded it, which shows its root or its hidden stats strip again.
+-- Whether the client rebuilt bar since RuneUI faded it, which shows its root again.
 local function rebuilt(bar, fade, root)
   local written = fade.written[bar.id .. ":0"]
-  if written ~= nil then
-    return math.abs((read(root, "alpha") or 1) - written) > EPSILON
-  end
-  local statsKey = bar.id .. ":" .. MAIN_STATS
-  if fade.hidden[statsKey] == false then
-    return read(ui.Interfaces:GetComponent(bar.id, MAIN_STATS), "hidden") == false
-  end
-  return false
+  return written ~= nil and math.abs((read(root, "alpha") or 1) - written) > EPSILON
 end
 
 -- Records the mouse entering or leaving static of bar number i, and moves the bar to the level it draws at with
@@ -729,15 +718,14 @@ local function resizeHook()
 end
 
 -- Runs each server tick with the appearance settings, fading each open action bar to its barOpacity while its
--- fadeBar is on and hiding the main bar's stats strip while hideBarStats is on. A bar the player has not opened
+-- fadeBar is on. A bar the player has not opened
 -- is skipped, and one the client rebuilt is faded again whole. A bar whose settings are off gets every component
 -- back as the client drew it. Reads only each faded bar's root when nothing changed.
 function adapter.fadeActionBars(appearance)
   fadeLook = appearance
   fadeFrames = 0
   for i, bar in ipairs(ACTION_BARS) do
-    local hideStats = i == 1 and appearance.hideBarStats
-    local wanted = hideStats or barfade.level(appearance, i, false) < 100
+    local wanted = barfade.level(appearance, i, false) < 100
     local fade = fades[i]
     local root = (wanted or fade ~= nil) and ui.Interfaces:GetComponent(bar.id, 0)
     if not root then
@@ -747,14 +735,13 @@ function adapter.fadeActionBars(appearance)
         fade = nil
       end
       if fade == nil then
-        fade = { level = 100, hideStats = false, base = {}, written = {}, hidden = {} }
+        fade = { level = 100, base = {}, written = {}, hidden = {} }
         fades[i] = fade
         hoverHooks(i, true)
       end
       local level = barfade.level(appearance, i, next(hovered[i]) ~= nil)
-      if fade.level ~= level or fade.hideStats ~= hideStats then
+      if fade.level ~= level then
         fade.level = level
-        fade.hideStats = hideStats
         fadeBar(bar, fade, root)
       end
       if not wanted then
@@ -776,7 +763,7 @@ function adapter.keepActionBarsFaded()
   local main = fades[1]
   if resized then
     resized = false
-    if main ~= nil and main.level < 100 and not main.hideStats then
+    if main ~= nil and main.level < 100 then
       for _, staticID in ipairs(STAT_BARS) do
         local c = ui.Interfaces:GetComponent(MAIN_BAR, staticID)
         if c ~= nil then
@@ -810,7 +797,6 @@ function adapter.restoreActionBars()
     local root = ui.Interfaces:GetComponent(ACTION_BARS[i].id, 0)
     if root ~= nil then
       fade.level = 100
-      fade.hideStats = false
       fadeBar(ACTION_BARS[i], fade, root)
       hoverHooks(i, false)
     end

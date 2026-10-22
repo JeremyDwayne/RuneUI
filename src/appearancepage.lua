@@ -745,7 +745,6 @@ function appearancepage.bars(page, width, height, deps)
         fadeHover(faded)
       end
     end
-    b.choices("Player stats", SHOW_HIDE, "hideBarStats", 90)
 
     return function(look, appearance)
       widthRow.fade(appearance.castMatchWidth)

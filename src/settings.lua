@@ -499,7 +499,6 @@ local APPEARANCE = {
         or wholeIn(value, styling.ROLES.body + settings.TEXT_STEP_MIN, styling.ROLES.body + settings.TEXT_STEP_MAX)
     end,
   },
-  hideBarStats = { false, isBoolean },
 }
 local function isOpacity(value)
   return wholeIn(value, 0, 100) and whole(value) % settings.OPACITY_STEP == 0
@@ -897,7 +896,7 @@ function settings.load(store, windowHeight)
 
   -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars, font, textStep, edge, textColour,
   -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight, barWidth, barHeight, castWidth,
-  -- castHeight, castMatchWidth, castColour, castFont, castTextSize, spenders, hideBarStats, and barOpacity,
+  -- castHeight, castMatchWidth, castColour, castFont, castTextSize, spenders, and barOpacity,
   -- fadeBar and hoverBar for each action bar 1 to 5, such as fadeBar1 }. spenders is a src/style
   -- SPENDER_PLACES id. castFont and castTextSize are "hud" to follow the HUD text or a family id and a size in
   -- points. The game's own cast bar is hidden until chosen otherwise, since RuneUI draws one; auraBars draws a

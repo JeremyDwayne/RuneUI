@@ -18,13 +18,9 @@ function barfade.level(appearance, bar, hovered)
   return appearance["barOpacity" .. bar]
 end
 
--- Whether a component of part, a SLOT_PARTS value, "stats" for the main bar's stats strip or "other", is
--- hidden at level percent, and the scale for the alpha the client gave it. hideStats hides the stats strip at
--- every level. At 100 nothing else is hidden and the scale is 1.
-function barfade.state(part, level, hideStats)
-  if part == "stats" and hideStats then
-    return true, 1
-  end
+-- Whether a component of part, a SLOT_PARTS value or "other", is hidden at level percent, and the scale for the
+-- alpha the client gave it. At 100 nothing is hidden and the scale is 1.
+function barfade.state(part, level)
   if level >= 100 then
     return false, 1
   end

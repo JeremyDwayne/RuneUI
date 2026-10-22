@@ -251,8 +251,6 @@ describe("appearance page", function()
     end))
     fake.hook(fieldInRow("Main bar"), "ONCONTENTCHANGED", ui.InputFieldActionResult.SUBMIT, "42")
     assert.are.same({ 40, "40" }, { saved.appearance().barOpacity1, fieldInRow("Main bar").content })
-    fake.press("Hide")
-    assert.is_true(saved.appearance().hideBarStats)
   end)
 
   it("saves a typed opacity only on a step of 5, keeping what is typed until then", function()

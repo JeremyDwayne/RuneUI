@@ -427,7 +427,7 @@ end
 
 -- Appearance settings with every action bar at 25% and unfaded, then fields.
 local function look(fields)
-  local appearance = { hideBarStats = false }
+  local appearance = {}
   for bar = 1, 5 do
     appearance["barOpacity" .. bar] = 25
     appearance["fadeBar" .. bar] = false
@@ -526,13 +526,10 @@ describe("adapter.fadeActionBars", function()
     end
   )
 
-  it("hides the stats strip at any opacity once chosen, and fades rebuilt stat bars again after a resize", function()
+  it("fades the main bar's stat bars again after a window resize rebuilds them", function()
     local stub = loadActionBars(1430)
     local main = stub.bars[1430]
-    adapter.fadeActionBars(look({ hideBarStats = true }))
-    assert.are.same({ true, 0.5 }, { main[6].hidden, main[62].alpha })
     adapter.fadeActionBars(look({ fadeBar1 = true }))
-    assert.is_false(main[6].hidden)
     framesAfterTick()
     main[9].children[1].alpha = 1
     stub.topData.hooks.ONRESIZE()
