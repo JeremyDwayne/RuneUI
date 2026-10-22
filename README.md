@@ -20,15 +20,16 @@ Each combat style has its own Major and Rotation groups, and RuneUI shows the on
 
 ## Install
 
-RuneUI runs on the RuneScape beta while plugins are in testing.
+RuneUI runs on the RuneScape beta while plugins are in testing. It draws its options window with PrettyUI, which must be installed first.
 
-1. Copy the `runeui` folder into `dev_plugins` in the beta client's folder, such as `C:\ProgramData\Jagex\RuneScape-BETA\dev_plugins\runeui` on Windows or `~/Jagex/RuneScape-BETA/dev_plugins/runeui` on macOS. Create `dev_plugins` if it does not exist.
-2. Log in to the beta and open the console with Alt and the key under Esc.
-3. Run `prf` to refresh the plugin list, then `pon runeui` to turn RuneUI on.
+1. Log in to the beta, open the plugin hub and install PrettyUI.
+2. Copy the `runeui` folder into `dev_plugins` in the beta client's folder, such as `C:\ProgramData\Jagex\RuneScape-BETA\dev_plugins\runeui` on Windows or `~/Jagex/RuneScape-BETA/dev_plugins/runeui` on macOS. Create `dev_plugins` if it does not exist.
+3. Open the console with Alt and the key under Esc.
+4. Run `prf` to refresh the plugin list, then `pon runeui` to turn RuneUI on. If the console reports "Missing dependency 6398181", PrettyUI is not installed, or the client lost it after a `prf`: install it again from the plugin hub, or restart the client.
 
 ## Options
 
-Open the plugin ribbon, choose RuneUI's tab and press **Options**. The window opens on Appearance, the first page in its menu, followed by Cooldown manager, Buffs and Bars. Press Esc or **Done** to close the window.
+Open the plugin ribbon, choose RuneUI's tab and press **Options**. The window opens on Appearance, the first of its tabs, followed by Cooldown manager, Buffs and Bars. Press Esc, **Done** or the X in its title bar to close the window. **Reset positions** in its footer asks before it moves anything.
 
 - The Appearance page shows a preview of the HUD at its top: ability tiles with keybinds, one cooling, an aura with its timer, and the player and target frames, drawn the way the HUD draws them. **Dark** and **Light** set the preview's backdrop to black or light lilac. Every change shows on the preview and the HUD at once. The settings below it scroll with the mouse wheel or the bar at the right, in three sections:
   - Text sets the HUD's font, Museo Sans, Noto Sans, Verdana or Cinzel, each option drawn in its own font. **Text size** moves every HUD text by the same number of points, shown as the unit frame text size, 13 pt by default, and each text snaps to the nearest size its font has. **Text edge** picks none, a shadow, an outline, or both. **Text colour** picks white, the game's yellow, or Auto, which draws dark text over a bright fill and white elsewhere. These apply to unit frame names and values, the resource bar percent, the cast bar name and time, cooldown keybinds and seconds, and aura timers and stacks, not to this window, edit mode or tooltips.
