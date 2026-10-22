@@ -151,25 +151,70 @@ describe("adapter.hideCastBar", function()
   end)
 end)
 
+-- Targets NPCTARGET and loads 1490 with the given static components, recording each static ID read.
+local function targetPanel(target, statics)
+  _G.var = { VarPlayer = { NPCTARGET = { value = target } }, VarClient = {} }
+  local reads = {}
+  _G.ui = {
+    Interfaces = {
+      GetComponent = function(_, interfaceID, staticID)
+        if interfaceID == 1490 then
+          reads[staticID] = true
+          return statics[staticID]
+        end
+      end,
+    },
+  }
+  return reads
+end
+
+-- NPCList finding one NPC per uid in npcs, counting lookups.
+local function npcList(npcs)
+  local list = { lookups = 0 }
+  function list.ByUID(uid)
+    list.lookups = list.lookups + 1
+    return { npcs[uid] }
+  end
+  _G.NPCList = list
+  return list
+end
+
 describe("adapter.targetReads", function()
+  local INCOMPLETE = { sprites = {}, complete = false }
+
   it("lists only the debuff slots the panel shows, since expired slots keep their icon while invisible", function()
-    _G.var = { VarPlayer = { NPCTARGET = { value = 25126 } }, VarClient = {} }
-    local slots = {
+    npcList({})
+    targetPanel(25126, {
       [38] = { spriteID = 30097, visibleGlobal = true },
       [41] = { spriteID = 30212, visibleGlobal = false },
       [44] = { spriteID = 30098, visibleGlobal = true },
       [47] = { spriteID = -1, visibleGlobal = false },
-    }
-    _G.ui = {
-      Interfaces = {
-        GetComponent = function(_, interfaceID, staticID)
-          if interfaceID == 1490 then
-            return slots[staticID]
-          end
-        end,
-      },
-    }
-    assert.are.same({ 30097, 30098 }, adapter.targetReads().debuffs)
+    })
+    assert.are.same({ 30097, 30098 }, adapter.targetReads(INCOMPLETE).debuffs)
+  end)
+
+  it("takes debuffs from complete target effects without reading the panel's debuff slots", function()
+    npcList({})
+    local reads = targetPanel(25127, { [38] = { spriteID = 30097, visibleGlobal = true } })
+    local effects = { sprites = { 30098, 30100 }, complete = true }
+    assert.are.same({ 30098, 30100 }, adapter.targetReads(effects).debuffs)
+    for staticID = 38, 71 do
+      assert.is_nil(reads[staticID])
+    end
+  end)
+
+  it("names the target from its entity, looked up once per target", function()
+    local list = npcList({ [25128] = { displayName = "Training dummy" } })
+    targetPanel(25128, { [21] = { content = "Panel name" } })
+    assert.are.equal("Training dummy", adapter.targetReads(INCOMPLETE).name)
+    assert.are.equal("Training dummy", adapter.targetReads(INCOMPLETE).name)
+    assert.are.equal(1, list.lookups)
+  end)
+
+  it("names the target from the panel while no entity is found", function()
+    npcList({})
+    targetPanel(25129, { [21] = { content = "Panel name" } })
+    assert.are.equal("Panel name", adapter.targetReads(INCOMPLETE).name)
   end)
 end)
 

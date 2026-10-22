@@ -122,7 +122,8 @@ function frames.player(reads, format)
 end
 
 -- reads: { target = NPCTARGET, name, lifepointsLabel = "6,800", healthPercent = 0..100, debuffs = { spriteID } }
--- The name and lifepoints come from the native target panel, which can be unloaded while a target is set.
+-- The lifepoints come from the native target panel, which can be unloaded while a target is set, so they can be
+-- nil with a name and debuffs.
 -- format is one of frames.LIFEPOINTS, short when nil.
 function frames.target(reads, format)
   if reads.target == nil or reads.target == -1 or reads.lifepointsLabel == "N/A" then

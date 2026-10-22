@@ -105,23 +105,50 @@ function adapter.playerReads()
   }
 end
 
--- With no target, returns { target } alone and skips the panel's components.
-function adapter.targetReads()
+-- The NPCTARGET last named from its entity, and that name.
+local namedTarget = nil
+local targetName = nil
+
+-- The display name of the NPC NPCList.ByUID finds for target, or nil. A found name is kept until the target
+-- changes, and a failed lookup is tried again on the next read.
+local function npcName(target)
+  if namedTarget ~= target then
+    local ok, found = pcall(function()
+      return NPCList.ByUID(target)
+    end)
+    local npc = ok and type(found) == "table" and found[1] or nil
+    local name = npc and read(npc, "displayName")
+    if type(name) ~= "string" or name == "" then
+      return nil
+    end
+    namedTarget = target
+    targetName = name
+  end
+  return targetName
+end
+
+-- With no target, returns { target } alone and skips the panel's components. effects is the src/targeteffects
+-- debuffs() result: while it is complete the debuffs come from it, else from the panel's debuff slots.
+function adapter.targetReads(effects)
   local target = varValue("VarPlayer", "NPCTARGET")
   if target == nil or target == -1 then
+    namedTarget = nil
     return { target = target }
   end
-  local debuffs = {}
-  for staticID = DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP do
-    local c = ui.Interfaces:GetComponent(TARGET_PANEL, staticID)
-    local sprite = c and read(c, "spriteID")
-    if sprite ~= nil and sprite ~= -1 and read(c, "visibleGlobal") ~= false then
-      debuffs[#debuffs + 1] = sprite
+  local debuffs = effects.sprites
+  if not effects.complete then
+    debuffs = {}
+    for staticID = DEBUFF_FIRST, DEBUFF_LAST, DEBUFF_STEP do
+      local c = ui.Interfaces:GetComponent(TARGET_PANEL, staticID)
+      local sprite = c and read(c, "spriteID")
+      if sprite ~= nil and sprite ~= -1 and read(c, "visibleGlobal") ~= false then
+        debuffs[#debuffs + 1] = sprite
+      end
     end
   end
   return {
     target = target,
-    name = labelText(TARGET_PANEL, TARGET_NAME),
+    name = npcName(target) or labelText(TARGET_PANEL, TARGET_NAME),
     lifepointsLabel = labelText(TARGET_PANEL, 34),
     healthPercent = varValue("VarClient", "COMBATV2_TARGET_SIDE_PANEL_HEALTH"),
     debuffs = debuffs,
@@ -387,7 +414,7 @@ local targetPanel = transparency(TARGET_PANEL, TARGET_LAST_STATIC, { { TARGET_NA
 adapter.keepTargetPanelHidden = targetPanel.keep
 
 -- Runs each server tick with whether the native target panel should be hidden. Hiding sets alpha 0,
--- because hidden stops the panel filling its debuff slots, which targetReads relies on.
+-- because hidden stops the panel filling its debuff slots, which targetReads falls back to.
 adapter.hideTargetPanel = targetPanel.hide
 
 -- The game's cast bar, held transparent so the client's own showing and hiding of it is left alone and

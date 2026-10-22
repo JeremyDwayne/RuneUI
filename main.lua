@@ -13,6 +13,7 @@ local options = require("src/options")
 local presets = require("src/presets")
 local settings = require("src/settings")
 local styling = require("src/style")
+local targeteffects = require("src/targeteffects")
 local view = require("src/view")
 
 -- Game interfaces such as the bank draw over the game area, so the HUD sits under them. The options window
@@ -57,12 +58,14 @@ end
 local tracker = cooldowns.tracker()
 local channelTracker = channel.tracker()
 local auraTracker = auras.tracker()
+local effectsTracker = targeteffects.tracker()
 local optionsWindow
 tracker.seed(presets.INFO)
 tracker.seed(saved.known())
 -- These vars send no change until they next differ, so their values at load seed the trackers.
 tracker.onVar("COMBATV2_MAINHAND_STYLE", nil, adapter.playerVar("COMBATV2_MAINHAND_STYLE"))
 channelTracker.seed(adapter.playerVar)
+effectsTracker.seed(adapter.playerVar)
 -- Each aura kind's sorted order as { [sprite] = position }, rebuilt only after a saved aura choice changes.
 local auraRanks = nil
 local ranksVersion = nil
@@ -91,6 +94,7 @@ Event.VarTransmit.Subscribe("cooldowns", function(e)
   local name, old, new = adapter.varChange(e)
   tracker.onVar(name, old, new)
   channelTracker.onVar(name, old, new)
+  effectsTracker.onVar(name, old, new)
 end)
 Event.Draw.Subscribe("targetPanel", adapter.keepTargetPanelHidden)
 Event.Draw.Subscribe("buffBars", adapter.keepBuffBarsHidden)
@@ -168,7 +172,7 @@ local function refresh()
   adapter.fadeActionBars(appearance)
   local moved = restyle()
   elements.player.update(frames.player(adapter.playerReads(), appearance.lifepoints))
-  local target = frames.target(adapter.targetReads(), appearance.lifepoints)
+  local target = frames.target(adapter.targetReads(effectsTracker.debuffs()), appearance.lifepoints)
   elements.target.update(target)
   local reads = adapter.resourceReads(frames.SPENDERS)
   reads.necromancy = tracker.style() == "necromancy"
