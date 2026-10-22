@@ -351,10 +351,12 @@ function draw.inputField(parent, x, y, w, h, maxLength, search)
   return field
 end
 
--- A typed whole number from low to high in a w by h field at x, y. A keystroke leaving a number in range calls
--- onChoose(n); Enter, Esc or focus loss calls it with the typed number clamped, then shows the chosen value
--- again, so the field never keeps text it did not take. Returns { field, show(n) }.
-function draw.numberField(parent, x, y, w, h, low, high, onChoose)
+-- A typed whole number from low to high in steps of step, 1 when nil, in a w by h field at x, y. A keystroke
+-- leaving a number in range on a step calls onChoose(n); Enter, Esc or focus loss calls it with the typed number
+-- rounded to a step and clamped, then shows the chosen value again, so the field never keeps text it did not
+-- take. Returns { field, show(n) }.
+function draw.numberField(parent, x, y, w, h, low, high, onChoose, step)
+  step = step or 1
   local field = draw.inputField(parent, x, y, w, h, #tostring(high))
   local number = { field = field }
   local shown
@@ -367,13 +369,13 @@ function draw.numberField(parent, x, y, w, h, low, high, onChoose)
   draw.on(field, "ONCONTENTCHANGED", function(_, reason, contents)
     local n = math.tointeger(tonumber((contents or ""):match("^%s*(%d+)%s*$")))
     if reason == ui.InputFieldActionResult.CONTENT_CHANGE then
-      if n ~= nil and n >= low and n <= high then
+      if n ~= nil and n >= low and n <= high and n % step == 0 then
         onChoose(n)
       end
       return
     end
     if n ~= nil then
-      onChoose(math.max(low, math.min(high, n)))
+      onChoose(math.max(low, math.min(high, (n + step // 2) // step * step)))
     end
     if shown == nil then
       return

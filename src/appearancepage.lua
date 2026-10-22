@@ -292,7 +292,7 @@ local function settingsPage(page, width, height, deps, define)
   -- stepper while the setting has no effect.
   local function stepper(row, x, low, high, step, value, save)
     local by = (ROW_H - OPTION_H) // 2
-    local field = draw.numberField(row.layer, x + 32, (ROW_H - HEX_H) // 2, 56, HEX_H, low, high, save)
+    local field = draw.numberField(row.layer, x + 32, (ROW_H - HEX_H) // 2, 56, HEX_H, low, high, save, step)
     local function move(delta)
       return function(_, y)
         if shows(row, by + y) then
@@ -735,7 +735,6 @@ function appearancepage.bars(page, width, height, deps)
       local fadeStepper = b.stepperAt(row, opacityX + (OPACITY_COL - STEPPER_W) // 2, 0, 100, step, function(a)
         return a[opacity]
       end, function(n)
-        n = math.floor(n / step + 0.5) * step
         if n ~= saved.appearance()[opacity] then
           b.choose(opacity, n)
         end

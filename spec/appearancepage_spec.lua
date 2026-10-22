@@ -255,6 +255,18 @@ describe("appearance page", function()
     assert.is_true(saved.appearance().hideBarStats)
   end)
 
+  it("saves a typed opacity only on a step of 5, keeping what is typed until then", function()
+    local saved = openBars()
+    wheel(-1, 200)
+    local field = fieldInRow("Main bar")
+    field.content = "3"
+    fake.hook(field, "ONCONTENTCHANGED", ui.InputFieldActionResult.CONTENT_CHANGE, "3")
+    assert.are.same({ 25, "3" }, { saved.appearance().barOpacity1, field.content })
+    field.content = "35"
+    fake.hook(field, "ONCONTENTCHANGED", ui.InputFieldActionResult.CONTENT_CHANGE, "35")
+    assert.are.equal(35, saved.appearance().barOpacity1)
+  end)
+
   it("lets the cast bar take the adrenaline bar's width and the HUD's text size, fading each stepper", function()
     local saved = openBars()
     -- Scrolls 320 px, which shows the cast bar's rows from Width to Text size.
