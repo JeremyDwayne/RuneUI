@@ -71,6 +71,17 @@ describe("draw", function()
     assert.are.same({ 1, 2 }, { pretty.calls, tabs:GetActiveIndex() })
   end)
 
+  it("unlights a close X when clicked, since its popup closes under the cursor", function()
+    fake.reset()
+    local closed = false
+    local x = draw.closeButton(fake.component(), 0, 0, function()
+      closed = true
+    end)
+    fake.hook(x, "ONMOUSEOVER")
+    fake.hook(x, "ONCLICK")
+    assert.are.same({ true, "RS3_BTN_MODAL_WINDOW_1_CLOSE_NML" }, { closed, x.sprite })
+  end)
+
   it("mirrors a changed label to its edge copies only while the edge is on", function()
     fake.reset()
     local parent = fake.component()

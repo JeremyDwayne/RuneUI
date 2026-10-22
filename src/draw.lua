@@ -577,7 +577,8 @@ local CLOSE =
   { normal = id.Sprite.RS3_BTN_MODAL_WINDOW_1_CLOSE_NML, hover = id.Sprite.RS3_BTN_MODAL_WINDOW_1_CLOSE_OVR }
 draw.CLOSE_SIZE = 20
 
--- A close X at x, y on parent, lit while hovered, calling onClick when clicked. Returns the sprite.
+-- A close X at x, y on parent, lit while hovered, calling onClick when clicked. A click unlights it, since its
+-- popup hides with the cursor still over it. Returns the sprite.
 function draw.closeButton(parent, x, y, onClick)
   local button = draw.hitArea(ui.Sprite.new(parent))
   draw.pos(button, x, y)
@@ -589,7 +590,10 @@ function draw.closeButton(parent, x, y, onClick)
   draw.on(button, "ONMOUSELEAVE", function()
     draw.set(button, "sprite", CLOSE.normal)
   end)
-  draw.on(button, "ONCLICK", onClick)
+  draw.on(button, "ONCLICK", function()
+    draw.set(button, "sprite", CLOSE.normal)
+    onClick()
+  end)
   return button
 end
 
