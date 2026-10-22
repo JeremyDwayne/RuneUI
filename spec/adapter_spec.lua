@@ -566,6 +566,24 @@ describe("adapter.fadeActionBars", function()
   end)
 end)
 
+describe("adapter.barSlots", function()
+  it("keeps the keybind of an ability on two bars from the bar that has one", function()
+    -- Concentrated Blast on the main bar's slot 0 with Q, and on action bar 5's slot 0 with no keybind.
+    local bars = {
+      [1430] = { [66] = { spriteID = 13309, rgb = 0xffffff }, [73] = { content = "Q" } },
+      [1673] = { [16] = { spriteID = 13309, rgb = 0xffffff }, [23] = { content = "" } },
+    }
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function(_, interfaceID, staticID)
+          return bars[interfaceID] and bars[interfaceID][staticID]
+        end,
+      },
+    }
+    assert.are.equal("Q", adapter.barSlots()[13309].keybind)
+  end)
+end)
+
 describe("adapter.iconStruct", function()
   it("reads combat and spell structs with an icon and a name, and skips other structs", function()
     local params = {

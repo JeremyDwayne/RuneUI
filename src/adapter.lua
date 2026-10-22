@@ -210,7 +210,8 @@ function adapter.playerVar(name)
 end
 
 -- { [iconSpriteID] = { keybind, usable } } for every filled native action bar slot. keybind is nil on a slot
--- with none, and usable is false while the client dims the slot's icon.
+-- with none, and usable is false while the client dims the slot's icon. An ability on several bars reads from the
+-- first bar, main bar first, whose slot has a keybind.
 function adapter.barSlots()
   local slots = {}
   for _, bar in ipairs(ACTION_BARS) do
@@ -218,7 +219,7 @@ function adapter.barSlots()
       local base = bar.first + slot * SLOT_STRIDE
       local icon = ui.Interfaces:GetComponent(bar.id, base + SLOT_ICON)
       local sprite = icon and read(icon, "spriteID")
-      if sprite ~= nil and sprite ~= -1 then
+      if sprite ~= nil and sprite ~= -1 and (slots[sprite] == nil or slots[sprite].keybind == nil) then
         local keybind = labelText(bar.id, base + SLOT_KEYBIND)
         slots[sprite] = { keybind = keybind, usable = read(icon, "rgb") ~= SLOT_DIM }
       end
