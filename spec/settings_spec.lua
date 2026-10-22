@@ -420,6 +420,7 @@ describe("settings", function()
       playerDebuffsText = "hud",
       targetDebuffsIcon = 26,
       targetDebuffsText = "hud",
+      debuffEdge = "orange",
     }, s.appearance())
     local chosen = {
       font = "cinzel",
@@ -509,12 +510,18 @@ describe("settings", function()
     assert.are.equal(math.type(40), math.type(reloaded.upkeepBuffsIcon))
     local bad = settings
       .load(fakeStore({
-        appearance = { combatBuffsIcon = 17, playerDebuffsIcon = 30.5, upkeepBuffsText = 20, combatBuffsText = "big" },
+        appearance = {
+          combatBuffsIcon = 17,
+          playerDebuffsIcon = 30.5,
+          upkeepBuffsText = 20,
+          combatBuffsText = "big",
+          debuffEdge = "red",
+        },
       }))
       .appearance()
     assert.are.same(
-      { 36, 26, "hud", "hud" },
-      { bad.combatBuffsIcon, bad.playerDebuffsIcon, bad.upkeepBuffsText, bad.combatBuffsText }
+      { 36, 26, "hud", "hud", "orange" },
+      { bad.combatBuffsIcon, bad.playerDebuffsIcon, bad.upkeepBuffsText, bad.combatBuffsText, bad.debuffEdge }
     )
   end)
 

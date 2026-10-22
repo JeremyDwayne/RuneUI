@@ -505,6 +505,7 @@ local APPEARANCE = {
   },
   spenders = { "below", option(styling.SPENDER_PLACES) },
   castTextSize = { "hud", textSize },
+  debuffEdge = { "orange", option(styling.DEBUFF_EDGES) },
 }
 local function isOpacity(value)
   return wholeIn(value, 0, 100) and whole(value) % settings.OPACITY_STEP == 0
@@ -915,7 +916,7 @@ function settings.load(store, windowHeight)
   -- An action bar with fadeBar<n> set draws at barOpacity<n> percent, and hoverBar<n> shows it at full while
   -- the mouse is over it, or over any faded bar while hoverAllBars is on. Each aura row in
   -- settings.AURA_ICONS has <row>Icon, its icon size, and <row>Text, "hud" or its text size, such as
-  -- combatBuffsIcon. Read-only.
+  -- combatBuffsIcon. debuffEdge is a src/style DEBUFF_EDGES id. Read-only.
   function s.appearance()
     return appearance
   end

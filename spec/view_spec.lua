@@ -442,6 +442,25 @@ describe("view", function()
     assert.are.equal(0, fake.writes)
   end)
 
+  it("draws aura icons over the game's dark slot, edging debuffs in the look's colour", function()
+    local row = view.auraRow(
+      fake.component(),
+      view.AURA_STYLES.targetDebuffs,
+      view.tooltip(fake.component()),
+      function() end
+    )
+    local appearance = settings.defaultAppearance()
+    appearance.debuffEdge = "white"
+    row.setLook(style.look(appearance, nil))
+    row.update({ { sprite = 30098 } }, false)
+    assert.is_not_nil(fake.find(function(_, d)
+      return d.parent == row.layer and d.rgb == draw.COLOURS.slot and d.width == 24 and d.height == 24
+    end))
+    assert.is_not_nil(fake.find(function(_, d)
+      return d.parent == row.layer and d.rgb == 0xffffff and d.width == 26 and d.height == 26
+    end))
+  end)
+
   it("moves the tooltip to the front once shown, never while hidden", function()
     local tooltip = view.tooltip(fake.component())
     tooltip.show({ title = "Sunshine" }, 100, 300, 42)

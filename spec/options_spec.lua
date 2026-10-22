@@ -113,6 +113,13 @@ describe("options", function()
     assert.is_true(shows("Buffs on you"))
   end)
 
+  it("saves the debuff border colour from the Buffs page's Display tab", function()
+    local saved = openWindow(nil, "Buffs")
+    fake.press("Display")
+    fake.press("White")
+    assert.are.equal("white", saved.appearance().debuffEdge)
+  end)
+
   it("closes the reset confirm on Esc, then the window on a second Esc", function()
     local saved = openWindow()
     saved.setPosition("player", { x = 10, y = 20, anchorX = 0, anchorY = 0 })

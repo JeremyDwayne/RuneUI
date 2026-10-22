@@ -8,6 +8,14 @@ local style = {}
 -- Each HUD text role's size in points at text step 0.
 style.ROLES = { body = 13, small = 10, seconds = 17, smallSeconds = 15 }
 
+-- Debuff icon edge colours in menu order.
+style.DEBUFF_EDGES = {
+  { id = "orange", label = "Orange", rgb = 0xff8a1f },
+  { id = "yellow", label = "Yellow", rgb = 0xffea00 },
+  { id = "white", label = "White", rgb = 0xffffff },
+  { id = "blue", label = "Blue", rgb = 0x3a8dde },
+}
+
 -- Each aura row's text role while its text size matches the HUD's. Its stacks use the small role.
 style.AURA_TEXT = { combatBuffs = "body", upkeepBuffs = "small", playerDebuffs = "small", targetDebuffs = "small" }
 
@@ -219,11 +227,11 @@ end
 
 -- The look every element's setLook takes, from src/settings appearance and the worn weapon's combat style:
 -- { fonts = { [role] = font name }, outline, shadow, auto, text, player, target, texture, border, frameWidth,
--- frameHeight, barWidth, barHeight, castWidth, castHeight, castColour, spenders, auras }. fonts.cast is the cast
--- bar's body font, the HUD's unless the cast bar has its own font or size; castColour is nil for Ability style.
--- auras holds each aura row's { size, points, font, stacksPoints, stacksFont }: its icon size, and its time and
--- stacks text in points and font. Build it only when one of them changes, as setLook skips a look it already
--- shows.
+-- frameHeight, barWidth, barHeight, castWidth, castHeight, castColour, spenders, auras, debuffEdge }. fonts.cast
+-- is the cast bar's body font, the HUD's unless the cast bar has its own font or size; castColour is nil for
+-- Ability style. auras holds each aura row's { size, points, font, stacksPoints, stacksFont }: its icon size, and
+-- its time and stacks text in points and font. debuffEdge is the rgb of debuff icons' edge. Build it only when
+-- one of them changes, as setLook skips a look it already shows.
 function style.look(appearance, equippedStyle)
   local fonts = {}
   for role in pairs(style.ROLES) do
@@ -270,6 +278,7 @@ function style.look(appearance, equippedStyle)
     castColour = castColour(appearance.castColour),
     spenders = appearance.spenders,
     auras = auras,
+    debuffEdge = style.find(style.DEBUFF_EDGES, appearance.debuffEdge).rgb,
   }
 end
 

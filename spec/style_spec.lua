@@ -28,6 +28,7 @@ local DEFAULTS = {
   playerDebuffsText = "hud",
   targetDebuffsIcon = 26,
   targetDebuffsText = "hud",
+  debuffEdge = "orange",
 }
 
 local function appearance(changes)
@@ -163,6 +164,13 @@ describe("style.look", function()
     assert.are.same(
       { 16, "NOTOSANS_BOLD_16", 16, "NOTOSANS_BOLD_16" },
       { row.points, row.font, row.stacksPoints, row.stacksFont }
+    )
+  end)
+
+  it("edges debuff icons in the chosen colour", function()
+    assert.are.same(
+      { 0xff8a1f, 0xffffff },
+      { style.look(appearance(), nil).debuffEdge, style.look(appearance({ debuffEdge = "white" }), nil).debuffEdge }
     )
   end)
 

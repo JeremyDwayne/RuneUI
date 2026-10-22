@@ -26,7 +26,8 @@ draw.COLOURS = {
   dimText = 0xc7ccd1,
   tooltipEdge = 0x3a3632,
   highlight = 0xffffff,
-  debuff = 0xff8a1f,
+  -- The dark slot behind every aura icon, as the game's spellbook and ammo grids draw it.
+  slot = 0x27231f,
   -- Edit mode and tooltip palette: warm near-black panels and a teal accent.
   panel = 0x110f0c,
   sidebar = 0x0b0a08,

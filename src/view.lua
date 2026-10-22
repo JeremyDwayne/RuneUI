@@ -1257,8 +1257,8 @@ function view.castBar(root)
   return bar
 end
 
--- Aura rows by HUD element: which end the icons gather at, and whether they are debuffs, which get an orange
--- edge. name keys the row's icon size and text in a src/style look's auras.
+-- Aura rows by HUD element: which end the icons gather at, and whether they are debuffs, edged in the look's
+-- debuffEdge colour. name keys the row's icon size and text in a src/style look's auras.
 view.AURA_STYLES = {
   targetDebuffs = { name = "targetDebuffs", align = "right", debuff = true, kind = "Debuff on target" },
   playerDebuffs = { name = "playerDebuffs", align = "left", debuff = true, kind = "Debuff on you" },
@@ -1277,8 +1277,9 @@ local STRIPE_GAP = 2
 -- A missing Keep up buff's icon alpha.
 local MISSING_ALPHA = 0.35
 
--- Builds one aura tile's components, sized by fitTile.
-local function auraTile(layer, aura)
+-- Builds one aura tile's components, sized by fitTile: an edge, black or a debuff's look colour, round the
+-- game's dark slot, with the icon over it.
+local function auraTile(layer)
   local white = COLOURS.highlight
   return {
     ring = {
@@ -1287,12 +1288,13 @@ local function auraTile(layer, aura)
       rect(layer, white, 0, 0, 0, 0),
       rect(layer, white, 0, 0, 0, 0),
     },
-    edge = rect(layer, aura.debuff and COLOURS.debuff or COLOURS.border, 0, 0, 0, 0),
+    edge = rect(layer, COLOURS.border, 0, 0, 0, 0),
+    slot = rect(layer, COLOURS.slot, 0, 0, 0, 0),
     icon = ui.Sprite.new(layer),
     time = draw.edgedText(layer, FONTS.small, ui.AlignMode.CENTRE, 0, 0, 0, 0),
     stacks = draw.edgedText(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 0, 0),
     track = rect(layer, COLOURS.border, 0, 0, 0, AURA_BAR),
-    fill = rect(layer, aura.debuff and COLOURS.debuff or COLOURS.dimText, 0, 0, 0, AURA_BAR - 2),
+    fill = rect(layer, COLOURS.dimText, 0, 0, 0, AURA_BAR - 2),
     stripes = ui.Canvas.new(layer),
     cover = rect(layer, COLOURS.border, 0, 0, 0, AURA_BAR - 2),
     dashed = ui.Canvas.new(layer),
@@ -1312,6 +1314,7 @@ local function fitTile(parts, size, timeH, stacksH)
   draw.size(group.add(ring[3], -2, 0), 2, size)
   draw.size(group.add(ring[4], size, 0), 2, size)
   draw.size(group.add(parts.edge, 0, 0), size, size)
+  draw.size(group.add(parts.slot, 1, 1), inner, inner)
   draw.size(group.add(parts.icon, 1, 1), inner, inner)
   draw.size(group.add(parts.time, 0, size - timeH - 3), size, timeH + 2)
   draw.size(group.add(parts.stacks, 1, 1), size - 3, stacksH)
@@ -1337,6 +1340,7 @@ local function showAura(parts, model, x, y, size, bars)
   draw.hideAll(parts.ring, not ring)
   set(parts.dashed, "hidden", not dashed)
   set(parts.edge, "hidden", false)
+  set(parts.slot, "hidden", false)
   set(parts.icon, "hidden", false)
   draw.icon(parts.icon, model.sprite)
   set(parts.icon, "alpha", model.missing and MISSING_ALPHA or 1)
@@ -1385,7 +1389,7 @@ function view.auraRow(root, aura, tooltip, info)
   local row = { layer = layer }
   local tiles = {}
   for i = 1, MAX_TILES do
-    tiles[i] = auraTile(layer, aura)
+    tiles[i] = auraTile(layer)
   end
 
   -- x of the first of count tiles.
@@ -1472,6 +1476,10 @@ function view.auraRow(root, aura, tooltip, info)
       end
       styleFont(parts.time, own.font, look, false)
       styleFont(parts.stacks, own.stacksFont, look, false)
+      if aura.debuff then
+        set(parts.edge, "rgb", look.debuffEdge)
+        set(parts.fill, "rgb", look.debuffEdge)
+      end
     end
     if fit == fitted then
       return false
