@@ -68,6 +68,9 @@ settings.BAR_WIDTH = { min = 120, max = 500 }
 settings.BAR_HEIGHT = { min = 12, max = 40 }
 settings.CAST_WIDTH = { min = 150, max = 500 }
 settings.CAST_HEIGHT = { min = 14, max = 40 }
+-- The game's action bars, numbered 1 for the main bar to 5, and the percent their faded opacity moves by.
+settings.ACTION_BARS = 5
+settings.OPACITY_STEP = 5
 
 -- Combat styles a cooldown group keeps a separate ability list for, and the directions a group grows in.
 settings.STYLES = { "necromancy", "magic", "ranged", "melee" }
@@ -497,6 +500,15 @@ local APPEARANCE = {
     end,
   },
 }
+local function isOpacity(value)
+  return wholeIn(value, 0, 100) and whole(value) % settings.OPACITY_STEP == 0
+end
+for bar = 1, settings.ACTION_BARS do
+  APPEARANCE["barOpacity" .. bar] = { 25, isOpacity }
+  APPEARANCE["fadeBar" .. bar] = { false, isBoolean }
+  APPEARANCE["hoverBar" .. bar] = { true, isBoolean }
+end
+APPEARANCE.hoverAllBars = { false, isBoolean }
 
 -- A saved appearance field's value, or its default when unknown or malformed.
 local function readField(field, value)
@@ -885,11 +897,13 @@ function settings.load(store, windowHeight)
 
   -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars, font, textStep, edge, textColour,
   -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight, barWidth, barHeight, castWidth,
-  -- castHeight, castMatchWidth, castColour, castFont, castTextSize, spenders }. spenders is a src/style
-  -- SPENDER_PLACES id. castFont and castTextSize are "hud" to
-  -- follow the HUD text or a family id and a size in points. The game's own cast bar is
-  -- hidden until chosen otherwise, since RuneUI draws one; auraBars draws a draining bar under each aura icon.
-  -- Read-only.
+  -- castHeight, castMatchWidth, castColour, castFont, castTextSize, spenders, and barOpacity,
+  -- fadeBar and hoverBar for each action bar 1 to 5, such as fadeBar1, and hoverAllBars }. spenders is a src/style
+  -- SPENDER_PLACES id. castFont and castTextSize are "hud" to follow the HUD text or a family id and a size in
+  -- points. The game's own cast bar is hidden until chosen otherwise, since RuneUI draws one; auraBars draws a
+  -- draining bar under each aura icon.
+  -- An action bar with fadeBar<n> set draws at barOpacity<n> percent, and hoverBar<n> shows it at full while
+  -- the mouse is over it, or over any faded bar while hoverAllBars is on. Read-only.
   function s.appearance()
     return appearance
   end

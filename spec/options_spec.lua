@@ -106,12 +106,15 @@ describe("options", function()
     assert.are.equal(300, saved.appearance().barWidth)
   end)
 
-  it("makes no writes on a steady tick with the Appearance page open", function()
-    openWindow(nil, "Appearance")
-    fake.writes = 0
-    fake.fire("Draw", {})
-    logicTick()
-    assert.are.equal(0, fake.writes)
+  it("makes no writes on a steady tick with the Appearance or Bars page open", function()
+    for _, page in ipairs({ "Appearance", "Bars" }) do
+      fake.reset()
+      openWindow(nil, page)
+      fake.writes = 0
+      fake.fire("Draw", {})
+      logicTick()
+      assert.are.equal(0, fake.writes)
+    end
   end)
 
   it("cancels a tile drag on Esc, restoring the tile and leaving the logic tick idle", function()

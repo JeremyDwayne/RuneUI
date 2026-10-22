@@ -94,6 +94,26 @@ local function optionHit(content)
   end)
 end
 
+-- Clicks the button labelled content in the row labelled row.
+local function pressInRow(row, content)
+  local parent = label(row).parent
+  local t = fake.find(function(_, d)
+    return d.parent == parent and d.content == content
+  end)
+  local hit = fake.find(function(c, d)
+    return c ~= t and d.parent == parent and fake.hasHook(c, "ONCLICK") and d.x == t.x and d.y == t.y
+  end)
+  fake.hook(hit, "ONCLICK")
+end
+
+-- The number field in the row labelled row.
+local function fieldInRow(row)
+  local parent = label(row).parent
+  return fake.find(function(c, d)
+    return d.parent == parent and fake.hasHook(c, "ONCONTENTCHANGED")
+  end)
+end
+
 describe("appearance page", function()
   before_each(fake.reset)
 
@@ -217,9 +237,40 @@ describe("appearance page", function()
     assert.are.equal(viewport.height - 32, last.y + last.height + content.y)
   end)
 
-  it("lets the cast bar take the adrenaline bar's width and the HUD's text size, fading each stepper", function()
+  it("fades an action bar from its row, stepping its opacity by 5 and dimming it until the bar fades", function()
     local saved = openBars()
     wheel(-1, 200)
+    assert.is_true(fieldInRow("Main bar").alpha < 1)
+    pressInRow("Main bar", "Off")
+    pressInRow("Main bar", "+")
+    pressInRow("Action bar 3", "On")
+    local a = saved.appearance()
+    assert.are.same({ true, 30, false, 1 }, { a.fadeBar1, a.barOpacity1, a.hoverBar3, fieldInRow("Main bar").alpha })
+    assert.is_not_nil(fake.find(function(_, d)
+      return d.parent == label("Main bar").parent and d.content == "On"
+    end))
+    fake.hook(fieldInRow("Main bar"), "ONCONTENTCHANGED", ui.InputFieldActionResult.SUBMIT, "42")
+    assert.are.same({ 40, "40" }, { saved.appearance().barOpacity1, fieldInRow("Main bar").content })
+    pressInRow("Hover shows all bars", "Off")
+    assert.is_true(saved.appearance().hoverAllBars)
+  end)
+
+  it("saves a typed opacity only on a step of 5, keeping what is typed until then", function()
+    local saved = openBars()
+    wheel(-1, 200)
+    local field = fieldInRow("Main bar")
+    field.content = "3"
+    fake.hook(field, "ONCONTENTCHANGED", ui.InputFieldActionResult.CONTENT_CHANGE, "3")
+    assert.are.same({ 25, "3" }, { saved.appearance().barOpacity1, field.content })
+    field.content = "35"
+    fake.hook(field, "ONCONTENTCHANGED", ui.InputFieldActionResult.CONTENT_CHANGE, "35")
+    assert.are.equal(35, saved.appearance().barOpacity1)
+  end)
+
+  it("lets the cast bar take the adrenaline bar's width and the HUD's text size, fading each stepper", function()
+    local saved = openBars()
+    -- Scrolls 320 px, which shows the cast bar's rows from Width to Text size.
+    wheel(-1, 40)
     local width = fake.find(function(c, d)
       return fake.hasHook(c, "ONCONTENTCHANGED") and d.content == "278"
     end)

@@ -396,6 +396,22 @@ describe("settings", function()
       castFont = "hud",
       castTextSize = "hud",
       spenders = "below",
+      barOpacity1 = 25,
+      barOpacity2 = 25,
+      barOpacity3 = 25,
+      barOpacity4 = 25,
+      barOpacity5 = 25,
+      fadeBar1 = false,
+      fadeBar2 = false,
+      fadeBar3 = false,
+      fadeBar4 = false,
+      fadeBar5 = false,
+      hoverBar1 = true,
+      hoverBar2 = true,
+      hoverBar3 = true,
+      hoverBar4 = true,
+      hoverBar5 = true,
+      hoverAllBars = false,
     }, s.appearance())
     local chosen = {
       font = "cinzel",
@@ -454,6 +470,25 @@ describe("settings", function()
       a.frameWidth,
       a.frameHeight,
     })
+  end)
+
+  it("saves the action bar fade settings and reads a bad opacity or flag as its default", function()
+    local store = fakeStore()
+    local s = settings.load(store)
+    s.setAppearance("barOpacity2", 40.0)
+    s.setAppearance("fadeBar3", true)
+    s.setAppearance("hoverBar5", false)
+    local reloaded = settings.load(store).appearance()
+    assert.are.same({ 40, true, false }, { reloaded.barOpacity2, reloaded.fadeBar3, reloaded.hoverBar5 })
+    assert.are.equal(math.type(40), math.type(reloaded.barOpacity2))
+    for _, opacity in ipairs({ 37, -5, 105, "x" }) do
+      assert.are.equal(
+        25,
+        settings.load(fakeStore({ appearance = { barOpacity1 = opacity } })).appearance().barOpacity1
+      )
+    end
+    local bad = settings.load(fakeStore({ appearance = { fadeBar1 = "yes", hoverBar2 = 0 } }))
+    assert.are.same({ false, true }, { bad.appearance().fadeBar1, bad.appearance().hoverBar2 })
   end)
 
   it("reads a saved hex colour and size back as whole numbers, and counts appearance changes", function()
