@@ -2,7 +2,8 @@
 -- options. Each icon tab holds wrapping groups of icons in their sorted order. Dragging an icon swaps it with
 -- the icon it lands on or inserts it between two, within its group or into another, as the cooldown editor
 -- does; clicking one opens a menu of the group moves, plus Keep up for upkeep buffs. Hovering shows the icon's
--- name. Each icon tab's Find button opens a src/aurasearch popup over every effect of the tab's kind the game
+-- name. A group that is a HUD aura row sets its Icon size and Text size between its heading and its icons.
+-- Each icon tab's Find button opens a src/aurasearch popup over every effect of the tab's kind the game
 -- defines.
 local auralists = require("src/auralists")
 local aurasearch = require("src/aurasearch")
@@ -10,6 +11,8 @@ local dragdrop = require("src/dragdrop")
 local draw = require("src/draw")
 local editor = require("src/editor")
 local search = require("src/search")
+local settings = require("src/settings")
+local style = require("src/style")
 
 local buffspage = {}
 
@@ -40,9 +43,22 @@ local FIND_W = 130
 local FIND_H = 24
 local SEARCH_Y = 84
 local SEARCH_H = 440
+-- A sized group's Icon size and Text size line: its height, and the x of each part from the group's left.
+local SIZES_H = 36
+local OPTION_H = 28
+local FIELD_H = 24
+local STEPPER_W = 124
+local ICON_X = 76
+local TEXT_LABEL_X = 236
+local TEXT_X = 312
+local MATCH_X = 448
+local MATCH_W = 104
+-- Alpha of the Text size stepper while the text matches the HUD.
+local FADED = 0.45
 
 -- Each group lists the sprites groups(...) files under kind and value: a buff row, or a debuff kind's
--- tracked or untracked list. A tab's search lists catalog rows of its kind.
+-- tracked or untracked list. row names the HUD aura row a group shows, whose sizes it sets. A tab's search
+-- lists catalog rows of its kind.
 local TABS = {
   {
     id = "buffs",
@@ -50,12 +66,19 @@ local TABS = {
     w = 130,
     find = { label = "Find buffs", kind = "buff", empty = "Find a buff or boss" },
     groups = {
-      { label = "Combat buffs", note = "Above the cooldowns row", kind = "buff", value = "combat" },
+      {
+        label = "Combat buffs",
+        note = "Above the cooldowns row",
+        kind = "buff",
+        value = "combat",
+        row = "combatBuffs",
+      },
       {
         label = "Upkeep buffs",
         note = "Below the player frame. K keeps a tile while missing",
         kind = "buff",
         value = "upkeep",
+        row = "upkeepBuffs",
       },
       { label = "Hidden", note = "Never shown", kind = "buff", value = "hidden", dim = true },
     },
@@ -66,7 +89,13 @@ local TABS = {
     w = 140,
     find = { label = "Find debuffs", kind = "debuff", empty = "Find a debuff or boss" },
     groups = {
-      { label = "Tracked", note = "Shown above the player frame", kind = "player", value = true },
+      {
+        label = "Tracked",
+        note = "Shown above the player frame",
+        kind = "player",
+        value = true,
+        row = "playerDebuffs",
+      },
       { label = "Not tracked", note = "Seen but not shown", kind = "player", value = false, dim = true },
     },
   },
@@ -76,7 +105,13 @@ local TABS = {
     w = 160,
     find = { label = "Find debuffs", kind = "target", empty = "Find a debuff or ability" },
     groups = {
-      { label = "Tracked", note = "Shown above the target frame", kind = "target", value = true },
+      {
+        label = "Tracked",
+        note = "Shown above the target frame",
+        kind = "target",
+        value = true,
+        row = "targetDebuffs",
+      },
       { label = "Not tracked", note = "Seen but not shown", kind = "target", value = false, dim = true },
     },
   },
@@ -116,6 +151,83 @@ function buffspage.create(page, width, height, deps)
   display:SetSize(width, height - top)
   display:SetPos(0, top)
 
+  -- Sizes ----------------------------------------------------------------------------------------------
+
+  local function changed()
+    redraw()
+    deps.refresh()
+  end
+
+  -- A - number + stepper at x on layer from low to high, its number typed: value(appearance) gives the number
+  -- shown and save(n) takes a new one. Returns { show(appearance), fade(faded) }.
+  local function stepper(layer, x, low, high, value, save)
+    local by = (SIZES_H - OPTION_H) // 2
+    local number = draw.numberField(layer, x + 32, (SIZES_H - FIELD_H) // 2, 56, FIELD_H, low, high, save)
+    local function move(delta)
+      return function()
+        save(math.max(low, math.min(high, value(saved.appearance()) + delta)))
+      end
+    end
+    local minus = draw.button(layer, "-", x, by, 28, OPTION_H, "dark", move(-1))
+    local plus = draw.button(layer, "+", x + STEPPER_W - 28, by, 28, OPTION_H, "dark", move(1))
+    return {
+      show = function(appearance)
+        number.show(value(appearance))
+      end,
+      fade = function(faded)
+        local alpha = faded and FADED or 1
+        minus.group.set("alpha", alpha)
+        plus.group.set("alpha", alpha)
+        set(number.field, "alpha", alpha)
+      end,
+    }
+  end
+
+  -- A sized group's Icon size and Text size line on its own layer, saving the fields of slot.def.row. Returns
+  -- { layer, show(appearance) }.
+  local function sizeLine(slot)
+    local layer = ui.Layer.new(page)
+    layer:SetSize(width - 2 * MARGIN, SIZES_H)
+    local function field(name)
+      return slot.def.row .. name
+    end
+    local function textSize(appearance)
+      local own = appearance[field("Text")]
+      if own == "hud" then
+        return style.ROLES[style.AURA_TEXT[slot.def.row]] + appearance.textStep
+      end
+      return own
+    end
+    local function save(name)
+      return function(value)
+        if value ~= saved.appearance()[field(name)] then
+          saved.setAppearance(field(name), value)
+          changed()
+        end
+      end
+    end
+    for _, label in ipairs({ { "Icon size", 0 }, { "Text size", TEXT_LABEL_X } }) do
+      set(text(layer, FONTS.body, ui.AlignMode.TOPLEFT, label[2], 0, 80, SIZES_H), "content", label[1])
+    end
+    local icon = stepper(layer, ICON_X, settings.AURA_ICON.min, settings.AURA_ICON.max, function(appearance)
+      return appearance[field("Icon")]
+    end, save("Icon"))
+    local textStepper = stepper(layer, TEXT_X, settings.TEXT_SIZE.min, settings.TEXT_SIZE.max, textSize, save("Text"))
+    local match = draw.option(layer, "Match HUD", MATCH_X, (SIZES_H - OPTION_H) // 2, MATCH_W, OPTION_H, function()
+      save("Text")("hud")
+    end)
+    return {
+      layer = layer,
+      show = function(appearance)
+        local matched = appearance[field("Text")] == "hud"
+        icon.show(appearance)
+        textStepper.show(appearance)
+        textStepper.fade(matched)
+        draw.showOption(match, matched)
+      end,
+    }
+  end
+
   -- Groups ----------------------------------------------------------------------------------------------
 
   local slots = {}
@@ -129,6 +241,7 @@ function buffspage.create(page, width, height, deps)
     set(slot.note, "rgb", COLOURS.mutedText)
     slot.dashes:SetSize(width, height)
     slot.dashes:SetPos(0, 0)
+    slot.sizes = sizeLine(slot)
     slots[i] = slot
   end
 
@@ -232,17 +345,24 @@ function buffspage.create(page, width, height, deps)
       set(findButton.label, "content", current.find.label)
     end
     local keepUp = saved.keepUp()
+    local appearance = saved.appearance()
     local y = top
     local used = 0
     local marked = 0
     for i, slot in ipairs(slots) do
       local def = current.groups and current.groups[i]
       draw.hideAll({ slot.label, slot.note, slot.box, slot.dashes }, def == nil)
+      set(slot.sizes.layer, "hidden", def == nil or def.row == nil)
       slot.def = def
       if def ~= nil then
         local list = sprites(groups, def)
         local lines = math.max(1, (#list + cols - 1) // cols)
         local boxY = y + HEADER
+        if def.row ~= nil then
+          draw.pos(slot.sizes.layer, MARGIN, boxY)
+          slot.sizes.show(appearance)
+          boxY = boxY + SIZES_H
+        end
         local boxH = lines * STEP - GAP + 2 * PAD
         set(slot.label, "content", def.label)
         draw.pos(slot.label, MARGIN, y)
