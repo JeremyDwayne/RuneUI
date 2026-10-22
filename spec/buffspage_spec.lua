@@ -20,17 +20,35 @@ local function fakeStore()
   }
 end
 
+-- The search's catalog: two boss effects no tab tracks by default.
+local HOARY_CHILL = 41000
+local CATALOG = {
+  { sprite = HOARY_CHILL, name = "Hoary Chill", struct = 41057, source = "Arch-Glacor" },
+  { sprite = 41001, name = "Choking", struct = 41787, source = "Zamorak" },
+}
+
 -- A Buffs page with Bone Shield in combat buffs, an antifire in upkeep, and Stun Immune seen on a target.
--- info names every icon "Icon" unless given.
-local function open(info)
+-- info names every icon "Icon" unless given, and the search lists catalog, CATALOG unless given. Returns the
+-- page, the settings, a count of HUD refreshes, the icons the search named, and the page layer.
+local function open(info, catalog)
   local saved = settings.load(fakeStore())
   saved.learnAura(BONE_SHIELD, "combat")
   saved.learnAura(ANTIFIRE, "upkeep")
   saved.seeDebuff("target", STUN_IMMUNE)
   local root = fake.component()
+  local layer = fake.component(root)
   local refreshed = { count = 0 }
-  local page = buffspage.create(fake.component(root), 698, 498, {
+  local learned = {}
+  local page = buffspage.create(layer, 698, 498, {
     saved = saved,
+    catalog = catalog or CATALOG,
+    describe = function()
+      return "Chills you.<br>More."
+    end,
+    learn = function(sprite, name, struct)
+      learned[#learned + 1] = { sprite, name, struct }
+      return true
+    end,
     info = info or function()
       return { name = "Icon" }
     end,
@@ -43,7 +61,13 @@ local function open(info)
     end,
   })
   page.redraw()
-  return page, saved, refreshed
+  return page, saved, refreshed, learned, layer
+end
+
+local function shows(content)
+  return fake.find(function(_, d)
+    return d.content == content
+  end) ~= nil
 end
 
 -- The hit area under the shown icon of sprite.
@@ -164,6 +188,77 @@ describe("buffspage", function()
 
   it("makes no client writes when redrawn unchanged", function()
     local page = open()
+    fake.writes = 0
+    page.redraw()
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("tracks a debuff from the search, naming it at once, and stops tracking it from Tracked", function()
+    local _, saved, _, learned, layer = open()
+    fake.press("Your debuffs")
+    fake.press("Find debuffs")
+    assert.is_true(shows("Add your debuffs"))
+    assert.is_true(shows("Chills you."))
+    fake.press("Track", 2)
+    assert.is_true(saved.tracked("player")[tostring(HOARY_CHILL)])
+    assert.are.same({ { HOARY_CHILL, "Hoary Chill", 41057 } }, learned)
+    assert.are.equal("Hoary Chill", saved.debuffs()[tostring(HOARY_CHILL)].name)
+    assert.is_not_nil(fake.find(function(_, d)
+      return d.parent == layer and d.sprite == HOARY_CHILL
+    end))
+    assert.is_true(shows("1 of 2 tracked"))
+    -- The first "Tracked" is the group heading; the second is the row's button.
+    fake.press("Tracked", 2)
+    assert.is_false(saved.tracked("player")[tostring(HOARY_CHILL)])
+  end)
+
+  it("tracks a buff from the search into combat buffs", function()
+    local _, saved = open()
+    fake.press("Find buffs")
+    fake.press("Track", 2)
+    assert.are.equal("combat", saved.auras()[tostring(HOARY_CHILL)])
+  end)
+
+  it("closes the search by its X, and with the page's popups", function()
+    local page = open()
+    fake.press("Find buffs")
+    assert.is_true(page.popupOpen())
+    fake.hook(
+      fake.find(function(c, d)
+        return fake.hasHook(c, "ONCLICK") and d.width == 22 and d.height == 22
+      end),
+      "ONCLICK"
+    )
+    assert.is_false(shows("Add buffs"))
+    fake.press("Find buffs")
+    page.close()
+    assert.is_false(page.popupOpen())
+    assert.is_false(shows("Add buffs"))
+  end)
+
+  it("scrolls the effect list by the wheel, hiding rows out of view", function()
+    local catalog = {}
+    for i = 1, 20 do
+      catalog[i] = { sprite = 50000 + i, name = string.format("Effect %02d", i), struct = i, source = "General" }
+    end
+    open(nil, catalog)
+    fake.press("Find buffs")
+    local first = fake.find(function(_, d)
+      return d.content == "Effect 01"
+    end)
+    local bg = fake.find(function(c, d)
+      return d.parent == first.parent and fake.hasHook(c, "ONSCROLLWHEEL")
+    end)
+    for _ = 1, 200 do
+      fake.hook(bg, "ONSCROLLWHEEL", -1)
+    end
+    assert.is_false(shows("Effect 01"))
+    assert.is_true(shows("Effect 20"))
+  end)
+
+  it("makes no client writes on a steady redraw with the search open", function()
+    local page = open()
+    fake.press("Find buffs")
     fake.writes = 0
     page.redraw()
     assert.are.equal(0, fake.writes)

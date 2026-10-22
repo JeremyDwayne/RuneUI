@@ -4,6 +4,7 @@
 -- pages, the reset dialog, and a footer toggle into src/editmode.
 local appearancepage = require("src/appearancepage")
 local buffspage = require("src/buffspage")
+local catalog = require("src/catalog")
 local dragdrop = require("src/dragdrop")
 local draw = require("src/draw")
 local editmode = require("src/editmode")
@@ -80,7 +81,8 @@ local function indexOf(list, value)
 end
 
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
--- view = src/view, auraInfo(sprite) naming an aura icon, refresh = function redrawing the HUD }. Returns
+-- view = src/view, auraInfo(sprite) naming an aura icon, describe(struct) reading a struct's description,
+-- learnName(sprite, name, struct) naming an aura icon at once, refresh = function redrawing the HUD }. Returns
 -- { placeAll, redrawBuffs, shutdown }; placeAll places the HUD and edit mode's overlays from the saved
 -- positions and anchors, and redrawBuffs redraws the Buffs page while it is shown.
 function options.create(root, deps)
@@ -769,6 +771,9 @@ function options.create(root, deps)
   buffsPage = buffspage.create(pages.buffs, PAGE_W, PAGE_H, {
     saved = saved,
     info = deps.auraInfo,
+    catalog = catalog,
+    describe = deps.describe,
+    learn = deps.learnName,
     tooltip = buffsTooltip,
     toScreen = function(px, py)
       return window.x + PAGE_X + px, window.y + PAGE_Y + py

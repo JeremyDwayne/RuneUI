@@ -214,6 +214,8 @@ optionsWindow = options.create(top, {
   elements = elements,
   view = view,
   auraInfo = auraNames.info,
+  describe = adapter.structInfo,
+  learnName = auraNames.learn,
   refresh = refresh,
 })
 

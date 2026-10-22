@@ -9,8 +9,8 @@ RuneUI draws a player frame, a target frame, an adrenaline bar with spender rows
 - `hud-castbar` a channelled ability shows on the cast bar with icon, name and seconds left.
 - `hud-cooldowns` group icons show keybinds, dim and count down while cooling, and darken when the ability can't be cast.
 - `hud-auras` buffs, your debuffs and target debuffs show in their rows with time left and stacks.
-- `hud-tooltip-cooldown` hovering a cooldown icon shows its name, cooldown, keybind and ready state.
-- `hud-tooltip-aura` hovering an aura icon shows its name and description.
+- `hud-tooltip-cooldown` hovering a cooldown icon shows its name, cooldown, keybind, the ability's description and its ready state.
+- `hud-tooltip-aura` hovering an aura icon shows its name, a row with Buff, Debuff on you or Debuff on target and its time left or stacks, and its description in paragraphs.
 
 ## How to get to it (user POV)
 
@@ -27,8 +27,8 @@ Preconditions:
 - **Idle HUD.** Ask the player to stand still out of combat. Run `scripts/shot.sh hud-idle`. The player frame, adrenaline bar and cooldown groups show; the target frame is empty.
 - **Combat.** Ask the player to attack a dummy and use two abilities with cooldowns. Run `scripts/shot.sh hud-combat`. The target frame names the dummy, target debuffs sit above it, and the used icons are dim with seconds counting down.
 - **Channel.** Ask the player to start a channelled ability, such as Asphyxiate or Rapid Fire. Run `scripts/shot.sh hud-castbar`. The cast bar shows the icon, name and seconds left.
-- **Cooldown tooltip.** Tell the player to hover a cooldown icon within 25 seconds and hold still. Run `scripts/shot.sh hud-tooltip-cooldown 25`. The tooltip shows the ability's name, "Cooldown Ns", "Key K" and the ready state, with a white outline on the icon.
-- **Aura tooltip.** Tell the player to hover a buff or debuff icon within 25 seconds. Run `scripts/shot.sh hud-tooltip-aura 25`. The tooltip shows the icon's name and, when the game has one, its description.
+- **Cooldown tooltip.** Tell the player to hover a cooldown icon within 25 seconds and hold still. Run `scripts/shot.sh hud-tooltip-cooldown 25`. The tooltip matches the Tooltip B mock: the ability's name, "Cooldown Ns" and "Key K", the ability's description, then "Ready" or "Ready in Ns", with a white outline on the icon.
+- **Aura tooltip.** Tell the player to hover a buff or debuff icon within 25 seconds. Run `scripts/shot.sh hud-tooltip-aura 25`. The tooltip matches the Tooltip B mock: the name, "Debuff on you" or another status with the time left or stacks, then the description. Flames of Zamorak shows two paragraphs; Stunned shows no description.
 
 ## Gotchas
 

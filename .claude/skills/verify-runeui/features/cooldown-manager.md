@@ -34,4 +34,4 @@ Preconditions:
 - The picker lists preset abilities and abilities the player has used. An ability never used is missing until it is used once.
 - Search text stays in the field while the picker is open; it clears when the picker opens again.
 - Picking an ability that sits in another group moves it here rather than copying it.
-- The picker closes when the page changes or the window closes. It has no close control of its own yet.
+- The picker closes by its X, by Esc and by a click on the page outside it, each leaving the window open, and when the page changes or the window closes.
