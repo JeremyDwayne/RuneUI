@@ -10,9 +10,11 @@ barfade.SLOT_PARTS = { [-1] = "frame", [4] = "flash", [6] = "queue", [8] = "high
 local HIDDEN = { frame = true, flash = true, queue = true, highlight = true }
 
 -- Percent opacity bar, 1 for the main bar to 5, draws at: its barOpacity while faded, or 100 while unfaded or
--- hovered with Show on hover on.
-function barfade.level(appearance, bar, hovered)
-  if not appearance["fadeBar" .. bar] or (hovered and appearance["hoverBar" .. bar]) then
+-- hovered with Show on hover on. hovered is whether the mouse is over this bar and anyHovered whether it is over
+-- any faded bar, which counts as hovering every bar while hoverAllBars is on.
+function barfade.level(appearance, bar, hovered, anyHovered)
+  local shown = hovered or (anyHovered and appearance.hoverAllBars)
+  if not appearance["fadeBar" .. bar] or (shown and appearance["hoverBar" .. bar]) then
     return 100
   end
   return appearance["barOpacity" .. bar]

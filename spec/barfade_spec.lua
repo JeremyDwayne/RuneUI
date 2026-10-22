@@ -23,6 +23,18 @@ describe("barfade.level", function()
       barfade.level(appearance, 3, false),
     })
   end)
+
+  it("shows a bar with Show on hover on at full while any bar is hovered, once Hover shows all bars is on", function()
+    local appearance = { barOpacity1 = 25, fadeBar1 = true, hoverBar1 = true, hoverAllBars = false }
+    assert.are.equal(25, barfade.level(appearance, 1, false, true))
+    appearance.hoverAllBars = true
+    assert.are.same(
+      { 100, 25 },
+      { barfade.level(appearance, 1, false, true), barfade.level(appearance, 1, false, false) }
+    )
+    appearance.hoverBar1 = false
+    assert.are.equal(25, barfade.level(appearance, 1, false, true))
+  end)
 end)
 
 describe("barfade.state", function()

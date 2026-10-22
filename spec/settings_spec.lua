@@ -411,6 +411,7 @@ describe("settings", function()
       hoverBar3 = true,
       hoverBar4 = true,
       hoverBar5 = true,
+      hoverAllBars = false,
     }, s.appearance())
     local chosen = {
       font = "cinzel",

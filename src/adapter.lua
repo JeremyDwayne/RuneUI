@@ -710,35 +710,46 @@ local function refadeShells(bar, fade, root)
   end
 end
 
--- Drops each static of bar number i that the mouse left without RuneUI seeing its ONMOUSELEAVE.
+-- Drops each static of bar number i that the mouse left without RuneUI seeing its ONMOUSELEAVE, or that closed.
 local function dropLeft(i)
   local bar = ACTION_BARS[i]
   for staticID in pairs(hovered[i]) do
-    if read(ui.Interfaces:GetComponent(bar.id, staticID), "isMouseOver") == false then
+    if read(ui.Interfaces:GetComponent(bar.id, staticID), "isMouseOver") ~= true then
       hovered[i][staticID] = nil
     end
   end
 end
 
--- Records the mouse entering or leaving static of bar number i, and moves the bar to the level it draws at with
--- the mouse over any of its hover statics or none.
+-- Whether the mouse is over any faded bar.
+local function anyHovered()
+  for _, statics in pairs(hovered) do
+    if next(statics) ~= nil then
+      return true
+    end
+  end
+  return false
+end
+
+-- Records the mouse entering or leaving static of bar number i, and moves each faded bar to the level it draws at
+-- once the mouse is over any of bar i's hover statics or none.
 local function hover(i, staticID, over)
-  local fade = fades[i]
-  if fade == nil then
+  if fades[i] == nil then
     return
   end
   local was = next(hovered[i]) ~= nil
   hovered[i][staticID] = over or nil
-  local now = next(hovered[i]) ~= nil
-  if now == was then
+  if (next(hovered[i]) ~= nil) == was then
     return
   end
-  local level = barfade.level(fadeLook, i, now)
-  if level ~= fade.level then
-    fade.level = level
-    local root = ui.Interfaces:GetComponent(ACTION_BARS[i].id, 0)
-    if root ~= nil then
-      fadeBar(ACTION_BARS[i], fade, root)
+  local any = anyHovered()
+  for j, fade in pairs(fades) do
+    local level = barfade.level(fadeLook, j, next(hovered[j]) ~= nil, any)
+    if level ~= fade.level then
+      fade.level = level
+      local root = ui.Interfaces:GetComponent(ACTION_BARS[j].id, 0)
+      if root ~= nil then
+        fadeBar(ACTION_BARS[j], fade, root)
+      end
     end
   end
 end
@@ -789,6 +800,10 @@ end
 function adapter.fadeActionBars(appearance)
   fadeLook = appearance
   fadeFrames = 0
+  for i in pairs(fades) do
+    dropLeft(i)
+  end
+  local any = anyHovered()
   for i, bar in ipairs(ACTION_BARS) do
     local wanted = barfade.level(appearance, i, false) < 100
     local fade = fades[i]
@@ -806,8 +821,7 @@ function adapter.fadeActionBars(appearance)
         fades[i] = fade
         hoverHooks(i, true)
       end
-      dropLeft(i)
-      local level = barfade.level(appearance, i, next(hovered[i]) ~= nil)
+      local level = barfade.level(appearance, i, next(hovered[i]) ~= nil, any)
       if fade.level ~= level then
         fade.level = level
         fadeBar(bar, fade, root)
@@ -864,6 +878,7 @@ function adapter.restoreActionBars()
     end
   end
   fades = {}
+  hovered = {}
   resizeHook()
 end
 

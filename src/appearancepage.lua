@@ -745,6 +745,7 @@ function appearancepage.bars(page, width, height, deps)
         fadeHover(faded)
       end
     end
+    b.toggle(b.row("Hover shows all bars"), hoverX + (HOVER_COL - TOGGLE_W) // 2, TOGGLE_W, "hoverAllBars")
 
     return function(look, appearance)
       widthRow.fade(appearance.castMatchWidth)

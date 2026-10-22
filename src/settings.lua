@@ -508,6 +508,7 @@ for bar = 1, settings.ACTION_BARS do
   APPEARANCE["fadeBar" .. bar] = { false, isBoolean }
   APPEARANCE["hoverBar" .. bar] = { true, isBoolean }
 end
+APPEARANCE.hoverAllBars = { false, isBoolean }
 
 -- A saved appearance field's value, or its default when unknown or malformed.
 local function readField(field, value)
@@ -897,12 +898,12 @@ function settings.load(store, windowHeight)
   -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars, font, textStep, edge, textColour,
   -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight, barWidth, barHeight, castWidth,
   -- castHeight, castMatchWidth, castColour, castFont, castTextSize, spenders, and barOpacity,
-  -- fadeBar and hoverBar for each action bar 1 to 5, such as fadeBar1 }. spenders is a src/style
+  -- fadeBar and hoverBar for each action bar 1 to 5, such as fadeBar1, and hoverAllBars }. spenders is a src/style
   -- SPENDER_PLACES id. castFont and castTextSize are "hud" to follow the HUD text or a family id and a size in
   -- points. The game's own cast bar is hidden until chosen otherwise, since RuneUI draws one; auraBars draws a
   -- draining bar under each aura icon.
   -- An action bar with fadeBar<n> set draws at barOpacity<n> percent, and hoverBar<n> shows it at full while
-  -- the mouse is over it. Read-only.
+  -- the mouse is over it, or over any faded bar while hoverAllBars is on. Read-only.
   function s.appearance()
     return appearance
   end

@@ -352,7 +352,11 @@ end)
 -- Action bars as the client builds them: every static of each bar, a child under the stat bar :9 and each
 -- window frame static, and the main bar's root in window 1477 at :72. Writes and lookups count every alpha or
 -- hidden write and component lookup. load(interfaceID) opens a bar, or rebuilds it at its first alphas.
-local BAR_LAYOUTS = { [1430] = { last = 270, content = 72 }, [1670] = { last = 198, content = 77 } }
+local BAR_LAYOUTS = {
+  [1430] = { last = 270, content = 72 },
+  [1670] = { last = 198, content = 77 },
+  [1671] = { last = 198, content = 82 },
+}
 local function loadActionBars(...)
   local stub = { writes = 0, lookups = 0, bars = {}, window = {} }
   local function component(fields)
@@ -519,6 +523,27 @@ describe("adapter.fadeActionBars", function()
     stub.hook(1430, "ONMOUSELEAVE")
     assert.are.same({ 0.25, true }, { stub.bars[1430][1].alpha, stub.bars[1430][63].hidden })
   end)
+
+  it(
+    "shows every faded bar with Show on hover on while the mouse is over any, once Hover shows all bars is on",
+    function()
+      local stub = loadActionBars(1430, 1670, 1671)
+      local faded = look({ fadeBar1 = true, fadeBar2 = true, fadeBar3 = true, hoverBar3 = false, hoverAllBars = true })
+      adapter.fadeActionBars(faded)
+      stub.hook(1670, "ONMOUSEOVER", 20)
+      local alphas = function()
+        return { stub.bars[1430][1].alpha, stub.bars[1670][1].alpha, stub.bars[1671][1].alpha }
+      end
+      assert.are.same({ 1, 1, 0.25 }, alphas())
+      stub.hook(1670, "ONMOUSELEAVE", 20)
+      assert.are.same({ 0.25, 0.25, 0.25 }, alphas())
+      -- Action bar 2 closes with the mouse over it, so its leave never comes.
+      stub.hook(1670, "ONMOUSEOVER", 20)
+      stub.bars[1670] = nil
+      adapter.fadeActionBars(faded)
+      assert.are.equal(0.25, stub.bars[1430][1].alpha)
+    end
+  )
 
   it(
     "shows a bar at full while the mouse is over a slot button reaching past its root, until it leaves both",
