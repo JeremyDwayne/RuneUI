@@ -417,7 +417,12 @@ function buffspage.create(page, width, height, deps)
   local dropSlot = nil
   local dropTarget = nil
   drag = dragdrop.create(page, SIZE // 2, {
+    -- A press while the search is open only closes it, as a click anywhere outside a popup does.
     press = function(t)
+      if finder.isOpen() then
+        finder.close()
+        return false
+      end
       if t.sprite == nil then
         return false
       end

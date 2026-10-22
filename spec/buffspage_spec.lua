@@ -259,6 +259,13 @@ describe("buffspage", function()
     assert.is_false(searchShows("Find a buff or boss"))
   end)
 
+  it("closes the search on a click on an icon beside it, opening no menu", function()
+    local page = open()
+    fake.press("Find buffs")
+    click(tileEdge(BONE_SHIELD))
+    assert.is_false(page.popupOpen())
+  end)
+
   it("scrolls the effect list by the wheel, hiding rows out of view", function()
     local catalog = {}
     for i = 1, 20 do
