@@ -35,11 +35,25 @@ function icons.spriteLabel(configName)
   return #words > 0 and table.concat(words, " ") or nil
 end
 
--- A struct name of the form "Name - text" as the name and the text, or the whole name alone: "Drenched - Each
--- stack slows you." gives "Drenched" and "Each stack slows you.".
+-- A struct name of the form "Name<br>text", "Name - text" or "Name: text" as the name and the text, or the
+-- whole name alone: "Drenched - Each stack slows you." gives "Drenched" and "Each stack slows you.". A colon
+-- splits only before text of four words or more, so "Imbue: Shadows" stays whole.
 function icons.split(name)
-  local short, rest = name:match("^(.-) %- (.+)$")
+  local short, rest = name:match("^(.-)<br>(.+)$")
+  if short ~= nil then
+    while rest:sub(1, 4) == "<br>" do
+      rest = rest:sub(5)
+    end
+  else
+    short, rest = name:match("^(.-) %- (.+)$")
+  end
   if short == nil then
+    short, rest = name:match("^(.-): (.+)$")
+    if short ~= nil and select(2, rest:gsub("%S+", "")) < 4 then
+      short = nil
+    end
+  end
+  if short == nil or short == "" or rest == "" then
     return name
   end
   return short, rest

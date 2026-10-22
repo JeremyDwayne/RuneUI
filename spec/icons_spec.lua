@@ -54,6 +54,12 @@ describe("icons.split", function()
   it("splits a name of the form Name - text into the name and the text", function()
     assert.are.same({ "Drenched", "Each stack slows you." }, { icons.split("Drenched - Each stack slows you.") })
     assert.are.same({ "Delirium", "Poison grows - fast." }, { icons.split("Delirium - Poison grows - fast.") })
+    assert.are.same(
+      { "Flames of Zamorak", "Melts shields." },
+      { icons.split("Flames of Zamorak<br><br>Melts shields.") }
+    )
+    assert.are.same({ "Warp Time", "Takes a snapshot of you." }, { icons.split("Warp Time: Takes a snapshot of you.") })
+    assert.are.same({ "Imbue: Shadows" }, { icons.split("Imbue: Shadows") })
     assert.are.same({ "Stun Immune" }, { icons.split("Stun Immune") })
     assert.are.same({ "Anti-poison" }, { icons.split("Anti-poison") })
   end)
