@@ -38,8 +38,8 @@ local function identity(row)
   return row.struct or -row.sprite
 end
 
--- The catalog with each seen sprite it lacks for kind added to General, named by name(sprite) or
--- "Unknown effect".
+-- The catalog with each seen sprite it lacks for kind added to General, or to Any style for a debuff you
+-- inflict, named by name(sprite) or "Unknown effect".
 function search.withSeen(catalog, kind, seen, name)
   local listed = {}
   for _, row in ipairs(catalog) do
@@ -48,10 +48,11 @@ function search.withSeen(catalog, kind, seen, name)
     end
   end
   local rows = { table.unpack(catalog) }
+  local source = kind == "target" and "Any style" or "General"
   for _, sprite in ipairs(seen) do
     if not listed[sprite] then
       listed[sprite] = true
-      rows[#rows + 1] = { sprite = sprite, name = name(sprite) or "Unknown effect", source = "General", kind = kind }
+      rows[#rows + 1] = { sprite = sprite, name = name(sprite) or "Unknown effect", source = source, kind = kind }
     end
   end
   return rows

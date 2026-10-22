@@ -90,4 +90,11 @@ describe("search.withSeen", function()
     local buffs = search.withSeen(ROWS, "buff", { 26103 }, function() end)
     assert.are.same({ "Unknown effect" }, names(search.rows(buffs, "buff", "General", "", {})))
   end)
+
+  it("adds seen target sprites the catalog lacks to Any style, the target tab having no General", function()
+    local rows = search.withSeen(ROWS, "target", { 30098 }, function()
+      return "Bloated"
+    end)
+    assert.are.same({ "Bloated", "Stunned" }, names(search.rows(rows, "target", "Any style", "", {})))
+  end)
 end)
