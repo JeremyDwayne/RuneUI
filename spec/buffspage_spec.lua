@@ -248,7 +248,7 @@ describe("buffspage", function()
     assert.is_true(page.popupOpen())
     fake.hook(
       fake.find(function(c, d)
-        return fake.hasHook(c, "ONCLICK") and d.width == 22 and d.height == 22
+        return fake.hasHook(c, "ONCLICK") and d.sprite == "RS3_BTN_MODAL_WINDOW_1_CLOSE_NML"
       end),
       "ONCLICK"
     )

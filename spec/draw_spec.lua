@@ -1,4 +1,5 @@
 local fake = require("spec/support/fake_ui")
+local pretty = require("spec/support/fake_prettyui")
 local draw = require("src/draw")
 
 -- A component stand-in that counts property writes and SetPos calls.
@@ -59,6 +60,15 @@ describe("draw", function()
     draw.set(c, "rgb", 1)
     draw.set(c, "rgb", 1)
     assert.are.equal(2, attempts)
+  end)
+
+  it("calls a PrettyUI setter only when the control holds another value", function()
+    local tabs = prettyui.Tabs.new(fake.component(), { { text = "One" }, { text = "Two" } })
+    pretty.calls = 0
+    draw.control(tabs, "SetActive", 1)
+    draw.control(tabs, "SetActive", 2)
+    draw.control(tabs, "SetActive", 2)
+    assert.are.same({ 1, 2 }, { pretty.calls, tabs:GetActiveIndex() })
   end)
 
   it("mirrors a changed label to its edge copies only while the edge is on", function()

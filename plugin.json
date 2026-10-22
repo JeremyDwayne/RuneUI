@@ -2,5 +2,8 @@
   "name": "RuneUI",
   "version": "0.1.0",
   "contactEmailAddress": "jeremy@jeremydwayne.com",
-  "hasRibbonIcon": true
+  "hasRibbonIcon": true,
+  "requiredDependencies": {
+    "prettyui": 6398181
+  }
 }

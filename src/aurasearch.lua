@@ -17,7 +17,7 @@ local FONTS = draw.FONTS
 local COLOURS = draw.WINDOW
 
 local HEAD = 40
-local CLOSE = 22
+local CLOSE = draw.CLOSE_SIZE
 local SOURCE_W = 196
 local SOURCE_ROW = 28
 local LIST_HEAD = 30
@@ -67,7 +67,7 @@ function aurasearch.create(parent, x, y, w, h, deps)
 
   local title = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, 14, 2, 160, HEAD - 2)
   local field = draw.inputField(layer, 182, 9, w - 182 - CLOSE - 20, 24, 30, true)
-  draw.closeButton(layer, w - CLOSE - 10, 10, CLOSE, function()
+  draw.closeButton(layer, w - CLOSE - 10, 11, function()
     close()
   end)
   rect(layer, COLOURS.line, 2, HEAD, w - 4, 1)

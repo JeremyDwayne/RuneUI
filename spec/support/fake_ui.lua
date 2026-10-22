@@ -187,12 +187,13 @@ _G.Mouse = {
   end,
 }
 _G.GameKey = { ESCAPE = 13, SHIFT = 81 }
--- Each font id is its name, so specs can read which font a label holds.
-_G.id = { Font = setmetatable({}, {
+-- Each font and sprite id is its name, so specs can read which font a label holds or which sprite shows.
+local byName = {
   __index = function(_, name)
     return name
   end,
-}), StyleSheet = {} }
+}
+_G.id = { Font = setmetatable({}, byName), Sprite = setmetatable({}, byName), StyleSheet = {} }
 _G.log = function() end
 
 return fake

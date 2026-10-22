@@ -1,4 +1,5 @@
 local fake = require("spec/support/fake_ui")
+local pretty = require("spec/support/fake_prettyui")
 local cooldowns = require("src/cooldowns")
 local options = require("src/options")
 local presets = require("src/presets")
@@ -20,7 +21,7 @@ end
 -- The options window over a player frame and a major group, with groups filled from src/presets, after
 -- Sunshine, Soul Sap and then Wild Magic fired, so magic is the current style unless mainhand gives the worn
 -- weapon's style. Opened from the ribbon, then on the Cooldown manager's Major group unless page names another
--- menu row to stay on. Returns the settings.
+-- page tab to stay on. Returns the settings.
 local function openWindow(mainhand, page)
   local root = fake.component()
   local tracker = cooldowns.tracker()
@@ -40,8 +41,8 @@ local function openWindow(mainhand, page)
   local saved = settings.load(fakeStore())
   options.create(root, { saved = saved, tracker = tracker, elements = elements, view = view, refresh = function() end })
   fake.fire("ContentLayerReady", { component = fake.component() })
-  fake.press("Open RuneUI options")
-  fake.press(page or "Cooldown manager")
+  pretty.button("Options")
+  pretty.fire(pretty.find("Tabs"), page or "Cooldown manager")
   return saved
 end
 
@@ -78,21 +79,71 @@ local function shows(content)
 end
 
 describe("options", function()
-  before_each(fake.reset)
+  before_each(pretty.reset)
 
-  it("lists Appearance first in the menu and opens on it", function()
-    openWindow(nil, "Appearance")
-    local rows = {}
-    for _, label in ipairs({ "Appearance", "Cooldown manager", "Buffs", "Bars" }) do
-      rows[#rows + 1] = fake.find(function(_, d)
-        return d.content == label
-      end).y
+  it("lists Appearance first in the page tabs and opens on it", function()
+    openWindow(nil, "Bars")
+    pretty.button("Done")
+    pretty.button("Options")
+    local tabs = pretty.find("Tabs")
+    local labels = {}
+    for i, v in ipairs(tabs.values) do
+      labels[i] = v.text
     end
-    for i = 2, #rows do
-      assert.is_true(rows[i] > rows[i - 1])
-    end
+    assert.are.same({ "Appearance", "Cooldown manager", "Buffs", "Bars" }, labels)
+    assert.are.equal(1, tabs:GetActiveIndex())
     assert.is_true(shows("Font"))
     assert.is_false(shows("New group"))
+  end)
+
+  it("draws every page, popup and spare tile again when the window opens a second time", function()
+    openWindow()
+    openPicker()
+    pretty.button("Done")
+    pretty.button("Options")
+    for _, page in ipairs({ "Appearance", "Cooldown manager", "Buffs", "Bars" }) do
+      pretty.fire(pretty.find("Tabs"), page)
+    end
+    pretty.fire(pretty.find("Tabs"), "Cooldown manager")
+    openPicker()
+    pretty.fire(pretty.find("Tabs"), "Buffs")
+    assert.is_nil(fake.find(function(_, d)
+      return d.undrawn
+    end))
+    assert.is_true(shows("Buffs on you"))
+  end)
+
+  it("closes the reset confirm on Esc, then the window on a second Esc", function()
+    local saved = openWindow()
+    saved.setPosition("player", { x = 10, y = 20, anchorX = 0, anchorY = 0 })
+    pretty.button("Reset positions")
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.is_nil(pretty.find("Confirm"))
+    assert.is_true(shows("New group"))
+    assert.are.equal(10, saved.positions().player.x)
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.is_false(shows("New group"))
+  end)
+
+  it("resets positions only once the confirm is accepted", function()
+    local saved = openWindow()
+    saved.setPosition("player", { x = 10, y = 20, anchorX = 0, anchorY = 0 })
+    pretty.button("Reset positions")
+    pretty.fire(pretty.find("Confirm"), "cancel")
+    assert.are.equal(10, saved.positions().player.x)
+    pretty.button("Reset positions")
+    pretty.fire(pretty.find("Confirm"), "confirm")
+    assert.are_not.equal(10, saved.positions().player.x)
+  end)
+
+  it("makes no writes or PrettyUI calls on a steady tick with the window closed", function()
+    openWindow()
+    pretty.button("Done")
+    fake.writes = 0
+    pretty.calls = 0
+    fake.fire("Draw", {})
+    logicTick()
+    assert.are.same({ 0, 0 }, { fake.writes, pretty.calls })
   end)
 
   it("steps the adrenaline bar width by 1 px on the Bars page and takes a typed one", function()
@@ -108,12 +159,13 @@ describe("options", function()
 
   it("makes no writes on a steady tick with the Appearance or Bars page open", function()
     for _, page in ipairs({ "Appearance", "Bars" }) do
-      fake.reset()
+      pretty.reset()
       openWindow(nil, page)
       fake.writes = 0
+      pretty.calls = 0
       fake.fire("Draw", {})
       logicTick()
-      assert.are.equal(0, fake.writes)
+      assert.are.same({ 0, 0 }, { fake.writes, pretty.calls })
     end
   end)
 
@@ -226,7 +278,7 @@ describe("options", function()
   it("closes the picker when the reset dialog opens", function()
     openWindow()
     openPicker()
-    fake.press("Reset positions")
+    pretty.button("Reset positions")
     assert.is_nil(fake.find(function(_, d)
       return d.content == "Wild Magic"
     end))
@@ -249,7 +301,7 @@ describe("options", function()
     openWindow()
     openPicker()
     local x = fake.find(function(c, d)
-      return fake.hasHook(c, "ONCLICK") and d.width == 24 and d.height == 24
+      return fake.hasHook(c, "ONCLICK") and d.sprite == "RS3_BTN_MODAL_WINDOW_1_CLOSE_NML"
     end)
     fake.hook(x, "ONCLICK")
     assert.is_false(shows("Wild Magic"))
@@ -270,27 +322,11 @@ describe("options", function()
     openWindow()
     openPicker()
     local background = fake.find(function(c, d)
-      return fake.hasHook(c, "ONCLICK") and d.width == 698 and d.height == 562
+      return fake.hasHook(c, "ONCLICK") and d.width == 884 and d.height == 552
     end)
     fake.hook(background, "ONCLICK")
     assert.is_false(shows("Wild Magic"))
     assert.is_true(shows("New group"))
-  end)
-
-  it("closes the picker on a click on the sidebar's or footer's blank space, leaving the window open", function()
-    for _, size in ipairs({ { 199, 618 }, { 698, 55 } }) do
-      openWindow()
-      openPicker()
-      fake.hook(
-        fake.find(function(c, d)
-          return fake.hasHook(c, "ONCLICK") and d.width == size[1] and d.height == size[2]
-        end),
-        "ONCLICK"
-      )
-      assert.is_false(shows("Wild Magic"))
-      assert.is_true(shows("New group"))
-      fake.reset()
-    end
   end)
 
   it("opens on the worn weapon's style tab, marked Equipped, and switches style by tab", function()

@@ -118,6 +118,21 @@ function draw.set(obj, field, value)
   end
 end
 
+-- Readers of the value each PrettyUI setter writes, by setter name.
+local CONTROL_VALUES = {
+  SetActive = function(c)
+    return c:GetActiveIndex()
+  end,
+}
+
+-- Calls a PrettyUI control's setter with value and notify off, unless the control already holds value, so a
+-- redraw where nothing changed makes no PrettyUI calls.
+function draw.control(control, method, value)
+  if CONTROL_VALUES[method](control) ~= value then
+    control[method](control, value, false)
+  end
+end
+
 -- SetPos for components moved on every redraw; skips the call when the position is unchanged.
 function draw.pos(obj, x, y)
   local fields = writtenFor(obj)
@@ -557,24 +572,25 @@ function draw.opaque(rgb)
   return (rgb << 8) | 0xFF
 end
 
--- Close button colours: a dark red square with a dark edge, a lighter inner edge and a cream X.
-local CLOSE = { fill = 0x8e2b1d, edge = 0x2a0d07, inner = 0xc9654b, x = 0xf3dcb2 }
+-- The game's window close X, as PrettyUI's window draws it: its normal and hovered sprites and its size.
+local CLOSE =
+  { normal = id.Sprite.RS3_BTN_MODAL_WINDOW_1_CLOSE_NML, hover = id.Sprite.RS3_BTN_MODAL_WINDOW_1_CLOSE_OVR }
+draw.CLOSE_SIZE = 20
 
--- A size by size close button at x, y on parent, drawn once on a canvas, calling onClick when clicked. The X
--- is a shape as well as a colour, so it reads without the red. Returns the canvas.
-function draw.closeButton(parent, x, y, size, onClick)
-  local canvas = draw.hitArea(ui.Canvas.new(parent))
-  draw.pos(canvas, x, y)
-  draw.size(canvas, size, size)
-  canvas:AddRectangle(0, 0, size, size, draw.opaque(CLOSE.edge))
-  canvas:AddRectangle(1, 1, size - 2, size - 2, draw.opaque(CLOSE.fill))
-  canvas:AddOutline(1, 1, size - 2, size - 2, 1, draw.opaque(CLOSE.inner))
-  local near = size // 3
-  local far = size - near
-  canvas:AddLine(near, near, far, far, 2, draw.opaque(CLOSE.x))
-  canvas:AddLine(far, near, near, far, 2, draw.opaque(CLOSE.x))
-  draw.on(canvas, "ONCLICK", onClick)
-  return canvas
+-- A close X at x, y on parent, lit while hovered, calling onClick when clicked. Returns the sprite.
+function draw.closeButton(parent, x, y, onClick)
+  local button = draw.hitArea(ui.Sprite.new(parent))
+  draw.pos(button, x, y)
+  draw.size(button, draw.CLOSE_SIZE, draw.CLOSE_SIZE)
+  draw.set(button, "sprite", CLOSE.normal)
+  draw.on(button, "ONMOUSEOVER", function()
+    draw.set(button, "sprite", CLOSE.hover)
+  end)
+  draw.on(button, "ONMOUSELEAVE", function()
+    draw.set(button, "sprite", CLOSE.normal)
+  end)
+  draw.on(button, "ONCLICK", onClick)
+  return button
 end
 
 -- A bar fill over its track, flat or with a settings.TEXTURES gradient. The gradient is drawn once per

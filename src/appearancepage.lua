@@ -1,5 +1,5 @@
 -- The options window's Appearance and Bars pages. Each has a preview strip of HUD elements, drawn by src/view
--- from sample models over a Dark, Light or Game backdrop, fixed above its settings: Text, Unit frames and Game
+-- from sample models over a Dark or Light backdrop, fixed above its settings: Text, Unit frames and Game
 -- interfaces on Appearance, the adrenaline bar and the cast bar on Bars. The settings scroll by pixels inside a
 -- clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, and a click lands only where
 -- its row shows. Every change saves, then redraws the preview and the HUD.
@@ -20,11 +20,10 @@ local FONTS = draw.FONTS
 local COLOURS = draw.WINDOW
 
 local STRIP_H = 168
--- Preview backdrops: black, light lilac, or none to show the game world.
+-- Preview backdrops: black or light lilac.
 local BACKDROPS = {
   { id = "dark", label = "Dark", rgb = 0x15120f },
   { id = "light", label = "Light", rgb = 0xd8c6da },
-  { id = "game", label = "Game" },
 }
 local ROW_H = 50
 local HEADING_H = 40
@@ -177,15 +176,11 @@ local function settingsPage(page, width, height, deps, define)
   local preview = ui.Layer.new(page)
   preview:SetSize(width, STRIP_H)
   rect(page, COLOURS.border, 0, STRIP_H, width, 1)
-  local backdropChoice = "light"
+  local backdropChoice = "dark"
   local backdropOptions = {}
 
   local function showBackdrop()
-    local chosen = style.find(BACKDROPS, backdropChoice)
-    set(backdrop, "alpha", chosen.rgb and 1 or 0)
-    if chosen.rgb then
-      set(backdrop, "rgb", chosen.rgb)
-    end
+    set(backdrop, "rgb", style.find(BACKDROPS, backdropChoice).rgb)
     for id_, option in pairs(backdropOptions) do
       draw.showOption(option, id_ == backdropChoice)
     end
