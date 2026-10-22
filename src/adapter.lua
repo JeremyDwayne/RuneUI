@@ -798,10 +798,9 @@ local function resizeHook()
 end
 
 -- Runs each server tick with the appearance settings, fading each open action bar to its barOpacity while its
--- fadeBar is on. A bar the player has not opened
--- is skipped, and one the client rebuilt is faded again whole. A bar the mouse left unseen fades again. A bar
--- whose settings are off gets every component back as the client drew it. Reads each faded bar's root and each
--- hovered static when nothing changed.
+-- fadeBar is on. A bar the player has not opened is skipped, and one the client rebuilt is faded again whole. A bar
+-- the mouse left unseen fades again. A bar whose settings are off gets every component back as the client drew
+-- it. Reads each faded bar's root and each hovered static when nothing changed.
 function adapter.fadeActionBars(appearance)
   fadeLook = appearance
   fadeFrames = 0
