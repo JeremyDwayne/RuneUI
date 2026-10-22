@@ -51,6 +51,10 @@ describe("icons.spriteLabel", function()
 end)
 
 describe("icons.split", function()
+  it("reads a non-breaking space tag as a space, so the name matches a typed search", function()
+    assert.are.equal("Basic Attack", icons.split("Basic<nbsp>Attack"))
+  end)
+
   it("splits a name of the form Name - text into the name and the text", function()
     assert.are.same({ "Drenched", "Each stack slows you." }, { icons.split("Drenched - Each stack slows you.") })
     assert.are.same({ "Delirium", "Poison grows - fast." }, { icons.split("Delirium - Poison grows - fast.") })

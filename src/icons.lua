@@ -38,7 +38,9 @@ end
 -- A struct name of the form "Name<br>text", "Name - text" or "Name: text" as the name and the text, or the
 -- whole name alone: "Drenched - Each stack slows you." gives "Drenched" and "Each stack slows you.". The text
 -- starts with a capital. A colon splits only before text of four words or more, so "Imbue: Shadows" stays whole.
+-- A <nbsp> tag reads as a space.
 function icons.split(name)
+  name = name:gsub("<nbsp>", " ")
   local short, rest = name:match("^(.-)<br>(.+)$")
   if short ~= nil then
     while rest:sub(1, 4) == "<br>" do
