@@ -175,6 +175,8 @@ local function refresh()
   local effects = effectsTracker.debuffs()
   local target = frames.target(adapter.targetReads(effects), appearance.lifepoints)
   elements.target.update(target)
+  local targetDebuffs = target.debuffs or {}
+  effectsTracker.observe(targetDebuffs)
   local reads = adapter.resourceReads(frames.SPENDERS)
   reads.necromancy = tracker.style() == "necromancy"
   local resource = frames.resource(reads, saved.markers())
@@ -196,10 +198,10 @@ local function refresh()
   local bars = appearance.auraBars
   auraFilters.hasTarget = not target.hidden
   -- Listing each debuff seen puts it on the Buffs page; seeDebuff saves only a new one.
-  for _, sprite in ipairs(target.debuffs or {}) do
+  for _, sprite in ipairs(targetDebuffs) do
     saved.seeDebuff("target", sprite)
   end
-  for name, models in pairs(auraTracker.rows(saved.auras(), target.debuffs or {}, auraFilters, effects.timers)) do
+  for name, models in pairs(auraTracker.rows(saved.auras(), targetDebuffs, auraFilters, effectsTracker.timers())) do
     -- Asking for each aura's name queues unnamed icons for the background scan.
     for _, model in ipairs(models) do
       auraNames.info(model.sprite)
@@ -229,7 +231,7 @@ optionsWindow = options.create(top, {
 Event.ServerLogic.Subscribe("refresh", function()
   logicTicks = 0
   channelTracker.onTick()
-  effectsTracker.onTick()
+  effectsTracker.onTick(adapter.iconStruct)
   channelTracker.read(adapter.iconStruct)
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then
