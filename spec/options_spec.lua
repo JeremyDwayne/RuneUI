@@ -274,6 +274,22 @@ describe("options", function()
     assert.is_true(shows("New group"))
   end)
 
+  it("closes the picker on a click on the sidebar's or footer's blank space, leaving the window open", function()
+    for _, size in ipairs({ { 199, 618 }, { 698, 55 } }) do
+      openWindow()
+      openPicker()
+      fake.hook(
+        fake.find(function(c, d)
+          return fake.hasHook(c, "ONCLICK") and d.width == size[1] and d.height == size[2]
+        end),
+        "ONCLICK"
+      )
+      assert.is_false(shows("Wild Magic"))
+      assert.is_true(shows("New group"))
+      fake.reset()
+    end
+  end)
+
   it("opens on the worn weapon's style tab, marked Equipped, and switches style by tab", function()
     openWindow(37)
     local equipped = fake.find(function(_, d)

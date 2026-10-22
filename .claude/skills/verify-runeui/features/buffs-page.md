@@ -11,7 +11,7 @@ The Buffs page lists every buff and debuff RuneUI has seen, plus the default deb
 - `buffs-keepup` Keep up on an upkeep buff marks it K and shows a dim tile while it is missing with a target.
 - `buffs-tooltip` hovering a page icon shows its name.
 - `buffs-search` Find opens the search; both columns scroll, typing narrows them, and Track adds an unseen effect to Tracked or Combat buffs.
-- `buffs-search-close` the search's X, Esc and a click on the page outside it each close it and leave the window open.
+- `buffs-search-close` the search's X, Esc and a click on the page outside it each close it, as does a click on the sidebar or footer blank space, and leave the window open.
 - `buffs-display` Game buff bars hides the game's own bars; Aura icons picks plain icons or icons with bars.
 
 ## How to get to it (user POV)

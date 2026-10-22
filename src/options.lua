@@ -95,17 +95,23 @@ function options.create(root, deps)
   window:SetPos(-WIDTH // 2, -HEIGHT // 2, 0.5, 0.5)
   set(window, "hidden", true)
 
-  -- Each page draws its own background, so the Appearance preview can show the game through the window.
+  local closePopups, rebuildEditor, fillPicker, openPicker, buffsPage, editorDrag
+
+  -- Each page draws its own background, so the Appearance preview can show the game through the window. A
+  -- click on the sidebar's or footer's blank space closes the page's popups.
   placeOutline(outline(window, COLOURS.edge, 1), 1, 1, WIDTH - 2, HEIGHT - 2)
-  hitArea(rect(window, COLOURS.sidebar, 1, 1, SIDEBAR - 1, HEIGHT - 2))
+  local sidebarBg = hitArea(rect(window, COLOURS.sidebar, 1, 1, SIDEBAR - 1, HEIGHT - 2))
   rect(window, COLOURS.line, SIDEBAR, 1, 1, HEIGHT - 2)
   rect(window, COLOURS.line, PAGE_X, HEIGHT - FOOTER - 1, PAGE_W, 1)
-  hitArea(rect(window, COLOURS.panel, PAGE_X, HEIGHT - FOOTER, PAGE_W, FOOTER - 1))
+  local footerBg = hitArea(rect(window, COLOURS.panel, PAGE_X, HEIGHT - FOOTER, PAGE_W, FOOTER - 1))
+  for _, bg in ipairs({ sidebarBg, footerBg }) do
+    on(bg, "ONCLICK", function()
+      closePopups()
+    end)
+  end
   local brand = text(window, id.Font.CINZEL_18PT_BOLD, ui.AlignMode.TOPLEFT, 18, 1, SIDEBAR - 20, BRAND)
   set(brand, "content", "RuneUI")
   set(brand, "rgb", COLOURS.accent)
-
-  local closePopups, rebuildEditor, fillPicker, openPicker, buffsPage, editorDrag
 
   local function changed()
     rebuildEditor()
