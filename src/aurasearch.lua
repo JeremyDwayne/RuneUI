@@ -29,14 +29,18 @@ local BAR_SPACE = scrollbar.WIDTH + 4
 -- Characters of an effect's second line that fit beside its button.
 local INFO_CHARS = 48
 
--- The first paragraph of a description, without tags, cut to INFO_CHARS.
+-- line cut at a word to fit INFO_CHARS, ending "..." when cut.
+local function cut(line)
+  if #line <= INFO_CHARS then
+    return line
+  end
+  return line:sub(1, INFO_CHARS - 3):gsub("[%s,]+%S*$", "") .. "..."
+end
+
+-- The first paragraph of a description, without tags, cut to fit.
 local function firstLine(info)
   local line = (info:match("^(.-)<br>") or info):gsub("<[^>]*>", "")
-  line = line:match("^%s*(.-)%s*$")
-  if #line > INFO_CHARS then
-    line = line:sub(1, INFO_CHARS - 3):gsub("%s+%S*$", "") .. "..."
-  end
-  return line
+  return cut(line:match("^%s*(.-)%s*$"))
 end
 
 -- A w by h popup at x, y on parent, hidden until opened. deps: { describe(struct) returning a description or
@@ -171,7 +175,7 @@ function aurasearch.create(parent, x, y, w, h, deps)
 
   local function infoOf(item)
     if item.cause ~= nil then
-      return "From " .. item.cause
+      return cut("From " .. item.cause)
     end
     if item.struct == nil then
       return ""

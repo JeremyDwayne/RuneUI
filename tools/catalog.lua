@@ -4,7 +4,7 @@
 --
 -- The dump is tab separated with a header row naming at least id, configName, icon and name: one row per
 -- COMBATV2_ or MAGIC_ struct with an icon and a name. Warnings go to stderr: a boss token no struct matches, a
--- shared effect whose sprite no struct has, and names still too long to read as a name.
+-- shared effect naming a struct the dump lacks, and names still too long to read as a name.
 local icons = require("src/icons")
 local sources = require("tools/catalog_sources")
 
@@ -78,17 +78,18 @@ local function build(dump)
   local rows = {}
   local seen = {}
   local hits = {}
-  local bySprite = {}
+  -- Each struct's row by config name, for the shared effects.
+  local byName = {}
   for _, d in ipairs(dump) do
     local name = sources.names[d.configName] or icons.split(d.name)
     name = name:match("^%s*(.-)%s*$")
     local source = sourceOf(d.configName, hits)
     local key = d.icon .. "\t" .. name .. "\t" .. source
+    byName[d.configName] = { sprite = d.icon, name = name, struct = d.struct }
     if not seen[key] then
       seen[key] = true
       local row = { sprite = d.icon, name = name, struct = d.struct, source = source }
       rows[#rows + 1] = row
-      bySprite[d.icon] = bySprite[d.icon] or row
       if #name > LONG_NAME then
         warn("long name:", d.configName, name)
       end
@@ -100,12 +101,12 @@ local function build(dump)
     end
   end
   for _, shared in ipairs(sources.shared) do
-    local own = bySprite[shared.sprite]
+    local own = byName[shared.effect]
     if own == nil then
-      warn("no struct has shared sprite", shared.sprite, "for", shared.boss)
+      warn("no struct", shared.effect, "for", shared.boss)
     else
       rows[#rows + 1] =
-        { sprite = shared.sprite, name = own.name, struct = own.struct, source = shared.boss, cause = shared.cause }
+        { sprite = own.sprite, name = own.name, struct = own.struct, source = shared.boss, cause = shared.cause }
     end
   end
   table.sort(rows, function(a, b)
