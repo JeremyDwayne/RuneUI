@@ -1,6 +1,6 @@
 local targeteffects = require("src/targeteffects")
 
-local VULNERABILITY, BLOATED, DEATH_MARK, SMOKE_CLOUD = 14395, 30098, 30100, 14771
+local VULNERABILITY, ENFEEBLE, BLOATED, DEATH_MARK, SMOKE_CLOUD = 14395, 14371, 30098, 30100, 14771
 
 describe("targeteffects.tracker", function()
   it("shows no debuffs before any var arrives", function()
@@ -77,6 +77,17 @@ describe("targeteffects.tracker", function()
     assert.are.same({}, tracker.debuffs().timers)
     tracker.onVar("COMBATV2_TARGET_EFFECTS_11", 0x20, 0x20 | 0x40)
     assert.are.same({ [30212] = { left = 50, full = 50 } }, tracker.debuffs().timers)
+  end)
+
+  it("restarts a set debuff's time when its spell is cast again, and times no unset one", function()
+    local tracker = targeteffects.tracker()
+    tracker.onVar("COMBATV2_TARGET_EFFECTS", 0, 0x40000000)
+    for _ = 1, 40 do
+      tracker.onTick()
+    end
+    tracker.onVar("COMBATV2_JUST_USED_ABILITY", 14000, 14787)
+    tracker.onVar("COMBATV2_JUST_USED_ABILITY", 14787, 14784)
+    assert.are.same({ [ENFEEBLE] = { left = 102, full = 102 } }, tracker.debuffs().timers)
   end)
 
   it("times no debuff without a measured length, nor one set before load", function()

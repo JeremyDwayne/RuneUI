@@ -8,30 +8,35 @@ for n = 2, 12 do
   targeteffects.VARS[n] = "COMBATV2_TARGET_EFFECTS_" .. n
 end
 
--- Bits whose debuff sprite is known, each { var, mask, sprite, ticks }, by var then mask ascending. ticks is
--- how long the debuff lasts from the tick its bit sets, for the debuffs the player applies and times.
+-- Bits whose debuff sprite is known, each { var, mask, sprite, ticks, struct }, by var then mask ascending.
+-- ticks is how long the debuff lasts from the tick its bit sets, for the debuffs the player applies and times.
+-- struct is the spell whose cast restarts that time while the debuff is on.
 targeteffects.BITS = {
   { var = "COMBATV2_TARGET_EFFECTS", mask = 0x10000000, sprite = 14391, ticks = 106 }, -- Curse
-  { var = "COMBATV2_TARGET_EFFECTS", mask = 0x20000000, sprite = 14395 }, -- Vulnerability
-  { var = "COMBATV2_TARGET_EFFECTS", mask = 0x40000000, sprite = 14371 }, -- Enfeeble
+  { var = "COMBATV2_TARGET_EFFECTS", mask = 0x20000000, sprite = 14395, ticks = 102, struct = 14784 }, -- Vulnerability
+  { var = "COMBATV2_TARGET_EFFECTS", mask = 0x40000000, sprite = 14371, ticks = 102, struct = 14787 }, -- Enfeeble
   { var = "COMBATV2_TARGET_EFFECTS_5", mask = 0x80000, sprite = 26104 }, -- Stun Immune
   { var = "COMBATV2_TARGET_EFFECTS_5", mask = 0x80000000, sprite = 17255 }, -- Corruption Shot
   { var = "COMBATV2_TARGET_EFFECTS_6", mask = 0x80000000, sprite = 26026 }, -- the bit named MAGIC_CURSE
   { var = "COMBATV2_TARGET_EFFECTS_8", mask = 0x40, sprite = 15037, ticks = 12 }, -- Chain
-  { var = "COMBATV2_TARGET_EFFECTS_8", mask = 0x80, sprite = 14771 }, -- Smoke Cloud
+  { var = "COMBATV2_TARGET_EFFECTS_8", mask = 0x80, sprite = 14771, ticks = 201, struct = 44912 }, -- Smoke Cloud
   { var = "COMBATV2_TARGET_EFFECTS_11", mask = 0x20, sprite = 30098, ticks = 33 }, -- Bloated
   { var = "COMBATV2_TARGET_EFFECTS_11", mask = 0x40, sprite = 30212, ticks = 50 }, -- Haunted
   { var = "COMBATV2_TARGET_EFFECTS_11", mask = 0x80, sprite = 30100 }, -- Death Mark
 }
 
--- Known bits of each var, keyed by var name.
+-- Known bits of each var, keyed by var name, and the bit each spell struct restarts.
 local bitsOf = {}
+local bitOfStruct = {}
 for _, name in ipairs(targeteffects.VARS) do
   bitsOf[name] = {}
 end
 for _, bit in ipairs(targeteffects.BITS) do
   local list = bitsOf[bit.var]
   list[#list + 1] = bit
+  if bit.struct ~= nil then
+    bitOfStruct[bit.struct] = bit
+  end
 end
 
 -- A var value as an unsigned 32-bit integer; the game sends the top bit as a negative number.
@@ -40,10 +45,11 @@ local function unsigned(value)
 end
 
 -- Returns a tracker. onVar takes every var change, onTick runs once per server tick, and seed takes a function
--- returning a var's value at load. debuffs() returns { sprites, complete, timers }: the sprites of the known set
--- bits in target panel order, whether every set bit is known, and { [sprite] = { left, full } } in ticks for
--- each timed bit seen setting on the current target whose time has not run out. It returns the same table until
--- a target effect var changes or, while a timer runs, a tick passes.
+-- returning a var's value at load. A cast of a bit's struct while the bit is set restarts its time. debuffs()
+-- returns { sprites, complete, timers }: the sprites of the known set bits in target panel order, whether every
+-- set bit is known, and { [sprite] = { left, full } } in ticks for each timed bit seen setting on the current
+-- target whose time has not run out. It returns the same table until a target effect var changes or, while a
+-- timer runs, a tick passes.
 function targeteffects.tracker()
   local values = {}
   local result = nil
@@ -70,7 +76,13 @@ function targeteffects.tracker()
   end
 
   function tracker.onVar(name, old, new)
-    if name == "NPCTARGET" then
+    if name == "COMBATV2_JUST_USED_ABILITY" then
+      local bit = bitOfStruct[new]
+      if bit ~= nil and (values[bit.var] or 0) & bit.mask ~= 0 then
+        setAt[bit] = tick
+        result = nil
+      end
+    elseif name == "NPCTARGET" then
       if old ~= new and next(setAt) ~= nil then
         setAt = {}
         result = nil
