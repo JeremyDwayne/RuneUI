@@ -73,9 +73,9 @@ local MAX_GROUPS = 3
 
 -- page: the options window's page layer, width by height. deps: { saved = src/settings, info(sprite) naming
 -- an icon, tooltip = view.tooltip, toScreen(x, y) turning page into screen coordinates, refresh() redrawing
--- the HUD }. Returns { display, redraw, follow, close, destroy }: display is the Display tab's layer for
--- option rows; redraw draws the page from settings; follow runs each frame to move a drag; close ends a drag
--- and closes the menu.
+-- the HUD }. Returns { display, redraw, follow, close, popupOpen, destroy }: display is the Display tab's layer
+-- for option rows; redraw draws the page from settings; follow runs each frame to move a drag; close ends a drag
+-- and closes the menu; popupOpen says whether the menu is open.
 function buffspage.create(page, width, height, deps)
   local saved = deps.saved
   local cols = (width - 2 * MARGIN - 2 * PAD + GAP) // STEP
@@ -467,6 +467,9 @@ function buffspage.create(page, width, height, deps)
       drag.cancel()
       closeMenu()
       deps.tooltip.hide()
+    end,
+    popupOpen = function()
+      return menuTile ~= nil
     end,
     destroy = deps.tooltip.destroy,
   }

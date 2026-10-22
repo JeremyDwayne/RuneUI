@@ -163,8 +163,11 @@ function options.create(root, deps)
     local page = ui.Layer.new(window)
     page:SetSize(PAGE_W, PAGE_H)
     page:SetPos(PAGE_X, PAGE_Y)
+    -- A click on the page's background closes its popups.
     if entry.id ~= "appearance" and entry.id ~= "bars" then
-      hitArea(rect(page, COLOURS.panel, 0, 0, PAGE_W, PAGE_H))
+      on(hitArea(rect(page, COLOURS.panel, 0, 0, PAGE_W, PAGE_H)), "ONCLICK", function()
+        closePopups()
+      end)
     end
     pages[entry.id] = page
   end
@@ -587,7 +590,7 @@ function options.create(root, deps)
   local pickerEdge = hitArea(rect(picker, COLOURS.border, 0, 0, PICKER_WIDTH, 0))
   local pickerBg = rect(picker, COLOURS.popup, 1, 1, PICKER_WIDTH - 2, 0)
   rect(picker, COLOURS.line, 1, PICKER_HEAD, PICKER_WIDTH - 2, 1)
-  local search = draw.inputField(picker, 10, 6, PICKER_WIDTH - 20, 24, 30, true)
+  local search = draw.inputField(picker, 10, 6, PICKER_WIDTH - 49, 24, 30, true)
   set(search, "emptyText", "Find an ability")
   -- The field also reports its contents on Enter, Esc and focus loss, which can come after the picker closed.
   on(search, "ONCONTENTCHANGED", function(_, _, contents)
@@ -616,6 +619,9 @@ function options.create(root, deps)
     pickerTabs[#pickerTabs + 1] = t
     pickerTabX = pickerTabX + tab.width
   end
+  draw.closeButton(picker, PICKER_WIDTH - 31, 6, 24, function()
+    closePopups()
+  end)
   for i = 1, MAX_PICKER_ROWS do
     local ry = PICKER_HEAD + 1 + (i - 1) * PICKER_ROW
     local r = {
@@ -912,6 +918,8 @@ function options.create(root, deps)
       closeDialog()
     elseif editMode.editing() then
       editMode.escape()
+    elseif pickerOpen or menuKey ~= nil or buffsPage.popupOpen() then
+      closePopups()
     elseif windowOpen then
       closeWindow()
     end
