@@ -398,9 +398,9 @@ local function loadActionBars(...)
     stub.bars[interfaceID] = bar
     return bar
   end
-  -- Fires hook on a bar's root, as the client does on mouse over.
-  function stub.hook(interfaceID, hook)
-    getmetatable(stub.bars[interfaceID][0]).__index.hooks[hook]()
+  -- Fires hook on a bar's static, its root unless given, as the client does on mouse over.
+  function stub.hook(interfaceID, hook, staticID)
+    getmetatable(stub.bars[interfaceID][staticID or 0]).__index.hooks[hook]()
   end
   for _, interfaceID in ipairs({ ... }) do
     stub.load(interfaceID)
@@ -509,6 +509,22 @@ describe("adapter.fadeActionBars", function()
     stub.hook(1430, "ONMOUSELEAVE")
     assert.are.same({ 0.25, true }, { stub.bars[1430][1].alpha, stub.bars[1430][63].hidden })
   end)
+
+  it(
+    "shows a bar at full while the mouse is over a slot button reaching past its root, until it leaves both",
+    function()
+      local stub = loadActionBars(1430)
+      adapter.fadeActionBars(look({ fadeBar1 = true }))
+      -- Slot 0's button :65 takes the mouse first, then the root, which the mouse leaves before the button.
+      stub.hook(1430, "ONMOUSEOVER", 65)
+      assert.are.equal(1, stub.bars[1430][1].alpha)
+      stub.hook(1430, "ONMOUSEOVER")
+      stub.hook(1430, "ONMOUSELEAVE")
+      assert.are.equal(1, stub.bars[1430][1].alpha)
+      stub.hook(1430, "ONMOUSELEAVE", 65)
+      assert.are.equal(0.25, stub.bars[1430][1].alpha)
+    end
+  )
 
   it("hides the stats strip at any opacity once chosen, and fades rebuilt stat bars again after a resize", function()
     local stub = loadActionBars(1430)

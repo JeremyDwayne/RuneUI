@@ -28,6 +28,7 @@ local ACTION_BARS = {
 }
 local SLOTS_PER_BAR = 14
 local SLOT_STRIDE = 13
+local SLOT_BUTTON = 1
 local SLOT_ICON = 2
 local SLOT_KEYBIND = 9
 local SLOT_DIM = 0x333333
@@ -524,12 +525,16 @@ local STAT_BARS = { 9, 16, 22, 57 }
 local KEEP_FRAMES = 2
 local FADE_HOOK = "runeuiFade"
 local EPSILON = 0.005
--- Each bar's keybind labels as { static, key }, built once so the Draw handler allocates nothing.
+-- Each bar's keybind labels as { static, key }, built once so the Draw handler allocates nothing, and the statics
+-- that take its hover: the root, and each slot's button, which reaches past the layers whose hover reaches the
+-- root.
 for _, bar in ipairs(ACTION_BARS) do
   bar.keybinds = {}
+  bar.hoverStatics = { 0 }
   for slot = 0, SLOTS_PER_BAR - 1 do
-    local staticID = bar.first + slot * SLOT_STRIDE + SLOT_KEYBIND
-    bar.keybinds[slot + 1] = { staticID, bar.id .. ":" .. staticID }
+    local base = bar.first + slot * SLOT_STRIDE
+    bar.keybinds[slot + 1] = { base + SLOT_KEYBIND, bar.id .. ":" .. (base + SLOT_KEYBIND) }
+    bar.hoverStatics[slot + 2] = base + SLOT_BUTTON
   end
 end
 
@@ -537,8 +542,9 @@ end
 -- each component's alpha as the client last set it, written the alpha RuneUI wrote, and hidden whether each
 -- component RuneUI hid was hidden before, each keyed "interface:static" or "interface:static:category:dynamic".
 local fades = {}
--- Whether the mouse is over each bar, the appearance fadeActionBars last ran with, rendered frames since the last
--- server tick, whether the window resized since the last frame, and the plugin layer while its resize hook is on.
+-- The hover statics of each faded bar the mouse is over, as { [static] = true }, the appearance fadeActionBars
+-- last ran with, rendered frames since the last server tick, whether the window resized since the last frame, and
+-- the plugin layer while its resize hook is on.
 local hovered = {}
 local fadeLook = nil
 local fadeFrames = KEEP_FRAMES
@@ -661,14 +667,20 @@ local function rebuilt(bar, fade, root)
   return false
 end
 
--- Moves bar number i to the level it draws at with the mouse over it or not.
-local function hover(i, over)
+-- Records the mouse entering or leaving static of bar number i, and moves the bar to the level it draws at with
+-- the mouse over any of its hover statics or none.
+local function hover(i, staticID, over)
   local fade = fades[i]
-  if fade == nil or hovered[i] == over then
+  if fade == nil then
     return
   end
-  hovered[i] = over
-  local level = barfade.level(fadeLook, i, over)
+  local was = next(hovered[i]) ~= nil
+  hovered[i][staticID] = over or nil
+  local now = next(hovered[i]) ~= nil
+  if now == was then
+    return
+  end
+  local level = barfade.level(fadeLook, i, now)
   if level ~= fade.level then
     fade.level = level
     local root = ui.Interfaces:GetComponent(ACTION_BARS[i].id, 0)
@@ -678,18 +690,23 @@ local function hover(i, over)
   end
 end
 
--- Subscribes or unsubscribes bar number i's mouse over and leave hooks on its root.
-local function hoverHooks(i, root, on)
-  for hook, over in pairs({ ONMOUSEOVER = true, ONMOUSELEAVE = false }) do
-    pcall(function()
-      if on then
-        root:Subscribe(ui.Hook[hook], FADE_HOOK, function()
-          hover(i, over)
-        end)
-      else
-        root:Unsubscribe(ui.Hook[hook], FADE_HOOK)
-      end
-    end)
+-- Subscribes or unsubscribes the mouse over and leave hooks on bar number i's hover statics.
+local function hoverHooks(i, on)
+  local bar = ACTION_BARS[i]
+  hovered[i] = {}
+  for _, staticID in ipairs(bar.hoverStatics) do
+    local c = ui.Interfaces:GetComponent(bar.id, staticID)
+    for hook, over in pairs({ ONMOUSEOVER = true, ONMOUSELEAVE = false }) do
+      pcall(function()
+        if on then
+          c:Subscribe(ui.Hook[hook], FADE_HOOK, function()
+            hover(i, staticID, over)
+          end)
+        else
+          c:Unsubscribe(ui.Hook[hook], FADE_HOOK)
+        end
+      end)
+    end
   end
 end
 
@@ -724,7 +741,6 @@ function adapter.fadeActionBars(appearance)
     local root = (wanted or fade ~= nil) and ui.Interfaces:GetComponent(bar.id, 0)
     if not root then
       fades[i] = nil
-      hovered[i] = nil
     else
       if fade ~= nil and rebuilt(bar, fade, root) then
         fade = nil
@@ -732,18 +748,17 @@ function adapter.fadeActionBars(appearance)
       if fade == nil then
         fade = { level = 100, hideStats = false, base = {}, written = {}, hidden = {} }
         fades[i] = fade
-        hoverHooks(i, root, true)
+        hoverHooks(i, true)
       end
-      local level = barfade.level(appearance, i, hovered[i])
+      local level = barfade.level(appearance, i, next(hovered[i]) ~= nil)
       if fade.level ~= level or fade.hideStats ~= hideStats then
         fade.level = level
         fade.hideStats = hideStats
         fadeBar(bar, fade, root)
       end
       if not wanted then
-        hoverHooks(i, root, false)
+        hoverHooks(i, false)
         fades[i] = nil
-        hovered[i] = nil
       end
     end
   end
@@ -796,11 +811,10 @@ function adapter.restoreActionBars()
       fade.level = 100
       fade.hideStats = false
       fadeBar(ACTION_BARS[i], fade, root)
-      hoverHooks(i, root, false)
+      hoverHooks(i, false)
     end
   end
   fades = {}
-  hovered = {}
   resizeHook()
 end
 
