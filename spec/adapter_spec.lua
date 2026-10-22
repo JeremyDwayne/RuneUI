@@ -349,6 +349,207 @@ describe("adapter.barSlots", function()
   end)
 end)
 
+-- Action bars as the client builds them: every static of each bar, a child under the stat bar :9 and each
+-- window frame static, and the main bar's root in window 1477 at :72. Writes and lookups count every alpha or
+-- hidden write and component lookup. load(interfaceID) opens a bar, or rebuilds it at its first alphas.
+local BAR_LAYOUTS = { [1430] = { last = 270, content = 72 }, [1670] = { last = 198, content = 77 } }
+local function loadActionBars(...)
+  local stub = { writes = 0, lookups = 0, bars = {}, window = {} }
+  local function component(fields)
+    local data = fields or {}
+    data.alpha = data.alpha or 1
+    data.hidden = data.hidden == true
+    data.hooks = {}
+    data.children = data.children or {}
+    function data.IterateDynamicComponents(_, fn)
+      for _, child in ipairs(data.children) do
+        fn(child)
+      end
+    end
+    function data.Subscribe(_, hook, _, fn)
+      data.hooks[hook] = fn
+    end
+    function data.Unsubscribe(_, hook)
+      data.hooks[hook] = nil
+    end
+    return setmetatable({}, {
+      __index = data,
+      __newindex = function(_, key, value)
+        stub.writes = stub.writes + 1
+        data[key] = value
+      end,
+    }),
+      data
+  end
+  stub.top, stub.topData = component()
+  function stub.load(interfaceID)
+    local layout = BAR_LAYOUTS[interfaceID]
+    local bar = {}
+    for staticID = 0, layout.last do
+      bar[staticID] = component()
+    end
+    rawset(getmetatable(bar[0]).__index, "parentStatic", { interfaceID = 1477, staticID = layout.content })
+    getmetatable(bar[62]).__index.alpha = 0.5
+    getmetatable(bar[72]).__index.hidden = true
+    bar[9] = component({ children = { component({ categoryID = 0, dynamicID = 8 }) } })
+    for _, staticID in ipairs({ layout.content - 2, layout.content - 1, layout.content + 1 }) do
+      stub.window[staticID] = component({ children = { component({ categoryID = 0, dynamicID = 0 }) } })
+    end
+    stub.bars[interfaceID] = bar
+    return bar
+  end
+  -- Fires hook on a bar's root, as the client does on mouse over.
+  function stub.hook(interfaceID, hook)
+    getmetatable(stub.bars[interfaceID][0]).__index.hooks[hook]()
+  end
+  for _, interfaceID in ipairs({ ... }) do
+    stub.load(interfaceID)
+  end
+  _G.id = { Component = { TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP = "top" } }
+  _G.ui = {
+    Hook = { ONMOUSEOVER = "ONMOUSEOVER", ONMOUSELEAVE = "ONMOUSELEAVE", ONRESIZE = "ONRESIZE" },
+    Interfaces = {
+      GetComponent = function(_, interfaceID, staticID)
+        stub.lookups = stub.lookups + 1
+        if interfaceID == "top" then
+          return stub.top
+        end
+        if interfaceID == 1477 then
+          return stub.window[staticID]
+        end
+        return stub.bars[interfaceID] and stub.bars[interfaceID][staticID]
+      end,
+    },
+  }
+  stub.writes = 0
+  return stub
+end
+
+-- Appearance settings with every action bar at 25% and unfaded, then fields.
+local function look(fields)
+  local appearance = { hideBarStats = false }
+  for bar = 1, 5 do
+    appearance["barOpacity" .. bar] = 25
+    appearance["fadeBar" .. bar] = false
+    appearance["hoverBar" .. bar] = true
+  end
+  for field, value in pairs(fields or {}) do
+    appearance[field] = value
+  end
+  return appearance
+end
+
+-- Runs the Draw handler for the frames after a server tick in which the client resets keybind labels.
+local function framesAfterTick()
+  for _ = 1, 3 do
+    adapter.keepActionBarsFaded()
+  end
+end
+
+describe("adapter.fadeActionBars", function()
+  after_each(function()
+    adapter.restoreActionBars()
+  end)
+
+  it("fades each bar and its window frame to its own opacity, and restores what the client drew", function()
+    local stub = loadActionBars(1430, 1670)
+    local main = stub.bars[1430]
+    adapter.fadeActionBars(look({ fadeBar1 = true, fadeBar2 = true, barOpacity2 = 50 }))
+    -- Main bar slot 0: frame :63, flash :68, queue holder :70, highlight :72 and keybind :73.
+    assert.are.same({ 0.125, 0.25, true, true, true, 0.25, 0.25, 0.5 }, {
+      main[62].alpha,
+      main[73].alpha,
+      main[63].hidden,
+      main[68].hidden,
+      main[70].hidden,
+      stub.window[71].alpha,
+      stub.window[71].children[1].alpha,
+      stub.bars[1670][1].alpha,
+    })
+    adapter.fadeActionBars(look())
+    assert.are.same({ 0.5, 1, false, false, true, 1, 1 }, {
+      main[62].alpha,
+      main[73].alpha,
+      main[63].hidden,
+      main[68].hidden,
+      main[72].hidden,
+      stub.window[71].alpha,
+      stub.bars[1670][1].alpha,
+    })
+  end)
+
+  it("hides keybinds as well at 0%, and reads nothing in the frames after a tick", function()
+    local stub = loadActionBars(1430)
+    adapter.fadeActionBars(look({ fadeBar1 = true, barOpacity1 = 0 }))
+    assert.are.same({ true, 0, 0 }, { stub.bars[1430][73].hidden, stub.bars[1430][62].alpha, stub.window[71].alpha })
+    stub.lookups = 0
+    framesAfterTick()
+    assert.are.equal(0, stub.lookups)
+  end)
+
+  it("fades a keybind label again from the alpha the client resets it to after a tick", function()
+    local stub = loadActionBars(1430)
+    adapter.fadeActionBars(look({ fadeBar1 = true }))
+    stub.bars[1430][86].alpha = 0.608
+    framesAfterTick()
+    assert.is_true(math.abs(stub.bars[1430][86].alpha - 0.152) < 1e-9)
+    adapter.fadeActionBars(look())
+    assert.are.equal(0.608, stub.bars[1430][86].alpha)
+  end)
+
+  it("shows a hovered bar at full while Show on hover is on, and fades it again on leave", function()
+    local stub = loadActionBars(1430, 1670)
+    adapter.fadeActionBars(look({ fadeBar1 = true, fadeBar2 = true, hoverBar2 = false }))
+    stub.hook(1430, "ONMOUSEOVER")
+    stub.hook(1670, "ONMOUSEOVER")
+    assert.are.same(
+      { 1, false, 0.25 },
+      { stub.bars[1430][1].alpha, stub.bars[1430][63].hidden, stub.bars[1670][1].alpha }
+    )
+    stub.hook(1430, "ONMOUSELEAVE")
+    assert.are.same({ 0.25, true }, { stub.bars[1430][1].alpha, stub.bars[1430][63].hidden })
+  end)
+
+  it("hides the stats strip at any opacity once chosen, and fades rebuilt stat bars again after a resize", function()
+    local stub = loadActionBars(1430)
+    local main = stub.bars[1430]
+    adapter.fadeActionBars(look({ hideBarStats = true }))
+    assert.are.same({ true, 0.5 }, { main[6].hidden, main[62].alpha })
+    adapter.fadeActionBars(look({ fadeBar1 = true }))
+    assert.is_false(main[6].hidden)
+    framesAfterTick()
+    main[9].children[1].alpha = 1
+    stub.topData.hooks.ONRESIZE()
+    adapter.keepActionBarsFaded()
+    assert.are.equal(0.25, main[9].children[1].alpha)
+  end)
+
+  it("skips a bar that is not open, and fades a bar on the tick it opens or after the client rebuilds it", function()
+    local stub = loadActionBars(1430)
+    adapter.fadeActionBars(look({ fadeBar1 = true, fadeBar2 = true }))
+    stub.load(1670)
+    local main = stub.load(1430)
+    adapter.fadeActionBars(look({ fadeBar1 = true, fadeBar2 = true }))
+    assert.are.same({ 0.25, 0.25, true }, { stub.bars[1670][1].alpha, main[1].alpha, main[63].hidden })
+  end)
+
+  it("makes no writes on a steady tick and no reads on frames long after it or while no bar fades", function()
+    local stub = loadActionBars(1430)
+    adapter.fadeActionBars(look())
+    adapter.keepActionBarsFaded()
+    assert.are.same({ 0, 0 }, { stub.lookups, stub.writes })
+    adapter.fadeActionBars(look({ fadeBar1 = true }))
+    framesAfterTick()
+    stub.writes = 0
+    adapter.fadeActionBars(look({ fadeBar1 = true }))
+    framesAfterTick()
+    assert.are.equal(0, stub.writes)
+    stub.lookups = 0
+    adapter.keepActionBarsFaded()
+    assert.are.equal(0, stub.lookups)
+  end)
+end)
+
 describe("adapter.iconStruct", function()
   it("reads combat and spell structs with an icon and a name, and skips other structs", function()
     local params = {

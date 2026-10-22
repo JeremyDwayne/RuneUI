@@ -95,6 +95,7 @@ end)
 Event.Draw.Subscribe("targetPanel", adapter.keepTargetPanelHidden)
 Event.Draw.Subscribe("buffBars", adapter.keepBuffBarsHidden)
 Event.Draw.Subscribe("castBar", adapter.keepCastBarHidden)
+Event.Draw.Subscribe("actionBars", adapter.keepActionBarsFaded)
 
 -- Event.Logic runs 50 times a second, so each of its ticks is 0.02 s.
 local LOGIC_SECONDS = 0.02
@@ -164,6 +165,7 @@ local function refresh()
   adapter.hideTargetPanel(appearance.hideTargetPanel)
   adapter.hideBuffBars(appearance.hideBuffBars)
   adapter.hideCastBar(appearance.hideCastBar)
+  adapter.fadeActionBars(appearance)
   local moved = restyle()
   elements.player.update(frames.player(adapter.playerReads(), appearance.lifepoints))
   local target = frames.target(adapter.targetReads(), appearance.lifepoints)
@@ -245,6 +247,7 @@ function PluginShutdown()
   adapter.hideTargetPanel(false)
   adapter.hideBuffBars(false)
   adapter.hideCastBar(false)
+  adapter.restoreActionBars()
   optionsWindow.shutdown()
   for _, element in pairs(elements) do
     element.layer:Destroy()
