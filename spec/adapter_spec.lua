@@ -398,9 +398,11 @@ local function loadActionBars(...)
     stub.bars[interfaceID] = bar
     return bar
   end
-  -- Fires hook on a bar's static, its root unless given, as the client does on mouse over.
+  -- Fires hook on a bar's static, its root unless given, and sets its isMouseOver, as the client does on mouse over.
   function stub.hook(interfaceID, hook, staticID)
-    getmetatable(stub.bars[interfaceID][staticID or 0]).__index.hooks[hook]()
+    local data = getmetatable(stub.bars[interfaceID][staticID or 0]).__index
+    data.isMouseOver = hook == "ONMOUSEOVER"
+    data.hooks[hook]()
   end
   for _, interfaceID in ipairs({ ... }) do
     stub.load(interfaceID)
@@ -409,15 +411,20 @@ local function loadActionBars(...)
   _G.ui = {
     Hook = { ONMOUSEOVER = "ONMOUSEOVER", ONMOUSELEAVE = "ONMOUSELEAVE", ONRESIZE = "ONRESIZE" },
     Interfaces = {
-      GetComponent = function(_, interfaceID, staticID)
+      GetComponent = function(_, interfaceID, staticID, categoryID, dynamicID)
         stub.lookups = stub.lookups + 1
         if interfaceID == "top" then
           return stub.top
         end
-        if interfaceID == 1477 then
-          return stub.window[staticID]
+        local static = (interfaceID == 1477 and stub.window or stub.bars[interfaceID] or {})[staticID]
+        if static == nil or dynamicID == nil then
+          return static
         end
-        return stub.bars[interfaceID] and stub.bars[interfaceID][staticID]
+        for _, child in ipairs(static.children) do
+          if child.categoryID == categoryID and child.dynamicID == dynamicID then
+            return child
+          end
+        end
       end,
     },
   }
@@ -481,7 +488,10 @@ describe("adapter.fadeActionBars", function()
   it("hides keybinds as well at 0%, and reads nothing in the frames after a tick", function()
     local stub = loadActionBars(1430)
     adapter.fadeActionBars(look({ fadeBar1 = true, barOpacity1 = 0 }))
-    assert.are.same({ true, 0, 0 }, { stub.bars[1430][73].hidden, stub.bars[1430][62].alpha, stub.window[71].alpha })
+    assert.are.same(
+      { true, 0.005, 0.01 },
+      { stub.bars[1430][73].hidden, stub.bars[1430][62].alpha, stub.window[71].alpha }
+    )
     stub.lookups = 0
     framesAfterTick()
     assert.are.equal(0, stub.lookups)
@@ -525,6 +535,33 @@ describe("adapter.fadeActionBars", function()
       assert.are.equal(0.25, stub.bars[1430][1].alpha)
     end
   )
+
+  it("fades a hovered bar again on the tick after the mouse left it without a leave hook", function()
+    local stub = loadActionBars(1430)
+    adapter.fadeActionBars(look({ fadeBar1 = true }))
+    stub.hook(1430, "ONMOUSEOVER", 65)
+    adapter.fadeActionBars(look({ fadeBar1 = true }))
+    assert.are.equal(1, stub.bars[1430][1].alpha)
+    getmetatable(stub.bars[1430][65]).__index.isMouseOver = false
+    adapter.fadeActionBars(look({ fadeBar1 = true }))
+    assert.are.equal(0.25, stub.bars[1430][1].alpha)
+  end)
+
+  it("fades the window frame and stat bars again from the alpha the client gives them on lock and unlock", function()
+    local stub = loadActionBars(1430)
+    local background, border, stat = stub.window[70].children[1], stub.window[71].children[1], stub.bars[1430][9]
+    local faded = look({ fadeBar1 = true, barOpacity1 = 0 })
+    adapter.fadeActionBars(faded)
+    -- Locking the interface draws the frame transparent, and unlocking draws it and the stat bars opaque.
+    background.alpha, border.alpha = 0, 0
+    adapter.fadeActionBars(faded)
+    stub.hook(1430, "ONMOUSEOVER")
+    assert.are.same({ 0, 0 }, { background.alpha, border.alpha })
+    stub.hook(1430, "ONMOUSELEAVE")
+    background.alpha, border.alpha, stat.children[1].alpha = 1, 1, 1
+    adapter.fadeActionBars(faded)
+    assert.are.same({ 0.01, 0.01, 0.01 }, { background.alpha, border.alpha, stat.children[1].alpha })
+  end)
 
   it("fades the main bar's stat bars again after a window resize rebuilds them", function()
     local stub = loadActionBars(1430)

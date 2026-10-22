@@ -538,9 +538,11 @@ for _, bar in ipairs(ACTION_BARS) do
   end
 end
 
--- Fade of each action bar RuneUI changes, by its number: { level, base, written, hidden }. base holds
+-- Fade of each action bar RuneUI changes, by its number: { level, base, written, hidden, watch }. base holds
 -- each component's alpha as the client last set it, written the alpha RuneUI wrote, and hidden whether each
 -- component RuneUI hid was hidden before, each keyed "interface:static" or "interface:static:category:dynamic".
+-- watch lists the components read each tick for the client resetting the window frame and stat bars, as
+-- { interface, static, category, dynamic, key }.
 local fades = {}
 -- The hover statics of each faded bar the mouse is over, as { [static] = true }, the appearance fadeActionBars
 -- last ran with, rendered frames since the last server tick, whether the window resized since the last frame, and
@@ -608,45 +610,60 @@ local function refade(fade, key, c, scale)
   pcall(assign, c, "alpha", alpha * scale)
 end
 
--- Calls fn(key, child) for each dynamic child of c.
+-- Calls fn(key, child, category, dynamic) for each dynamic child of c.
 local function eachChild(interfaceID, staticID, c, fn)
   pcall(function()
     c:IterateDynamicComponents(function(child)
       local category = read(child, "categoryID")
       local dynamic = read(child, "dynamicID")
-      fn(interfaceID .. ":" .. staticID .. ":" .. tostring(category) .. ":" .. tostring(dynamic), child)
+      fn(
+        interfaceID .. ":" .. staticID .. ":" .. tostring(category) .. ":" .. tostring(dynamic),
+        child,
+        category,
+        dynamic
+      )
       return false
     end)
   end)
 end
 
+-- The background, border and settings button statics of the window in 1477 holding the bar whose root is root,
+-- or nil.
+local function windowStatics(root)
+  local content = read(root, "parentStatic")
+  local contentID = content and read(content, "interfaceID") == WINDOWS and read(content, "staticID")
+  return contentID and { contentID - 2, contentID - 1, contentID + 1 }
+end
+
 -- Fades every component of bar at its fade's level: each static and, under a static of no slot part, its
--- dynamic children, then the background, border and settings button of the window holding it.
+-- dynamic children, then the background, border and settings button of the window holding it. Watches the
+-- first child of the window's background and of the main bar's first stat bar.
 local function fadeBar(bar, fade, root)
+  fade.watch = {}
+  local function fadeChildren(interfaceID, staticID, c, watched)
+    eachChild(interfaceID, staticID, c, function(key, child, category, dynamic)
+      fadeComponent(fade, key, child, "other")
+      if watched then
+        fade.watch[#fade.watch + 1] = { interfaceID, staticID, category, dynamic, key }
+        watched = false
+      end
+    end)
+  end
   for staticID = 0, bar.last do
     local c = ui.Interfaces:GetComponent(bar.id, staticID)
     if c ~= nil then
       local part = barPart(bar, staticID)
       fadeComponent(fade, bar.id .. ":" .. staticID, c, part)
       if part == "other" then
-        eachChild(bar.id, staticID, c, function(key, child)
-          fadeComponent(fade, key, child, "other")
-        end)
+        fadeChildren(bar.id, staticID, c, bar.id == MAIN_BAR and staticID == STAT_BARS[1])
       end
     end
   end
-  local content = read(root, "parentStatic")
-  local contentID = content and read(content, "interfaceID") == WINDOWS and read(content, "staticID")
-  if not contentID then
-    return
-  end
-  for _, staticID in ipairs({ contentID - 2, contentID - 1, contentID + 1 }) do
+  for i, staticID in ipairs(windowStatics(root) or {}) do
     local c = ui.Interfaces:GetComponent(WINDOWS, staticID)
     if c ~= nil then
       fadeComponent(fade, WINDOWS .. ":" .. staticID, c, "other")
-      eachChild(WINDOWS, staticID, c, function(key, child)
-        fadeComponent(fade, key, child, "other")
-      end)
+      fadeChildren(WINDOWS, staticID, c, i == 1)
     end
   end
 end
@@ -655,6 +672,52 @@ end
 local function rebuilt(bar, fade, root)
   local written = fade.written[bar.id .. ":0"]
   return written ~= nil and math.abs((read(root, "alpha") or 1) - written) > EPSILON
+end
+
+-- Whether the client set the alpha of a component the fade watches since RuneUI wrote it, as locking or
+-- unlocking the interface does to the window frame and a window resize to the stat bars.
+local function shellsChanged(fade)
+  for _, w in ipairs(fade.watch) do
+    local written = fade.written[w[5]]
+    local alpha = written and read(ui.Interfaces:GetComponent(w[1], w[2], w[3], w[4]), "alpha")
+    if alpha and math.abs(alpha - written) > EPSILON then
+      return true
+    end
+  end
+  return false
+end
+
+-- Fades the window frame of a faded bar again, and the main bar's stat bars, from the alpha the client gave
+-- each component it changed.
+local function refadeShells(bar, fade, root)
+  local _, scale = barfade.state("other", fade.level)
+  local function refadeStatic(interfaceID, staticID)
+    local c = ui.Interfaces:GetComponent(interfaceID, staticID)
+    if c ~= nil then
+      refade(fade, interfaceID .. ":" .. staticID, c, scale)
+      eachChild(interfaceID, staticID, c, function(key, child)
+        refade(fade, key, child, scale)
+      end)
+    end
+  end
+  if bar.id == MAIN_BAR then
+    for _, staticID in ipairs(STAT_BARS) do
+      refadeStatic(MAIN_BAR, staticID)
+    end
+  end
+  for _, staticID in ipairs(windowStatics(root) or {}) do
+    refadeStatic(WINDOWS, staticID)
+  end
+end
+
+-- Drops each static of bar number i that the mouse left without RuneUI seeing its ONMOUSELEAVE.
+local function dropLeft(i)
+  local bar = ACTION_BARS[i]
+  for staticID in pairs(hovered[i]) do
+    if read(ui.Interfaces:GetComponent(bar.id, staticID), "isMouseOver") == false then
+      hovered[i][staticID] = nil
+    end
+  end
 end
 
 -- Records the mouse entering or leaving static of bar number i, and moves the bar to the level it draws at with
@@ -719,8 +782,10 @@ end
 
 -- Runs each server tick with the appearance settings, fading each open action bar to its barOpacity while its
 -- fadeBar is on. A bar the player has not opened
--- is skipped, and one the client rebuilt is faded again whole. A bar whose settings are off gets every component
--- back as the client drew it. Reads only each faded bar's root when nothing changed.
+-- is skipped, and one the client rebuilt is faded again whole, or its window frame and stat bars once the client
+-- resets them. A bar the mouse left unseen fades again. A bar whose settings are off gets every component back as
+-- the client drew it. Reads each faded bar's root and watched components, and each hovered static, when nothing
+-- changed.
 function adapter.fadeActionBars(appearance)
   fadeLook = appearance
   fadeFrames = 0
@@ -733,12 +798,15 @@ function adapter.fadeActionBars(appearance)
     else
       if fade ~= nil and rebuilt(bar, fade, root) then
         fade = nil
+      elseif fade ~= nil and fade.level < 100 and shellsChanged(fade) then
+        refadeShells(bar, fade, root)
       end
       if fade == nil then
         fade = { level = 100, base = {}, written = {}, hidden = {} }
         fades[i] = fade
         hoverHooks(i, true)
       end
+      dropLeft(i)
       local level = barfade.level(appearance, i, next(hovered[i]) ~= nil)
       if fade.level ~= level then
         fade.level = level
@@ -760,18 +828,12 @@ function adapter.keepActionBarsFaded()
   if not resized and fadeFrames >= KEEP_FRAMES then
     return
   end
-  local main = fades[1]
   if resized then
     resized = false
-    if main ~= nil and main.level < 100 then
-      for _, staticID in ipairs(STAT_BARS) do
-        local c = ui.Interfaces:GetComponent(MAIN_BAR, staticID)
-        if c ~= nil then
-          eachChild(MAIN_BAR, staticID, c, function(key, child)
-            refade(main, key, child, main.level / 100)
-          end)
-        end
-      end
+    local main = fades[1]
+    local root = main ~= nil and main.level < 100 and ui.Interfaces:GetComponent(MAIN_BAR, 0)
+    if root then
+      refadeShells(ACTION_BARS[1], main, root)
     end
   end
   if fadeFrames >= KEEP_FRAMES then

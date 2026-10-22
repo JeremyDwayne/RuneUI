@@ -19,7 +19,8 @@ function barfade.level(appearance, bar, hovered)
 end
 
 -- Whether a component of part, a SLOT_PARTS value or "other", is hidden at level percent, and the scale for the
--- alpha the client gave it. At 100 nothing is hidden and the scale is 1.
+-- alpha the client gave it. At 100 nothing is hidden and the scale is 1. The scale stays at 1% or more, too faint
+-- to see, so a component the client sets transparent reads apart from one RuneUI faded.
 function barfade.state(part, level)
   if level >= 100 then
     return false, 1
@@ -27,7 +28,7 @@ function barfade.state(part, level)
   if HIDDEN[part] or (level == 0 and part == "keybind") then
     return true, 1
   end
-  return false, level / 100
+  return false, math.max(level, 1) / 100
 end
 
 return barfade

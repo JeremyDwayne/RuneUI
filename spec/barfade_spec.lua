@@ -26,11 +26,11 @@ describe("barfade.level", function()
 end)
 
 describe("barfade.state", function()
-  it("hides the frame, flash, queue, highlight and keybind at 0, and makes the rest transparent", function()
+  it("hides the frame, flash, queue, highlight and keybind at 0, and draws the rest at 1%", function()
     for _, part in ipairs({ "frame", "flash", "queue", "highlight", "keybind" }) do
       assert.are.same({ true, 1 }, state(part, 0))
     end
-    assert.are.same({ false, 0 }, state("other", 0))
+    assert.are.same({ false, 0.01 }, state("other", 0))
   end)
 
   it("hides only the frame, flash, queue and highlight between 5 and 95, and scales the rest by the level", function()
