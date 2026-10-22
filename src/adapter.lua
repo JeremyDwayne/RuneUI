@@ -113,9 +113,7 @@ local targetName = nil
 -- changes, and a failed lookup is tried again on the next read.
 local function npcName(target)
   if namedTarget ~= target then
-    local ok, found = pcall(function()
-      return NPCList.ByUID(target)
-    end)
+    local ok, found = pcall(NPCList.ByUID, target)
     local npc = ok and type(found) == "table" and found[1] or nil
     local name = npc and read(npc, "displayName")
     if type(name) ~= "string" or name == "" then
