@@ -421,6 +421,27 @@ describe("view", function()
     assert.are.same({ x = 174, y = 3, w = 36, h = 41 }, row.bounds)
   end)
 
+  it("sizes an aura row's tiles and text from its look, reporting the bounds that moved", function()
+    local row = auraRow()
+    row.update(incite(12), false)
+    local appearance = settings.defaultAppearance()
+    appearance.combatBuffsIcon = 48
+    appearance.combatBuffsText = 16
+    local look = style.look(appearance, nil)
+    assert.is_true(row.setLook(look))
+    assert.are.same({ x = 228, y = 3, w = 48, h = 48 }, row.bounds)
+    assert.is_not_nil(fake.find(function(_, d)
+      return d.sprite == 14766 and d.width == 46 and d.height == 46
+    end))
+    assert.is_not_nil(fake.find(function(_, d)
+      return d.content == "12" and d.width == 48 and d.height == 18 and d.font == id.Font.MUSEO_SANS_17PT_BOLD
+    end))
+    fake.writes = 0
+    assert.is_false(row.setLook(look))
+    row.update(incite(12), false)
+    assert.are.equal(0, fake.writes)
+  end)
+
   it("moves the tooltip to the front once shown, never while hidden", function()
     local tooltip = view.tooltip(fake.component())
     tooltip.show({ title = "Sunshine" }, 100, 300, 42)
