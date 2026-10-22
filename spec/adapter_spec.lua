@@ -489,17 +489,20 @@ describe("adapter.fadeActionBars", function()
     })
   end)
 
-  it("hides keybinds as well at 0%, and reads nothing in the frames after a tick", function()
-    local stub = loadActionBars(1430)
-    adapter.fadeActionBars(look({ fadeBar1 = true, barOpacity1 = 0 }))
-    assert.are.same(
-      { true, 0.005, 0.01 },
-      { stub.bars[1430][73].hidden, stub.bars[1430][62].alpha, stub.window[71].alpha }
-    )
-    stub.lookups = 0
-    framesAfterTick()
-    assert.are.equal(0, stub.lookups)
-  end)
+  it(
+    "hides keybinds as well at 0%, and reads only the watched window frame and stat bar in the frames after a tick",
+    function()
+      local stub = loadActionBars(1430)
+      adapter.fadeActionBars(look({ fadeBar1 = true, barOpacity1 = 0 }))
+      assert.are.same(
+        { true, 0.005, 0.01 },
+        { stub.bars[1430][73].hidden, stub.bars[1430][62].alpha, stub.window[71].alpha }
+      )
+      stub.lookups = 0
+      framesAfterTick()
+      assert.are.equal(6, stub.lookups)
+    end
+  )
 
   it("fades a keybind label again from the alpha the client resets it to after a tick", function()
     local stub = loadActionBars(1430)
@@ -572,19 +575,32 @@ describe("adapter.fadeActionBars", function()
     assert.are.equal(0.25, stub.bars[1430][1].alpha)
   end)
 
+  it(
+    "keeps the main bar shown while the mouse stays on its lock, which the root stops reporting once clicked",
+    function()
+      local stub = loadActionBars(1430)
+      adapter.fadeActionBars(look({ fadeBar1 = true }))
+      stub.hook(1430, "ONMOUSEOVER")
+      stub.hook(1430, "ONMOUSEOVER", 270)
+      getmetatable(stub.bars[1430][0]).__index.isMouseOver = false
+      adapter.fadeActionBars(look({ fadeBar1 = true }))
+      assert.are.equal(1, stub.bars[1430][1].alpha)
+    end
+  )
+
   it("fades the window frame and stat bars again from the alpha the client gives them on lock and unlock", function()
     local stub = loadActionBars(1430)
     local background, border, stat = stub.window[70].children[1], stub.window[71].children[1], stub.bars[1430][9]
-    local faded = look({ fadeBar1 = true, barOpacity1 = 0 })
-    adapter.fadeActionBars(faded)
-    -- Locking the interface draws the frame transparent, and unlocking draws it and the stat bars opaque.
+    adapter.fadeActionBars(look({ fadeBar1 = true, barOpacity1 = 0 }))
+    framesAfterTick()
+    -- The client draws the frame transparent or opaque between server ticks, as locking the interface does.
     background.alpha, border.alpha = 0, 0
-    adapter.fadeActionBars(faded)
+    adapter.keepActionBarsFaded()
     stub.hook(1430, "ONMOUSEOVER")
     assert.are.same({ 0, 0 }, { background.alpha, border.alpha })
     stub.hook(1430, "ONMOUSELEAVE")
     background.alpha, border.alpha, stat.children[1].alpha = 1, 1, 1
-    adapter.fadeActionBars(faded)
+    adapter.keepActionBarsFaded()
     assert.are.same({ 0.01, 0.01, 0.01 }, { background.alpha, border.alpha, stat.children[1].alpha })
   end)
 
@@ -608,21 +624,24 @@ describe("adapter.fadeActionBars", function()
     assert.are.same({ 0.25, 0.25, true }, { stub.bars[1670][1].alpha, main[1].alpha, main[63].hidden })
   end)
 
-  it("makes no writes on a steady tick and no reads on frames long after it or while no bar fades", function()
-    local stub = loadActionBars(1430)
-    adapter.fadeActionBars(look())
-    adapter.keepActionBarsFaded()
-    assert.are.same({ 0, 0 }, { stub.lookups, stub.writes })
-    adapter.fadeActionBars(look({ fadeBar1 = true }))
-    framesAfterTick()
-    stub.writes = 0
-    adapter.fadeActionBars(look({ fadeBar1 = true }))
-    framesAfterTick()
-    assert.are.equal(0, stub.writes)
-    stub.lookups = 0
-    adapter.keepActionBarsFaded()
-    assert.are.equal(0, stub.lookups)
-  end)
+  it(
+    "makes no writes on a steady tick, reads two components on frames long after it, and none while no bar fades",
+    function()
+      local stub = loadActionBars(1430)
+      adapter.fadeActionBars(look())
+      adapter.keepActionBarsFaded()
+      assert.are.same({ 0, 0 }, { stub.lookups, stub.writes })
+      adapter.fadeActionBars(look({ fadeBar1 = true }))
+      framesAfterTick()
+      stub.writes = 0
+      adapter.fadeActionBars(look({ fadeBar1 = true }))
+      framesAfterTick()
+      assert.are.equal(0, stub.writes)
+      stub.lookups = 0
+      adapter.keepActionBarsFaded()
+      assert.are.equal(2, stub.lookups)
+    end
+  )
 end)
 
 describe("adapter.barSlots", function()

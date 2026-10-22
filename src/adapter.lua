@@ -525,9 +525,11 @@ local STAT_BARS = { 9, 16, 22, 57 }
 local KEEP_FRAMES = 2
 local FADE_HOOK = "runeuiFade"
 local EPSILON = 0.005
+-- The main bar's lock button statics, which reach past the layers whose hover reaches its root.
+local MAIN_LOCK = { 269, 270 }
 -- Each bar's keybind labels as { static, key }, built once so the Draw handler allocates nothing, and the statics
--- that take its hover: the root, and each slot's button, which reaches past the layers whose hover reaches the
--- root.
+-- that take its hover: the root, each slot's button and the main bar's lock, which reach past the layers whose
+-- hover reaches the root.
 for _, bar in ipairs(ACTION_BARS) do
   bar.keybinds = {}
   bar.hoverStatics = { 0 }
@@ -536,12 +538,15 @@ for _, bar in ipairs(ACTION_BARS) do
     bar.keybinds[slot + 1] = { base + SLOT_KEYBIND, bar.id .. ":" .. (base + SLOT_KEYBIND) }
     bar.hoverStatics[slot + 2] = base + SLOT_BUTTON
   end
+  if bar.id == MAIN_BAR then
+    table.move(MAIN_LOCK, 1, #MAIN_LOCK, #bar.hoverStatics + 1, bar.hoverStatics)
+  end
 end
 
 -- Fade of each action bar RuneUI changes, by its number: { level, base, written, hidden, watch }. base holds
 -- each component's alpha as the client last set it, written the alpha RuneUI wrote, and hidden whether each
 -- component RuneUI hid was hidden before, each keyed "interface:static" or "interface:static:category:dynamic".
--- watch lists the components read each tick for the client resetting the window frame and stat bars, as
+-- watch lists the components read each frame for the client resetting the window frame and stat bars, as
 -- { interface, static, category, dynamic, key }.
 local fades = {}
 -- The hover statics of each faded bar the mouse is over, as { [static] = true }, the appearance fadeActionBars
@@ -675,7 +680,7 @@ local function rebuilt(bar, fade, root)
 end
 
 -- Whether the client set the alpha of a component the fade watches since RuneUI wrote it, as locking or
--- unlocking the interface does to the window frame and a window resize to the stat bars.
+-- unlocking the interface does to the window frame.
 local function shellsChanged(fade)
   for _, w in ipairs(fade.watch) do
     local written = fade.written[w[5]]
@@ -793,10 +798,9 @@ end
 
 -- Runs each server tick with the appearance settings, fading each open action bar to its barOpacity while its
 -- fadeBar is on. A bar the player has not opened
--- is skipped, and one the client rebuilt is faded again whole, or its window frame and stat bars once the client
--- resets them. A bar the mouse left unseen fades again. A bar whose settings are off gets every component back as
--- the client drew it. Reads each faded bar's root and watched components, and each hovered static, when nothing
--- changed.
+-- is skipped, and one the client rebuilt is faded again whole. A bar the mouse left unseen fades again. A bar
+-- whose settings are off gets every component back as the client drew it. Reads each faded bar's root and each
+-- hovered static when nothing changed.
 function adapter.fadeActionBars(appearance)
   fadeLook = appearance
   fadeFrames = 0
@@ -813,8 +817,6 @@ function adapter.fadeActionBars(appearance)
     else
       if fade ~= nil and rebuilt(bar, fade, root) then
         fade = nil
-      elseif fade ~= nil and fade.level < 100 and shellsChanged(fade) then
-        refadeShells(bar, fade, root)
       end
       if fade == nil then
         fade = { level = 100, base = {}, written = {}, hidden = {} }
@@ -835,12 +837,19 @@ function adapter.fadeActionBars(appearance)
   resizeHook()
 end
 
--- Runs on every rendered frame while an action bar is faded. For a few frames after each server tick it reads the
--- keybind labels of each bar between 5% and 95%, and fades a label again once the client resets its alpha. After
--- a window resize it fades the main bar's rebuilt stat bars again. No reads otherwise.
+-- Runs on every rendered frame. Reads each faded bar's watched components, and fades its window frame and the main
+-- bar's stat bars again once the client resets one, as locking or unlocking the interface does. For a few frames
+-- after each server tick it reads the keybind labels of each bar between 5% and 95%, and fades a label again once
+-- the client resets its alpha. After a window resize it fades the main bar's rebuilt stat bars again. No reads
+-- while no bar fades.
 function adapter.keepActionBarsFaded()
-  if not resized and fadeFrames >= KEEP_FRAMES then
-    return
+  for i, fade in pairs(fades) do
+    if fade.level < 100 and shellsChanged(fade) then
+      local root = ui.Interfaces:GetComponent(ACTION_BARS[i].id, 0)
+      if root ~= nil then
+        refadeShells(ACTION_BARS[i], fade, root)
+      end
+    end
   end
   if resized then
     resized = false
