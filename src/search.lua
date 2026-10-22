@@ -1,5 +1,5 @@
 -- The Buffs page search over src/catalog: which sources list a query's matches, and the effects a source lists.
--- Rows are { sprite, name, struct, source, cause }, struct nil for an icon the catalog lacks. A boss's shared
+-- Rows are { sprite, name, struct, source, cause, info }, struct nil for an icon the catalog lacks. A boss's shared
 -- effect is a second row for its struct, so All lists each struct once. Pure.
 local search = {}
 
@@ -90,6 +90,7 @@ function search.rows(rows, source, query, tracked)
         struct = row.struct,
         source = row.source,
         cause = row.cause,
+        info = row.info,
         tracked = tracked[row.sprite] == true,
       }
     end

@@ -37,10 +37,10 @@ local function cut(line)
   return line:sub(1, INFO_CHARS - 3):gsub("[%s,]+%S*$", "") .. "..."
 end
 
--- The first paragraph of a description, without tags, cut to fit.
+-- The first paragraph of a description, without tags or surrounding quotes, cut to fit.
 local function firstLine(info)
   local line = (info:match("^(.-)<br>") or info):gsub("<[^>]*>", "")
-  return cut(line:match("^%s*(.-)%s*$"))
+  return cut(line:match('^[%s"]*(.-)[%s";]*$'))
 end
 
 -- A w by h popup at x, y on parent, hidden until opened. deps: { describe(struct) returning a description or
@@ -181,7 +181,7 @@ function aurasearch.create(parent, x, y, w, h, deps)
       return ""
     end
     if infos[item.struct] == nil then
-      local info = deps.describe(item.struct)
+      local info = deps.describe(item.struct) or item.info
       infos[item.struct] = info and firstLine(info) or false
     end
     return infos[item.struct] or ""

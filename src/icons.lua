@@ -36,8 +36,8 @@ function icons.spriteLabel(configName)
 end
 
 -- A struct name of the form "Name<br>text", "Name - text" or "Name: text" as the name and the text, or the
--- whole name alone: "Drenched - Each stack slows you." gives "Drenched" and "Each stack slows you.". A colon
--- splits only before text of four words or more, so "Imbue: Shadows" stays whole.
+-- whole name alone: "Drenched - Each stack slows you." gives "Drenched" and "Each stack slows you.". The text
+-- starts with a capital. A colon splits only before text of four words or more, so "Imbue: Shadows" stays whole.
 function icons.split(name)
   local short, rest = name:match("^(.-)<br>(.+)$")
   if short ~= nil then
@@ -56,7 +56,7 @@ function icons.split(name)
   if short == nil or short == "" or rest == "" then
     return name
   end
-  return short, rest
+  return short, (rest:gsub("^%l", string.upper))
 end
 
 -- What info returns for an icon with no name and no sprite label once the scan gives up.
