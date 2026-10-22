@@ -45,8 +45,8 @@ local TOOLTIP_GAP = 6
 local TOOLTIP_LINE = 14
 -- Space above each description paragraph and the foot.
 local TOOLTIP_SPACE = 4
--- Characters of info that fit one tooltip line in the small font.
-local TOOLTIP_LINE_CHARS = 41
+-- Characters of info that surely fit one tooltip line in the small font; 224 px holds 37 to 41 of prose.
+local TOOLTIP_LINE_CHARS = 36
 
 -- Description paragraphs at its <br> tags, each { text, lines }, with lines its wrapped line count. Tags such
 -- as <col=ffffff> stay in the text and count for nothing.

@@ -26,8 +26,8 @@ local ICON = 28
 local BUTTON_W = 92
 local BUTTON_H = 24
 local BAR_SPACE = scrollbar.WIDTH + 4
--- Characters of an effect's second line that fit beside its button.
-local INFO_CHARS = 48
+-- Characters of an effect's second line that surely fit beside its button.
+local INFO_CHARS = 42
 
 -- line cut at a word to fit INFO_CHARS, ending "..." when cut.
 local function cut(line)
