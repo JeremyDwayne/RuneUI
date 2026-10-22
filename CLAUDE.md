@@ -13,7 +13,7 @@ When goals conflict, settle them in this order:
 
 ## Working rules
 
-- Done means the four checks from `CONTRIBUTING.md` pass: `busted`, `luacheck .`, `luac5.4 -p` on every file and `stylua --check main.lua src spec`. Report their output, not "should pass".
+- Done means the four checks from `CONTRIBUTING.md` pass: `busted`, `luacheck .`, `luac5.4 -p` on every file and `stylua --check main.lua src spec tools`. Report their output, not "should pass".
 - A bug fix starts with a spec that fails without the fix. View and options specs drive real modules through `spec/support/fake_ui.lua`.
 - Specs prove logic and write counts, not what the client draws. Anything visible is done when it has been seen in the game after `prl runeui`. Say which in-game checks are still open.
 - Before building a visible change, agree on the look with a mockup or screenshot.

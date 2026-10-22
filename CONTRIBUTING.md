@@ -32,8 +32,8 @@ Run all four from the repo root before opening a pull request. CI runs the same 
 ```sh
 busted
 luacheck .
-for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; done
-stylua --check main.lua src spec
+for f in main.lua src/*.lua spec/*.lua spec/support/*.lua tools/*.lua; do luac5.4 -p "$f"; done
+stylua --check main.lua src spec tools
 ```
 
 A bug fix starts with a spec that fails without the fix.
@@ -43,6 +43,7 @@ A bug fix starts with a spec that fails without the fix.
 - `src/adapter.lua` is the only module that reads the game client. It returns plain tables, so everything else can be tested without the game.
 - `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua`, `src/icons.lua` and `src/style.lua` are pure Lua, each with a spec in `spec/`. `src/presets.lua` is the data the groups start with, covered by `spec/settings_spec.lua`.
 - `src/view.lua` draws the HUD, `src/options.lua` draws the options window, `src/appearancepage.lua` its Appearance and Bars pages, `src/buffspage.lua` its Buffs page, `src/scrollbar.lua` the scrollbar its lists share, `src/dragdrop.lua` the icon dragging the window shares, `src/editmode.lua` draws edit mode, and all seven build on the helpers in `src/draw.lua`.
+- `src/catalog.lua` lists every buff and debuff the game defines for the Buffs page search. It is generated: `tools/catalog.lua` builds it from a dump of the game's `COMBATV2_` and `MAGIC_` structs and from `tools/catalog_sources.lua`, which holds the boss each struct belongs to, short names for structs named by a sentence, and the effects bosses share. Edit the sources, then run `lua5.4 tools/catalog.lua <dump.tsv> && stylua src/catalog.lua`.
 
 ## Performance
 
@@ -59,7 +60,7 @@ Never carry meaning by colour alone. Avoid relying on red against green, green a
 
 ## Code style
 
-- Run `stylua main.lua src spec` before committing. It formats every file from `.stylua.toml`, including the 120 character line limit, and gives every `if`, `for`, `while` and `function` body its own lines.
+- Run `stylua main.lua src spec tools` before committing. It formats every file from `.stylua.toml`, including the 120 character line limit, and gives every `if`, `for`, `while` and `function` body its own lines.
 - Declare each local and assign each field on its own line. Only a call that returns several values, such as `local ok, value = pcall(f)`, assigns several names at once.
 - Choose among three or more values with `if` and `elseif`, not a chain of `and` and `or`.
 - Follow the style of the file you are in for everything else. luacheck catches unused and shadowed names.
