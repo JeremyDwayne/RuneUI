@@ -412,6 +412,14 @@ describe("settings", function()
       hoverBar4 = true,
       hoverBar5 = true,
       hoverAllBars = false,
+      combatBuffsIcon = 36,
+      combatBuffsText = "hud",
+      upkeepBuffsIcon = 26,
+      upkeepBuffsText = "hud",
+      playerDebuffsIcon = 26,
+      playerDebuffsText = "hud",
+      targetDebuffsIcon = 26,
+      targetDebuffsText = "hud",
     }, s.appearance())
     local chosen = {
       font = "cinzel",
@@ -489,6 +497,25 @@ describe("settings", function()
     end
     local bad = settings.load(fakeStore({ appearance = { fadeBar1 = "yes", hoverBar2 = 0 } }))
     assert.are.same({ false, true }, { bad.appearance().fadeBar1, bad.appearance().hoverBar2 })
+  end)
+
+  it("saves each aura row's icon and text size and reads a bad one as its default", function()
+    local store = fakeStore()
+    local s = settings.load(store)
+    s.setAppearance("upkeepBuffsIcon", 40.0)
+    s.setAppearance("targetDebuffsText", 15)
+    local reloaded = settings.load(store).appearance()
+    assert.are.same({ 40, 15 }, { reloaded.upkeepBuffsIcon, reloaded.targetDebuffsText })
+    assert.are.equal(math.type(40), math.type(reloaded.upkeepBuffsIcon))
+    local bad = settings
+      .load(fakeStore({
+        appearance = { combatBuffsIcon = 17, playerDebuffsIcon = 30.5, upkeepBuffsText = 20, combatBuffsText = "big" },
+      }))
+      .appearance()
+    assert.are.same(
+      { 36, 26, "hud", "hud" },
+      { bad.combatBuffsIcon, bad.playerDebuffsIcon, bad.upkeepBuffsText, bad.combatBuffsText }
+    )
   end)
 
   it("reads a saved hex colour and size back as whole numbers, and counts appearance changes", function()

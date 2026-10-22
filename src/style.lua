@@ -8,6 +8,9 @@ local style = {}
 -- Each HUD text role's size in points at text step 0.
 style.ROLES = { body = 13, small = 10, seconds = 17, smallSeconds = 15 }
 
+-- Each aura row's text role while its text size matches the HUD's. Its stacks use the small role.
+style.AURA_TEXT = { combatBuffs = "body", upkeepBuffs = "small", playerDebuffs = "small", targetDebuffs = "small" }
+
 -- Bold font names by point size.
 local function sizes(pattern, list)
   local out = {}
@@ -216,9 +219,11 @@ end
 
 -- The look every element's setLook takes, from src/settings appearance and the worn weapon's combat style:
 -- { fonts = { [role] = font name }, outline, shadow, auto, text, player, target, texture, border, frameWidth,
--- frameHeight, barWidth, barHeight, castWidth, castHeight, castColour, spenders }. fonts.cast is the cast bar's
--- body font, the HUD's unless the cast bar has its own font or size; castColour is nil for Ability style. Build
--- it only when one of them changes, as setLook skips a look it already shows.
+-- frameHeight, barWidth, barHeight, castWidth, castHeight, castColour, spenders, auras }. fonts.cast is the cast
+-- bar's body font, the HUD's unless the cast bar has its own font or size; castColour is nil for Ability style.
+-- auras holds each aura row's { size, points, font, stacksPoints, stacksFont }: its icon size, and its time and
+-- stacks text in points and font. Build it only when one of them changes, as setLook skips a look it already
+-- shows.
 function style.look(appearance, equippedStyle)
   local fonts = {}
   for role in pairs(style.ROLES) do
@@ -228,6 +233,22 @@ function style.look(appearance, equippedStyle)
   local castStep = appearance.castTextSize == "hud" and appearance.textStep
     or appearance.castTextSize - style.ROLES.body
   fonts.cast = style.font(castFamily, "body", castStep)
+  local auras = {}
+  for row, role in pairs(style.AURA_TEXT) do
+    local own = appearance[row .. "Text"]
+    if own == "hud" then
+      auras[row] = {
+        points = style.ROLES[role] + appearance.textStep,
+        font = fonts[role],
+        stacksPoints = style.ROLES.small + appearance.textStep,
+        stacksFont = fonts.small,
+      }
+    else
+      local font = style.font(appearance.font, "body", own - style.ROLES.body)
+      auras[row] = { points = own, font = font, stacksPoints = own, stacksFont = font }
+    end
+    auras[row].size = appearance[row .. "Icon"]
+  end
   local edge = appearance.edge
   local textColour = style.find(style.TEXT_COLOURS, appearance.textColour)
   return {
@@ -248,6 +269,7 @@ function style.look(appearance, equippedStyle)
     castHeight = appearance.castHeight,
     castColour = castColour(appearance.castColour),
     spenders = appearance.spenders,
+    auras = auras,
   }
 end
 
