@@ -294,6 +294,20 @@ describe("view", function()
     assert.are.equal(40, tooltipLayer(root).height)
   end)
 
+  it("leaves out the status row when it has neither end", function()
+    local root = fake.component()
+    local tooltip = view.tooltip(root)
+    tooltip.show({ title = "Command Skeleton Warrior", info = "Rage.", foot = "Ready" }, 0, 300, 42)
+    assert.are.equal(24 + 4, label("Rage.").y)
+    tooltip.show(
+      { title = "Command Skeleton Warrior", left = "Cooldown 30s", info = "Rage.", foot = "Ready" },
+      0,
+      300,
+      42
+    )
+    assert.are.equal(24 + 14 + 4, label("Rage.").y)
+  end)
+
   it("adds an ability's description to its cooldown tooltip, ending with Ready", function()
     local tooltip = view.tooltip(fake.component())
     local g = view.cooldownGroup(fake.component(), tooltip, function(key)
