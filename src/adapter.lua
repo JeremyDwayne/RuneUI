@@ -527,10 +527,11 @@ local FADE_HOOK = "runeuiFade"
 local EPSILON = 0.005
 -- The main bar's lock button statics, which reach past the layers whose hover reaches its root.
 local MAIN_LOCK = { 269, 270 }
--- Each bar's keybind labels as { static, key }, built once so the Draw handler allocates nothing, and the statics
--- that take its hover: the root, each slot's button and the main bar's lock, which reach past the layers whose
--- hover reaches the root.
+-- Each bar's root key and keybind labels as { static, key }, built once so the handlers allocate nothing, and the
+-- statics that take its hover: the root, each slot's button and the main bar's lock, which reach past the layers
+-- whose hover reaches the root.
 for _, bar in ipairs(ACTION_BARS) do
+  bar.rootKey = bar.id .. ":0"
   bar.keybinds = {}
   bar.hoverStatics = { 0 }
   for slot = 0, SLOTS_PER_BAR - 1 do
@@ -675,7 +676,7 @@ end
 
 -- Whether the client rebuilt bar since RuneUI faded it, which shows its root again.
 local function rebuilt(bar, fade, root)
-  local written = fade.written[bar.id .. ":0"]
+  local written = fade.written[bar.rootKey]
   return written ~= nil and math.abs((read(root, "alpha") or 1) - written) > EPSILON
 end
 
