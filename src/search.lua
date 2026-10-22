@@ -4,7 +4,7 @@
 local search = {}
 
 -- Sources listed before the bosses, in column order after All.
-local GROUPS = { "General", "Prayers", "Curses", "Abilities" }
+local GROUPS = { "General", "Prayers", "Curses", "Abilities", "Spells" }
 local GROUP_RANK = {}
 for i, name in ipairs(GROUPS) do
   GROUP_RANK[name] = i

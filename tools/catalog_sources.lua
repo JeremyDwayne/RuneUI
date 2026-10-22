@@ -34,6 +34,7 @@ return {
     { prefix = "COMBATV2_PRAYER_", source = "Prayers" },
     { prefix = "COMBATV2_CURSE_", source = "Curses" },
     { prefix = "COMBATV2_ABILITY_", source = "Abilities" },
+    { prefix = "MAGIC_", source = "Spells" },
   },
 
   -- Short names for structs whose name is a sentence, by config name.
