@@ -31,6 +31,15 @@ local HEADING_H = 40
 local END_SPACE = 32
 local MARGIN = 16
 local OPTION_H = 28
+local STEPPER_W = 124
+local COLUMNS_H = 30
+-- The Bars page's action bar table: the Fade, Opacity and Show on hover columns' widths, right to left from
+-- the row's right edge, and each toggle's width.
+local HOVER_COL = 120
+local OPACITY_COL = 136
+local FADE_COL = 96
+local TOGGLE_W = 72
+local ACTION_BAR_NAMES = { "Main bar", "Action bar 2", "Action bar 3", "Action bar 4", "Action bar 5" }
 -- Alpha of a stepper whose setting another choice overrides.
 local FADED = 0.45
 -- Colour rows: two lines of swatches and the hex field, and the picker's shade square and hue strip under them.
@@ -278,12 +287,12 @@ local function settingsPage(page, width, height, deps, define)
     return rowOptions(settingRow(label), rowRight, choices, field, optionW)
   end
 
-  -- A - number + stepper from low to high, its number typed: value(appearance) gives the number shown and
-  -- save(n) takes a new one. Returns the row, whose fade(faded) dims the stepper while the setting has no effect.
-  local function numberRow(label, low, high, value, save)
-    local row = settingRow(label)
+  -- A - number + stepper STEPPER_W wide at x on row, from low to high in steps of step, its number typed:
+  -- value(appearance) gives the number shown and save(n) takes a new one. Returns its fade(faded), which dims the
+  -- stepper while the setting has no effect.
+  local function stepper(row, x, low, high, step, value, save)
     local by = (ROW_H - OPTION_H) // 2
-    local field = draw.numberField(row.layer, rowRight - 92, (ROW_H - HEX_H) // 2, 56, HEX_H, low, high, save)
+    local field = draw.numberField(row.layer, x + 32, (ROW_H - HEX_H) // 2, 56, HEX_H, low, high, save)
     local function move(delta)
       return function(_, y)
         if shows(row, by + y) then
@@ -291,20 +300,59 @@ local function settingsPage(page, width, height, deps, define)
         end
       end
     end
-    local minus = draw.button(row.layer, "-", rowRight - 124, by, 28, OPTION_H, "dark", move(-1))
-    local plus = draw.button(row.layer, "+", rowRight - 28, by, 28, OPTION_H, "dark", move(1))
+    local minus = draw.button(row.layer, "-", x, by, 28, OPTION_H, "dark", move(-step))
+    local plus = draw.button(row.layer, "+", x + STEPPER_W - 28, by, 28, OPTION_H, "dark", move(step))
     wheel(minus.bg)
     wheel(plus.bg)
     steppers[#steppers + 1] = function(appearance)
       field.show(value(appearance))
     end
-    function row.fade(faded)
+    return function(faded)
       local alpha = faded and FADED or 1
       minus.group.set("alpha", alpha)
       plus.group.set("alpha", alpha)
       set(field.field, "alpha", alpha)
     end
+  end
+
+  -- A settings row with a stepper by 1 at its right, as stepper takes. Returns the row, whose fade(faded) dims
+  -- the stepper.
+  local function numberRow(label, low, high, value, save)
+    local row = settingRow(label)
+    row.fade = stepper(row, rowRight - STEPPER_W, low, high, 1, value, save)
     return row
+  end
+
+  -- An On or Off button w wide at x on row, flipping the boolean appearance field. Returns its fade(faded).
+  local function toggle(row, x, w, field)
+    local by = (ROW_H - OPTION_H) // 2
+    local o = draw.option(row.layer, "Off", x, by, w, OPTION_H, function(_, y)
+      if shows(row, by + y) then
+        choose(field, not saved.appearance()[field])
+      end
+    end)
+    wheel(o.bg)
+    steppers[#steppers + 1] = function(appearance)
+      draw.showOption(o, appearance[field])
+      set(o.label, "content", appearance[field] and "On" or "Off")
+    end
+    return function(faded)
+      local alpha = faded and FADED or 1
+      for _, part in ipairs({ o.ring, o.bg, o.face, o.label }) do
+        set(part, "alpha", alpha)
+      end
+    end
+  end
+
+  -- A row of column labels, each { label, x, w } centred over its column, under the first, which sits left.
+  local function columns(heads)
+    local row = addRow(COLUMNS_H)
+    for i, head in ipairs(heads) do
+      local align = i == 1 and ui.AlignMode.TOPLEFT or ui.AlignMode.CENTRE
+      local t = text(row.layer, FONTS.small, align, head[2], 0, head[3], COLUMNS_H)
+      set(t, "content", head[1])
+      set(t, "rgb", COLOURS.mutedText)
+    end
   end
 
   -- A number row for the appearance field, from low to high.
@@ -488,6 +536,10 @@ local function settingsPage(page, width, height, deps, define)
     options = rowOptions,
     number = numberRow,
     stepper = stepperRow,
+    row = settingRow,
+    stepperAt = stepper,
+    toggle = toggle,
+    columns = columns,
     colour = colourRow,
     choose = choose,
     -- Redraws the page and the HUD after a change saved outside the appearance, such as a marker.
@@ -601,8 +653,9 @@ function appearancepage.create(page, width, height, deps)
   end)
 end
 
--- The Bars page: the adrenaline bar's markers and size, where the spender rows sit, and the cast bar's width,
--- height, colour, font and text size; see settingsPage.
+-- The Bars page: the adrenaline bar's markers and size, where the spender rows sit, the cast bar's width,
+-- height, colour, font and text size, and whether each game action bar fades, to what opacity, and shows at full
+-- on hover, with the main bar's stats shown or hidden; see settingsPage.
 function appearancepage.bars(page, width, height, deps)
   local view = deps.view
   local saved = deps.saved
@@ -661,9 +714,46 @@ function appearancepage.bars(page, width, height, deps)
     end)
     b.options(size, b.rowRight - 132, { MATCH_HUD }, "castTextSize", 104)
 
+    b.heading("Action bars")
+    local right = b.rowRight
+    local hoverX = right - HOVER_COL
+    local opacityX = hoverX - OPACITY_COL
+    local fadeX = opacityX - FADE_COL
+    b.columns({
+      { "Bar", 32, 200 },
+      { "Fade", fadeX, FADE_COL },
+      { "Opacity %", opacityX, OPACITY_COL },
+      { "Show on hover", hoverX, HOVER_COL },
+    })
+    -- Each bar's fade(faded) for its opacity stepper and hover toggle, dimmed while the bar is not faded.
+    local barFades = {}
+    for bar, name in ipairs(ACTION_BAR_NAMES) do
+      local row = b.row(name)
+      local opacity = "barOpacity" .. bar
+      b.toggle(row, fadeX + (FADE_COL - TOGGLE_W) // 2, TOGGLE_W, "fadeBar" .. bar)
+      local step = settings.OPACITY_STEP
+      local fadeStepper = b.stepperAt(row, opacityX + (OPACITY_COL - STEPPER_W) // 2, 0, 100, step, function(a)
+        return a[opacity]
+      end, function(n)
+        n = math.floor(n / step + 0.5) * step
+        if n ~= saved.appearance()[opacity] then
+          b.choose(opacity, n)
+        end
+      end)
+      local fadeHover = b.toggle(row, hoverX + (HOVER_COL - TOGGLE_W) // 2, TOGGLE_W, "hoverBar" .. bar)
+      barFades[bar] = function(faded)
+        fadeStepper(faded)
+        fadeHover(faded)
+      end
+    end
+    b.choices("Player stats", SHOW_HIDE, "hideBarStats", 90)
+
     return function(look, appearance)
       widthRow.fade(appearance.castMatchWidth)
       size.fade(appearance.castTextSize == "hud")
+      for bar, fade in ipairs(barFades) do
+        fade(not appearance["fadeBar" .. bar])
+      end
       view.setLook({ resource, cast }, look)
       resource.update(frames.resource(SAMPLE_ADRENALINE, saved.markers()))
       cast.update(SAMPLE_CAST)
