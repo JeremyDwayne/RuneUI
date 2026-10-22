@@ -27,7 +27,7 @@ When goals conflict, settle them in this order:
 - `src/adapter.lua` is the only module that calls the client. Every read goes through `pcall` and comes back as a plain table, and a read can always be nil: interfaces unload, and vars are nil before login.
 - `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/targeteffects.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua`, `src/editor.lua`, `src/layout.lua`, `src/icons.lua`, `src/search.lua`, `src/style.lua`, `src/presets.lua`, `src/catalog.lua` and `src/barfade.lua` are pure. Keep client globals out of them.
 - `src/view.lua`, `src/options.lua`, `src/appearancepage.lua`, `src/buffspage.lua`, `src/aurasearch.lua`, `src/scrollbar.lua`, `src/dragdrop.lua` and `src/editmode.lua` draw through `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values.
-- `main.lua` wires events: `VarTransmit` feeds the cooldown and channel trackers, `ServerLogic` reads the adapter and redraws, `Logic` redraws the cast bar and cooldown groups after their vars change and counts them down, and `PluginShutdown` destroys every component.
+- `main.lua` wires events: `VarTransmit` feeds the cooldown, channel and target effects trackers, `ServerLogic` reads the adapter and redraws, `Logic` redraws the cast bar and cooldown groups after their vars change and counts them down, and `PluginShutdown` destroys every component.
 
 ## Hot path
 
