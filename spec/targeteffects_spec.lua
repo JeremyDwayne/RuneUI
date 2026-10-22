@@ -4,7 +4,7 @@ local VULNERABILITY, BLOATED, DEATH_MARK, SMOKE_CLOUD = 14395, 30098, 30100, 147
 
 describe("targeteffects.tracker", function()
   it("shows no debuffs before any var arrives", function()
-    assert.are.same({ sprites = {}, complete = true }, targeteffects.tracker().debuffs())
+    assert.are.same({ sprites = {}, complete = true, timers = {} }, targeteffects.tracker().debuffs())
   end)
 
   it("lists known bits from several vars in the order the game's target panel shows them", function()
@@ -45,8 +45,49 @@ describe("targeteffects.tracker", function()
     tracker.onVar("COMBATV2_TARGET_EFFECTS_11", 0, 0x20)
     local first = tracker.debuffs()
     tracker.onVar("COMBATV2_TARGET_EFFECTS_11", 0x20, 0x20)
-    tracker.onVar("NPCTARGET", -1, 25128)
+    tracker.onVar("LIFEPOINTS", 9900, 9800)
     assert.are.equal(first, tracker.debuffs())
+  end)
+
+  it("counts a debuff's measured length down from the tick its bit set", function()
+    local tracker = targeteffects.tracker()
+    tracker.onTick()
+    tracker.onVar("COMBATV2_TARGET_EFFECTS_11", 0, 0x20)
+    assert.are.same({ [BLOATED] = { left = 33, full = 33 } }, tracker.debuffs().timers)
+    tracker.onTick()
+    tracker.onTick()
+    assert.are.same({ [BLOATED] = { left = 31, full = 33 } }, tracker.debuffs().timers)
+  end)
+
+  it("drops a timer once its time runs out with the bit still set", function()
+    local tracker = targeteffects.tracker()
+    tracker.onVar("COMBATV2_TARGET_EFFECTS_11", 0, 0x20)
+    for _ = 1, 33 do
+      tracker.onTick()
+    end
+    local debuffs = tracker.debuffs()
+    assert.are.same({ BLOATED }, debuffs.sprites)
+    assert.are.same({}, debuffs.timers)
+  end)
+
+  it("times no debuff already set when the target changes", function()
+    local tracker = targeteffects.tracker()
+    tracker.onVar("COMBATV2_TARGET_EFFECTS_11", 0, 0x20)
+    tracker.onVar("NPCTARGET", 25128, 25127)
+    assert.are.same({}, tracker.debuffs().timers)
+    tracker.onVar("COMBATV2_TARGET_EFFECTS_11", 0x20, 0x20 | 0x40)
+    assert.are.same({ [30212] = { left = 50, full = 50 } }, tracker.debuffs().timers)
+  end)
+
+  it("times no debuff without a measured length, nor one set before load", function()
+    local tracker = targeteffects.tracker()
+    tracker.seed(function(name)
+      if name == "COMBATV2_TARGET_EFFECTS_11" then
+        return 0x20
+      end
+    end)
+    tracker.onVar("COMBATV2_TARGET_EFFECTS_11", 0x20, 0x20 | 0x80)
+    assert.are.same({}, tracker.debuffs().timers)
   end)
 
   it("seeds each target effect var from its value at load", function()
