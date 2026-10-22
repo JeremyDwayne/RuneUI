@@ -1,8 +1,9 @@
--- The options window's Buffs page: tabs for buffs, target debuffs, your debuffs and display options. Each
--- tab holds wrapping groups of icons in their sorted order. Dragging an icon swaps it with the icon it lands
--- on or inserts it between two, within its group or into another, as the cooldown editor does; clicking one
--- opens a menu of the group moves, plus Keep up for upkeep buffs. Hovering shows the icon's name. Each icon
--- tab's Find button opens a src/aurasearch popup over every buff and debuff the game defines.
+-- The options window's Buffs page: tabs for buffs on you, debuffs on you, debuffs you inflict and display
+-- options. Each icon tab holds wrapping groups of icons in their sorted order. Dragging an icon swaps it with
+-- the icon it lands on or inserts it between two, within its group or into another, as the cooldown editor
+-- does; clicking one opens a menu of the group moves, plus Keep up for upkeep buffs. Hovering shows the icon's
+-- name. Each icon tab's Find button opens a src/aurasearch popup over every effect of the tab's kind the game
+-- defines.
 local auralists = require("src/auralists")
 local aurasearch = require("src/aurasearch")
 local dragdrop = require("src/dragdrop")
@@ -31,7 +32,6 @@ local DIM = 0.38
 local MARGIN = 24
 local TAB_Y = 14
 local TAB_H = 28
-local TAB_W = 130
 local HEADER = 20
 local PAD = 6
 local MENU_W = 160
@@ -42,12 +42,13 @@ local SEARCH_Y = 84
 local SEARCH_H = 440
 
 -- Each group lists the sprites groups(...) files under kind and value: a buff row, or a debuff kind's
--- tracked or untracked list.
+-- tracked or untracked list. A tab's search lists catalog rows of its kind.
 local TABS = {
   {
     id = "buffs",
-    label = "Buffs",
-    find = { label = "Find buffs", title = "Add buffs", empty = "Find a buff or boss" },
+    label = "Buffs on you",
+    w = 130,
+    find = { label = "Find buffs", kind = "buff", empty = "Find a buff or boss" },
     groups = {
       { label = "Combat buffs", note = "Above the cooldowns row", kind = "buff", value = "combat" },
       {
@@ -60,24 +61,26 @@ local TABS = {
     },
   },
   {
-    id = "target",
-    label = "Target debuffs",
-    find = { label = "Find debuffs", title = "Add target debuffs", empty = "Find a debuff or boss" },
-    groups = {
-      { label = "Tracked", note = "Shown above the target frame", kind = "target", value = true },
-      { label = "Not tracked", note = "Seen but not shown", kind = "target", value = false, dim = true },
-    },
-  },
-  {
     id = "player",
-    label = "Your debuffs",
-    find = { label = "Find debuffs", title = "Add your debuffs", empty = "Find a debuff or boss" },
+    label = "Debuffs on you",
+    w = 140,
+    find = { label = "Find debuffs", kind = "debuff", empty = "Find a debuff or boss" },
     groups = {
       { label = "Tracked", note = "Shown above the player frame", kind = "player", value = true },
       { label = "Not tracked", note = "Seen but not shown", kind = "player", value = false, dim = true },
     },
   },
-  { id = "display", label = "Display" },
+  {
+    id = "target",
+    label = "Debuffs you inflict",
+    w = 160,
+    find = { label = "Find debuffs", kind = "target", empty = "Find a debuff or ability" },
+    groups = {
+      { label = "Tracked", note = "Shown above the target frame", kind = "target", value = true },
+      { label = "Not tracked", note = "Seen but not shown", kind = "target", value = false, dim = true },
+    },
+  },
+  { id = "display", label = "Display", w = 100 },
 }
 local MAX_GROUPS = 3
 
@@ -97,14 +100,15 @@ function buffspage.create(page, width, height, deps)
   -- Tabs ------------------------------------------------------------------------------------------------
 
   local tabParts = {}
-  for i, def in ipairs(TABS) do
-    local x = MARGIN + (i - 1) * (TAB_W + 6)
-    tabParts[def.id] = draw.option(page, def.label, x, TAB_Y, TAB_W, TAB_H, function()
+  local tabX = MARGIN
+  for _, def in ipairs(TABS) do
+    tabParts[def.id] = draw.option(page, def.label, tabX, TAB_Y, def.w, TAB_H, function()
       closeMenu()
       finder.close()
       tab = def.id
       redraw()
     end)
+    tabX = tabX + def.w + 6
   end
 
   local top = TAB_Y + TAB_H + 12
@@ -511,11 +515,17 @@ function buffspage.create(page, width, height, deps)
       seen[#seen + 1] = tonumber(key)
     end
     table.sort(seen)
-    local rows = search.withSeen(deps.catalog, seen, function(sprite)
+    local rows = search.withSeen(deps.catalog, def.find.kind, seen, function(sprite)
       local found = deps.info(sprite)
       return found and found.name
     end)
-    finder.open({ title = def.find.title, empty = def.find.empty, rows = rows, tracked = trackedNow })
+    finder.open({
+      title = def.label,
+      empty = def.find.empty,
+      kind = def.find.kind,
+      rows = rows,
+      tracked = trackedNow,
+    })
   end
 
   -- Tooltip ---------------------------------------------------------------------------------------------

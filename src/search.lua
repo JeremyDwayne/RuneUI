@@ -1,10 +1,23 @@
 -- The Buffs page search over src/catalog: which sources list a query's matches, and the effects a source lists.
--- Rows are { sprite, name, struct, source, cause, info }, struct nil for an icon the catalog lacks. A boss's shared
+-- Rows are { sprite, name, struct, source, kind, cause, info }, struct nil for an icon the catalog lacks, and kind
+-- "buff" or "debuff" for one on you or "target" for one you inflict. Each call takes one kind. A boss's shared
 -- effect is a second row for its struct, so All lists each struct once. Pure.
 local search = {}
 
--- Sources listed before the bosses, in column order after All.
-local GROUPS = { "General", "Prayers", "Curses", "Abilities", "Spells" }
+-- Sources listed before the bosses, in column order after All: the groups of effects on you, then the styles of
+-- those you inflict.
+local GROUPS = {
+  "General",
+  "Prayers",
+  "Curses",
+  "Abilities",
+  "Magic",
+  "Ranged",
+  "Melee",
+  "Necromancy",
+  "Any style",
+  "Weapons and items",
+}
 local GROUP_RANK = {}
 for i, name in ipairs(GROUPS) do
   GROUP_RANK[name] = i
@@ -25,31 +38,34 @@ local function identity(row)
   return row.struct or -row.sprite
 end
 
--- The catalog with each seen sprite it lacks added to General, named by name(sprite) or "Unknown effect".
-function search.withSeen(catalog, seen, name)
+-- The catalog with each seen sprite it lacks for kind added to General, named by name(sprite) or
+-- "Unknown effect".
+function search.withSeen(catalog, kind, seen, name)
   local listed = {}
   for _, row in ipairs(catalog) do
-    listed[row.sprite] = true
+    if row.kind == kind then
+      listed[row.sprite] = true
+    end
   end
   local rows = { table.unpack(catalog) }
   for _, sprite in ipairs(seen) do
     if not listed[sprite] then
       listed[sprite] = true
-      rows[#rows + 1] = { sprite = sprite, name = name(sprite) or "Unknown effect", source = "General" }
+      rows[#rows + 1] = { sprite = sprite, name = name(sprite) or "Unknown effect", source = "General", kind = kind }
     end
   end
   return rows
 end
 
--- { name, count } for All, then each source with a row matching query, ignoring case, in column order: the
--- groups, then bosses by name.
-function search.sources(rows, query)
+-- { name, count } for All, then each source with a row of kind matching query, ignoring case, in column order:
+-- the groups, then bosses by name.
+function search.sources(rows, kind, query)
   query = query:lower()
   local counts = {}
   local all = 0
   local inAll = {}
   for _, row in ipairs(rows) do
-    if matches(row, query) then
+    if row.kind == kind and matches(row, query) then
       counts[row.source] = (counts[row.source] or 0) + 1
       local id = identity(row)
       if not inAll[id] then
@@ -74,21 +90,24 @@ function search.sources(rows, query)
   return out
 end
 
--- The rows source lists that match query, ignoring case, sorted by name, each a copy with tracked set when
--- tracked, a { [sprite] = true } set, holds its sprite. "All" lists every source, each struct once.
-function search.rows(rows, source, query, tracked)
+-- The rows of kind that source lists and that match query, ignoring case, sorted by name, each a copy with
+-- tracked set when tracked, a { [sprite] = true } set, holds its sprite. "All" lists every source, each struct
+-- once.
+function search.rows(rows, kind, source, query, tracked)
   query = query:lower()
   local out = {}
   local inAll = {}
   for _, row in ipairs(rows) do
     local id = identity(row)
-    if (source == "All" and not inAll[id] or row.source == source) and matches(row, query) then
+    local listed = source == "All" and not inAll[id] or row.source == source
+    if row.kind == kind and listed and matches(row, query) then
       inAll[id] = true
       out[#out + 1] = {
         sprite = row.sprite,
         name = row.name,
         struct = row.struct,
         source = row.source,
+        kind = row.kind,
         cause = row.cause,
         info = row.info,
         tracked = tracked[row.sprite] == true,

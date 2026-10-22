@@ -1,6 +1,102 @@
--- Hand-kept data tools/catalog.lua builds src/catalog.lua from: which source each struct lists under, short
--- names for structs named by a sentence, and the shared effects each boss applies.
+-- Hand-kept data tools/catalog.lua builds src/catalog.lua from: which source and kind each struct lists under,
+-- short names for structs named by a sentence, the shared effects each boss applies, and the debuffs players
+-- inflict.
 return {
+  -- Struct config name tokens of structs left out: a boss's or monster's own state, and interface buttons.
+  left = {
+    "BUTTON_DUMMY_STRUCT",
+    "WORN_SLOT",
+    "SLISKE_MANIA",
+    "SLISKE_DELIRIUM",
+    "SLISKE_RAGE",
+    "NEX2_DAMAGE_BUFF",
+    "BOSS_BUFF_SB_",
+    "SPIDERBOSS_SPEC",
+    "BUFF_EGWD_WEN_BOSS_DAMAGE_MOD",
+    "BUFF_EGWD_JAS_BOSS_DAMAGE_MOD",
+    "FLAMES_OF_ZAMORAK_BOSS_STACKS",
+    "INFERNUS_DEMON_FIXATE",
+    "BUFF_HEX_HEALER",
+    "BUFF_HEX_SHIELDER",
+    "CERBERUS_DEFENSIVE_BUFF",
+    "BOSS_BUFF_DINO_",
+    "BUFF_EGWD_FUL_BOSS_GROUNDED",
+    "COILSPAWN_BOND",
+    "SHADOW_CLONE_EMPOWERED",
+    "SCABARAS_BLESSING_CARAPACE",
+    "CRONDIS_BLESSING_MODESTY",
+    "HET_BLESSING_HEALING",
+    "BLINKING_STRIKE_SOFT_ENRAGE",
+    "THRONE_ROOM_DARKNESS",
+    "POISON_IMMUNE",
+    "REFLECT_IMMUNE",
+    "DEMON_BOOST",
+    "DRAGON_BOOST",
+    "UNDEAD_BOOST",
+    "SPIDER_BOOST_",
+    "FLANKING",
+    "HITCHANCE_DAMAGE_REDUCTION",
+    "STUN_IMMUNE_DUMMY",
+    "PROVOKE_IMMUNE",
+    "GROUP_IRONMAN_NO_DROP",
+    "WENDLE_HEDGEHOG_BOSS_REFLECT",
+    "BOSS_BUFF_RASIAL_MAINHAND_PASSIVE",
+    "BOSS_BUFF_NECROMANCY_",
+    "BOSS_BUFF_DEVOURERS_CORRUPTION",
+    "BUFF_BLOOD_KNIGHT_",
+  },
+
+  -- Spell structs listed as buffs on you, by config name. Other spells are left out.
+  spells = {
+    MAGIC_ANIMATE_DEAD = true,
+    MAGIC_BORROWED_POWER = true,
+    MAGIC_DISRUPTION_SHIELD = true,
+    MAGIC_INCITE_FEAR = true,
+    MAGIC_SEREN_CRYSTAL_MASK = true,
+    MAGIC_VAMPYRISM = true,
+  },
+
+  -- Struct config name tokens of debuffs on you among structs with no boss.
+  debuffs = {
+    "DEBUFF",
+    "NERFED",
+    "STUNNED_",
+    "BOUND_",
+    "POISONED_",
+    "HOLDSPELL",
+    "BLEED_DUMMY",
+    "MUDSTUN",
+    "SOUL_DRAIN",
+    "MENAPHOS_CORRUPTION",
+    "DINO_SLAYER_TOXIC",
+    "DRAGONFIRE_DUMMY",
+    "TELEBLOCKED",
+    "MOLE2_SHIELD_DOT",
+    "QUEST_DESERT_LEELA_CORRUPTION",
+    "EGWD_WEN_SLAYER_FREEZE",
+    "_CURSE_DUMMY_ABILITY",
+    "PRAYER_DEBUFF",
+    "VORAGO_DOT",
+  },
+
+  -- Struct config name tokens of buffs on you among a boss's structs. The rest are debuffs on you.
+  bossBuffs = {
+    "_STREAM_DUMMY",
+    "RUNE_OFFENSIVE_ZONE_BUFF",
+    "RUNE_DEFENSIVE_ZONE_BUFF",
+    "RUNE_DEFENSIVE_CLEANSING_BUFF",
+    "RUNE_GUARDIANS_TRIUMPH_COOLDOWN",
+    "REXKINGS_MELEE_THAWED",
+    "REXKINGS_MAGIC_SHOCKED",
+    "REXKINGS_OVERCHARGED_MAGIC_ATTACK",
+    "DINO_BOSS_SHADOW_POWER",
+    "FUL_BOSS_INFERNAL_ENERGY",
+    "CHALLENGERS_VENGEANCE",
+    "FUL_BOSS_HEATING_UP",
+    "BLESSING_OF_",
+    "ALTAR_INTERCEPTOR",
+  },
+
   -- Struct config name tokens that keep a struct under General though it holds a boss token: god book
   -- effects, slayer creatures and miniquests.
   general = { "GOD_BOOK", "SLAYER", "MINIQUEST" },
@@ -19,14 +115,8 @@ return {
     { token = "NATURE_BOSS", boss = "Solak" },
     { token = "REXKINGS", boss = "Rex Matriarchs" },
     { token = "DINO_BOSS", boss = "Raksha" },
-    { token = "BOSS_BUFF_DINO", boss = "Raksha" },
-    { token = "SLISKE", boss = "Gregorovic" },
-    { token = "NEX2", boss = "Nex: Angel of Death" },
-    { token = "BOSS_BUFF_SB_", boss = "Araxxor" },
-    { token = "SPIDERBOSS", boss = "Araxxor" },
     { token = "ELIDINIS_BOSS", boss = "Gate of Elidinis" },
     { token = "VORAGO", boss = "Vorago" },
-    { token = "RAID_REBIRTH", boss = "Sanctum of Rebirth" },
   },
 
   -- Config name prefixes of structs with no boss, to their source. The rest list under General.
@@ -34,7 +124,6 @@ return {
     { prefix = "COMBATV2_PRAYER_", source = "Prayers" },
     { prefix = "COMBATV2_CURSE_", source = "Curses" },
     { prefix = "COMBATV2_ABILITY_", source = "Abilities" },
-    { prefix = "MAGIC_", source = "Spells" },
   },
 
   -- Short names for structs whose name is a sentence, by config name.
@@ -229,4 +318,9 @@ return {
     },
     { boss = "Zamorak", effect = "COMBATV2_PRAYER_DEBUFF", cause = "Chaos Blast" },
   },
+
+  -- Debuffs players inflict on a target, each { style, effect, cause }: style is the combat style that
+  -- inflicts it, Any style or Weapons and items, effect the struct's config name, and cause the ability, spell
+  -- or item that inflicts it.
+  inflicted = {},
 }

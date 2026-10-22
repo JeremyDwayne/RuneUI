@@ -12,7 +12,7 @@ This folder is the maintained source for verifying what a RuneUI player sees and
 ## Driving conventions
 
 - The player performs every action in the game. The agent never sends input to the client.
-- Name controls by the text the player sees: **Open RuneUI options**, **Buffs**, **Your debuffs**, **Done**.
+- Name controls by the text the player sees: **Open RuneUI options**, **Buffs**, **Debuffs on you**, **Done**.
 - Give one batch of steps per message, then end the turn and wait for "done". Use `scripts/shot.sh <name> <delay>` only for hovers, with a delay of at least 20 s.
 - Combat recipes use a training dummy. Hitting it applies target debuffs; the player's own debuffs need a boss or a dummy that stuns.
 - After a mutation, read the saved key with `scripts/db.sh` and say what changed.

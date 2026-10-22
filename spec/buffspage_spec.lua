@@ -20,12 +20,22 @@ local function fakeStore()
   }
 end
 
--- The search's catalog: two boss effects no tab tracks by default.
+-- The search's catalog: two boss debuffs on you, a buff on you and a debuff you inflict, none tracked by default.
 local HOARY_CHILL = 41000
+local SUNSHINE = 41002
 local CATALOG = {
-  { sprite = HOARY_CHILL, name = "Hoary Chill", struct = 41057, source = "Arch-Glacor" },
-  { sprite = 41001, name = "Choking", struct = 41787, source = "Zamorak" },
+  { sprite = HOARY_CHILL, name = "Hoary Chill", struct = 41057, source = "Arch-Glacor", kind = "debuff" },
+  { sprite = 41001, name = "Choking", struct = 41787, source = "Zamorak", kind = "debuff" },
+  { sprite = SUNSHINE, name = "Sunshine", struct = 41700, source = "Abilities", kind = "buff" },
+  { sprite = 41003, name = "Smoke Cloud", struct = 41800, source = "Magic", kind = "target", cause = "Smoke Cloud" },
 }
+
+-- Whether the search shows, by its field's placeholder.
+local function searchShows(placeholder)
+  return fake.find(function(_, d)
+    return d.emptyText == placeholder
+  end) ~= nil
+end
 
 -- A Buffs page with Bone Shield in combat buffs, an antifire in upkeep, and Stun Immune seen on a target.
 -- info names every icon "Icon" unless given, and the search lists catalog, CATALOG unless given. Returns the
@@ -151,7 +161,7 @@ describe("buffspage", function()
 
   it("stops tracking a target debuff from the menu a click opens", function()
     local _, saved = open()
-    fake.press("Target debuffs")
+    fake.press("Debuffs you inflict")
     click(tileEdge(BLOATED))
     fake.press("Stop tracking")
     assert.is_false(saved.tracked("target")[tostring(BLOATED)])
@@ -195,9 +205,10 @@ describe("buffspage", function()
 
   it("tracks a debuff from the search, naming it at once, and stops tracking it from Tracked", function()
     local _, saved, _, learned, layer = open()
-    fake.press("Your debuffs")
+    fake.press("Debuffs on you")
     fake.press("Find debuffs")
-    assert.is_true(shows("Add your debuffs"))
+    assert.is_true(searchShows("Find a debuff or boss"))
+    assert.is_false(shows("Smoke Cloud"))
     assert.is_true(shows("Chills you."))
     fake.press("Track", 2)
     assert.is_true(saved.tracked("player")[tostring(HOARY_CHILL)])
@@ -212,11 +223,23 @@ describe("buffspage", function()
     assert.is_false(saved.tracked("player")[tostring(HOARY_CHILL)])
   end)
 
-  it("tracks a buff from the search into combat buffs", function()
+  it("tracks a buff from the search into combat buffs, listing no debuff", function()
     local _, saved = open()
     fake.press("Find buffs")
-    fake.press("Track", 2)
-    assert.are.equal("combat", saved.auras()[tostring(HOARY_CHILL)])
+    assert.is_false(shows("Hoary Chill"))
+    fake.press("Track")
+    assert.are.equal("combat", saved.auras()[tostring(SUNSHINE)])
+  end)
+
+  it("lists only debuffs you inflict on the target tab, by combat style", function()
+    local _, saved = open()
+    fake.press("Debuffs you inflict")
+    fake.press("Find debuffs")
+    assert.is_true(searchShows("Find a debuff or ability"))
+    assert.are.same({ true, false }, { shows("From Smoke Cloud"), shows("Hoary Chill") })
+    fake.press("Magic")
+    fake.press("Track")
+    assert.is_true(saved.tracked("target")["41003"])
   end)
 
   it("closes the search by its X, and with the page's popups", function()
@@ -229,17 +252,18 @@ describe("buffspage", function()
       end),
       "ONCLICK"
     )
-    assert.is_false(shows("Add buffs"))
+    assert.is_false(searchShows("Find a buff or boss"))
     fake.press("Find buffs")
     page.close()
     assert.is_false(page.popupOpen())
-    assert.is_false(shows("Add buffs"))
+    assert.is_false(searchShows("Find a buff or boss"))
   end)
 
   it("scrolls the effect list by the wheel, hiding rows out of view", function()
     local catalog = {}
     for i = 1, 20 do
-      catalog[i] = { sprite = 50000 + i, name = string.format("Effect %02d", i), struct = i, source = "General" }
+      catalog[i] =
+        { sprite = 50000 + i, name = string.format("Effect %02d", i), struct = i, source = "General", kind = "buff" }
     end
     open(nil, catalog)
     fake.press("Find buffs")

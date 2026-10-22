@@ -4,7 +4,7 @@
 --
 -- The dump is tab separated with a header row naming at least id, configName, icon and name: one row per
 -- COMBATV2_ or MAGIC_ struct with an icon and a name. Warnings go to stderr: a boss token no struct matches, a
--- shared effect naming a struct the dump lacks, and names still too long to read as a name.
+-- shared or inflicted effect naming a struct the dump lacks, and names still too long to read as a name.
 local icons = require("src/icons")
 local sources = require("tools/catalog_sources")
 
@@ -53,45 +53,78 @@ local function readDump(path)
   return rows
 end
 
--- The source a struct lists under, counting each boss token it matches in hits.
-local function sourceOf(configName, hits)
-  for _, token in ipairs(sources.general) do
+-- Whether configName holds any of tokens.
+local function holds(configName, tokens)
+  for _, token in ipairs(tokens) do
     if configName:find(token, 1, true) then
-      return "General"
+      return true
     end
+  end
+  return false
+end
+
+-- The source and kind a struct lists under, or nil when it is left out, counting each boss token it matches
+-- in hits. A boss's struct is a debuff on you unless it names a boss buff; any other is a buff on you unless
+-- it names a debuff.
+local function sourceOf(configName, hits)
+  if holds(configName, sources.left) then
+    return nil
+  end
+  if configName:sub(1, 6) == "MAGIC_" then
+    if sources.spells[configName] then
+      return "General", "buff"
+    end
+    return nil
+  end
+  local kind = holds(configName, sources.debuffs) and "debuff" or "buff"
+  if holds(configName, sources.general) then
+    return "General", kind
   end
   for _, rule in ipairs(sources.bosses) do
     if configName:find(rule.token, 1, true) then
       hits[rule.token] = (hits[rule.token] or 0) + 1
-      return rule.boss
+      return rule.boss, holds(configName, sources.bossBuffs) and "buff" or "debuff"
     end
   end
   for _, group in ipairs(sources.groups) do
     if configName:sub(1, #group.prefix) == group.prefix then
-      return group.source
+      return group.source, kind
     end
   end
-  return "General"
+  return "General", kind
+end
+
+-- The config names of structs listed as debuffs you inflict.
+local function inflictedNames()
+  local out = {}
+  for _, row in ipairs(sources.inflicted) do
+    out[row.effect] = true
+  end
+  return out
 end
 
 local function build(dump)
   local rows = {}
   local seen = {}
   local hits = {}
-  -- Each struct's row by config name, for the shared effects.
+  local inflicted = inflictedNames()
+  -- Each struct's row by config name, for the shared and inflicted effects.
   local byName = {}
   for _, d in ipairs(dump) do
     local hand = sources.names[d.configName]
     local name = (hand or icons.split(d.name)):match("^%s*(.-)%s*$")
     -- A struct named by a sentence keeps the sentence as its description.
     local info = hand ~= nil and hand ~= d.name and d.name or nil
-    local source = sourceOf(d.configName, hits)
-    local key = d.icon .. "\t" .. name .. "\t" .. source
-    byName[d.configName] = { sprite = d.icon, name = name, struct = d.struct }
-    if not seen[key] then
+    local source, kind = sourceOf(d.configName, hits)
+    byName[d.configName] = { sprite = d.icon, name = name, struct = d.struct, info = info }
+    -- A debuff you inflict lists on you too only when it is a debuff on you, as Stunned is.
+    if inflicted[d.configName] and kind ~= "debuff" then
+      source = nil
+    end
+    local key = source and table.concat({ d.icon, name, source, kind }, "\t")
+    if key and not seen[key] then
       seen[key] = true
-      local row = { sprite = d.icon, name = name, struct = d.struct, source = source, info = info }
-      rows[#rows + 1] = row
+      rows[#rows + 1] = { sprite = d.icon, name = name, struct = d.struct, source = source, kind = kind, info = info }
       if #name > LONG_NAME then
         warn("long name:", d.configName, name)
       end
@@ -107,11 +140,36 @@ local function build(dump)
     if own == nil then
       warn("no struct", shared.effect, "for", shared.boss)
     else
-      rows[#rows + 1] =
-        { sprite = own.sprite, name = own.name, struct = own.struct, source = shared.boss, cause = shared.cause }
+      rows[#rows + 1] = {
+        sprite = own.sprite,
+        name = own.name,
+        struct = own.struct,
+        source = shared.boss,
+        kind = "debuff",
+        cause = shared.cause,
+      }
+    end
+  end
+  for _, row in ipairs(sources.inflicted) do
+    local own = byName[row.effect]
+    if own == nil then
+      warn("no struct", row.effect, "inflicted by", row.cause)
+    else
+      rows[#rows + 1] = {
+        sprite = own.sprite,
+        name = own.name,
+        struct = own.struct,
+        source = row.style,
+        kind = "target",
+        cause = row.cause,
+        info = own.info,
+      }
     end
   end
   table.sort(rows, function(a, b)
+    if a.kind ~= b.kind then
+      return a.kind < b.kind
+    end
     if a.source ~= b.source then
       return a.source < b.source
     end
@@ -126,20 +184,23 @@ end
 local function write(rows)
   local out = {
     "-- Generated by tools/catalog.lua from a struct dump and tools/catalog_sources.lua. Edit those, not this.",
-    "-- Every buff and debuff struct with an icon and a name, as { sprite, name, struct, source, cause, info }:",
-    "-- source is General, Prayers, Curses, Abilities, Spells or a boss, cause the attack behind a boss's shared",
-    "-- effect, and info the sentence a struct is named by in the game, when it has a short name here.",
+    "-- Every buff and debuff struct with an icon and a name, as { sprite, name, struct, source, kind, cause, info }:",
+    "-- kind is buff or debuff on you, or target for a debuff you inflict. Source is General, Prayers, Curses,",
+    "-- Abilities or a boss on you, and a combat style or Weapons and items on a target. Cause is the attack",
+    "-- behind a boss's shared effect or the ability, spell or item that inflicts one, and info the sentence a",
+    "-- struct is named by in the game, when it has a short name here.",
     "return {",
   }
   for _, r in ipairs(rows) do
     local cause = r.cause and string.format(", cause = %q", r.cause) or ""
     local info = r.info and string.format(", info = %q", r.info) or ""
     out[#out + 1] = string.format(
-      "  { sprite = %d, name = %q, struct = %d, source = %q%s%s },",
+      "  { sprite = %d, name = %q, struct = %d, source = %q, kind = %q%s%s },",
       r.sprite,
       r.name,
       r.struct,
       r.source,
+      r.kind,
       cause,
       info
     )

@@ -45,9 +45,9 @@ end
 
 -- A w by h popup at x, y on parent, hidden until opened. deps: { describe(struct) returning a description or
 -- nil, choose(row, on) tracking or untracking a src/search row }. Returns { open(view), close, isOpen, follow,
--- cancel }: open shows view, { title, empty, rows, tracked() }, where empty is the field's placeholder, rows the
--- src/search rows and tracked() the tab's current { [sprite] = true } set; follow runs every frame to move a
--- held scrollbar thumb, and cancel ends one.
+-- cancel }: open shows view, { title, empty, kind, rows, tracked() }, where empty is the field's placeholder,
+-- rows the src/search rows, kind the src/search kind listed and tracked() the tab's current { [sprite] = true }
+-- set; follow runs every frame to move a held scrollbar thumb, and cancel ends one.
 function aurasearch.create(parent, x, y, w, h, deps)
   local layer = ui.Layer.new(parent)
   draw.pos(layer, x, y)
@@ -228,7 +228,7 @@ function aurasearch.create(parent, x, y, w, h, deps)
 
   -- Lists the chosen source's effects, keeping the scroll when keep is true, as after a choice.
   function fillEffects(keep)
-    effects = search.rows(view.rows, source, query, view.tracked())
+    effects = search.rows(view.rows, view.kind, source, query, view.tracked())
     local tracked = 0
     for _, item in ipairs(effects) do
       if item.tracked then
@@ -248,7 +248,7 @@ function aurasearch.create(parent, x, y, w, h, deps)
 
   -- Lists the sources matching the query, choosing All while one is typed.
   local function fillSources()
-    sources = search.sources(view.rows, query)
+    sources = search.sources(view.rows, view.kind, query)
     if query ~= "" then
       source = "All"
     end
