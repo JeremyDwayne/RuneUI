@@ -132,6 +132,22 @@ function auras.tracker()
     return m
   end
 
+  -- A target debuff's model from its timer, { left, full } in ticks, labelled as the game's bars label a time:
+  -- whole seconds rounded up to 60, whole minutes above.
+  local function timedModel(sprite, timer)
+    local left = timer.left * TICK
+    local full = timer.full * TICK
+    local seconds = (left + 9) // 10
+    return {
+      sprite = sprite,
+      text = seconds <= 60 and tostring(seconds) or (seconds // 60 .. "m"),
+      left = left / 10,
+      full = full / 10,
+      fill = left / full,
+      highlight = left * 10 <= full or left <= HIGHLIGHT_SECONDS * 10,
+    }
+  end
+
   -- Sorts row's models by rank, a { [sprite] = position } map, keeping the row's order among unranked ones,
   -- then drops all but the first MAX_ICONS.
   local function finish(row, rank)
@@ -162,13 +178,15 @@ function auras.tracker()
   -- shows a sprite, keepUp is settings' { [tostring(sprite)] = true }, and rank returns the "buffs", "target"
   -- or "player" sorted order as { [sprite] = position }. Returns { targetDebuffs, playerDebuffs, upkeepBuffs,
   -- combatBuffs }, keyed by HUD element, each a list of up to 10 models in rank order, with unranked icons
-  -- after in bar order. Target debuffs carry only their sprite. While hasTarget, each Keep up upkeep buff
-  -- missing from the bar joins the upkeep row as { sprite, missing = true }.
-  function tracker.rows(categories, targetDebuffs, filters)
+  -- after in bar order. timers: { [sprite] = { left, full } } in ticks for the target debuffs with a time;
+  -- the rest carry only their sprite. While hasTarget, each Keep up upkeep buff missing from the bar joins the
+  -- upkeep row as { sprite, missing = true }.
+  function tracker.rows(categories, targetDebuffs, filters, timers)
     local rows = { targetDebuffs = {}, playerDebuffs = {}, upkeepBuffs = {}, combatBuffs = {} }
     for _, sprite in ipairs(targetDebuffs) do
       if filters.tracked("target", sprite) then
-        rows.targetDebuffs[#rows.targetDebuffs + 1] = { sprite = sprite }
+        local timer = timers and timers[sprite]
+        rows.targetDebuffs[#rows.targetDebuffs + 1] = timer and timedModel(sprite, timer) or { sprite = sprite }
       end
     end
     for _, sprite in ipairs(bars.debuffs.order) do

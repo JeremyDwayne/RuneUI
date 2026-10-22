@@ -172,7 +172,8 @@ local function refresh()
   adapter.fadeActionBars(appearance)
   local moved = restyle()
   elements.player.update(frames.player(adapter.playerReads(), appearance.lifepoints))
-  local target = frames.target(adapter.targetReads(effectsTracker.debuffs()), appearance.lifepoints)
+  local effects = effectsTracker.debuffs()
+  local target = frames.target(adapter.targetReads(effects), appearance.lifepoints)
   elements.target.update(target)
   local reads = adapter.resourceReads(frames.SPENDERS)
   reads.necromancy = tracker.style() == "necromancy"
@@ -198,7 +199,7 @@ local function refresh()
   for _, sprite in ipairs(target.debuffs or {}) do
     saved.seeDebuff("target", sprite)
   end
-  for name, models in pairs(auraTracker.rows(saved.auras(), target.debuffs or {}, auraFilters)) do
+  for name, models in pairs(auraTracker.rows(saved.auras(), target.debuffs or {}, auraFilters, effects.timers)) do
     -- Asking for each aura's name queues unnamed icons for the background scan.
     for _, model in ipairs(models) do
       auraNames.info(model.sprite)
@@ -228,6 +229,7 @@ optionsWindow = options.create(top, {
 Event.ServerLogic.Subscribe("refresh", function()
   logicTicks = 0
   channelTracker.onTick()
+  effectsTracker.onTick()
   channelTracker.read(adapter.iconStruct)
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then
