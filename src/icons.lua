@@ -35,6 +35,16 @@ function icons.spriteLabel(configName)
   return #words > 0 and table.concat(words, " ") or nil
 end
 
+-- A struct name of the form "Name - text" as the name and the text, or the whole name alone: "Drenched - Each
+-- stack slows you." gives "Drenched" and "Each stack slows you.".
+function icons.split(name)
+  local short, rest = name:match("^(.-) %- (.+)$")
+  if short == nil then
+    return name
+  end
+  return short, rest
+end
+
 -- What info returns for an icon with no name and no sprite label once the scan gives up.
 local NO_NAME = {}
 
@@ -52,7 +62,7 @@ end
 local function rank(struct, words)
   local any = false
   local all = true
-  for word in tostring(struct.name):lower():gmatch("%a+") do
+  for word in icons.split(tostring(struct.name)):lower():gmatch("%a+") do
     any = true
     if not words[word] then
       all = false
@@ -64,13 +74,16 @@ local function rank(struct, words)
   return struct.configName:sub(1, 16) == "COMBATV2_DEBUFF_" and 2 or 3
 end
 
--- saved: { [tostring(sprite)] = { name, struct } or { unmatched = true } } from settings. client: { spriteName,
+-- saved: { [tostring(sprite)] = { name, struct } or { unmatched = true } } from settings, each name shown up to
+-- any " - ". client: { spriteName,
 -- itemName, describe }, where spriteName(sprite) returns the sprite's config name, itemName(objID) an item's
 -- name and describe(structID) a struct's description, each or nil. count overrides STRUCT_COUNT for specs.
 -- info(sprite) returns { name, info }, its sprite label as { name }, {} once no struct matches an icon with no
 -- label, or nil while one is looked up, and wants the icon when unknown. step(lookup, budget) scans budget
 -- struct ids, where lookup(id) returns { configName, icon, name } or nil, and returns what it settled for
--- saving: { sprite, name, struct } for a named icon, { sprite } for one no struct matches.
+-- saving: { sprite, name, struct } for a named icon, { sprite } for one no struct matches. learn(sprite, name,
+-- struct) names an icon not yet named at once, as a scan match does, and returns whether it did, so the caller
+-- saves it.
 function icons.index(saved, client, count)
   count = count or icons.STRUCT_COUNT
   local known = {}
@@ -83,7 +96,7 @@ function icons.index(saved, client, count)
     if entry.unmatched then
       unmatched[sprite] = true
     else
-      known[sprite] = { name = entry.name }
+      known[sprite] = { name = (icons.split(entry.name)) }
       undescribed[sprite] = entry.struct
     end
   end
@@ -121,10 +134,20 @@ function icons.index(saved, client, count)
   end
 
   local function name(sprite, struct, structID)
-    known[sprite] = { name = struct.name }
+    local short = icons.split(struct.name)
+    known[sprite] = { name = short }
     undescribed[sprite] = structID
     wanted[sprite] = nil
-    return { sprite = sprite, name = struct.name, struct = structID }
+    return { sprite = sprite, name = short, struct = structID }
+  end
+
+  function index.learn(sprite, newName, structID)
+    if known[sprite] ~= nil then
+      return false
+    end
+    name(sprite, { name = newName }, structID)
+    unmatched[sprite] = nil
+    return true
   end
 
   function index.step(lookup, budget)

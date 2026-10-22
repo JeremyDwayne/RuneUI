@@ -1,4 +1,6 @@
 -- The only module that reads the RS3 client. Returns plain tables in the shapes src/frames expects.
+local icons = require("src/icons")
+
 local adapter = {}
 
 local MAIN_BAR = 1430
@@ -543,17 +545,39 @@ local function readSpriteName(sprite)
   return id.Sprite.FromID(sprite)
 end
 
-local function readStructInfo(structID)
-  local param = config.Param.COMBATV2_ABILITY_INFO
-  local struct = config.Struct.FromID(structID)
-  if struct ~= nil and struct:HasParam(param) then
-    return struct:GetParamValue(param)
+-- A struct's COMBATV2_ABILITY_INFO text, or the text after " - " in its name when it has none, or nil.
+local function describe(struct)
+  if struct == nil then
+    return nil
+  end
+  local info = config.Param.COMBATV2_ABILITY_INFO
+  if struct:HasParam(info) then
+    return struct:GetParamValue(info)
+  end
+  local name = config.Param.COMBATV2_ABILITY_NAME
+  if name ~= nil and struct:HasParam(name) then
+    return select(2, icons.split(tostring(struct:GetParamValue(name))))
   end
 end
 
--- src/icons descriptions: the COMBATV2_ABILITY_INFO text of the struct at structID, or nil.
+local function readStructInfo(structID)
+  return describe(config.Struct.FromID(structID))
+end
+
+-- src/icons descriptions: the description of the struct at structID, or nil.
 function adapter.structInfo(structID)
   local ok, info = pcall(readStructInfo, structID)
+  return ok and type(info) == "string" and info or nil
+end
+
+local function readAbilityInfo(key)
+  return describe(config.Struct["COMBATV2_ABILITY_" .. key])
+end
+
+-- Cooldown tooltip descriptions: the description of the ability struct for a cooldown key such as
+-- MAGIC_FINGER_OF_DEATH, or nil, as when the struct is missing.
+function adapter.abilityInfo(key)
+  local ok, info = pcall(readAbilityInfo, key)
   return ok and type(info) == "string" and info or nil
 end
 

@@ -8,6 +8,7 @@ local STRUCTS = {
   [5] = { configName = "COMBATV2_ABILITY_NECROMANCY_BLOAT", icon = 30098, name = "Bloat" },
   [6] = { configName = "COMBATV2_POISONED_DUMMY_ABILITY", icon = 30097, name = "Poisoned" },
   [8] = { configName = "COMBATV2_DEBUFF_NECROMANCY_BLOATED", icon = 30098, name = "Bloated", info = "Swollen." },
+  [9] = { configName = "COMBATV2_DEBUFF_DRENCHED", icon = 30500, name = "Drenched - Each stack slows you." },
 }
 local looked = 0
 local function lookup(id)
@@ -49,6 +50,15 @@ describe("icons.spriteLabel", function()
   end)
 end)
 
+describe("icons.split", function()
+  it("splits a name of the form Name - text into the name and the text", function()
+    assert.are.same({ "Drenched", "Each stack slows you." }, { icons.split("Drenched - Each stack slows you.") })
+    assert.are.same({ "Delirium", "Poison grows - fast." }, { icons.split("Delirium - Poison grows - fast.") })
+    assert.are.same({ "Stun Immune" }, { icons.split("Stun Immune") })
+    assert.are.same({ "Anti-poison" }, { icons.split("Anti-poison") })
+  end)
+end)
+
 describe("icons.index", function()
   it("names wanted icons, preferring a debuff struct over an earlier match, and saves what it found", function()
     local index = icons.index({}, client(true), 10)
@@ -73,6 +83,28 @@ describe("icons.index", function()
     assert.are.same({ name = "Bloated", info = "Swollen." }, index.info(30098))
     index.info(30098)
     assert.are.same({ 1, { name = "Bloated", struct = 8 } }, { described, saved["30098"] })
+  end)
+
+  it("shows a saved Name - text name, and a scan match, by the name alone", function()
+    local index = icons.index({ ["30098"] = { name = "Drenched - Each stack slows you." } }, client(), 10)
+    assert.are.equal("Drenched", index.info(30098).name)
+    index.info(30500)
+    local found = {}
+    for _ = 1, 4 do
+      for _, f in ipairs(index.step(lookup, 3)) do
+        found[#found + 1] = f
+      end
+    end
+    assert.are.same({ { sprite = 30500, name = "Drenched", struct = 9 } }, found)
+  end)
+
+  it("names an icon it learns at once with no scan, and leaves a named icon alone", function()
+    local index = icons.index({ ["30098"] = { name = "Bloated", struct = 8 } }, client(), 10)
+    assert.is_true(index.learn(26104, "Stun Immune", 3))
+    assert.is_false(index.learn(30098, "Swollen", 5))
+    looked = 0
+    index.step(lookup, 5)
+    assert.are.same({ 0, "Stun Immune", "Bloated" }, { looked, index.info(26104).name, index.info(30098).name })
   end)
 
   it("starts from saved names and scans nothing until an unknown icon is wanted", function()
