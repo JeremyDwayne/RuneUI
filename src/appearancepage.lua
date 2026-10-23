@@ -561,7 +561,7 @@ function appearancepage.create(page, width, height, deps)
     b.choices("HUD out of combat", autohide.MODES, "outOfCombat", 90)
     local opacity = savedappearance.HUD_OPACITY
     local fadeOpacity = b.stepperAt(
-      b.row("Faded opacity"),
+      b.row("Faded opacity %"),
       b.rowRight - controls.STEPPER_W,
       opacity.min,
       opacity.max,
