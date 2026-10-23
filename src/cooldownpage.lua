@@ -5,6 +5,7 @@ local draw = require("src/draw")
 local editor = require("src/editor")
 local presets = require("src/presets")
 local settings = require("src/settings")
+local util = require("src/util")
 
 local cooldownpage = {}
 
@@ -53,14 +54,6 @@ local PICKER_TAB_LIST = {
   { label = "Ranged", style = "ranged", width = 66 },
   { label = "Melee", style = "melee", width = 58 },
 }
-
-local function indexOf(list, value)
-  for i, v in ipairs(list) do
-    if v == value then
-      return i
-    end
-  end
-end
 
 -- page: the options window's page layer, width by height. deps: { saved = src/settings, tracker = src/cooldowns
 -- tracker, refresh() redrawing the HUD }. Returns { open, rebuild, close, closePopups, popupOpen, follow }: open
@@ -320,7 +313,7 @@ function cooldownpage.create(page, width, height, deps)
     newGroup.group.place(16, LIST_Y + #names * LIST_ROW + 12)
 
     local group = saved.group(selected)
-    local custom = indexOf(settings.CUSTOM_GROUPS, selected) ~= nil
+    local custom = util.indexOf(settings.CUSTOM_GROUPS, selected) ~= nil
     set(titleText, "hidden", custom)
     set(titleText, "content", group.title)
     set(nameField, "hidden", not custom)

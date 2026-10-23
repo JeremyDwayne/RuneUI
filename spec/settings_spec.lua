@@ -298,29 +298,6 @@ describe("settings", function()
     assert.are.equal("custom1", reloaded.addGroup())
   end)
 
-  it("splits groups saved by the older version across styles", function()
-    local store = fakeStore({
-      groups = {
-        rotation = { "MAGIC_WRACK", "NECROMANCY_TOUCH_OF_DEATH", "DEFENCE_FREEDOM" },
-        cooldowns = { "MAGIC_SUNSHINE", "WEAPON_INSTABILITY" },
-      },
-    })
-    local s = settings.load(store)
-    assert.are.same({ "MAGIC_WRACK" }, s.keys("rotation", "magic"))
-    assert.are.same({ "NECROMANCY_TOUCH_OF_DEATH" }, s.keys("rotation", "necromancy"))
-    assert.are.same({ "MAGIC_SUNSHINE", "WEAPON_INSTABILITY" }, s.keys("major", "magic"))
-    assert.are.same({ "WEAPON_INSTABILITY" }, s.keys("major", "ranged"))
-    assert.are.same({ "DEFENCE_FREEDOM" }, s.keys("utility", "melee"))
-    assert.is_not_nil(store.data.groups.cooldowns)
-  end)
-
-  it("fills a style the older version's groups left empty from the presets", function()
-    local s = settings.load(fakeStore({ groups = { rotation = { "MAGIC_WRACK" }, cooldowns = {} } }))
-    assert.are.same({ "MAGIC_WRACK" }, s.keys("rotation", "magic"))
-    assert.are.same(presets.STYLES.melee.major, s.keys("major", "melee"))
-    assert.are.same(presets.UTILITY, s.keys("utility", "magic"))
-  end)
-
   it("saves a learned ability only when its name or icon changed", function()
     local store = fakeStore()
     local s = settings.load(store)

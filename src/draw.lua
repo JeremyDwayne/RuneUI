@@ -1,6 +1,8 @@
 -- Drawing primitives shared by the HUD elements, the options window and edit mode: fonts, colours, component
 -- builders that skip unchanged writes and log a refused property write once instead of erroring, buttons,
 -- fields and the cursor.
+local util = require("src/util")
+
 local draw = {}
 
 -- Closest client fonts to 13px values, 10px labels and seconds sized to each tile.
@@ -361,7 +363,7 @@ function draw.numberField(parent, x, y, w, h, low, high, onChoose, step)
       return
     end
     if n ~= nil then
-      onChoose(math.max(low, math.min(high, (n + step // 2) // step * step)))
+      onChoose(util.clamp((n + step // 2) // step * step, low, high))
     end
     if shown == nil then
       return
@@ -389,7 +391,7 @@ function draw.stepper(parent, x, y, low, high, step, save, allowed)
   local function move(delta)
     return function(_, cy)
       if allowed == nil or allowed(y + cy) then
-        save(math.max(low, math.min(high, shown + delta)))
+        save(util.clamp(shown + delta, low, high))
       end
     end
   end

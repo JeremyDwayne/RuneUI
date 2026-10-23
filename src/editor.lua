@@ -1,5 +1,6 @@
 -- Pure rules for the options window's cooldown editor: where a dragged tile lands and what the picker lists.
 local cooldowns = require("src/cooldowns")
+local util = require("src/util")
 
 local editor = {}
 
@@ -34,13 +35,7 @@ function editor.gridDropTarget(grid, x, y)
   return { kind = target.kind, index = first + target.index }
 end
 
-local function indexOf(list, key)
-  for i, k in ipairs(list) do
-    if k == key then
-      return i
-    end
-  end
-end
+local indexOf = util.indexOf
 
 -- The settings edit for dropping key, which list holds, on target: { op = "swap", other } or
 -- { op = "move", index }, or nil for no change. The index is for src/settings move, which takes the key out

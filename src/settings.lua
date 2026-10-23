@@ -9,6 +9,7 @@ local frames = require("src/frames")
 local layout = require("src/layout")
 local presets = require("src/presets")
 local styling = require("src/style")
+local util = require("src/util")
 
 local settings = {}
 
@@ -225,9 +226,7 @@ local function readLayout(saved)
   return positions
 end
 
-local function clamp(n, low, high)
-  return math.max(low, math.min(high, n))
-end
+local clamp = util.clamp
 
 local function isGrow(value)
   for _, grow in ipairs(settings.GROWS) do
@@ -283,13 +282,7 @@ local function customDefault(name)
   return default
 end
 
-local function indexOf(list, key)
-  for i, k in ipairs(list) do
-    if k == key then
-      return i
-    end
-  end
-end
+local indexOf = util.indexOf
 
 local function append(list, key)
   if indexOf(list, key) == nil then
@@ -366,31 +359,10 @@ local function seed(groups, seeded)
   return changed
 end
 
--- Splits groups saved as { rotation, cooldowns } across the styles: each style's rotation and major take its
--- own abilities, weapon specials go to every style, and other style-free abilities to the shared utility.
-local function migrateGroups(old, groups)
-  for _, pair in ipairs({ { "rotation", "rotation" }, { "cooldowns", "major" } }) do
-    local oldName = pair[1]
-    local newName = pair[2]
-    for _, key in ipairs(stringsOnly(old[oldName])) do
-      local style = cooldowns.styleOf(key)
-      if style ~= nil then
-        append(groups[newName].styles[style], key)
-      elseif key:match("^WEAPON_") then
-        for _, s in ipairs(settings.STYLES) do
-          append(groups[newName].styles[s], key)
-        end
-      else
-        append(groups.utility.keys, key)
-      end
-    end
-  end
-end
-
 -- { seeded = { [style, "utility" or "defensives"] = true }, groups = { [name] = group record } } from the saved
--- cooldownGroups, or from groups saved by an older version, then seeded from src/presets, and whether it
--- changed. Every built-in group is present; a custom one only once added.
-local function readCooldownGroups(saved, old)
+-- cooldownGroups, seeded from src/presets, and whether seeding changed it. Every built-in group is present; a
+-- custom one only once added.
+local function readCooldownGroups(saved)
   local stored = type(saved) == "table" and type(saved.groups) == "table" and saved.groups or {}
   local groups = {}
   for _, default in ipairs(settings.GROUPS) do
@@ -406,12 +378,8 @@ local function readCooldownGroups(saved, old)
   for _, name in ipairs({ "utility", "defensives", table.unpack(settings.STYLES) }) do
     seeded[name] = savedSeeded[name] == true
   end
-  local migrated = type(saved) ~= "table" and type(old) == "table"
-  if migrated then
-    migrateGroups(old, groups)
-  end
   local changed = seed(groups, seeded)
-  return { seeded = seeded, groups = groups }, migrated or changed
+  return { seeded = seeded, groups = groups }, changed
 end
 
 local function readMarkers(saved)
@@ -658,7 +626,7 @@ function settings.load(store, windowHeight)
   end
   local savedEditMode = store.get("editMode")
   local editMode = { snap = type(savedEditMode) ~= "table" or savedEditMode.snap ~= false }
-  local cooldownGroups, changed = readCooldownGroups(store.get("cooldownGroups"), store.get("groups"))
+  local cooldownGroups, changed = readCooldownGroups(store.get("cooldownGroups"))
   local groups = cooldownGroups.groups
   local markers = readMarkers(store.get("markers"))
   local known = readKnown(store.get("known"))
