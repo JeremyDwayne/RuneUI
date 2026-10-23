@@ -62,6 +62,7 @@ The client API is thinly documented, and these facts came from probing it in the
 - Children of `TOPLEVEL_V2__GAME_AREA` draw under game windows such as the bank, so the HUD lives there. Children of `TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP` draw over everything, so the options window lives there. Both span the window.
 - A layer anchored with `SetPos(x, y, px, py)` reports its resolved position in `x` and `y`. `xyGlobal` holds absolute screen coordinates.
 - PersistentDB returns every number as a float, so convert with `math.tointeger` before indexing. A structured value of 400 entries of about 70 bytes saved and 800 failed, with the setter returning `false`, so check its result.
+- `ui.Interfaces:GetComponent` refuses a nil in any argument given: a top-level layer takes its id alone, a static component the interface and static ids, and a dynamic child all four. `src/interfaces.lua` picks the form by what it was given.
 - `pairs(id.Component)`, `pairs(id.StyleSheet)` and `pairs(id.Sprite)` yield number keys with name values. `id.Sprite.FromID(sprite)` returns one sprite's name, while `id.Sprite[sprite]` with a number raises.
 - `Keyboard.IsShiftDown()` and `IsGameKeyDown(GameKey.SHIFT)` read false inside `Event.Logic` with Shift held. Track Shift from `KeyDown` and `KeyUp`, as `src/editmode.lua` does.
 - Hiding target panel components stops its debuff slots updating, even when only the frame containers `:25` and `:26` are hidden: a debuff appeared and never cleared. Make the panel transparent instead.

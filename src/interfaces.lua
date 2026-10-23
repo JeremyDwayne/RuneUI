@@ -80,12 +80,16 @@ function interfaces.read(obj, field)
   return nil
 end
 
--- A static component, or a dynamic child when categoryID is given, or nil while the interface is unloaded.
+-- A top-level layer by its id alone, a static component, or a dynamic child when categoryID is given, or nil
+-- while the interface is unloaded. The client refuses a nil argument, so each form passes only what it has.
 function interfaces.component(interfaceID, staticID, categoryID, dynamicID)
-  if categoryID ~= nil then
-    return ui.Interfaces:GetComponent(interfaceID, staticID, categoryID, dynamicID)
+  if staticID == nil then
+    return ui.Interfaces:GetComponent(interfaceID)
   end
-  return ui.Interfaces:GetComponent(interfaceID, staticID)
+  if categoryID == nil then
+    return ui.Interfaces:GetComponent(interfaceID, staticID)
+  end
+  return ui.Interfaces:GetComponent(interfaceID, staticID, categoryID, dynamicID)
 end
 
 -- Text of a label component, or nil when it is missing or empty.

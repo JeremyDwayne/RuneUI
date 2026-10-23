@@ -289,8 +289,15 @@ local function loadActionBars(...)
   _G.ui = {
     Hook = { ONMOUSEOVER = "ONMOUSEOVER", ONMOUSELEAVE = "ONMOUSELEAVE", ONRESIZE = "ONRESIZE" },
     Interfaces = {
-      GetComponent = function(_, interfaceID, staticID, categoryID, dynamicID)
+      GetComponent = function(_, ...)
         stub.lookups = stub.lookups + 1
+        -- The client refuses a nil in any argument given, such as a top-level layer looked up with a nil static.
+        for i = 1, select("#", ...) do
+          if select(i, ...) == nil then
+            error("sol: no matching function call takes this number of arguments and the specified types")
+          end
+        end
+        local interfaceID, staticID, categoryID, dynamicID = ...
         if interfaceID == "top" then
           return stub.top
         end
