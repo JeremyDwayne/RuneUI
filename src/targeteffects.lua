@@ -1,5 +1,6 @@
 -- Tracks the debuffs on the player's target from the game's target effect vars, and times the ones whose length
--- is known, for the target frame. Pure: main.lua feeds it var changes, server ticks and the debuffs shown.
+-- is known, for the target frame. It remembers each target's running timers, so swapping away and back keeps
+-- them. Pure: main.lua feeds it var changes, server ticks, and the target and debuffs shown.
 local targeteffects = {}
 
 -- The target effect bitfields, in the order the game's target panel fills its debuff slots.
@@ -94,6 +95,10 @@ targeteffects.LENGTHS = {
 -- name arrives a tick after its debuff.
 local CAUSE_WINDOW = 2
 
+-- Ticks after a target change within which a debuff the tracker remembers on that target takes its remembered
+-- timer when it shows, so a debuff var arriving after the target changes still finds it.
+local RECALL_WINDOW = 2
+
 -- Known bits of each var, keyed by var name.
 local bitsOf = {}
 for _, name in ipairs(targeteffects.VARS) do
@@ -113,10 +118,13 @@ end
 -- debuffs() returns { sprites, complete }: the sprites of the known set bits in target panel order and whether
 -- every set bit is known, the same table until a target effect var changes. Each server tick, onTick(nameOf)
 -- runs first, with nameOf(struct) returning { name } for the struct of a just-used ability, read once per use,
--- then observe(sprites) takes the debuffs the target frame shows. timers() returns { [sprite] = { left, full } }
--- in ticks for each timed debuff shown since it was applied, the same table until a tick passes with one running
--- or the shown debuffs change. A debuff shown at load or when the target changes may have been on already, so it
--- shows no time unless the ability just used applies it.
+-- then observe(target, sprites) takes the NPCTARGET read that tick and the debuffs the target frame shows.
+-- timers() returns { [sprite] = { left, full } } in ticks for each timed debuff shown since it was applied, the
+-- same table until a tick passes with one running or the shown debuffs change. A debuff shown at load or when
+-- the target changes may have been on already, so it shows no time unless the ability just used applies it or
+-- the tracker remembers its timer on that target. A remembered timer counts on while the target is not shown,
+-- and only debuffs seen on the target are known: one applied or renewed by anyone while the player looks at
+-- another target keeps the old timer.
 function targeteffects.tracker()
   local values = {}
   local result = nil
@@ -131,19 +139,18 @@ function targeteffects.tracker()
   local lastName, lastTick = nil, nil
   local timers = nil
   local running = false
+  -- The target the shown debuffs are on, the running timers of the targets left by target as { [sprite] = entry },
+  -- and the timers remembered on the current target with the tick it was taken.
+  local target = nil
+  local remembered = {}
+  local recalled = nil
+  local recalledAt = 0
 
   local tracker = {}
 
-  function tracker.onVar(name, old, new)
+  function tracker.onVar(name, _, new)
     if name == "COMBATV2_JUST_USED_ABILITY" then
       pending = new
-    elseif name == "NPCTARGET" then
-      if old ~= new then
-        shown = {}
-        count = 0
-        primed = false
-        timers = nil
-      end
     elseif bitsOf[name] ~= nil then
       local value = unsigned(new)
       if values[name] ~= value then
@@ -193,13 +200,58 @@ function targeteffects.tracker()
     end
   end
 
+  -- Whether entry's timer has time left.
+  local function hasTime(entry)
+    return entry.ticks ~= nil and entry.ticks - (tick - entry.start) > 0
+  end
+
+  -- Remembers the shown debuffs' running timers on the target being left, and forgets each target whose timers
+  -- have all run out.
+  local function leave()
+    for uid, entries in pairs(remembered) do
+      for sprite, entry in pairs(entries) do
+        if not hasTime(entry) then
+          entries[sprite] = nil
+        end
+      end
+      if next(entries) == nil then
+        remembered[uid] = nil
+      end
+    end
+    local entries = nil
+    for sprite, entry in pairs(shown) do
+      if hasTime(entry) then
+        entries = entries or {}
+        entries[sprite] = entry
+      end
+    end
+    -- A remembered timer whose debuff has not shown yet since the target came back stays remembered.
+    for sprite, entry in pairs(recalled or {}) do
+      if hasTime(entry) then
+        entries = entries or {}
+        entries[sprite] = entries[sprite] or entry
+      end
+    end
+    if target ~= nil and entries ~= nil then
+      remembered[target] = entries
+    end
+  end
+
   -- A newly shown debuff's entry. Its length comes from the ability just used when that applies it, or else its
-  -- own, except right after load or a target change, when it may have been on already.
+  -- remembered timer on this target, or else its own, except right after load or a target change, when it may
+  -- have been on already.
   local function applied(sprite)
     local def = targeteffects.LENGTHS[sprite]
     local ticks = nil
     if def ~= nil and lastName ~= nil and tick - lastTick <= CAUSE_WINDOW and def.causes then
       ticks = def.causes[lastName]
+    end
+    if ticks == nil and recalled ~= nil and recalled[sprite] ~= nil then
+      local entry = recalled[sprite]
+      recalled[sprite] = nil
+      if hasTime(entry) then
+        return entry
+      end
     end
     if ticks == nil and def ~= nil and primed then
       ticks = def.ticks
@@ -207,7 +259,20 @@ function targeteffects.tracker()
     return { start = tick, ticks = ticks }
   end
 
-  function tracker.observe(sprites)
+  function tracker.observe(uid, sprites)
+    if uid ~= target then
+      leave()
+      target = uid
+      recalled = remembered[uid]
+      remembered[uid] = nil
+      recalledAt = tick
+      shown = {}
+      count = 0
+      primed = false
+      timers = nil
+    elseif recalled ~= nil and tick - recalledAt > RECALL_WINDOW then
+      recalled = nil
+    end
     local same = #sprites == count
     for _, sprite in ipairs(sprites) do
       if shown[sprite] == nil then

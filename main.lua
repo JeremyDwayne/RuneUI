@@ -180,9 +180,10 @@ end
 -- whether an element's bounds changed.
 local function updateFrames(appearance)
   elements.player.update(frames.player(adapter.playerReads(), appearance.lifepoints))
-  local target = frames.target(adapter.targetReads(effectsTracker.debuffs()), appearance.lifepoints)
+  local targetReads = adapter.targetReads(effectsTracker.debuffs())
+  local target = frames.target(targetReads, appearance.lifepoints)
   elements.target.update(target)
-  effectsTracker.observe(target.debuffs or {})
+  effectsTracker.observe(targetReads.target, target.debuffs or {})
   local reads = adapter.resourceReads(frames.SPENDERS)
   reads.necromancy = tracker.style() == "necromancy"
   local resource = frames.resource(reads, saved.markers())

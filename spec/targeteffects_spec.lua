@@ -11,10 +11,20 @@ local function nameOf(struct)
   return NAMES[struct] and { name = NAMES[struct] }
 end
 
--- One server tick: the tracker ticks, then sees the sprites the target frame shows.
-local function step(tracker, sprites)
+-- NPCTARGET values the specs target.
+local TARGET, OTHER = 25128, 25127
+
+-- One server tick: the tracker ticks, then sees the target, TARGET unless given, and the sprites its frame shows.
+local function step(tracker, sprites, target)
   tracker.onTick(nameOf)
-  tracker.observe(sprites)
+  tracker.observe(target or TARGET, sprites)
+end
+
+-- Steps the tracker n times with the same sprites and target.
+local function steps(tracker, n, sprites, target)
+  for _ = 1, n do
+    step(tracker, sprites, target)
+  end
 end
 
 -- A tracker past its first tick, so the debuffs it sees next are newly applied.
@@ -82,9 +92,7 @@ describe("targeteffects.tracker", function()
 
   it("drops a timer once its time runs out with the icon still shown", function()
     local tracker = timed()
-    for _ = 1, 34 do
-      step(tracker, { BLOATED })
-    end
+    steps(tracker, 34, { BLOATED })
     assert.are.same({}, tracker.timers())
   end)
 
@@ -92,16 +100,15 @@ describe("targeteffects.tracker", function()
     local tracker = targeteffects.tracker()
     step(tracker, { VULNERABILITY })
     assert.are.same({}, tracker.timers())
-    tracker.onVar("NPCTARGET", 25128, 25127)
-    step(tracker, { VULNERABILITY, BLOATED })
+    step(tracker, { VULNERABILITY, BLOATED }, OTHER)
     assert.are.same({}, tracker.timers())
-    step(tracker, { VULNERABILITY, BLOATED, SMOKE_CLOUD })
+    step(tracker, { VULNERABILITY, BLOATED, SMOKE_CLOUD }, OTHER)
     assert.are.same({ [SMOKE_CLOUD] = { left = 200, full = 200 } }, tracker.timers())
   end)
 
   it("times the debuff that opens a fight on a new target", function()
     local tracker = timed()
-    tracker.onVar("NPCTARGET", -1, 25128)
+    step(tracker, {}, -1)
     tracker.onVar("COMBATV2_JUST_USED_ABILITY", 0, CAST_ENFEEBLE)
     step(tracker, { ENFEEBLE })
     assert.are.same({ [ENFEEBLE] = { left = 100, full = 100 } }, tracker.timers())
@@ -124,9 +131,7 @@ describe("targeteffects.tracker", function()
     local tracker = timed()
     tracker.onVar("COMBATV2_JUST_USED_ABILITY", 0, SNARE)
     step(tracker, { ENFEEBLE, BOUND })
-    for _ = 1, 10 do
-      step(tracker, { ENFEEBLE, BOUND })
-    end
+    steps(tracker, 10, { ENFEEBLE, BOUND })
     tracker.onVar("COMBATV2_JUST_USED_ABILITY", SNARE, CAST_ENFEEBLE)
     step(tracker, { ENFEEBLE, BOUND })
     tracker.onVar("COMBATV2_JUST_USED_ABILITY", CAST_ENFEEBLE, SNARE)
@@ -135,6 +140,92 @@ describe("targeteffects.tracker", function()
       [ENFEEBLE] = { left = 99, full = 100 },
       [BOUND] = { left = 18, full = 30 },
     }, tracker.timers())
+  end)
+
+  it("keeps a target's timers while the player targets another and comes back", function()
+    local tracker = timed()
+    step(tracker, { BLOATED })
+    steps(tracker, 4, { BLOATED })
+    steps(tracker, 10, { VULNERABILITY }, OTHER)
+    assert.are.same({}, tracker.timers())
+    step(tracker, { BLOATED })
+    assert.are.same({ [BLOATED] = { left = 18, full = 33 } }, tracker.timers())
+  end)
+
+  it("keeps each target's timers apart", function()
+    local tracker = timed()
+    step(tracker, { BLOATED })
+    step(tracker, {}, OTHER)
+    tracker.onVar("COMBATV2_JUST_USED_ABILITY", 0, CAST_ENFEEBLE)
+    step(tracker, { ENFEEBLE }, OTHER)
+    steps(tracker, 2, { BLOATED })
+    assert.are.same({ [BLOATED] = { left = 29, full = 33 } }, tracker.timers())
+    step(tracker, { ENFEEBLE }, OTHER)
+    assert.are.same({ [ENFEEBLE] = { left = 97, full = 100 } }, tracker.timers())
+  end)
+
+  it("keeps a target's timers through a tick with no target", function()
+    local tracker = timed()
+    step(tracker, { BLOATED })
+    step(tracker, {}, -1)
+    step(tracker, { BLOATED })
+    assert.are.same({ [BLOATED] = { left = 31, full = 33 } }, tracker.timers())
+  end)
+
+  it("finds a remembered timer for a debuff that shows up to 2 ticks after the swap back", function()
+    local tracker = timed()
+    step(tracker, { BLOATED })
+    step(tracker, {}, OTHER)
+    steps(tracker, 2, {})
+    step(tracker, { BLOATED })
+    assert.are.same({ [BLOATED] = { left = 29, full = 33 } }, tracker.timers())
+    tracker = timed()
+    step(tracker, { BLOATED })
+    step(tracker, {}, OTHER)
+    steps(tracker, 3, {})
+    step(tracker, { BLOATED })
+    assert.are.same({ [BLOATED] = { left = 33, full = 33 } }, tracker.timers())
+  end)
+
+  it("keeps a remembered timer when the player swaps away again before its debuff shows", function()
+    local tracker = timed()
+    step(tracker, { BLOATED })
+    step(tracker, {}, OTHER)
+    step(tracker, {})
+    step(tracker, {}, OTHER)
+    step(tracker, { BLOATED })
+    assert.are.same({ [BLOATED] = { left = 29, full = 33 } }, tracker.timers())
+  end)
+
+  it("times no debuff on return whose remembered time ran out while away", function()
+    local tracker = timed()
+    step(tracker, { BLOATED })
+    steps(tracker, 40, {}, OTHER)
+    step(tracker, { BLOATED })
+    assert.are.same({}, tracker.timers())
+  end)
+
+  it("restarts a remembered debuff that the ability just used applies on return", function()
+    local tracker = timed()
+    step(tracker, { BLOATED, VULNERABILITY })
+    steps(tracker, 5, {}, OTHER)
+    tracker.onVar("COMBATV2_JUST_USED_ABILITY", 0, CAST_ENFEEBLE)
+    step(tracker, { BLOATED, VULNERABILITY, ENFEEBLE })
+    assert.are.same({
+      [BLOATED] = { left = 27, full = 33 },
+      [VULNERABILITY] = { left = 94, full = 100 },
+      [ENFEEBLE] = { left = 100, full = 100 },
+    }, tracker.timers())
+  end)
+
+  it("times a remembered debuff that clears and comes back on the target as new", function()
+    local tracker = timed()
+    step(tracker, { BLOATED })
+    steps(tracker, 5, {}, OTHER)
+    step(tracker, { BLOATED })
+    steps(tracker, 3, {})
+    step(tracker, { BLOATED })
+    assert.are.same({ [BLOATED] = { left = 33, full = 33 } }, tracker.timers())
   end)
 
   it("seeds each target effect var from its value at load", function()

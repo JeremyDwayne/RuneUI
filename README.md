@@ -40,7 +40,7 @@ Settings save between sessions.
 
 ## What it reads
 
-RuneUI only shows what the game already tells you: your stats, cooldowns and action bars, the game's buff bars and target panel, and ability and effect names from the game's own data. The one addition is a countdown on debuffs you put on your target, timed from their known length. It never sends input, needs no permissions and sends nothing off your computer. Hiding a game interface makes it transparent, and turning the option off, reloading or disabling RuneUI restores it.
+RuneUI only shows what the game already tells you: your stats, cooldowns and action bars, the game's buff bars and target panel, and ability and effect names from the game's own data. The one addition is a countdown on debuffs you put on your target, timed from their known length. Each target keeps its countdowns while you look at another, though RuneUI cannot see a debuff renewed on a target you are not looking at. It never sends input, needs no permissions and sends nothing off your computer. Hiding a game interface makes it transparent, and turning the option off, reloading or disabling RuneUI restores it.
 
 ## Development
 
