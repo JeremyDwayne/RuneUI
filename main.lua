@@ -13,6 +13,7 @@ local gameui = require("src/gameui")
 local icons = require("src/icons")
 local options = require("src/options")
 local presets = require("src/presets")
+local savedgroups = require("src/savedgroups")
 local settings = require("src/settings")
 local styling = require("src/style")
 local targeteffects = require("src/targeteffects")
@@ -37,10 +38,10 @@ local elements = {
 }
 -- Every cooldown group element, built-in then custom. A custom group not in use stays hidden.
 local GROUP_NAMES = {}
-for _, group in ipairs(settings.GROUPS) do
+for _, group in ipairs(savedgroups.GROUPS) do
   GROUP_NAMES[#GROUP_NAMES + 1] = group.name
 end
-for _, name in ipairs(settings.CUSTOM_GROUPS) do
+for _, name in ipairs(savedgroups.CUSTOM_GROUPS) do
   GROUP_NAMES[#GROUP_NAMES + 1] = name
 end
 for _, name in ipairs(GROUP_NAMES) do

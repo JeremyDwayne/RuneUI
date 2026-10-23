@@ -15,4 +15,9 @@ function util.clamp(n, low, high)
   return math.max(low, math.min(high, n))
 end
 
+-- n as an integer when it is a whole number, since PersistentDB hands every number back as a float.
+function util.whole(n)
+  return math.tointeger(n) or n
+end
+
 return util

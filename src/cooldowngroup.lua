@@ -5,7 +5,7 @@ local cooldowngroup = {}
 local draw = require("src/draw")
 local hudparts = require("src/hudparts")
 local layout = require("src/layout")
-local settings = require("src/settings")
+local savedgroups = require("src/savedgroups")
 local set = draw.set
 local pos = draw.pos
 local rect = draw.rect
@@ -196,7 +196,7 @@ local function showTile(parts, model, since, look, size)
   set(parts.keybind, "alpha", labelAlpha)
 end
 
--- A cooldown group of up to settings.MAX_GROUP_KEYS ability tiles laid out by layout.grid. configure takes
+-- A cooldown group of up to savedgroups.MAX_GROUP_KEYS ability tiles laid out by layout.grid. configure takes
 -- { size, perRow, grow }, returns whether it changed, and redraws on the next update. update takes
 -- src/cooldowns tiles and the seconds since the server tick they were read at, and returns whether bounds
 -- changed; bounds spans the shown tiles, and an empty group's sides meet at its axis. step(since) counts the
@@ -207,7 +207,7 @@ end
 -- its tooltip, with the description describe(key) returns, when given. setLook(look) restyles the tiles' text
 -- and returns false, as it moves no bounds.
 function cooldowngroup.create(root, tooltip, describe)
-  local max = settings.MAX_GROUP_KEYS
+  local max = savedgroups.MAX_GROUP_KEYS
   local layer = ui.Layer.new(root)
   local tiles = {}
   local display = nil

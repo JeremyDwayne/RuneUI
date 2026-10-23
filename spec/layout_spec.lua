@@ -1,5 +1,5 @@
 local layout = require("src/layout")
-local settings = require("src/settings")
+local savedlayout = require("src/savedlayout")
 
 -- Shown bounds inside each element's layer with full first rows: 6 major, 6 rotation and 8 utility and custom
 -- tiles, Defensives at 30 px, no spender rows, and 10 aura tiles.
@@ -32,14 +32,14 @@ end
 
 describe("layout", function()
   it("reproduces the default positions from the default anchors with a full rotation row", function()
-    local positions = layout.resolve(settings.DEFAULT_POSITIONS, settings.DEFAULT_ANCHORS, fullBounds())
-    assert.are.same(settings.DEFAULT_POSITIONS, positions)
+    local positions = layout.resolve(savedlayout.DEFAULT_POSITIONS, savedlayout.DEFAULT_ANCHORS, fullBounds())
+    assert.are.same(savedlayout.DEFAULT_POSITIONS, positions)
   end)
 
   it("moves the frames in to stay beside 4 shown rotation tiles", function()
     local bounds = fullBounds()
     bounds.rotation = layout.grid(4, 45, 2, 6, "down", 20).bounds
-    local positions = layout.resolve(settings.DEFAULT_POSITIONS, settings.DEFAULT_ANCHORS, bounds)
+    local positions = layout.resolve(savedlayout.DEFAULT_POSITIONS, savedlayout.DEFAULT_ANCHORS, bounds)
     assert.are.equal(-140 + 47 - 250, positions.player.x)
     assert.are.equal(-140 + 47 + 186, positions.target.x)
     assert.are.equal(-362, positions.player.y)
@@ -48,8 +48,8 @@ describe("layout", function()
   it("pushes everything below a major group that wraps to a second row", function()
     local bounds = fullBounds()
     bounds.major = layout.grid(8, 35, 2, 6, "down", 20).bounds
-    local positions = layout.resolve(settings.DEFAULT_POSITIONS, settings.DEFAULT_ANCHORS, bounds)
-    local defaults = settings.DEFAULT_POSITIONS
+    local positions = layout.resolve(savedlayout.DEFAULT_POSITIONS, savedlayout.DEFAULT_ANCHORS, bounds)
+    local defaults = savedlayout.DEFAULT_POSITIONS
     assert.are.same(
       { defaults.rotation.y + 37, defaults.target.y + 37, defaults.utility.y + 37 },
       { positions.rotation.y, positions.target.y, positions.utility.y }
@@ -59,9 +59,9 @@ describe("layout", function()
   it("pushes utility down by spender rows below the adrenaline bar", function()
     local bounds = fullBounds()
     bounds.resource = { x = 0, y = 20, w = 278, h = 40 }
-    local positions = layout.resolve(settings.DEFAULT_POSITIONS, settings.DEFAULT_ANCHORS, bounds)
+    local positions = layout.resolve(savedlayout.DEFAULT_POSITIONS, savedlayout.DEFAULT_ANCHORS, bounds)
     assert.are.same(
-      { settings.DEFAULT_POSITIONS.castbar.y + 20, settings.DEFAULT_POSITIONS.utility.y + 20 },
+      { savedlayout.DEFAULT_POSITIONS.castbar.y + 20, savedlayout.DEFAULT_POSITIONS.utility.y + 20 },
       { positions.castbar.y, positions.utility.y }
     )
   end)
@@ -133,7 +133,7 @@ describe("layout", function()
   end)
 
   it("lists every descendant in a chain and refuses anchoring into it", function()
-    local anchors = settings.DEFAULT_ANCHORS
+    local anchors = savedlayout.DEFAULT_ANCHORS
     local chain = layout.chain(anchors, "resource")
     table.sort(chain)
     assert.are.same({ "castbar", "custom1", "custom2", "custom3", "custom4", "utility" }, chain)
@@ -189,7 +189,7 @@ describe("layout", function()
   it("offers every element outside the dragged one's chain as a snap target", function()
     local rects = fullBounds()
     local skipped = { player = true, playerDebuffs = true, upkeepBuffs = true }
-    local targets = layout.snapTargets(rects, settings.DEFAULT_ANCHORS, "player")
+    local targets = layout.snapTargets(rects, savedlayout.DEFAULT_ANCHORS, "player")
     local count = 0
     for name in pairs(rects) do
       if not skipped[name] then
@@ -197,7 +197,7 @@ describe("layout", function()
       end
     end
     assert.are.equal(count, #targets)
-    assert.are.same({}, layout.snapTargets(rects, settings.DEFAULT_ANCHORS, "major"))
+    assert.are.same({}, layout.snapTargets(rects, savedlayout.DEFAULT_ANCHORS, "major"))
   end)
 
   it("wraps a down group into centred rows below its first", function()

@@ -6,7 +6,7 @@
 local draw = require("src/draw")
 local frames = require("src/frames")
 local scrollbar = require("src/scrollbar")
-local settings = require("src/settings")
+local savedappearance = require("src/savedappearance")
 local style = require("src/style")
 
 local appearancepage = {}
@@ -570,8 +570,8 @@ function appearancepage.create(page, width, height, deps)
     end
     b.number(
       "Text size",
-      style.ROLES.body + settings.TEXT_STEP_MIN,
-      style.ROLES.body + settings.TEXT_STEP_MAX,
+      style.ROLES.body + savedappearance.TEXT_STEP_MIN,
+      style.ROLES.body + savedappearance.TEXT_STEP_MAX,
       function(appearance)
         return style.ROLES.body + appearance.textStep
       end,
@@ -608,8 +608,8 @@ function appearancepage.create(page, width, height, deps)
     b.choices("Bar texture", TEXTURES, "texture", 112)
     b.choices("Frame border", style.BORDERS, "border", 112)
     b.choices("Lifepoints text", frames.LIFEPOINTS, "lifepoints", 118)
-    b.stepper("Frame width", "frameWidth", settings.FRAME_WIDTH.min, settings.FRAME_WIDTH.max)
-    b.stepper("Frame height", "frameHeight", settings.FRAME_HEIGHT.min, settings.FRAME_HEIGHT.max)
+    b.stepper("Frame width", "frameWidth", savedappearance.FRAME_WIDTH.min, savedappearance.FRAME_WIDTH.max)
+    b.stepper("Frame height", "frameHeight", savedappearance.FRAME_HEIGHT.min, savedappearance.FRAME_HEIGHT.max)
 
     b.heading("Game interfaces")
     b.choices("Default target panel", SHOW_HIDE, "hideTargetPanel", 90)
@@ -656,14 +656,14 @@ function appearancepage.bars(page, width, height, deps)
         b.changed()
       end)
     end
-    b.stepper("Bar width", "barWidth", settings.BAR_WIDTH.min, settings.BAR_WIDTH.max)
-    b.stepper("Bar height", "barHeight", settings.BAR_HEIGHT.min, settings.BAR_HEIGHT.max)
+    b.stepper("Bar width", "barWidth", savedappearance.BAR_WIDTH.min, savedappearance.BAR_WIDTH.max)
+    b.stepper("Bar height", "barHeight", savedappearance.BAR_HEIGHT.min, savedappearance.BAR_HEIGHT.max)
     b.choices("Spenders", style.SPENDER_PLACES, "spenders", 150)
 
     b.heading("Cast bar")
     b.choices("Width from", WIDTH_FROM, "castMatchWidth", 160)
-    local widthRow = b.stepper("Width", "castWidth", settings.CAST_WIDTH.min, settings.CAST_WIDTH.max)
-    b.stepper("Height", "castHeight", settings.CAST_HEIGHT.min, settings.CAST_HEIGHT.max)
+    local widthRow = b.stepper("Width", "castWidth", savedappearance.CAST_WIDTH.min, savedappearance.CAST_WIDTH.max)
+    b.stepper("Height", "castHeight", savedappearance.CAST_HEIGHT.min, savedappearance.CAST_HEIGHT.max)
     local function presetRgb(presetID)
       if presetID == "ability" then
         return style.STYLE_COLOURS[deps.tracker.style()] or style.CAST_COLOUR
@@ -681,8 +681,8 @@ function appearancepage.bars(page, width, height, deps)
     for _, family in ipairs(style.FAMILIES) do
       set(fonts[family.id].label, "font", id.Font[family.sizes[13]])
     end
-    local low = style.ROLES.body + settings.TEXT_STEP_MIN
-    local high = style.ROLES.body + settings.TEXT_STEP_MAX
+    local low = style.ROLES.body + savedappearance.TEXT_STEP_MIN
+    local high = style.ROLES.body + savedappearance.TEXT_STEP_MAX
     local size = b.number("Text size", low, high, function(appearance)
       return appearance.castTextSize == "hud" and style.ROLES.body + appearance.textStep or appearance.castTextSize
     end, function(n)
@@ -709,7 +709,7 @@ function appearancepage.bars(page, width, height, deps)
       local row = b.row(name)
       local opacity = "barOpacity" .. bar
       b.toggle(row, fadeX + (FADE_COL - TOGGLE_W) // 2, TOGGLE_W, "fadeBar" .. bar)
-      local step = settings.OPACITY_STEP
+      local step = savedappearance.OPACITY_STEP
       local fadeStepper = b.stepperAt(row, opacityX + (OPACITY_COL - draw.STEPPER_W) // 2, 0, 100, step, function(a)
         return a[opacity]
       end, function(n)

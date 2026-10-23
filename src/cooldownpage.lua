@@ -4,7 +4,7 @@ local dragdrop = require("src/dragdrop")
 local draw = require("src/draw")
 local editor = require("src/editor")
 local presets = require("src/presets")
-local settings = require("src/settings")
+local savedgroups = require("src/savedgroups")
 local util = require("src/util")
 
 local cooldownpage = {}
@@ -106,7 +106,7 @@ function cooldownpage.create(page, width, height, deps)
   -- Group list: one row per group in use, the chosen one lit with an accent bar, then New group.
   rect(page, COLOURS.line, LIST_W, TABS_H + 1, 1, height - TABS_H - 1)
   local listRows = {}
-  for i = 1, #settings.GROUPS + #settings.CUSTOM_GROUPS do
+  for i = 1, #savedgroups.GROUPS + #savedgroups.CUSTOM_GROUPS do
     local y = LIST_Y + (i - 1) * LIST_ROW
     local r = {
       hit = hitArea(rect(page, COLOURS.panel, 0, y, LIST_W, LIST_ROW)),
@@ -197,9 +197,9 @@ function cooldownpage.create(page, width, height, deps)
     end)
   end
   settingLabel(2, "Icon size")
-  local sizeStepper = stepper(2, "size", settings.SIZE_MIN, settings.SIZE_MAX)
+  local sizeStepper = stepper(2, "size", savedgroups.SIZE_MIN, savedgroups.SIZE_MAX)
   local perRowLabel = settingLabel(3, "Icons per row")
-  local perRowStepper = stepper(3, "perRow", 1, settings.MAX_GROUP_KEYS)
+  local perRowStepper = stepper(3, "perRow", 1, savedgroups.MAX_GROUP_KEYS)
 
   -- Rows of right-aligned draw.option buttons that save one display setting.
   local settingChoices = {}
@@ -250,7 +250,7 @@ function cooldownpage.create(page, width, height, deps)
   end
 
   local editorTiles = {}
-  for i = 1, settings.MAX_GROUP_KEYS do
+  for i = 1, savedgroups.MAX_GROUP_KEYS do
     editorTiles[i] = tile()
   end
   local count = 0
@@ -313,7 +313,7 @@ function cooldownpage.create(page, width, height, deps)
     newGroup.group.place(16, LIST_Y + #names * LIST_ROW + 12)
 
     local group = saved.group(selected)
-    local custom = util.indexOf(settings.CUSTOM_GROUPS, selected) ~= nil
+    local custom = util.indexOf(savedgroups.CUSTOM_GROUPS, selected) ~= nil
     set(titleText, "hidden", custom)
     set(titleText, "content", group.title)
     set(nameField, "hidden", not custom)
@@ -333,7 +333,7 @@ function cooldownpage.create(page, width, height, deps)
     showSettingChoices(group)
 
     local models = knownTiles(saved.keys(selected, editStyle))
-    count = math.min(#models, settings.MAX_GROUP_KEYS)
+    count = math.min(#models, savedgroups.MAX_GROUP_KEYS)
     for i, t in ipairs(editorTiles) do
       local model = models[i]
       t.key = model and model.key
@@ -347,8 +347,9 @@ function cooldownpage.create(page, width, height, deps)
       end
     end
     plus.place(slotPos(count + 1))
-    plus.set("hidden", count >= settings.MAX_GROUP_KEYS)
-    local rows = math.max(1, (count + (count < settings.MAX_GROUP_KEYS and 1 or 0) + GRID_PER_ROW - 1) // GRID_PER_ROW)
+    plus.set("hidden", count >= savedgroups.MAX_GROUP_KEYS)
+    local rows =
+      math.max(1, (count + (count < savedgroups.MAX_GROUP_KEYS and 1 or 0) + GRID_PER_ROW - 1) // GRID_PER_ROW)
     draw.pos(hint, DETAIL_X, GRID_Y + rows * STEP + 8)
   end
 

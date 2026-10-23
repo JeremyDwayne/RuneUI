@@ -2,6 +2,8 @@ local fake = require("spec/support/fake_ui")
 local pretty = require("spec/support/fake_prettyui")
 local cooldowns = require("src/cooldowns")
 local options = require("src/options")
+local savedgroups = require("src/savedgroups")
+local savedlayout = require("src/savedlayout")
 local settings = require("src/settings")
 local view = require("src/view")
 
@@ -21,8 +23,8 @@ end
 -- number. A custom group starts not in use.
 local function group(root, tooltip, name, count)
   local g = view.cooldownGroup(root, tooltip)
-  local display = settings.GROUPS[1]
-  for _, default in ipairs(settings.GROUPS) do
+  local display = savedgroups.GROUPS[1]
+  for _, default in ipairs(savedgroups.GROUPS) do
     if default.name == name then
       display = default
     end
@@ -295,9 +297,9 @@ describe("edit mode", function()
     end
     fake.hook(tint, "ONRELEASE")
 
-    assert.are.equal(settings.DEFAULT_POSITIONS.major.x + 50, saved.positions().major.x)
-    assert.are.same(settings.DEFAULT_POSITIONS.player, saved.positions().player)
-    assert.are.same(settings.DEFAULT_ANCHORS, saved.anchors())
+    assert.are.equal(savedlayout.DEFAULT_POSITIONS.major.x + 50, saved.positions().major.x)
+    assert.are.same(savedlayout.DEFAULT_POSITIONS.player, saved.positions().player)
+    assert.are.same(savedlayout.DEFAULT_ANCHORS, saved.anchors())
   end)
 
   it("saves a dragged anchored element's new gap and offset", function()

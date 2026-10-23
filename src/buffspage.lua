@@ -11,7 +11,7 @@ local dragdrop = require("src/dragdrop")
 local draw = require("src/draw")
 local editor = require("src/editor")
 local search = require("src/search")
-local settings = require("src/settings")
+local savedappearance = require("src/savedappearance")
 local style = require("src/style")
 
 local buffspage = {}
@@ -192,10 +192,18 @@ function buffspage.create(page, width, height, deps)
     for _, label in ipairs({ { "Icon size", 0 }, { "Text size", TEXT_LABEL_X } }) do
       set(text(layer, FONTS.body, ui.AlignMode.TOPLEFT, label[2], 0, 80, SIZES_H), "content", label[1])
     end
-    local icon = stepper(layer, ICON_X, settings.AURA_ICON.min, settings.AURA_ICON.max, function(appearance)
-      return appearance[field("Icon")]
-    end, save("Icon"))
-    local textStepper = stepper(layer, TEXT_X, settings.TEXT_SIZE.min, settings.TEXT_SIZE.max, textSize, save("Text"))
+    local icon = stepper(
+      layer,
+      ICON_X,
+      savedappearance.AURA_ICON.min,
+      savedappearance.AURA_ICON.max,
+      function(appearance)
+        return appearance[field("Icon")]
+      end,
+      save("Icon")
+    )
+    local textStepper =
+      stepper(layer, TEXT_X, savedappearance.TEXT_SIZE.min, savedappearance.TEXT_SIZE.max, textSize, save("Text"))
     local match = draw.option(layer, "Match HUD", MATCH_X, (SIZES_H - OPTION_H) // 2, MATCH_W, OPTION_H, function()
       save("Text")("hud")
     end)

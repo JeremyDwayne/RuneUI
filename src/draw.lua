@@ -609,7 +609,7 @@ function draw.closeButton(parent, x, y, onClick)
   return button
 end
 
--- A bar fill over its track, flat or with a settings.TEXTURES gradient. The gradient is drawn once per
+-- A bar fill over its track, flat or with a savedappearance.TEXTURES gradient. The gradient is drawn once per
 -- texture on a canvas, and a track-coloured cover hides the empty part, so a fill change moves one rect.
 -- Returns { setFill(fill from 0 to 1, or nil to hide), setTexture(texture), setColour(rgb), setBox(x, y, w, h),
 -- parts }, parts listing its components.

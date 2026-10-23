@@ -4,7 +4,7 @@ local hudparts = {}
 
 local draw = require("src/draw")
 local frames = require("src/frames")
-local settings = require("src/settings")
+local savedappearance = require("src/savedappearance")
 local style = require("src/style")
 local set = draw.set
 local pos = draw.pos
@@ -16,7 +16,7 @@ local function screenPos(layer, x, y)
 end
 
 -- The look an element shows until it is given one.
-local DEFAULT_LOOK = style.look(settings.defaultAppearance(), nil)
+local DEFAULT_LOOK = style.look(savedappearance.defaults(), nil)
 
 -- Writes the font name font, a text colour and look's edge to a draw.edgedText label. dark draws Auto's dark
 -- text with a light edge and no shadow; rgb overrides the look's text colour. Every write skips an unchanged

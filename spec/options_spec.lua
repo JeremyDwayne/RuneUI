@@ -3,6 +3,7 @@ local pretty = require("spec/support/fake_prettyui")
 local cooldowns = require("src/cooldowns")
 local options = require("src/options")
 local presets = require("src/presets")
+local savedgroups = require("src/savedgroups")
 local settings = require("src/settings")
 local view = require("src/view")
 
@@ -386,7 +387,7 @@ describe("options", function()
     for _ = 1, 3 do
       fake.press("New group")
     end
-    assert.are.equal(#settings.GROUPS + 4, #saved.groupNames())
+    assert.are.equal(#savedgroups.GROUPS + 4, #saved.groupNames())
     assert.is_false(shows("New group"))
   end)
 

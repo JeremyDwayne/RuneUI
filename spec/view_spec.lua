@@ -1,5 +1,7 @@
 local fake = require("spec/support/fake_ui")
 local draw = require("src/draw")
+local savedgroups = require("src/savedgroups")
+local savedappearance = require("src/savedappearance")
 local settings = require("src/settings")
 local style = require("src/style")
 local view = require("src/view")
@@ -30,7 +32,7 @@ local function hud()
     resource = view.resourceBar(root),
     castbar = view.castBar(root),
   }
-  for _, default in ipairs(settings.GROUPS) do
+  for _, default in ipairs(savedgroups.GROUPS) do
     elements[default.name] = group(default.size, default.perRow, default.grow, root, tooltip)
   end
   return elements
@@ -78,7 +80,7 @@ describe("view", function()
     tiles[4].charges = 1
     tiles[4].recharge = { remaining = 6, length = 10.2 }
     tiles[5].count = "2/3"
-    for _, grow in ipairs(settings.GROWS) do
+    for _, grow in ipairs(savedgroups.GROWS) do
       local g = group(36, 7, grow)
       g.update(tiles)
       fake.writes = 0
@@ -126,7 +128,7 @@ describe("view", function()
     g.update({
       { key = "MAGIC_SURGE", name = "Surge", initials = "S", icon = 14233, ready = true, count = "1", charges = 1 },
     })
-    local look = style.look(settings.defaultAppearance(), nil)
+    local look = style.look(savedappearance.defaults(), nil)
     local body = look.outline and style.outlineFont(look.fonts.body) or look.fonts.body
     local count = fake.find(function(_, d)
       return d.content == "1"
@@ -426,7 +428,7 @@ describe("view", function()
   it("sizes an aura row's tiles and text from its look, reporting the bounds that moved", function()
     local row = auraRow()
     row.update(incite(12), false)
-    local appearance = settings.defaultAppearance()
+    local appearance = savedappearance.defaults()
     appearance.combatBuffsIcon = 48
     appearance.combatBuffsText = 16
     local look = style.look(appearance, nil)
@@ -451,7 +453,7 @@ describe("view", function()
       view.tooltip(fake.component()),
       function() end
     )
-    local appearance = settings.defaultAppearance()
+    local appearance = savedappearance.defaults()
     appearance.debuffEdge = "white"
     row.setLook(style.look(appearance, nil))
     row.update({ { sprite = 30098 } }, false)
@@ -737,7 +739,7 @@ describe("view", function()
   -- A src/style look from the default appearance with changes.
   local function look(changes)
     local appearance = {}
-    for k, v in pairs(settings.defaultAppearance()) do
+    for k, v in pairs(savedappearance.defaults()) do
       appearance[k] = v
     end
     for k, v in pairs(changes or {}) do
