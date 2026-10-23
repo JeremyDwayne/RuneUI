@@ -1,5 +1,6 @@
 -- The options window's Cooldown manager page: combat style tabs, a group list with New group, and the chosen
 -- group's display settings and abilities with a "+" picker, drag to swap or insert, and a Remove menu.
+local abilitypicker = require("src/abilitypicker")
 local dragdrop = require("src/dragdrop")
 local draw = require("src/draw")
 local editor = require("src/editor")
@@ -40,20 +41,6 @@ local SETTING_ROWS = 5
 local TILE = 36
 local STEP = TILE + GAP
 local GRID_Y = LIST_Y + SETTING_ROWS * SETTING_H + 16
-local PICKER_WIDTH = 340
-local PICKER_ROW = 26
-local PICKER_SEARCH = 36
-local PICKER_TABS = 34
-local PICKER_HEAD = PICKER_SEARCH + PICKER_TABS
-local MAX_PICKER_ROWS = 14
--- Picker tabs left to right; style nil lists every style.
-local PICKER_TAB_LIST = {
-  { label = "All", width = 34 },
-  { label = "Necromancy", style = "necromancy", width = 100 },
-  { label = "Magic", style = "magic", width = 58 },
-  { label = "Ranged", style = "ranged", width = 66 },
-  { label = "Melee", style = "melee", width = 58 },
-}
 
 -- page: the options window's page layer, width by height. deps: { saved = src/settings, tracker = src/cooldowns
 -- tracker, refresh() redrawing the HUD }. Returns { open, rebuild, close, closePopups, popupOpen, follow }: open
@@ -66,7 +53,7 @@ function cooldownpage.create(page, width, height, deps)
   local DETAIL_W = width - DETAIL_X - 24
   local GRID_PER_ROW = (DETAIL_W + GAP) // STEP
   local manager = {}
-  local fillPicker, openPicker, editorDrag
+  local openPicker, editorDrag, picker
 
   local function changed()
     manager.rebuild()
@@ -457,81 +444,8 @@ function cooldownpage.create(page, width, height, deps)
     editorDrag.attach(t)
   end
 
-  -- Picker: known abilities under the "+" tile, in sections, one combat style tab at a time, narrowed by a
-  -- search box. It opens on the style being edited and stays open for several adds. A search covers every
-  -- style.
-  local picker = ui.Layer.new(page)
-  local pickerRows = {}
-  local pickerTabs = {}
-  local pickerOpen = false
-  local pickerStyle = nil
-  local query = ""
-  picker:SetSize(PICKER_WIDTH, PICKER_HEAD + MAX_PICKER_ROWS * PICKER_ROW + 2)
-  local pickerEdge = hitArea(rect(picker, COLOURS.border, 0, 0, PICKER_WIDTH, 0))
-  local pickerBg = rect(picker, COLOURS.popup, 1, 1, PICKER_WIDTH - 2, 0)
-  rect(picker, COLOURS.line, 1, PICKER_HEAD, PICKER_WIDTH - 2, 1)
-  local search = draw.inputField(picker, 10, 6, PICKER_WIDTH - 49, 24, 30, true)
-  set(search, "emptyText", "Find an ability")
-  -- The field also reports its contents on Enter, Esc and focus loss, which can come after the picker closed.
-  on(search, "ONCONTENTCHANGED", function(_, _, contents)
-    query = (contents or ""):lower()
-    if not pickerOpen then
-      return
-    end
-    if query ~= "" then
-      pickerStyle = nil
-    end
-    fillPicker()
-  end)
-  local pickerTabX = 10
-  for _, tab in ipairs(PICKER_TAB_LIST) do
-    local hit = hitArea(rect(picker, COLOURS.popup, pickerTabX, PICKER_SEARCH, tab.width, PICKER_TABS))
-    local t = {
-      style = tab.style,
-      label = text(picker, FONTS.body, ui.AlignMode.CENTRE, pickerTabX, PICKER_SEARCH, tab.width, PICKER_TABS - 2),
-      underline = rect(picker, COLOURS.accent, pickerTabX, PICKER_HEAD - 2, tab.width, 2),
-    }
-    set(t.label, "content", tab.label)
-    on(hit, "ONCLICK", function()
-      pickerStyle = t.style
-      fillPicker()
-    end)
-    pickerTabs[#pickerTabs + 1] = t
-    pickerTabX = pickerTabX + tab.width
-  end
-  draw.closeButton(picker, PICKER_WIDTH - 29, 8, function()
-    manager.closePopups()
-  end)
-  for i = 1, MAX_PICKER_ROWS do
-    local ry = PICKER_HEAD + 1 + (i - 1) * PICKER_ROW
-    local r = {
-      bg = hitArea(rect(picker, COLOURS.popup, 1, ry, PICKER_WIDTH - 2, PICKER_ROW)),
-      hover = rect(picker, COLOURS.buttonHover, 1, ry, PICKER_WIDTH - 2, PICKER_ROW),
-      label = text(picker, FONTS.body, ui.AlignMode.TOPLEFT, 10, ry, PICKER_WIDTH - 50, PICKER_ROW),
-      iconEdge = rect(picker, COLOURS.border, PICKER_WIDTH - 30, ry + 2, 22, 22),
-      icon = ui.Sprite.new(picker),
-    }
-    r.icon:SetSize(20, 20)
-    r.icon:SetPos(PICKER_WIDTH - 29, ry + 3)
-    set(r.hover, "hidden", true)
-    on(r.bg, "ONMOUSEOVER", function()
-      set(r.hover, "hidden", r.key == nil)
-    end)
-    on(r.bg, "ONMOUSELEAVE", function()
-      set(r.hover, "hidden", true)
-    end)
-    on(r.bg, "ONCLICK", function()
-      if r.key == nil or not pickerOpen then
-        return
-      end
-      saved.add(selected, editStyle, r.key)
-      changed()
-      fillPicker()
-    end)
-    pickerRows[i] = r
-  end
-
-  -- Every ability fired this session, saved as seen, or in src/presets, sorted by name, and its tile model.
+  -- Every ability fired this session, saved as seen, or in src/presets, sorted by name, and each one's tile
+  -- model by key.
   local function allKnownKeys()
     local keys = {}
     local seen = {}
@@ -555,11 +469,9 @@ function cooldownpage.create(page, width, height, deps)
     return keys, models
   end
 
-  function fillPicker()
-    for _, t in ipairs(pickerTabs) do
-      set(t.label, "rgb", t.style == pickerStyle and COLOURS.text or COLOURS.mutedText)
-      set(t.underline, "hidden", t.style ~= pickerStyle)
-    end
+  -- The picker's rows for query on the style tab: each group's abilities in src/editor's sections, with those
+  -- the chosen group holds left out, as { title } headings and { key, name, icon } rows.
+  local function pickerEntries(query, style)
     local keys, models = allKnownKeys()
     if query ~= "" then
       local matching = {}
@@ -570,75 +482,45 @@ function cooldownpage.create(page, width, height, deps)
       end
       keys = matching
     end
-    local entries = {}
     local groupLists = {}
     for _, name in ipairs(saved.groupNames()) do
       groupLists[#groupLists + 1] = { name = name, title = saved.group(name).title, keys = saved.keys(name, editStyle) }
     end
-    for _, section in ipairs(editor.pickerSections(selected, groupLists, keys, pickerStyle)) do
+    local entries = {}
+    for _, section in ipairs(editor.pickerSections(selected, groupLists, keys, style)) do
       if #section.keys > 0 then
         entries[#entries + 1] = { title = section.title }
         for _, key in ipairs(section.keys) do
-          entries[#entries + 1] = { key = key, name = models[key].name }
+          entries[#entries + 1] = { key = key, name = models[key].name, icon = models[key].icon }
         end
       end
     end
-    if #entries == 0 then
-      entries[1] = { title = query ~= "" and "No ability matches" or "Use an ability to add it here" }
-    end
-    -- Past the last row, a note counts the abilities left out and points to the search box.
-    if #entries > MAX_PICKER_ROWS then
-      local hidden = 0
-      for i = MAX_PICKER_ROWS, #entries do
-        if entries[i].key ~= nil then
-          hidden = hidden + 1
-        end
-      end
-      entries[MAX_PICKER_ROWS] = { title = hidden .. " more. Search to find them." }
-    end
-    for i, r in ipairs(pickerRows) do
-      local entry = entries[i]
-      r.key = entry and entry.key
-      hideAll({ r.bg, r.label, r.iconEdge, r.icon, r.hover }, entry == nil)
-      set(r.hover, "hidden", true)
-      if entry ~= nil then
-        set(r.label, "content", entry.title or entry.name)
-        set(r.label, "rgb", entry.title and COLOURS.mutedText or COLOURS.text)
-        local icon = entry.key and models[entry.key].icon
-        hideAll({ r.iconEdge, r.icon }, icon == nil)
-        if icon ~= nil then
-          set(r.icon, "sprite", icon)
-        end
-      end
-    end
-    local shown = math.min(#entries, MAX_PICKER_ROWS)
-    local pickerH = PICKER_HEAD + shown * PICKER_ROW + 2
-    pickerEdge:SetSize(PICKER_WIDTH, pickerH)
-    pickerBg:SetSize(PICKER_WIDTH - 2, pickerH - 2)
-    -- Under the "+" tile, raised as far as it must be to fit on the page.
-    draw.pos(picker, math.min(plus.x, width - PICKER_WIDTH - 8), math.min(plus.y + TILE + 4, height - pickerH))
+    return entries
   end
 
+  picker = abilitypicker.create(page, width, height, {
+    entries = pickerEntries,
+    choose = function(key)
+      saved.add(selected, editStyle, key)
+      changed()
+    end,
+    close = function()
+      manager.closePopups()
+    end,
+  })
+
+  -- The "+" tile opens the picker under itself on the style being edited, or closes it.
   function openPicker()
-    local wasOpen = pickerOpen
+    local wasOpen = picker.isOpen()
     manager.closePopups()
-    if wasOpen then
-      return
+    if not wasOpen then
+      picker.open(plus.x, plus.y + TILE + 4, editStyle)
     end
-    pickerOpen = true
-    pickerStyle = editStyle
-    if query ~= "" then
-      query = ""
-      search.content = ""
-    end
-    fillPicker()
-    set(picker, "hidden", false)
   end
 
   function manager.closePopups()
     set(menu, "hidden", true)
-    set(picker, "hidden", true)
-    pickerOpen = false
+    picker.close()
     menuKey = nil
   end
 
@@ -654,7 +536,7 @@ function cooldownpage.create(page, width, height, deps)
   end
 
   function manager.popupOpen()
-    return pickerOpen or menuKey ~= nil
+    return picker.isOpen() or menuKey ~= nil
   end
 
   manager.follow = editorDrag.follow
