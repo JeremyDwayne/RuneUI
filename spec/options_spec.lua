@@ -121,22 +121,29 @@ describe("options", function()
     })
     local layer = fake.component()
     fake.fire("ContentLayerReady", { component = layer })
-    local function switchText(label)
+    -- The checkbox under a switch's label, and whether it is ticked.
+    local function switch(label)
       local row = fake.find(function(_, d)
-        return d.content == label
+        return d.parent == layer and d.content == label
       end)
-      return fake.find(function(_, d)
-        return d.parent == layer and d.y == row.y and (d.content == "On" or d.content == "Off")
-      end).content
+      return pretty.find("CheckboxButton", function(c)
+        return c.root.parent == layer and c.options.y > row.y and c.options.y < row.y + 30
+      end)
     end
-    assert.are.same({ "Off", "On" }, { switchText("Out of combat"), switchText("Bar fading") })
-    fake.press("Off")
-    assert.are.same({ "fade", "On", 1 }, { saved.appearance().outOfCombat, switchText("Out of combat"), refreshed })
-    fake.press("On", 2)
-    assert.are.same({ false, "Off" }, { saved.appearance().fadeBars, switchText("Bar fading") })
+    local function ticked(label)
+      return switch(label):IsSelected(switch(label).choices[1].value)
+    end
+    assert.are.same({ false, true }, { ticked("Out of combat"), ticked("Action bar fading") })
+    assert.are.equal("Enabled", switch("Out of combat").choices[1].text)
+    pretty.fire(switch("Out of combat"))
+    assert.are.same({ "fade", true, 1 }, { saved.appearance().outOfCombat, ticked("Out of combat"), refreshed })
+    pretty.fire(switch("Action bar fading"))
+    assert.are.same({ false, false }, { saved.appearance().fadeBars, ticked("Action bar fading") })
     -- A ribbon built again shows the saved switches.
-    fake.fire("ContentLayerReady", { component = fake.component() })
-    fake.press("On")
+    layer = fake.component()
+    fake.fire("ContentLayerReady", { component = layer })
+    assert.are.same({ true, false }, { ticked("Out of combat"), ticked("Action bar fading") })
+    pretty.fire(switch("Out of combat"))
     assert.are.equal("show", saved.appearance().outOfCombat)
     assert.is_not_nil(pretty.find("FancyButton", function(c)
       return c.options.y == 10

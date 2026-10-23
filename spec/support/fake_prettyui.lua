@@ -2,9 +2,10 @@
 -- sets the prettyui global and returns the fake: calls counts setter calls a spec makes, such as SetActive,
 -- Show and Close; find(kind, match) returns the first live component of that kind whose root is shown and that
 -- match(c) accepts; fire(c, value) acts as the player would, choosing a tab by index or label, pressing a
--- button, or answering a Confirm with "confirm" or "cancel"; button(text) presses the shown FancyButton reading
--- text; reset() forgets every component and resets fake_ui as well. Each component keeps its options and a
--- fake_ui root, and hosts keep a content layer for raw components.
+-- button, clicking a CheckboxButton's choice of that value (default its first), or answering a Confirm with
+-- "confirm" or "cancel"; button(text) presses the shown FancyButton reading text; reset() forgets every
+-- component and resets fake_ui as well. Each component keeps its options and a fake_ui root, and hosts keep a
+-- content layer for raw components.
 local fake = require("spec/support/fake_ui")
 
 local pretty = { calls = 0, made = {} }
@@ -106,6 +107,43 @@ function pretty.FancyButton.new(parent, text, action, options)
   return b
 end
 
+pretty.CheckboxButton = {}
+
+-- Ticks each choice in options.selectedValues or marked selected. SetSelected runs onChange on a change unless
+-- notify is false, as PrettyUI's does.
+function pretty.CheckboxButton.new(parent, choices, options)
+  local box = make("CheckboxButton", parent, options)
+  box.choices = choices
+  box.ticked = {}
+  for _, choice in ipairs(choices) do
+    for _, value in ipairs(box.options.selectedValues or {}) do
+      box.ticked[choice.value] = box.ticked[choice.value] or value == choice.value
+    end
+    box.ticked[choice.value] = box.ticked[choice.value] or choice.selected == true
+  end
+  function box.SetSelected(self, value, selected, notify)
+    pretty.calls = pretty.calls + 1
+    if self.ticked[value] == selected then
+      return true
+    end
+    self.ticked[value] = selected
+    if notify ~= false and self.options.onChange then
+      local values = {}
+      for _, choice in ipairs(self.choices) do
+        if self.ticked[choice.value] then
+          values[#values + 1] = choice.value
+        end
+      end
+      self.options.onChange(self, values, value, selected)
+    end
+    return true
+  end
+  function box.IsSelected(self, value)
+    return self.ticked[value] == true
+  end
+  return box
+end
+
 pretty.Confirm = {}
 
 function pretty.Confirm.new(parent, options)
@@ -136,6 +174,9 @@ function pretty.fire(c, value)
     activate(c, index)
   elseif c.kind == "FancyButton" then
     c.action(c)
+  elseif c.kind == "CheckboxButton" then
+    local choice = value or c.choices[1].value
+    c:SetSelected(choice, not c:IsSelected(choice))
   elseif c.kind == "Confirm" then
     local answer = value == "confirm" and c.options.onConfirm or c.options.onCancel
     if answer == nil or answer() ~= false then
