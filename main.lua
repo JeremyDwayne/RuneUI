@@ -50,6 +50,8 @@ end
 for name, style in pairs(view.AURA_STYLES) do
   elements[name] = view.auraRow(hud, style, tooltip, auraNames.info)
 end
+-- The world map draws under the HUD's layer, so the HUD hides while it is open.
+view.holdable(elements)
 local tracker = cooldowns.tracker()
 local channelTracker = channel.tracker()
 local auraTracker = auras.tracker()
@@ -85,6 +87,10 @@ local auraFilters = {
 
 Event.VarTransmit.Subscribe("cooldowns", function(e)
   local name, old, new = adapter.varChange(e)
+  -- WORLDMAP_FOCUS holds -1 while the world map is closed and a component id while it is open.
+  if name == "WORLDMAP_FOCUS" then
+    view.hold(new ~= -1)
+  end
   tracker.onVar(name, old, new)
   channelTracker.onVar(name, old, new)
   effectsTracker.onVar(name, old, new)

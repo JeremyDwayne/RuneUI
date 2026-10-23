@@ -100,10 +100,11 @@ local function assign(obj, field, value)
   obj[field] = value
 end
 
--- Writes a component property unless it already holds value, logging the first failure per property. A
--- draw.edgedText label's edge copies take the same write while its edge is on. Runs on every redraw, so it
--- passes assign to pcall rather than building a closure per write.
-function draw.set(obj, field, value)
+-- Layers draw.hold covers, each with the hidden state its element last set, and whether they are held hidden.
+local holdable = setmetatable({}, { __mode = "k" })
+local holding = false
+
+local function write(obj, field, value)
   local fields = writtenFor(obj)
   if fields[field] == value then
     return
@@ -120,6 +121,35 @@ function draw.set(obj, field, value)
   elseif not warned[field] then
     warned[field] = true
     log("cannot set " .. field .. ":", err)
+  end
+end
+
+-- Writes a component property unless it already holds value, logging the first failure per property. A
+-- draw.edgedText label's edge copies take the same write while its edge is on. A layer given to draw.holdable
+-- stays hidden while draw.hold holds it, and takes the hidden state set meanwhile once released. Runs on every
+-- redraw, so it passes assign to pcall rather than building a closure per write.
+function draw.set(obj, field, value)
+  if field == "hidden" and holdable[obj] ~= nil then
+    holdable[obj] = value
+    value = value or holding
+  end
+  write(obj, field, value)
+end
+
+-- Lets draw.hold hide layer, an element's root layer, whose hidden state the element sets through draw.set.
+function draw.holdable(layer)
+  holdable[layer] = writtenFor(layer).hidden == true
+end
+
+-- Hides every draw.holdable layer while held is true, and gives each back its own hidden state once false.
+-- Writes nothing when held is unchanged.
+function draw.hold(held)
+  if held == holding then
+    return
+  end
+  holding = held
+  for layer, hidden in pairs(holdable) do
+    write(layer, "hidden", hidden or held)
   end
 end
 

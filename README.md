@@ -14,7 +14,7 @@ A combat HUD for RuneScape 3. It draws your frames, bars, cooldowns and buffs in
 - Cooldown groups: Major, Rotation, Utility and Defensives. Each icon shows its keybind and seconds left, and Major and Rotation change with your weapon's combat style.
 - Aura rows: combat buffs, upkeep buffs, debuffs on you and debuffs on your target. Each icon shows its time or stacks and gets a ring in its last seconds.
 
-Hover anything for its name and description. Every element can be moved, anchored to another and resized.
+Hover anything for its name and description. Every element can be moved, anchored to another and resized. The HUD hides while the world map is open.
 
 ## Install
 
