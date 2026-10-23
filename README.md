@@ -28,12 +28,12 @@ RuneUI runs on the RuneScape beta while plugins are in testing, and needs Pretty
 
 ## Options
 
-Open the plugin ribbon, choose RuneUI and press **Options**.
+Open the plugin ribbon, choose RuneUI and press **Options**. Under it, **Out of combat** and **Bar fading** turn out of combat fading and action bar fading on or off in one press, such as while skilling, and keep the rest of your settings for when you turn them back on.
 
 - Appearance sets fonts, text size and edge, frame colours and sizes, the bar texture, whether the game's own target panel and cast bar stay visible, and how the HUD shows out of combat: at full, faded to an opacity you set, or hidden. It comes back at full in combat, while you have a target unless you turn that off, and while the options window or edit mode is open. A preview at the top shows every change.
 - Cooldown manager sets each group's icon size, wrapping and direction, and its abilities per combat style. Drag icons to reorder them, press **+** to add one and click one to remove it.
 - Buffs sets which row each buff shows in, which debuffs you track, and **Keep up** for buffs you never want to drop. **Find** searches every effect in the game by name or boss.
-- Bars sets the adrenaline markers, bar sizes, the cast bar's colour and font, and fades the game's action bars.
+- Bars sets the adrenaline markers, bar sizes, the cast bar's colour and font, and fades the game's action bars, with one switch over all of them.
 - Edit mode lets you drag any element, anchor it to another from its **Anchor** button and snap to edges or a grid. Hold Shift to move freely.
 
 Settings save between sessions.

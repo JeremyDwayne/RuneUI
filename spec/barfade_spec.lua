@@ -35,6 +35,13 @@ describe("barfade.level", function()
     appearance.hoverBar1 = false
     assert.are.equal(25, barfade.level(appearance, 1, false, true))
   end)
+
+  it("shows every bar at full while Fade action bars is off, keeping each bar's own settings", function()
+    local appearance = { barOpacity1 = 25, fadeBar1 = true, hoverBar1 = true, fadeBars = false }
+    assert.are.equal(100, barfade.level(appearance, 1, false))
+    appearance.fadeBars = true
+    assert.are.equal(25, barfade.level(appearance, 1, false))
+  end)
 end)
 
 describe("barfade.state", function()

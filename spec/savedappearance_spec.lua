@@ -84,6 +84,8 @@ describe("savedappearance", function()
       outOfCombat = "show",
       outOfCombatOpacity = 30,
       showWithTarget = true,
+      outOfCombatPick = "fade",
+      fadeBars = true,
     }, s.appearance())
     local chosen = {
       font = "cinzel",
@@ -174,6 +176,18 @@ describe("savedappearance", function()
     local store = fakeStore({ appearance = { outOfCombatOpacity = 10.0, outOfCombat = "vanish" } })
     local a = savedappearance.load(store).appearance()
     assert.are.same({ 10, "show" }, { a.outOfCombatOpacity, a.outOfCombat })
+  end)
+
+  it("turns out of combat fading off to Show and back on to the last Fade or Hide picked", function()
+    local store = fakeStore()
+    local s = savedappearance.load(store)
+    s.setOutOfCombat(true)
+    assert.are.equal("fade", s.appearance().outOfCombat)
+    s.setAppearance("outOfCombat", "hide")
+    s.setOutOfCombat(false)
+    assert.are.equal("show", s.appearance().outOfCombat)
+    s.setOutOfCombat(true)
+    assert.are.equal("hide", savedappearance.load(store).appearance().outOfCombat)
   end)
 
   it("saves each aura row's icon and text size and reads a bad one as its default", function()

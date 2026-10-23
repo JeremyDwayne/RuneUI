@@ -106,6 +106,43 @@ describe("options", function()
     assert.are.same({ true, false, true, false }, seen)
   end)
 
+  it("switches out of combat fading and action bar fading from the ribbon, saving and redrawing", function()
+    local root = fake.component()
+    local saved = settings.load(fakeStore())
+    local refreshed = 0
+    options.create(root, {
+      saved = saved,
+      tracker = cooldowns.tracker(),
+      elements = { player = view.playerFrame(root) },
+      view = view,
+      refresh = function()
+        refreshed = refreshed + 1
+      end,
+    })
+    local layer = fake.component()
+    fake.fire("ContentLayerReady", { component = layer })
+    local function switchText(label)
+      local row = fake.find(function(_, d)
+        return d.content == label
+      end)
+      return fake.find(function(_, d)
+        return d.parent == layer and d.y == row.y and (d.content == "On" or d.content == "Off")
+      end).content
+    end
+    assert.are.same({ "Off", "On" }, { switchText("Out of combat"), switchText("Bar fading") })
+    fake.press("Off")
+    assert.are.same({ "fade", "On", 1 }, { saved.appearance().outOfCombat, switchText("Out of combat"), refreshed })
+    fake.press("On", 2)
+    assert.are.same({ false, "Off" }, { saved.appearance().fadeBars, switchText("Bar fading") })
+    -- A ribbon built again shows the saved switches.
+    fake.fire("ContentLayerReady", { component = fake.component() })
+    fake.press("On")
+    assert.are.equal("show", saved.appearance().outOfCombat)
+    assert.is_not_nil(pretty.find("FancyButton", function(c)
+      return c.options.y == 10
+    end))
+  end)
+
   it("builds the window on the first press of Options, with the HUD placed before it", function()
     local root = fake.component()
     local saved = settings.load(fakeStore())

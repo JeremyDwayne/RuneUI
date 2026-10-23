@@ -1,12 +1,13 @@
--- The options window and its ribbon button: a PrettyUI window with a tab per page, the src/appearancepage
--- Appearance and Bars pages, the src/cooldownpage Cooldown manager, the src/buffspage Buffs page, and a footer
--- with Edit mode into src/editmode, Reset positions and Done.
+-- The options window and the src/ribbon panel that opens it: a PrettyUI window with a tab per page, the
+-- src/appearancepage Appearance and Bars pages, the src/cooldownpage Cooldown manager, the src/buffspage Buffs
+-- page, and a footer with Edit mode into src/editmode, Reset positions and Done.
 local appearancepage = require("src/appearancepage")
 local buffspage = require("src/buffspage")
 local catalog = require("src/catalog")
 local cooldownpage = require("src/cooldownpage")
 local draw = require("src/draw")
 local editmode = require("src/editmode")
+local ribbon = require("src/ribbon")
 local style = require("src/style")
 
 local options = {}
@@ -47,6 +48,14 @@ function options.create(root, deps)
   local tracker = deps.tracker
   local elements = deps.elements
   local configured = deps.configured or function() end
+  -- Redraws the ribbon panel's switches, once the client has built it.
+  local showRibbon = function() end
+
+  -- Redraws the HUD and the ribbon's switches after a page saves a change.
+  local function refresh()
+    deps.refresh()
+    showRibbon()
+  end
 
   -- The window and its pages, nil until the first open.
   local window, pageTabs, cooldownPage, buffsPage, appearance, bars
@@ -191,7 +200,7 @@ function options.create(root, deps)
     cooldownPage = cooldownpage.create(pages.cooldowns, PAGE_W, PAGE_H, {
       saved = saved,
       tracker = tracker,
-      refresh = deps.refresh,
+      refresh = refresh,
     })
 
     local buffsTooltip = deps.view.tooltip(root)
@@ -204,7 +213,7 @@ function options.create(root, deps)
       toScreen = function(px, py)
         return window.root.x + PAGE_X + px, window.root.y + PAGE_Y + py
       end,
-      refresh = deps.refresh,
+      refresh = refresh,
     })
 
     local pageDeps = {
@@ -213,7 +222,7 @@ function options.create(root, deps)
       tooltip = buffsTooltip,
       auraInfo = deps.auraInfo,
       tracker = tracker,
-      refresh = deps.refresh,
+      refresh = refresh,
     }
     appearance = appearancepage.create(pages.appearance, PAGE_W, PAGE_H, pageDeps)
     bars = appearancepage.bars(pages.bars, PAGE_W, PAGE_H, pageDeps)
@@ -293,8 +302,18 @@ function options.create(root, deps)
     end
   end)
 
+  -- The client builds the ribbon's content layer afresh each time it opens, so the panel is built each time.
   Event.ContentLayerReady.Subscribe("runeuiRibbon", function(e)
-    prettyui.FancyButton.new(e.component, "Options", openWindow, { x = 10, y = 10 })
+    showRibbon = ribbon.create(e.component, {
+      saved = saved,
+      open = openWindow,
+      changed = function()
+        deps.refresh()
+        if windowOpen then
+          showPage(currentPage)
+        end
+      end,
+    })
   end)
 
   editMode.placeAll()
