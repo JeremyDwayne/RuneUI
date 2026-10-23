@@ -47,3 +47,5 @@ The client API is thinly documented. These facts came from probing it in the gam
 - The client holds an alpha in a byte: 0.01 written reads back as 2/255. Compare an alpha with what was written to it by a margin of 1/255 or more.
 - The client resets an action bar's root alpha on its own while the bar's other components keep theirs, so a fade keeps each component's original alpha until the client sets that component itself.
 - An action bar slot showing an item draws the item's stack count at full whatever the icon's alpha, and hiding the icon stops the item being used while abilities still cast. A faded bar leaves the icon as it is, so the count shows.
+- An action bar slot's button fires `ONCLICK` on press, `ONHOLD` once, and `ONRELEASE` on release or as soon as the cursor leaves it with the button held. `ONDRAG` and `ONDRAGCOMPLETE` never fire, so nothing marks the end of a drag off the bar.
+- Loading builds components at a cost of seconds for a few thousand, and the client queues the server and logic ticks it missed and replays them after. Keep the load to what the HUD shows and build the rest on first use.
