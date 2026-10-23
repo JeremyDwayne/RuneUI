@@ -73,7 +73,7 @@ function castbar.create(root)
     set(marks[i], "hidden", true)
   end
   local sparkWidth = SPARK_GLOW + SPARK_CORE
-  local spark = ui.Layer.new(layer)
+  local spark = draw.new(ui.Layer, layer)
   local glow = {}
   for i = 1, SPARK_GLOW do
     glow[i] = rect(spark, COLOURS.highlight, i - 1, 0, 1, 0)
@@ -83,7 +83,7 @@ function castbar.create(root)
   local glowLevel = nil
   local flashLeft = 0
   local iconBack = rect(layer, COLOURS.tile, 1, 1, 0, 0)
-  local icon = ui.Sprite.new(layer)
+  local icon = draw.new(ui.Sprite, layer)
   icon:SetPos(1, 1)
   local name = draw.edgedText(layer, FONTS.body, ui.AlignMode.TOPLEFT, 0, 1, 0, 0)
   local time = draw.edgedText(layer, FONTS.body, ui.AlignMode.BOTTOMRIGHT, 0, 1, CAST_TIME_W, 0)

@@ -1,12 +1,13 @@
--- The options window and its ribbon button: a PrettyUI window with a tab per page, the src/appearancepage
--- Appearance and Bars pages, the src/cooldownpage Cooldown manager, the src/buffspage Buffs page, and a footer
--- with Edit mode into src/editmode, Reset positions and Done.
+-- The options window and the src/ribbon panel that opens it: a PrettyUI window with a tab per page, the
+-- src/appearancepage Appearance and Bars pages, the src/cooldownpage Cooldown manager, the src/buffspage Buffs
+-- page, and a footer with Edit mode into src/editmode, Reset positions and Done.
 local appearancepage = require("src/appearancepage")
 local buffspage = require("src/buffspage")
 local catalog = require("src/catalog")
 local cooldownpage = require("src/cooldownpage")
 local draw = require("src/draw")
 local editmode = require("src/editmode")
+local ribbon = require("src/ribbon")
 local style = require("src/style")
 
 local options = {}
@@ -36,15 +37,25 @@ local FOOTER_GAP = 12
 local BUTTON_H = 27
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
 -- view = src/view, auraInfo(sprite) naming an aura icon, describe(struct) reading a struct's description,
--- refresh = function redrawing the HUD }. Returns
--- { placeAll, redrawBuffs, shutdown }; placeAll places the HUD and edit mode's overlays from the saved
--- positions and anchors, and redrawBuffs redraws the Buffs page while it is shown. The window and its pages
--- are built on the first press of Options, since they are a third of the plugin's components and a load
--- that builds them freezes the game for seconds.
+-- refresh = function redrawing the HUD, configured = function run as the window or edit mode opens or closes,
+-- or nil }. Returns { placeAll, redrawBuffs, configuring, shutdown }; placeAll places the HUD and edit mode's
+-- overlays from the saved positions and anchors, redrawBuffs redraws the Buffs page while it is shown, and
+-- configuring says whether the window or edit mode is open. The window and its pages are built on the first
+-- press of Options, since they are a third of the plugin's components and a load that builds them freezes the
+-- game for seconds.
 function options.create(root, deps)
   local saved = deps.saved
   local tracker = deps.tracker
   local elements = deps.elements
+  local configured = deps.configured or function() end
+  -- Redraws the ribbon panel's switches, once the client has built it.
+  local showRibbon = function() end
+
+  -- Redraws the HUD and the ribbon's switches after a page saves a change.
+  local function refresh()
+    deps.refresh()
+    showRibbon()
+  end
 
   -- The window and its pages, nil until the first open.
   local window, pageTabs, cooldownPage, buffsPage, appearance, bars
@@ -89,6 +100,7 @@ function options.create(root, deps)
     done = function()
       openWindow()
     end,
+    changed = configured,
   })
 
   -- The open Reset positions confirm, or nil. It sits over the screen, so edit mode's toolbar can open it too.
@@ -108,6 +120,7 @@ function options.create(root, deps)
     bars.cancel()
     closePopups()
     windowOpen = false
+    configured()
   end
 
   function resetPositions()
@@ -187,7 +200,7 @@ function options.create(root, deps)
     cooldownPage = cooldownpage.create(pages.cooldowns, PAGE_W, PAGE_H, {
       saved = saved,
       tracker = tracker,
-      refresh = deps.refresh,
+      refresh = refresh,
     })
 
     local buffsTooltip = deps.view.tooltip(root)
@@ -200,7 +213,7 @@ function options.create(root, deps)
       toScreen = function(px, py)
         return window.root.x + PAGE_X + px, window.root.y + PAGE_Y + py
       end,
-      refresh = deps.refresh,
+      refresh = refresh,
     })
 
     local pageDeps = {
@@ -209,7 +222,7 @@ function options.create(root, deps)
       tooltip = buffsTooltip,
       auraInfo = deps.auraInfo,
       tracker = tracker,
-      refresh = deps.refresh,
+      refresh = refresh,
     }
     appearance = appearancepage.create(pages.appearance, PAGE_W, PAGE_H, pageDeps)
     bars = appearancepage.bars(pages.bars, PAGE_W, PAGE_H, pageDeps)
@@ -249,6 +262,7 @@ function options.create(root, deps)
       window:Show()
     end
     windowOpen = true
+    configured()
     cooldownPage.open()
     if pageTabs:GetActiveIndex() ~= 1 then
       pageTabs:SetActive(1, false)
@@ -288,8 +302,18 @@ function options.create(root, deps)
     end
   end)
 
+  -- The client builds the ribbon's content layer afresh each time it opens, so the panel is built each time.
   Event.ContentLayerReady.Subscribe("runeuiRibbon", function(e)
-    prettyui.FancyButton.new(e.component, "Options", openWindow, { x = 10, y = 10 })
+    showRibbon = ribbon.create(e.component, {
+      saved = saved,
+      open = openWindow,
+      changed = function()
+        deps.refresh()
+        if windowOpen then
+          showPage(currentPage)
+        end
+      end,
+    })
   end)
 
   editMode.placeAll()
@@ -300,6 +324,9 @@ function options.create(root, deps)
       if windowOpen and currentPage == "buffs" then
         buffsPage.redraw()
       end
+    end,
+    configuring = function()
+      return windowOpen or editMode.editing()
     end,
     shutdown = function()
       closeConfirm()

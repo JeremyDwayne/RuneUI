@@ -47,14 +47,14 @@ local function auraTile(layer)
     },
     edge = rect(layer, COLOURS.border, 0, 0, 0, 0),
     slot = rect(layer, COLOURS.slot, 0, 0, 0, 0),
-    icon = ui.Sprite.new(layer),
+    icon = draw.new(ui.Sprite, layer),
     time = draw.edgedText(layer, FONTS.small, ui.AlignMode.CENTRE, 0, 0, 0, 0),
     stacks = draw.edgedText(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 0, 0),
     track = rect(layer, COLOURS.border, 0, 0, 0, AURA_BAR),
     fill = rect(layer, COLOURS.dimText, 0, 0, 0, AURA_BAR - 2),
-    stripes = ui.Canvas.new(layer),
+    stripes = draw.new(ui.Canvas, layer),
     cover = rect(layer, COLOURS.border, 0, 0, 0, AURA_BAR - 2),
-    dashed = ui.Canvas.new(layer),
+    dashed = draw.new(ui.Canvas, layer),
   }
 end
 

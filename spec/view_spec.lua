@@ -90,6 +90,38 @@ describe("view", function()
     end
   end)
 
+  it("fades a held cooldown group by each part's own alpha, and redraws unchanged tiles with no writes", function()
+    local tiles = readyTiles(3)
+    tiles[2] = { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, keybind = "Q", remaining = 3.6 }
+    local g = group()
+    view.holdable({ g })
+    g.update(tiles)
+    local alphas = {}
+    for _, c in ipairs(fake.created) do
+      alphas[c] = c.alpha or 1
+    end
+    view.fade(0.3)
+    g.update(tiles)
+    fake.writes = 0
+    g.update(tiles)
+    view.fade(0.3)
+    assert.are.equal(0, fake.writes)
+    local faded = 0
+    for c, alpha in pairs(alphas) do
+      if c.parent == g.layer then
+        assert.is_near(alpha * 0.3, c.alpha, 1e-9)
+        faded = faded + 1
+      end
+    end
+    assert.is_true(faded > 10)
+    view.fade(1)
+    for c, alpha in pairs(alphas) do
+      if c.parent == g.layer then
+        assert.is_near(alpha, c.alpha, 1e-9)
+      end
+    end
+  end)
+
   it("counts a cooling tile's whole seconds down between server ticks, writing only when they change", function()
     local g = group()
     g.update({ { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, remaining = 4.2 } }, 0)

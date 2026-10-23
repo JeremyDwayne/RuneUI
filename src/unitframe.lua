@@ -26,7 +26,7 @@ local GAME_SPRITES = { cornerTop = 32990, side = 32991, cornerBottom = 32992, to
 local function gameFrame(layer)
   local parts = {}
   local function part(sprite, flipped, tiling)
-    local c = ui.Sprite.new(layer)
+    local c = draw.new(ui.Sprite, layer)
     set(c, "sprite", sprite)
     set(c, "isTiling", tiling)
     set(c, "isFlippedHorizontally", flipped)

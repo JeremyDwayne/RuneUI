@@ -82,6 +82,74 @@ end
 describe("options", function()
   before_each(pretty.reset)
 
+  it("reports the window and edit mode open as configuring, telling main.lua as each opens or closes", function()
+    local root = fake.component()
+    local seen = {}
+    local window
+    window = options.create(root, {
+      saved = settings.load(fakeStore()),
+      tracker = cooldowns.tracker(),
+      elements = { player = view.playerFrame(root) },
+      view = view,
+      refresh = function() end,
+      configured = function()
+        seen[#seen + 1] = window.configuring()
+      end,
+    })
+    assert.is_false(window.configuring())
+    fake.fire("ContentLayerReady", { component = fake.component() })
+    pretty.button("Options")
+    pretty.button("Edit mode")
+    assert.is_true(window.configuring())
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.is_false(window.configuring())
+    assert.are.same({ true, false, true, false }, seen)
+  end)
+
+  it("switches out of combat fading and action bar fading from the ribbon, saving and redrawing", function()
+    local root = fake.component()
+    local saved = settings.load(fakeStore())
+    local refreshed = 0
+    options.create(root, {
+      saved = saved,
+      tracker = cooldowns.tracker(),
+      elements = { player = view.playerFrame(root) },
+      view = view,
+      refresh = function()
+        refreshed = refreshed + 1
+      end,
+    })
+    local layer = fake.component()
+    fake.fire("ContentLayerReady", { component = layer })
+    -- The checkbox under a switch's label, and whether it is ticked.
+    local function switch(label)
+      local row = fake.find(function(_, d)
+        return d.parent == layer and d.content == label
+      end)
+      return pretty.find("CheckboxButton", function(c)
+        return c.root.parent == layer and c.options.y > row.y and c.options.y < row.y + 30
+      end)
+    end
+    local function ticked(label)
+      return switch(label):IsSelected(switch(label).choices[1].value)
+    end
+    assert.are.same({ false, true }, { ticked("Out of combat"), ticked("Action bar fading") })
+    assert.are.equal("Enabled", switch("Out of combat").choices[1].text)
+    pretty.fire(switch("Out of combat"))
+    assert.are.same({ "fade", true, 1 }, { saved.appearance().outOfCombat, ticked("Out of combat"), refreshed })
+    pretty.fire(switch("Action bar fading"))
+    assert.are.same({ false, false }, { saved.appearance().fadeBars, ticked("Action bar fading") })
+    -- A ribbon built again shows the saved switches.
+    layer = fake.component()
+    fake.fire("ContentLayerReady", { component = layer })
+    assert.are.same({ true, false }, { ticked("Out of combat"), ticked("Action bar fading") })
+    pretty.fire(switch("Out of combat"))
+    assert.are.equal("show", saved.appearance().outOfCombat)
+    assert.is_not_nil(pretty.find("FancyButton", function(c)
+      return c.options.y == 10
+    end))
+  end)
+
   it("builds the window on the first press of Options, with the HUD placed before it", function()
     local root = fake.component()
     local saved = settings.load(fakeStore())
@@ -133,6 +201,20 @@ describe("options", function()
 
   it("saves the debuff border colour from the Buffs page's Display tab", function()
     local saved = openWindow(nil, "Buffs")
+    fake.press("Display")
+    fake.press("White")
+    assert.are.equal("white", saved.appearance().debuffEdge)
+  end)
+
+  it("saves a page change when the closed ribbon's checkboxes no longer take writes", function()
+    local saved = openWindow(nil, "Buffs")
+    for _, c in ipairs(pretty.made) do
+      if c.kind == "CheckboxButton" then
+        c.SetSelected = function()
+          error("component destroyed")
+        end
+      end
+    end
     fake.press("Display")
     fake.press("White")
     assert.are.equal("white", saved.appearance().debuffEdge)

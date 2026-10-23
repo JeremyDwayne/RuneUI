@@ -118,6 +118,9 @@ local function fieldInRow(row)
   end)
 end
 
+-- The label of the Appearance page's last row.
+local LAST_ROW = "Show while you have a target"
+
 describe("appearance page", function()
   before_each(fake.reset)
 
@@ -140,7 +143,7 @@ describe("appearance page", function()
 
   it("scrolls by the wheel and stops with 32 px below the last row", function()
     open()
-    local viewport, content, last = scrollParts("Game cast bar")
+    local viewport, content, last = scrollParts(LAST_ROW)
     wheel(-1, 200)
     assert.are.equal(viewport.height - 32, last.y + last.height + content.y)
     wheel(1, 200)
@@ -149,7 +152,7 @@ describe("appearance page", function()
 
   it("scrolls by dragging the scrollbar's thumb, in proportion to its travel", function()
     local page = open()
-    local viewport, content = scrollParts("Game cast bar")
+    local viewport, content = scrollParts(LAST_ROW)
     local grip = fake.find(function(c, d)
       return d.parent ~= viewport and d.alpha == 0 and fake.hasHook(c, "ONRELEASE")
     end)
@@ -166,7 +169,7 @@ describe("appearance page", function()
     fake.mouse.y = 2000
     page.follow()
     fake.hook(grip, "ONRELEASE")
-    local _, _, last = scrollParts("Game cast bar")
+    local _, _, last = scrollParts(LAST_ROW)
     assert.are.equal(viewport.height - 32, last.y + last.height + content.y)
     fake.writes = 0
     fake.mouse.y = 100
@@ -236,9 +239,33 @@ describe("appearance page", function()
     fake.hook(square, "ONCLICK", 180, 0)
     local hue = style.hsv(style.FRAME_COLOURS.player)
     assert.are.equal(style.rgb(hue, 1, 1), saved.appearance().playerColour)
-    local viewport, content, last = scrollParts("Game cast bar")
+    local viewport, content, last = scrollParts(LAST_ROW)
     wheel(-1, 200)
     assert.are.equal(viewport.height - 32, last.y + last.height + content.y)
+  end)
+
+  it("sets how the HUD shows out of combat, dimming the opacity until Fade and the target choice under Show", function()
+    local _, saved, refreshed = open()
+    wheel(-1, 200)
+    local function dimmed(row, content)
+      local parent = label(row).parent
+      return fake.find(function(_, d)
+        return d.parent == parent and d.content == content
+      end).alpha < 1
+    end
+    assert.are.same({ true, true }, { fieldInRow("Faded opacity %").alpha < 1, dimmed(LAST_ROW, "On") })
+    pressInRow("HUD out of combat", "Fade")
+    assert.are.same({ "fade", 1 }, { saved.appearance().outOfCombat, refreshed.count })
+    assert.are.same({ false, false }, { fieldInRow("Faded opacity %").alpha < 1, dimmed(LAST_ROW, "On") })
+    pressInRow("Faded opacity %", "+")
+    assert.are.equal(35, saved.appearance().outOfCombatOpacity)
+    fake.hook(fieldInRow("Faded opacity %"), "ONCONTENTCHANGED", ui.InputFieldActionResult.SUBMIT, "2")
+    assert.are.same({ 10, "10" }, { saved.appearance().outOfCombatOpacity, fieldInRow("Faded opacity %").content })
+    pressInRow("HUD out of combat", "Hide")
+    pressInRow(LAST_ROW, "Off")
+    local a = saved.appearance()
+    assert.are.same({ "hide", false }, { a.outOfCombat, a.showWithTarget })
+    assert.are.same({ true, false }, { fieldInRow("Faded opacity %").alpha < 1, dimmed(LAST_ROW, "On") })
   end)
 
   it("fades an action bar from its row, stepping its opacity by 5 and dimming it until the bar fades", function()
@@ -257,6 +284,21 @@ describe("appearance page", function()
     assert.are.same({ 40, "40" }, { saved.appearance().barOpacity1, fieldInRow("Main bar").content })
     pressInRow("Hover shows all bars", "Off")
     assert.is_true(saved.appearance().hoverAllBars)
+  end)
+
+  it("turns every action bar's fading off from one switch, dimming each bar's own settings", function()
+    local saved = openBars()
+    wheel(-1, 200)
+    pressInRow("Main bar", "Off")
+    assert.is_false(fieldInRow("Main bar").alpha < 1)
+    -- Up 40 px, so the switch's row shows whole.
+    wheel(1, 5)
+    pressInRow("Fade action bars", "Off")
+    local a = saved.appearance()
+    assert.are.same({ false, true }, { a.fadeBars, a.fadeBar1 })
+    assert.is_true(fieldInRow("Main bar").alpha < 1)
+    pressInRow("Fade action bars", "On")
+    assert.are.same({ true, false }, { saved.appearance().fadeBars, fieldInRow("Main bar").alpha < 1 })
   end)
 
   it("saves a typed opacity only on a step of 5, keeping what is typed until then", function()

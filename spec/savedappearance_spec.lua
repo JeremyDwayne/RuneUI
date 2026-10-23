@@ -81,6 +81,11 @@ describe("savedappearance", function()
       targetDebuffsIcon = 26,
       targetDebuffsText = "hud",
       debuffEdge = "orange",
+      outOfCombat = "show",
+      outOfCombatOpacity = 30,
+      showWithTarget = true,
+      outOfCombatPick = "fade",
+      fadeBars = true,
     }, s.appearance())
     local chosen = {
       font = "cinzel",
@@ -101,6 +106,9 @@ describe("savedappearance", function()
       castColour = "necro",
       castFont = "cinzel",
       castTextSize = 16,
+      outOfCombat = "fade",
+      outOfCombatOpacity = 55,
+      showWithTarget = false,
     }
     for field, value in pairs(chosen) do
       s.setAppearance(field, value)
@@ -158,6 +166,28 @@ describe("savedappearance", function()
     end
     local bad = savedappearance.load(fakeStore({ appearance = { fadeBar1 = "yes", hoverBar2 = 0 } }))
     assert.are.same({ false, true }, { bad.appearance().fadeBar1, bad.appearance().hoverBar2 })
+  end)
+
+  it("reads an out of combat opacity off its 5 percent steps, below 10 or above 90 as 30", function()
+    for _, opacity in ipairs({ 0, 5, 33, 95, 100, "x" }) do
+      local a = savedappearance.load(fakeStore({ appearance = { outOfCombatOpacity = opacity } })).appearance()
+      assert.are.equal(30, a.outOfCombatOpacity, tostring(opacity))
+    end
+    local store = fakeStore({ appearance = { outOfCombatOpacity = 10.0, outOfCombat = "vanish" } })
+    local a = savedappearance.load(store).appearance()
+    assert.are.same({ 10, "show" }, { a.outOfCombatOpacity, a.outOfCombat })
+  end)
+
+  it("turns out of combat fading off to Show and back on to the last Fade or Hide picked", function()
+    local store = fakeStore()
+    local s = savedappearance.load(store)
+    s.setOutOfCombat(true)
+    assert.are.equal("fade", s.appearance().outOfCombat)
+    s.setAppearance("outOfCombat", "hide")
+    s.setOutOfCombat(false)
+    assert.are.equal("show", s.appearance().outOfCombat)
+    s.setOutOfCombat(true)
+    assert.are.equal("hide", savedappearance.load(store).appearance().outOfCombat)
   end)
 
   it("saves each aura row's icon and text size and reads a bad one as its default", function()

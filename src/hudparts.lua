@@ -66,7 +66,7 @@ end
 local function spenderRows(layer)
   local rows = {}
   for r = 1, #frames.SPENDERS do
-    rows[r] = { canvas = ui.Canvas.new(layer) }
+    rows[r] = { canvas = draw.new(ui.Canvas, layer) }
     set(rows[r].canvas, "hidden", true)
   end
 

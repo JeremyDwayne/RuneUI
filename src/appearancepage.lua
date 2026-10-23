@@ -1,8 +1,9 @@
 -- The options window's Appearance and Bars pages. Each has a preview strip of HUD elements, drawn by src/view
--- from sample models over a Dark or Light backdrop, fixed above its settings: Text, Unit frames and Game
--- interfaces on Appearance, the adrenaline bar and the cast bar on Bars. The settings scroll by pixels inside a
--- clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, and a click lands only where
--- its row shows. Every change saves, then redraws the preview and the HUD.
+-- from sample models over a Dark or Light backdrop, fixed above its settings: Text, Unit frames, Game
+-- interfaces and Out of combat on Appearance, the adrenaline bar and the cast bar on Bars. The settings scroll
+-- by pixels inside a clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, and a
+-- click lands only where its row shows. Every change saves, then redraws the preview and the HUD.
+local autohide = require("src/autohide")
 local colourpicker = require("src/colourpicker")
 local controls = require("src/controls")
 local draw = require("src/draw")
@@ -94,6 +95,7 @@ local TEXTURES = {
   { id = "horizontal", label = "Horizontal" },
 }
 local SHOW_HIDE = { { id = false, label = "Show" }, { id = true, label = "Hide" } }
+local ON_OFF = { { id = true, label = "On" }, { id = false, label = "Off" } }
 local WIDTH_FROM = { { id = false, label = "Own width" }, { id = true, label = "Same as adrenaline" } }
 local MATCH_HUD = { id = "hud", label = "Match HUD" }
 
@@ -298,6 +300,16 @@ local function settingsPage(page, width, height, deps, define)
     return row
   end
 
+  -- Dims each controls.option in buttons, by id or in a list, while faded, as while its setting has no effect.
+  local function fadeOptions(buttons, faded)
+    local alpha = faded and controls.FADED or 1
+    for _, o in pairs(buttons) do
+      for _, part in ipairs({ o.ring, o.bg, o.face, o.label }) do
+        set(part, "alpha", alpha)
+      end
+    end
+  end
+
   -- An On or Off button w wide at x on row, flipping the boolean appearance field. Returns its fade(faded).
   local function toggle(row, x, w, field)
     local by = (ROW_H - OPTION_H) // 2
@@ -312,10 +324,7 @@ local function settingsPage(page, width, height, deps, define)
       set(o.label, "content", appearance[field] and "On" or "Off")
     end
     return function(faded)
-      local alpha = faded and controls.FADED or 1
-      for _, part in ipairs({ o.ring, o.bg, o.face, o.label }) do
-        set(part, "alpha", alpha)
-      end
+      fadeOptions({ o }, faded)
     end
   end
 
@@ -449,6 +458,7 @@ local function settingsPage(page, width, height, deps, define)
     row = settingRow,
     stepperAt = stepper,
     toggle = toggle,
+    fadeOptions = fadeOptions,
     columns = columns,
     colour = colourRow,
     choose = choose,
@@ -547,7 +557,29 @@ function appearancepage.create(page, width, height, deps)
     b.choices("Default target panel", SHOW_HIDE, "hideTargetPanel", 90)
     b.choices("Game cast bar", SHOW_HIDE, "hideCastBar", 90)
 
+    b.heading("Out of combat")
+    b.choices("HUD out of combat", autohide.MODES, "outOfCombat", 90)
+    local opacity = savedappearance.HUD_OPACITY
+    local fadeOpacity = b.stepperAt(
+      b.row("Faded opacity %"),
+      b.rowRight - controls.STEPPER_W,
+      opacity.min,
+      opacity.max,
+      savedappearance.OPACITY_STEP,
+      function(appearance)
+        return appearance.outOfCombatOpacity
+      end,
+      function(n)
+        if n ~= deps.saved.appearance().outOfCombatOpacity then
+          b.choose("outOfCombatOpacity", n)
+        end
+      end
+    )
+    local withTarget = b.choices("Show while you have a target", ON_OFF, "showWithTarget", 72)
+
     return function(look, appearance)
+      fadeOpacity(appearance.outOfCombat ~= "fade")
+      b.fadeOptions(withTarget, appearance.outOfCombat == "show")
       view.setLook(elements, look)
       tiles.update(SAMPLE_TILES, 0)
       aura.update(SAMPLE_AURAS, false)
@@ -564,8 +596,9 @@ function appearancepage.create(page, width, height, deps)
 end
 
 -- The Bars page: the adrenaline bar's markers and size, where the spender rows sit, the cast bar's width,
--- height, colour, font and text size, and whether each game action bar fades, to what opacity, and shows at full
--- on hover, with the main bar's stats shown or hidden; see settingsPage.
+-- height, colour, font and text size, a switch over every action bar's fading, and whether each game action bar
+-- fades, to what opacity, and shows at full on hover, with the main bar's stats shown or hidden; see
+-- settingsPage.
 function appearancepage.bars(page, width, height, deps)
   local view = deps.view
   local saved = deps.saved
@@ -625,6 +658,7 @@ function appearancepage.bars(page, width, height, deps)
     b.options(size, b.rowRight - 132, { MATCH_HUD }, "castTextSize", 104)
 
     b.heading("Action bars")
+    b.choices("Fade action bars", ON_OFF, "fadeBars", 72)
     local right = b.rowRight
     local hoverX = right - HOVER_COL
     local opacityX = hoverX - OPACITY_COL
@@ -635,12 +669,14 @@ function appearancepage.bars(page, width, height, deps)
       { "Opacity %", opacityX, OPACITY_COL },
       { "Show on hover", hoverX, HOVER_COL },
     })
-    -- Each bar's fade(faded) for its opacity stepper and hover toggle, dimmed while the bar is not faded.
+    -- Each bar's fade(faded) for its opacity stepper and hover toggle, dimmed while the bar is not faded, and for
+    -- its Fade toggle, dimmed while Fade action bars is off.
     local barFades = {}
+    local fadeToggles = {}
     for bar, name in ipairs(ACTION_BAR_NAMES) do
       local row = b.row(name)
       local opacity = "barOpacity" .. bar
-      b.toggle(row, fadeX + (FADE_COL - TOGGLE_W) // 2, TOGGLE_W, "fadeBar" .. bar)
+      fadeToggles[bar] = b.toggle(row, fadeX + (FADE_COL - TOGGLE_W) // 2, TOGGLE_W, "fadeBar" .. bar)
       local step = savedappearance.OPACITY_STEP
       local fadeStepper = b.stepperAt(row, opacityX + (OPACITY_COL - controls.STEPPER_W) // 2, 0, 100, step, function(a)
         return a[opacity]
@@ -655,14 +691,18 @@ function appearancepage.bars(page, width, height, deps)
         fadeHover(faded)
       end
     end
-    b.toggle(b.row("Hover shows all bars"), hoverX + (HOVER_COL - TOGGLE_W) // 2, TOGGLE_W, "hoverAllBars")
+    local hoverAll =
+      b.toggle(b.row("Hover shows all bars"), hoverX + (HOVER_COL - TOGGLE_W) // 2, TOGGLE_W, "hoverAllBars")
 
     return function(look, appearance)
       widthRow.fade(appearance.castMatchWidth)
       size.fade(appearance.castTextSize == "hud")
+      local barsOff = not appearance.fadeBars
       for bar, fade in ipairs(barFades) do
-        fade(not appearance["fadeBar" .. bar])
+        fade(barsOff or not appearance["fadeBar" .. bar])
+        fadeToggles[bar](barsOff)
       end
+      hoverAll(barsOff)
       view.setLook({ resource, cast }, look)
       resource.update(frames.resource(SAMPLE_ADRENALINE, saved.markers()))
       cast.update(SAMPLE_CAST)

@@ -173,4 +173,75 @@ describe("draw", function()
     draw.hold(false)
     assert.are.same({ props = 3, pos = 0 }, c.writes)
   end)
+
+  describe("fade", function()
+    after_each(function()
+      draw.fade(1)
+    end)
+
+    -- A holdable layer on a root, with a rect at alpha 0.5 and a label on a layer under it, and a rect on
+    -- another layer of the root.
+    local function layers()
+      fake.reset()
+      local root = fake.component()
+      local layer = fake.component(root)
+      draw.holdable(layer)
+      local rect = draw.rect(layer, 0, 0, 0, 10, 10)
+      draw.set(rect, "alpha", 0.5)
+      local label = draw.text(draw.new(ui.Layer, layer), draw.FONTS.body, ui.AlignMode.TOPLEFT, 0, 0, 10, 10)
+      local outside = draw.rect(fake.component(root), 0, 0, 0, 10, 10)
+      return rect, label, outside
+    end
+
+    it("fades every component built on a holdable layer by its own alpha, and restores it at full", function()
+      local rect, label, outside = layers()
+      draw.fade(0.3)
+      assert.is_near(0.15, rect.alpha, 1e-9)
+      assert.is_near(0.3, label.alpha, 1e-9)
+      assert.is_nil(outside.alpha)
+      -- An element setting an alpha while faded gets it scaled.
+      draw.set(rect, "alpha", 0.8)
+      assert.is_near(0.24, rect.alpha, 1e-9)
+      draw.set(outside, "alpha", 0.8)
+      assert.are.equal(0.8, outside.alpha)
+      draw.fade(1)
+      assert.are.same({ 0.8, 1, 0.8 }, { rect.alpha, label.alpha, outside.alpha })
+    end)
+
+    it("writes nothing while the fade is unchanged and an element sets the same alpha again", function()
+      local rect = layers()
+      draw.fade(0.3)
+      fake.writes = 0
+      draw.fade(0.3)
+      draw.set(rect, "alpha", 0.5)
+      assert.are.equal(0, fake.writes)
+    end)
+
+    it("fades a label's edge copies by the label's own alpha, as the edge turns on while faded", function()
+      fake.reset()
+      local layer = fake.component(fake.component())
+      draw.holdable(layer)
+      local label = draw.edgedText(layer, draw.FONTS.body, ui.AlignMode.TOPLEFT, 0, 0, 10, 10)
+      draw.set(label, "alpha", 0.5)
+      draw.fade(0.5)
+      draw.setEdge(label, 0x000000)
+      draw.set(label, "content", "1")
+      local copies = {}
+      for _, c in ipairs(fake.created) do
+        if c ~= label and c.content == "1" then
+          copies[#copies + 1] = c
+        end
+      end
+      assert.are.equal(4, #copies)
+      for _, copy in ipairs(copies) do
+        assert.are.equal(0.25, copy.alpha)
+      end
+      draw.set(label, "alpha", 1)
+      draw.fade(1)
+      for _, copy in ipairs(copies) do
+        assert.are.equal(1, copy.alpha)
+      end
+      assert.are.equal(1, label.alpha)
+    end)
+  end)
 end)
