@@ -43,16 +43,8 @@ end
 for _, name in ipairs(settings.CUSTOM_GROUPS) do
   GROUP_NAMES[#GROUP_NAMES + 1] = name
 end
--- Ability descriptions by cooldown key, read from the ability's struct on first hover, false when it has none.
-local abilityInfo = {}
-local function describeAbility(key)
-  if abilityInfo[key] == nil then
-    abilityInfo[key] = adapter.abilityInfo(key) or false
-  end
-  return abilityInfo[key] or nil
-end
 for _, name in ipairs(GROUP_NAMES) do
-  elements[name] = view.cooldownGroup(hud, tooltip, describeAbility)
+  elements[name] = view.cooldownGroup(hud, tooltip, adapter.abilityInfo)
 end
 for name, style in pairs(view.AURA_STYLES) do
   elements[name] = view.auraRow(hud, style, tooltip, auraNames.info)

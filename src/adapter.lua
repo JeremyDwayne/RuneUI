@@ -339,11 +339,17 @@ local function readAbilityInfo(key)
   return describe(config.Struct["COMBATV2_ABILITY_" .. key])
 end
 
+-- Ability descriptions by cooldown key, read once; false when the struct is missing or has none.
+local abilityInfo = {}
+
 -- The description of the ability struct for a cooldown key such as MAGIC_FINGER_OF_DEATH, for cooldown
--- tooltips, or nil, as when the struct is missing.
+-- tooltips, or nil. Each key reads the client once, on its first hover.
 function adapter.abilityInfo(key)
-  local ok, info = pcall(readAbilityInfo, key)
-  return ok and type(info) == "string" and info or nil
+  if abilityInfo[key] == nil then
+    local ok, info = pcall(readAbilityInfo, key)
+    abilityInfo[key] = ok and type(info) == "string" and info or false
+  end
+  return abilityInfo[key] or nil
 end
 
 local function readItemName(objID)
