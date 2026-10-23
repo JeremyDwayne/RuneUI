@@ -1,21 +1,19 @@
-# Contributing to RuneUI
+# Contributing
 
-Thanks for helping. Bug reports, fixes and ideas are all welcome.
+Bug reports, fixes and ideas are welcome. Open an issue before anything bigger than a small fix, so we can agree on the approach first.
 
-## Before you start
+## Two rules
 
-Open an issue before starting anything bigger than a small fix, so we can agree on the approach first. A small fix can go straight to a pull request.
+RuneUI has to pass Jagex's plugin moderation, so:
 
-Every feature has to pass Jagex's plugin moderation, so RuneUI follows two rules:
-
-- It only shows information the player can already see or know in the game. It never predicts hidden or future state, such as a boss's next attack.
+- It only shows what the player can already see or know in the game. It never predicts hidden or future state.
 - It never acts for the player. It sends no input, clicks, casts or menu actions.
 
-A feature that bends either rule will be turned down, however useful it is.
+Hiding or recolouring a game interface is fine as long as turning the option off, reloading or disabling the plugin restores it. Never unhide a game component, or move or resize the click zones of action bars, inventory or equipment.
 
 ## Setup
 
-You need Lua 5.4, LuaRocks and [StyLua](https://github.com/JohnnyMorganz/StyLua), which `brew install stylua` or `cargo install stylua` installs. Install the test and lint tools:
+Install Lua 5.4, LuaRocks and [StyLua](https://github.com/JohnnyMorganz/StyLua), then:
 
 ```sh
 luarocks --local --lua-version 5.4 install busted
@@ -23,11 +21,11 @@ luarocks --local --lua-version 5.4 install luacheck
 eval "$(luarocks --lua-version 5.4 path)"
 ```
 
-To try your changes in the game, follow the install steps in the README with your clone as the plugin folder, then run `prl runeui` in the game console after each save.
+To try changes in the game, follow the install steps in the README with your clone as the plugin folder and run `prl runeui` in the console after each save.
 
 ## Checks
 
-Run all four from the repo root before opening a pull request. CI runs the same four.
+Run all four before opening a pull request. CI runs the same.
 
 ```sh
 busted
@@ -36,42 +34,31 @@ for f in main.lua src/*.lua spec/*.lua spec/support/*.lua tools/*.lua; do luac5.
 stylua --check main.lua src spec tools
 ```
 
-A bug fix starts with a spec that fails without the fix.
+A bug fix starts with a spec that fails without it.
 
-## How the code is laid out
+## How the code fits together
 
-- `src/adapter.lua` is the only module that reads the game client. Every read goes through `pcall` and comes back as a plain table, so everything else can be tested without the game. `src/gameui.lua` and `src/actionbars.lua` are the only modules that change game interfaces: the first hides the target panel, cast bar and buff bars, the second fades the action bars, and each restores what it changed on shutdown. `src/interfaces.lua` holds the interface and component ids both use.
-- `src/frames.lua`, `src/cooldowns.lua`, `src/channel.lua`, `src/targeteffects.lua`, `src/auras.lua`, `src/auralists.lua`, `src/settings.lua` with its parts `src/savedlayout.lua`, `src/savedgroups.lua`, `src/savedappearance.lua` and `src/savedauras.lua`, `src/editor.lua`, `src/layout.lua`, `src/icons.lua`, `src/search.lua`, `src/style.lua`, `src/barfade.lua` and `src/util.lua` are pure Lua, each with a spec in `spec/`. `src/presets.lua` is the data the groups start with, covered by `spec/savedgroups_spec.lua`.
-- The HUD is one module per element: `src/unitframe.lua`, `src/resourcebar.lua`, `src/castbar.lua`, `src/cooldowngroup.lua`, `src/aurarow.lua` and `src/tooltip.lua`, with `src/hudparts.lua` for what they share and `src/view.lua` as the front that `main.lua` builds and places them through.
-- The options window is `src/options.lua` with a module per page: `src/appearancepage.lua` for Appearance and Bars, `src/cooldownpage.lua` for the Cooldown manager, with its ability picker in `src/abilitypicker.lua`, and `src/buffspage.lua` for Buffs, with `src/aurasearch.lua` for the Buffs page search. `src/scrollbar.lua`, `src/dragdrop.lua` and `src/colourpicker.lua` are the scrollbar, icon dragging and colour picker the pages share. `src/editmode.lua` draws edit mode, with its anchor menu in `src/anchormenu.lua`.
-- Every drawing module builds on `src/draw.lua`, whose `set`, `pos`, `place`, `width` and `size` skip unchanged values. `spec/support/fake_ui.lua` stands in for the client's `ui` table in specs and counts those writes, and `spec/support/fake_store.lua` for PersistentDB.
-- `src/catalog.lua` lists every buff and debuff the game defines, as `rows` for the Buffs page search and `names` for naming an aura icon by its sprite. It is generated: `tools/catalog.lua` builds it from a dump of the game's `COMBATV2_` and `MAGIC_` structs and from `tools/catalog_sources.lua`, which holds the boss each struct belongs to, whether it is a buff or debuff on you or left out, short names for structs named by a sentence, the effects bosses share, and the debuffs players inflict by combat style. Edit the sources, then run `lua5.4 tools/catalog.lua <dump.tsv> && stylua src/catalog.lua`.
+- One module reads the game client and two write to its interfaces. Everything else sees plain tables, so it runs in specs without the game.
+- Trackers turn var changes and tick reads into display models. Saved settings load through a small store, which specs replace with a fake.
+- Each HUD element, options page and popup is its own module. All of them draw through one set of primitives that skip unchanged writes.
+- The catalog of every buff and debuff is generated from a dump of the game's data. Edit the sources beside it and regenerate, rather than the output.
+
+Each module's first comment says what it does and how it is used.
 
 ## Performance
 
-RuneUI runs inside the game's frame, so its cost comes out of the player's frame rate.
+The plugin runs inside the game's frame, so its cost is the player's frame rate.
 
-- Redraw on the server tick, not every frame.
-- Build components once at load and hide the ones not in use.
-- Write component properties through `draw.set`, `draw.pos`, `draw.place`, `draw.width` and `draw.size`, which skip unchanged values. A tick where nothing changed should make no writes, and `spec/view_spec.lua` shows how to test that.
-- Leave out looping animations, pulses and fades.
+- Redraw on the server tick or on the event that changed the data, not every frame.
+- Build components once at load and hide the spares.
+- Write through the primitives that skip unchanged values. A tick where nothing changed makes no writes, and the view specs assert it.
+- No looping animations, pulses or fades.
 
-## Accessibility
+## Style
 
-Never carry meaning by colour alone. Avoid relying on red against green, green against brown, blue against purple, or light green against yellow. Add a second cue, such as text, position, shape or line style. Keep contrast high: light on very dark, or dark on light.
+- StyLua formats everything and luacheck catches unused and shadowed names.
+- Never carry meaning by colour alone, and keep contrast high: light on very dark. Avoid red against green, green against brown, blue against purple, and light green against yellow.
+- Comments say what code does and how it is used, not history.
+- Commits are small with an imperative subject. Say how you tested, with a game screenshot for anything visible.
 
-## Code style
-
-- Run `stylua main.lua src spec tools` before committing. It formats every file from `.stylua.toml`, including the 120 character line limit, and gives every `if`, `for`, `while` and `function` body its own lines.
-- Declare each local and assign each field on its own line. Only a call that returns several values, such as `local ok, value = pcall(f)`, assigns several names at once.
-- Choose among three or more values with `if` and `elseif`, not a chain of `and` and `or`.
-- Follow the style of the file you are in for everything else. luacheck catches unused and shadowed names.
-- Above each function, write a short comment saying what it does and how it is used. Leave history and the reasons for past decisions to commit messages.
-
-## Pull requests
-
-- Keep each pull request to one change, and keep commits small, with an imperative subject line such as "Hide the tooltip when the target dies".
-- Say how you tested it. For anything visible, include a screenshot from the game.
-- By contributing, you agree that your work is released under the project's MIT licence.
-
-Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
+By contributing you agree that your work is released under the MIT licence. Everyone follows the [code of conduct](CODE_OF_CONDUCT.md).
