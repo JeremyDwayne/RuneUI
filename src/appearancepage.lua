@@ -3,6 +3,7 @@
 -- interfaces on Appearance, the adrenaline bar and the cast bar on Bars. The settings scroll by pixels inside a
 -- clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, and a click lands only where
 -- its row shows. Every change saves, then redraws the preview and the HUD.
+local colourpicker = require("src/colourpicker")
 local draw = require("src/draw")
 local frames = require("src/frames")
 local scrollbar = require("src/scrollbar")
@@ -38,18 +39,13 @@ local OPACITY_COL = 136
 local FADE_COL = 96
 local TOGGLE_W = 72
 local ACTION_BAR_NAMES = { "Main bar", "Action bar 2", "Action bar 3", "Action bar 4", "Action bar 5" }
--- Colour rows: two lines of swatches and the hex field, and the picker's shade square and hue strip under them.
+-- Colour rows: two lines of swatches and the hex field, and a src/colourpicker under them while Custom is open.
 local SWATCH_W = 84
 local SWATCH_GAP = 4
 local HEX_W = 86
 local HEX_H = 24
 local COLOUR_ROW_H = 10 + 2 * OPTION_H + 8 + 10
-local PICKER_W = 180
-local PICKER_H = 110
-local HUE_W = 18
 local PICKER_SPACE = 12
--- The hue strip's colours from top to bottom, at hues 360 down to 0.
-local HUE_STOPS = { 0xFF0000FF, 0xFF00FFFF, 0x0000FFFF, 0x00FFFFFF, 0x00FF00FF, 0xFFFF00FF, 0xFF0000FF }
 
 -- Sample models the preview draws: tiles with keybinds on light and dark icons, one cooling, an aura with its
 -- timer, and the two unit frames.
@@ -396,93 +392,28 @@ local function settingsPage(page, width, height, deps, define)
       end
     end)
 
-    -- The picker, built on first open: { square, hue, mark, hueMark, hue value }.
-    local picker = nil
     local open = false
-    local pickerY = COLOUR_ROW_H
-    local squareX = rowRight - PICKER_W - HUE_W - 8
-
-    local function paintSquare(hue)
-      picker.square:Clear()
-      picker.square:AddRectangle(0, 0, PICKER_W, PICKER_H, draw.opaque(style.rgb(hue, 1, 1)))
-      picker.square:AddGradientH(0, 0, PICKER_W, PICKER_H, 0xFFFFFFFF, 0xFFFFFF00)
-      picker.square:AddGradientV(0, 0, PICKER_W, PICKER_H, 0x00000000, 0x000000FF)
-    end
-
-    local function showPicker(rgb)
-      local h, sat, v = style.hsv(rgb)
-      if sat == 0 or v == 0 then
-        h = picker.hueValue
-      end
-      if h ~= picker.painted then
-        picker.painted = h
-        paintSquare(h)
-      end
-      picker.hueValue = h
-      draw.pos(picker.mark, squareX + math.floor(sat * PICKER_W) - 3, pickerY + math.floor((1 - v) * PICKER_H) - 3)
-      draw.pos(picker.hueMark, squareX + PICKER_W + 6, pickerY + math.floor((1 - h / 360) * PICKER_H) - 2)
-    end
-
-    -- Saves the colour picked at x, y on the shade square, or at y on the hue strip when onHue.
-    local function pick(x, y, onHue)
-      local _, sat, v = style.hsv(colourRows[field].rgb)
-      local h = picker.hueValue
-      local fy = math.max(0, math.min(1, y / PICKER_H))
-      if onHue then
-        h = (1 - fy) * 360 % 360
-      else
-        sat = math.max(0, math.min(1, x / PICKER_W))
-        v = 1 - fy
-      end
-      picker.hueValue = h
-      choose(field, style.rgb(h, sat, v))
-    end
-
-    local function build()
-      picker = { hueValue = 0 }
-      picker.square = hitArea(ui.Canvas.new(row.layer))
-      draw.pos(picker.square, squareX, pickerY)
-      draw.size(picker.square, PICKER_W, PICKER_H)
-      picker.hue = hitArea(ui.Canvas.new(row.layer))
-      draw.pos(picker.hue, squareX + PICKER_W + 8, pickerY)
-      draw.size(picker.hue, HUE_W, PICKER_H)
-      local segment = PICKER_H / (#HUE_STOPS - 1)
-      for i = 1, #HUE_STOPS - 1 do
-        local top = math.floor((i - 1) * segment)
-        picker.hue:AddGradientV(0, top, HUE_W, math.floor(i * segment) - top, HUE_STOPS[i], HUE_STOPS[i + 1])
-      end
-      picker.mark = rect(row.layer, COLOURS.ring, 0, 0, 6, 6)
-      picker.hueMark = rect(row.layer, COLOURS.ring, 0, 0, HUE_W + 4, 4)
-      for _, part in ipairs({ picker.square, picker.hue }) do
-        wheel(part)
-      end
-      on(picker.square, "ONCLICK", function(_, x, y)
-        if allowed(pickerY + y) then
-          pick(x, y, false)
-        end
-      end)
-      on(picker.hue, "ONCLICK", function(_, x, y)
-        if allowed(pickerY + y) then
-          pick(x, y, true)
-        end
-      end)
-    end
+    local picker = colourpicker.create(row.layer, rowRight - colourpicker.W, COLOUR_ROW_H, {
+      allowed = allowed,
+      wheel = wheel,
+      choose = function(rgb)
+        choose(field, rgb)
+      end,
+    })
 
     local custom = draw.option(row.layer, "Custom", customX, lineY[2], SWATCH_W, OPTION_H, function(_, y)
       if not allowed(lineY[2] + y) then
         return
       end
       open = not open
-      if open and picker == nil then
-        build()
+      if open then
+        picker.show(colourRows[field].rgb)
+      else
+        picker.hide()
       end
-      draw.hideAll({ picker.square, picker.hue, picker.mark, picker.hueMark }, not open)
-      row.h = COLOUR_ROW_H + (open and PICKER_H + PICKER_SPACE or 0)
+      row.h = COLOUR_ROW_H + (open and colourpicker.H + PICKER_SPACE or 0)
       draw.size(row.bg, rowW, row.h)
       relayout()
-      if open then
-        showPicker(colourRows[field].rgb)
-      end
     end)
     wheel(custom.bg)
 
@@ -500,7 +431,7 @@ local function settingsPage(page, width, height, deps, define)
           hex.content = style.formatHex(rgb)
         end
         if open then
-          showPicker(rgb)
+          picker.show(rgb)
         end
       end,
     }
