@@ -59,4 +59,4 @@ Run `prl runeui` in the game console to reload after a change. [CONTRIBUTING.md]
 
 MIT. See [LICENSE](LICENSE).
 
-RuneScape is a trademark of Jagex Ltd. RuneUI is a fan-made plugin, not affiliated with or endorsed by Jagex.
+RuneScape is a trademark of Jagex Ltd. RuneUI is a fan-made plugin, not affiliated with or endorsed by Jagex. The ability and status icons in the mock above are Jagex's, from the [RuneScape Wiki](https://runescape.wiki).
