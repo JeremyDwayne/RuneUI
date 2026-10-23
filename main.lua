@@ -5,6 +5,7 @@
 local adapter = require("src/adapter")
 local auralists = require("src/auralists")
 local auras = require("src/auras")
+local catalog = require("src/catalog")
 local channel = require("src/channel")
 local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
@@ -21,7 +22,7 @@ local view = require("src/view")
 local hud = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
 local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
 local saved = settings.load(adapter.store(), tonumber(hud.height))
-local auraNames = icons.index(saved.debuffs(), {
+local auraNames = icons.index(catalog.names, {
   spriteName = adapter.spriteName,
   itemName = adapter.itemName,
   describe = adapter.structInfo,
@@ -87,8 +88,6 @@ local auraFilters = {
   hasTarget = false,
   rank = rank,
 }
--- Struct ids scanned per tick while an aura icon is unnamed, about 48 seconds for a full scan.
-local ICON_SCAN_BUDGET = 1000
 
 Event.VarTransmit.Subscribe("cooldowns", function(e)
   local name, old, new = adapter.varChange(e)
@@ -202,10 +201,6 @@ local function refresh()
     saved.seeDebuff("target", sprite)
   end
   for name, models in pairs(auraTracker.rows(saved.auras(), targetDebuffs, auraFilters, effectsTracker.timers())) do
-    -- Asking for each aura's name queues unnamed icons for the background scan.
-    for _, model in ipairs(models) do
-      auraNames.info(model.sprite)
-    end
     if elements[name].update(models, bars) then
       moved = true
     end
@@ -224,7 +219,6 @@ optionsWindow = options.create(top, {
   view = view,
   auraInfo = auraNames.info,
   describe = adapter.structInfo,
-  learnName = auraNames.learn,
   refresh = refresh,
 })
 
@@ -243,9 +237,6 @@ Event.ServerLogic.Subscribe("refresh", function()
   end
   for _, read in ipairs(auraReads.debuffs) do
     saved.seeDebuff("player", read.sprite)
-  end
-  for _, found in ipairs(auraNames.step(adapter.iconStruct, ICON_SCAN_BUDGET)) do
-    saved.learnDebuff(found.sprite, found.name, found.struct)
   end
   refresh()
 end)

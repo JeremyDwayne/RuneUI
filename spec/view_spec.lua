@@ -364,7 +364,9 @@ describe("view", function()
 
   -- A combat buffs row, and the src/auras model of a 20 s buff with left seconds left.
   local function auraRow()
-    return view.auraRow(fake.component(), view.AURA_STYLES.combatBuffs, view.tooltip(fake.component()), function() end)
+    return view.auraRow(fake.component(), view.AURA_STYLES.combatBuffs, view.tooltip(fake.component()), function()
+      return {}
+    end)
   end
   local function incite(left)
     return {

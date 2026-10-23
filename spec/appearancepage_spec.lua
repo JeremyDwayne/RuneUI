@@ -26,7 +26,9 @@ local function open()
     saved = saved,
     view = view,
     tooltip = view.tooltip(root),
-    auraInfo = function() end,
+    auraInfo = function()
+      return {}
+    end,
     tracker = cooldowns.tracker(),
     refresh = function()
       refreshed.count = refreshed.count + 1
@@ -50,7 +52,9 @@ local function openBars()
     saved = saved,
     view = view,
     tooltip = view.tooltip(root),
-    auraInfo = function() end,
+    auraInfo = function()
+      return {}
+    end,
     tracker = cooldowns.tracker(),
     refresh = function() end,
   })

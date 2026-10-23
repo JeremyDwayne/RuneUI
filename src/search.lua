@@ -1,4 +1,5 @@
--- The Buffs page search over src/catalog: which sources list a query's matches, and the effects a source lists.
+-- The Buffs page search over the src/catalog rows: which sources list a query's matches, and the effects a source
+-- lists.
 -- Rows are { sprite, name, struct, source, kind, cause, info }, struct nil for an icon the catalog lacks, and kind
 -- "buff" or "debuff" for one on you or "target" for one you inflict. Each call takes one kind. A boss's shared
 -- effect is a second row for its struct, so All lists each struct once. Pure.

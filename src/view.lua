@@ -1381,8 +1381,8 @@ end
 -- outline and a striped bar. update takes src/auras models and whether bars are on, and returns whether bounds
 -- changed. bounds spans the shown tiles, at least one, so an empty row can still be dragged in edit mode.
 -- setLook refits the tiles when the icon size or a text height changes, and returns whether bounds changed.
--- Hovering an icon shows the name and info from info(sprite), which returns { name, info } or nil, over whether
--- it is a buff or whose debuff, and its time left or stacks.
+-- Hovering an icon shows the name and info from info(sprite), a src/icons index, over whether it is a buff or
+-- whose debuff, and its time left or stacks.
 function view.auraRow(root, aura, tooltip, info)
   local size, step
   local layer = ui.Layer.new(root)
@@ -1417,15 +1417,8 @@ function view.auraRow(root, aura, tooltip, info)
     end
     local found = info(model.sprite)
     local x, y = screenPos(layer, tiles[i].group.x, AURA_MARGIN)
-    local title = aura.debuff and "Unknown debuff" or "Unknown buff"
-    local detail = nil
-    if found then
-      title = found.name or title
-      detail = found.info
-    elseif found == nil then
-      detail = "Looking up name"
-    end
-    tooltip.show({ title = title, left = aura.kind, right = auraStatus(model), info = detail }, x, y, size)
+    local title = found.name or (aura.debuff and "Unknown debuff" or "Unknown buff")
+    tooltip.show({ title = title, left = aura.kind, right = auraStatus(model), info = found.info }, x, y, size)
   end
 
   local hover = tooltip.hover(tiles, showTooltip)

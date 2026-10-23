@@ -120,9 +120,9 @@ local TABS = {
 local MAX_GROUPS = 3
 
 -- page: the options window's page layer, width by height. deps: { saved = src/settings, info(sprite) naming
--- an icon, tooltip = view.tooltip, toScreen(x, y) turning page into screen coordinates, refresh() redrawing
--- the HUD, catalog = src/catalog rows, describe(struct) reading a struct's description, learn(sprite, name,
--- struct) naming an icon at once and returning whether it was unnamed }. Returns { display, redraw, follow,
+-- an icon as src/icons does, tooltip = view.tooltip, toScreen(x, y) turning page into screen coordinates,
+-- refresh() redrawing the HUD, catalog = src/catalog rows, describe(struct) reading a struct's description }.
+-- Returns { display, redraw, follow,
 -- close, popupOpen, destroy }: display is the Display tab's layer for option rows; redraw draws the page from
 -- settings; follow runs each frame to move a drag; close ends a drag and closes the menu and the search;
 -- popupOpen says whether either is open.
@@ -391,8 +391,6 @@ function buffspage.create(page, width, height, deps)
           draw.hideAll({ t.edge, t.icon }, false)
           draw.icon(t.icon, sprite)
           set(t.icon, "alpha", def.dim and DIM or 1)
-          -- Asking for a name queues an unnamed icon for the background scan.
-          deps.info(sprite)
           if def.value == "upkeep" and keepUp[tostring(sprite)] and marked < KEEP_MARKS then
             marked = marked + 1
             local m = marks[marked]
@@ -608,15 +606,12 @@ function buffspage.create(page, width, height, deps)
     })
   end
 
-  -- Tracks or untracks a search row on the current tab, naming its icon from the catalog when unnamed.
+  -- Tracks or untracks a search row on the current tab.
   local function choose(row, track)
     if tab == "buffs" then
       saved.setAuraCategory(row.sprite, track and "combat" or "hidden")
     else
       saved.setTracked(tab, row.sprite, track)
-    end
-    if track and row.struct ~= nil and deps.learn(row.sprite, row.name, row.struct) then
-      saved.learnDebuff(row.sprite, row.name, row.struct)
     end
     redraw()
     deps.refresh()
@@ -641,8 +636,7 @@ function buffspage.create(page, width, height, deps)
     end
     table.sort(seen)
     local rows = search.withSeen(deps.catalog, def.find.kind, seen, function(sprite)
-      local found = deps.info(sprite)
-      return found and found.name
+      return deps.info(sprite).name
     end)
     finder.open({
       title = def.label,
@@ -661,11 +655,9 @@ function buffspage.create(page, width, height, deps)
       deps.tooltip.hide()
       return
     end
-    local found = deps.info(t.sprite)
     local x, y = deps.toScreen(t.x, t.y)
     deps.tooltip.show({
-      title = found and found.name or "Unknown",
-      left = found == nil and "Looking up name" or nil,
+      title = deps.info(t.sprite).name or "Unknown",
       info = "Drag to sort or move it, or click for options",
     }, x, y, SIZE)
   end)

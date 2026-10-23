@@ -1,8 +1,8 @@
 -- Saved settings: element positions and anchors, cooldown groups with their display settings and ability
 -- lists, marker percents, appearance (HUD text, unit frame colours, border and size, bar texture, aura bars and
 -- their sizes, and whether the default target panel, buff bars and cast bar are hidden), edit mode snapping,
--- learned ability names and icons, aura names by icon, the aura row each buff icon belongs to, which debuffs
--- each debuff row tracks, the upkeep buffs kept up, and the order of each kind of aura icon.
+-- learned ability names and icons, the aura row each buff icon belongs to, which debuffs each debuff row
+-- tracks, the upkeep buffs kept up, and the order of each kind of aura icon.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
@@ -104,8 +104,6 @@ local AURA_CATEGORIES = { combat = true, upkeep = true, hidden = true }
 local TRACKED_KEYS = { target = "trackedTarget", player = "trackedPlayer" }
 -- Saved keys of each aura kind's icon order.
 local ORDER_KEYS = { buffs = "orderBuffs", target = "orderTarget", player = "orderPlayer" }
--- The rule src/icons names auras by; saved names from an older rule are dropped once on load.
-local NAMES_VERSION = 3
 local POSITION_FIELDS = { "x", "y", "anchorX", "anchorY" }
 -- The list a per-style group shows before any combat style is known.
 local NO_KEYS = {}
@@ -545,24 +543,6 @@ local function iconKey(key)
   return n and tostring(n)
 end
 
-local function readDebuffs(saved)
-  local debuffs = {}
-  if type(saved) ~= "table" then
-    return debuffs
-  end
-  for sprite, entry in pairs(saved) do
-    local key = iconKey(sprite)
-    if key ~= nil and type(entry) == "table" then
-      if type(entry.name) == "string" then
-        debuffs[key] = { name = entry.name, struct = math.tointeger(entry.struct) }
-      elseif entry.unmatched == true then
-        debuffs[key] = { unmatched = true }
-      end
-    end
-  end
-  return debuffs
-end
-
 -- A debuff kind's choices, { [tostring(sprite)] = true | false | "seen" }.
 local function readTracked(saved)
   local out = {}
@@ -683,13 +663,6 @@ function settings.load(store, windowHeight)
   local markers = readMarkers(store.get("markers"))
   local known = readKnown(store.get("known"))
   local appearance = readAppearance(store.get("appearance"))
-  local debuffs = readDebuffs(store.get("debuffs"))
-  local namesVersion = store.get("namesVersion")
-  if type(namesVersion) ~= "table" or namesVersion.version ~= NAMES_VERSION then
-    debuffs = {}
-    store.set("debuffs", debuffs)
-    store.set("namesVersion", { version = NAMES_VERSION })
-  end
   local auras = readAuras(store.get("auras"))
   local tracked = {}
   for kind, key in pairs(TRACKED_KEYS) do
@@ -1001,19 +974,6 @@ function settings.load(store, windowHeight)
   function s.setKeepUp(sprite, on)
     keepUp[tostring(sprite)] = on or nil
     store.set("keepUp", keepUp)
-  end
-
-  -- { [tostring(sprite)] = { name, struct } } for every aura icon src/icons has named, and
-  -- { unmatched = true } for each one it found no struct for.
-  function s.debuffs()
-    return debuffs
-  end
-
-  -- Saves an aura icon's name and the id of the struct it came from, or with no name, that no struct matches
-  -- it.
-  function s.learnDebuff(sprite, name, struct)
-    debuffs[tostring(sprite)] = name and { name = name, struct = math.tointeger(struct) } or { unmatched = true }
-    store.set("debuffs", debuffs)
   end
 
   -- { [key] = { name, icon } } for every ability whose struct has been seen.

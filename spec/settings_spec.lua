@@ -321,21 +321,6 @@ describe("settings", function()
     assert.are.same(presets.UTILITY, s.keys("utility", "magic"))
   end)
 
-  it("keeps aura names with their struct id and unmatched icons across loads, dropping malformed entries", function()
-    local store = fakeStore({
-      namesVersion = { version = 3 },
-      debuffs = { ["1"] = "broken", ["2"] = { name = "Old", struct = "x" } },
-    })
-    local saved = settings.load(store)
-    saved.learnDebuff(30098, "Bloated", 5401.0)
-    saved.learnDebuff(14766)
-    assert.are.same({
-      ["30098"] = { name = "Bloated", struct = 5401 },
-      ["14766"] = { unmatched = true },
-      ["2"] = { name = "Old" },
-    }, settings.load(store).debuffs())
-  end)
-
   it("saves a learned ability only when its name or icon changed", function()
     local store = fakeStore()
     local s = settings.load(store)
@@ -591,18 +576,15 @@ describe("settings", function()
 
   it("drops icon keys that are not whole numbers from every icon map, keeping item icons", function()
     local s = settings.load(fakeStore({
-      namesVersion = { version = 3 },
-      debuffs = { abc = { name = "Broken" }, ["30098"] = { name = "Bloated" } },
       auras = { abc = "upkeep", ["-49039"] = "upkeep" },
       keepUp = { ["1.5"] = true, ["-49039"] = true },
       trackedTarget = { abc = true, ["30098"] = "seen" },
     }))
     assert.are.same({
-      { ["30098"] = { name = "Bloated" } },
       { ["-49039"] = "upkeep" },
       { ["-49039"] = true },
       { ["30098"] = "seen" },
-    }, { s.debuffs(), s.auras(), s.keepUp(), s.tracked("target") })
+    }, { s.auras(), s.keepUp(), s.tracked("target") })
   end)
 
   it("keeps each kind's icon order across loads, dropping entries that are not whole numbers", function()
@@ -624,13 +606,6 @@ describe("settings", function()
     s.setTracked("target", 26104, true)
     s.setOrder("buffs", { 30099 })
     assert.are.equal(start + 5, s.auraVersion())
-  end)
-
-  it("drops aura names saved before the current naming rule once", function()
-    local store = fakeStore({ namesVersion = { version = 2 }, debuffs = { ["30097"] = { name = "Delirium" } } })
-    assert.are.same({}, settings.load(store).debuffs())
-    settings.load(store).learnDebuff(30097, "Poisoned")
-    assert.are.same({ ["30097"] = { name = "Poisoned" } }, settings.load(store).debuffs())
   end)
 
   it("shows the game's buff bars and plain aura icons until chosen otherwise", function()
