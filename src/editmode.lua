@@ -1,6 +1,7 @@
 -- Edit mode: an outline over each HUD element's shown bounds that drags it with everything anchored to it,
 -- an Anchor button on each outline that picks a target and a side from a diagram menu, snapping with guides
 -- over a grid, and a toolbar with a snap toggle, Reset positions and Done.
+local anchormenu = require("src/anchormenu")
 local draw = require("src/draw")
 local layout = require("src/layout")
 
@@ -51,34 +52,6 @@ local TAG_H = 16
 local HEADER_INSIDE_H = 40
 local TOOLBAR_W = 600
 local TOOLBAR_H = 44
-local MENU_W = 220
-local MENU_H = 166
--- The target's sketch in the anchor menu, and the 24 by 16 spots around it.
-local SKETCH_X = 60
-local SKETCH_Y = 46
-local SKETCH_W = 100
-local SKETCH_H = 56
-local SPOT_W = 24
-local SPOT_H = 16
-local SIDE_LABELS = { left = "Left side", right = "Right side", top = "Top side", bottom = "Bottom side" }
-
--- Menu spots: a column of three beside each of the sketch's left and right sides, a row of three above and
--- below it.
-local SPOTS = {}
-for _, side in ipairs({ "left", "right", "top", "bottom" }) do
-  for i, align in ipairs(layout.ALIGNS[side]) do
-    local spot = { side = side, align = align, label = SIDE_LABELS[side] .. ", " .. align }
-    if side == "left" or side == "right" then
-      spot.x = side == "left" and SKETCH_X - 6 - SPOT_W or SKETCH_X + SKETCH_W + 6
-      spot.y = SKETCH_Y + (i - 1) * 20
-    else
-      spot.x = SKETCH_X + (i - 1) * 38
-      spot.y = side == "top" and SKETCH_Y - 6 - SPOT_H or SKETCH_Y + SKETCH_H + 6
-    end
-    SPOTS[#SPOTS + 1] = spot
-  end
-end
-
 local WHITE = draw.opaque(COLOURS.highlight)
 -- Pixels within which a drag snaps, and the grid it falls back to, drawn with brighter lines every 64 px and a
 -- teal line up the window's center. Canvas colours are 0xRRGGBBAA.
@@ -370,85 +343,40 @@ function editmode.create(root, deps)
     showSnap()
   end)
 
-  -- Anchor menu: a sketch of the target with a spot for each side and alignment, opened at the cursor.
-  local menu = ui.Layer.new(root)
-  menu:SetSize(MENU_W, MENU_H)
-  rect(menu, COLOURS.border, 0, 0, MENU_W, MENU_H)
-  hitArea(rect(menu, COLOURS.popup, 1, 1, MENU_W - 2, MENU_H - 2))
-  local menuTitle = text(menu, FONTS.small, ui.AlignMode.TOPLEFT, 8, 4, MENU_W - 16, 16)
-  set(menuTitle, "rgb", COLOURS.dimText)
-  local sketch = ui.Canvas.new(menu)
-  sketch:SetPos(SKETCH_X, SKETCH_Y)
-  sketch:SetSize(SKETCH_W, SKETCH_H)
-  draw.dashedBox(sketch, SKETCH_W, SKETCH_H, 1, draw.opaque(COLOURS.dimText))
-  local sketchName = text(menu, FONTS.small, ui.AlignMode.CENTRE, SKETCH_X, SKETCH_Y, SKETCH_W, SKETCH_H)
-  set(sketchName, "rgb", COLOURS.dimText)
-  local spotName = text(menu, FONTS.small, ui.AlignMode.CENTRE, 8, MENU_H - 28, MENU_W - 16, 20)
-  local spots = {}
-  set(menu, "hidden", true)
+  -- The anchor menu, opened once the picking element has a target. Hovering a spot shows a dashed landing
+  -- outline where the element would sit; clicking one saves the anchor.
+  local menu = anchormenu.create(root, {
+    hover = function(spot)
+      set(landing, "hidden", spot == nil)
+      if spot == nil or pick == nil or pick.target == nil then
+        return
+      end
+      local b = elements[pick.name].bounds
+      local anchor = { side = spot.side, align = spot.align, gap = 0, offset = 0 }
+      local x, y = layout.place(anchor, rectOf(pick.target), b.w, b.h)
+      dashedAt(landing, x, y, b.w, b.h)
+    end,
+    choose = function(spot)
+      if pick == nil or pick.target == nil then
+        return
+      end
+      saved.setAnchor(pick.name, { target = pick.target, side = spot.side, align = spot.align, gap = 0, offset = 0 })
+      cancelPick()
+      mode.placeAll()
+    end,
+  })
 
   local function closeMenu()
-    set(menu, "hidden", true)
+    menu.close()
     set(landing, "hidden", true)
     if pick ~= nil then
       pick.target = nil
     end
   end
 
-  local function hoverSpot(spot, hovered)
-    for _, s in ipairs(spots) do
-      local hot = hovered and s == spot
-      set(s.edge, "rgb", hot and COLOURS.border or COLOURS.spotEdge)
-      set(s.fill, "rgb", hot and COLOURS.chip or COLOURS.button)
-    end
-    set(spotName, "content", hovered and spot.label or "")
-    set(landing, "hidden", not hovered)
-    if not hovered or pick == nil or pick.target == nil then
-      return
-    end
-    local b = elements[pick.name].bounds
-    local x, y =
-      layout.place({ side = spot.side, align = spot.align, gap = 0, offset = 0 }, rectOf(pick.target), b.w, b.h)
-    dashedAt(landing, x, y, b.w, b.h)
-  end
-
-  for _, spot in ipairs(SPOTS) do
-    local s = {
-      label = spot.label,
-      side = spot.side,
-      align = spot.align,
-      edge = hitArea(rect(menu, COLOURS.spotEdge, spot.x, spot.y, SPOT_W, SPOT_H)),
-      fill = rect(menu, COLOURS.button, spot.x + 1, spot.y + 1, SPOT_W - 2, SPOT_H - 2),
-    }
-    on(s.edge, "ONMOUSEOVER", function()
-      hoverSpot(s, true)
-    end)
-    on(s.edge, "ONMOUSELEAVE", function()
-      hoverSpot(s, false)
-    end)
-    on(s.edge, "ONCLICK", function()
-      if pick == nil or pick.target == nil then
-        return
-      end
-      saved.setAnchor(pick.name, { target = pick.target, side = s.side, align = s.align, gap = 0, offset = 0 })
-      cancelPick()
-      mode.placeAll()
-    end)
-    spots[#spots + 1] = s
-  end
-
   local function openMenu(target)
     pick.target = target
-    set(menuTitle, "content", "Anchor " .. labelOf(pick.name) .. " to " .. labelOf(target))
-    set(sketchName, "content", labelOf(target))
-    hoverSpot(nil, false)
-    local mx, my = cursor()
-    local w = tonumber(root.width)
-    local h = tonumber(root.height)
-    if mx ~= nil and w ~= nil and h ~= nil then
-      menu:SetPos(math.max(0, math.min(mx, w - MENU_W)), math.max(0, math.min(my, h - MENU_H)))
-    end
-    set(menu, "hidden", false)
+    menu.open("Anchor " .. labelOf(pick.name) .. " to " .. labelOf(target), labelOf(target))
   end
 
   -- Overlay looks: a teal tint and outline, white and dashed while picking, white when hovered as a target.
@@ -737,7 +665,7 @@ function editmode.create(root, deps)
 
   function mode.shutdown()
     toolbar:Destroy()
-    menu:Destroy()
+    menu.destroy()
     dim:Destroy()
     pickOutline:Destroy()
     grid:Destroy()
