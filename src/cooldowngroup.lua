@@ -39,7 +39,7 @@ local function tile(layer)
   local parts = {
     edge = rect(layer, COLOURS.border, 0, 0, 0, 0),
     background = rect(layer, COLOURS.tile, 0, 0, 0, 0),
-    icon = ui.Sprite.new(layer),
+    icon = draw.new(ui.Sprite, layer),
     initials = draw.edgedText(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, 0, 12),
     dim = rect(layer, COLOURS.border, 0, 0, 0, 0),
     track = rect(layer, COLOURS.border, 0, 0, 0, 0),

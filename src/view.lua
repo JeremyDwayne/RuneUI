@@ -41,7 +41,8 @@ function view.arrange(elements, positions, anchors)
   return resolved
 end
 
--- Lets view.hold hide every element, by name, while a game window the HUD draws over is open.
+-- Lets view.hold hide and view.fade fade every element, by name: the world map hides the HUD, and the Out of
+-- combat setting fades or hides it.
 function view.holdable(elements)
   for _, element in pairs(elements) do
     draw.holdable(element.layer)
@@ -50,6 +51,9 @@ end
 
 -- Hides every view.holdable element while held is true, and shows each as it was once false.
 view.hold = draw.hold
+
+-- Draws every view.holdable element at level, from 0 to 1, of its own opacity.
+view.fade = draw.fade
 
 -- Gives each element its look; returns whether any element's bounds changed.
 function view.setLook(elements, look)

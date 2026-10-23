@@ -103,8 +103,36 @@ end
 -- Layers draw.hold covers, each with the hidden state its element last set, and whether they are held hidden.
 local holdable = setmetatable({}, { __mode = "k" })
 local holding = false
+-- Each component built through draw.new and its parent, so draw.fade finds the components under a holdable
+-- layer. Each component's root, the holdable layer it sits under or false, is cached until the next
+-- draw.holdable.
+local parents = setmetatable({}, { __mode = "k" })
+local roots = setmetatable({}, { __mode = "k" })
+-- The alpha each component was last given through draw.set, before draw.fade scales it, and the fade level.
+local alphas = setmetatable({}, { __mode = "k" })
+local fading = 1
 
-local function write(obj, field, value)
+-- The holdable layer obj sits under, or false.
+local function rootOf(obj)
+  local root = roots[obj]
+  if root == nil then
+    root = false
+    local c = obj
+    while c ~= nil do
+      if holdable[c] ~= nil then
+        root = c
+        break
+      end
+      c = parents[c]
+    end
+    roots[obj] = root
+  end
+  return root
+end
+
+-- Writes value unless obj already holds it. A draw.edgedText label's edge copies take raw, the value as the
+-- element set it, through draw.set.
+local function write(obj, field, value, raw)
   local fields = writtenFor(obj)
   if fields[field] == value then
     return
@@ -114,8 +142,11 @@ local function write(obj, field, value)
     fields[field] = value
     local edge = MIRRORED[field] and edgeOn(obj)
     if edge then
+      if raw == nil then
+        raw = value
+      end
       for _, copy in ipairs(edge.copies) do
-        draw.set(copy, field, value)
+        draw.set(copy, field, raw)
       end
     end
   elseif not warned[field] then
@@ -126,19 +157,36 @@ end
 
 -- Writes a component property unless it already holds value, logging the first failure per property. A
 -- draw.edgedText label's edge copies take the same write while its edge is on. A layer given to draw.holdable
--- stays hidden while draw.hold holds it, and takes the hidden state set meanwhile once released. Runs on every
--- redraw, so it passes assign to pcall rather than building a closure per write.
+-- stays hidden while draw.hold holds it, and takes the hidden state set meanwhile once released. A component
+-- under a holdable layer takes its alpha scaled by the draw.fade level. Runs on every redraw, so it passes
+-- assign to pcall rather than building a closure per write.
 function draw.set(obj, field, value)
+  local raw = value
   if field == "hidden" and holdable[obj] ~= nil then
     holdable[obj] = value
     value = value or holding
+  elseif field == "alpha" then
+    alphas[obj] = value
+    if fading ~= 1 and rootOf(obj) then
+      value = value * fading
+    end
   end
-  write(obj, field, value)
+  write(obj, field, value, raw)
 end
 
--- Lets draw.hold hide layer, an element's root layer, whose hidden state the element sets through draw.set.
+-- Builds a component of kind, such as ui.Sprite, on parent. An element builds its components through this or
+-- the builders below, so draw.fade reaches them.
+function draw.new(kind, parent)
+  local c = kind.new(parent)
+  parents[c] = parent
+  return c
+end
+
+-- Lets draw.hold hide layer, an element's root layer, whose hidden state the element sets through draw.set,
+-- and draw.fade fade every component built on it through draw.new.
 function draw.holdable(layer)
   holdable[layer] = writtenFor(layer).hidden == true
+  roots = setmetatable({}, { __mode = "k" })
 end
 
 -- Hides every draw.holdable layer while held is true, and gives each back its own hidden state once false.
@@ -150,6 +198,22 @@ function draw.hold(held)
   holding = held
   for layer, hidden in pairs(holdable) do
     write(layer, "hidden", hidden or held)
+  end
+end
+
+-- Draws every component under a draw.holdable layer at level, from 0 to 1, times the alpha its element gave
+-- it, and at that alpha again once level is 1. A layer's alpha does not fade its children, so each component
+-- takes its own. Writes nothing when level is unchanged.
+function draw.fade(level)
+  if level == fading then
+    return
+  end
+  fading = level
+  for c in pairs(parents) do
+    if rootOf(c) then
+      local alpha = alphas[c] or 1
+      write(c, "alpha", alpha * level, alpha)
+    end
   end
 end
 
@@ -217,7 +281,7 @@ function draw.size(obj, width, height)
 end
 
 function draw.rect(parent, rgb, x, y, width, height)
-  local r = ui.Rectangle.new(parent)
+  local r = draw.new(ui.Rectangle, parent)
   draw.set(r, "fill", true)
   draw.set(r, "rgb", rgb)
   draw.pos(r, x, y)
@@ -227,7 +291,7 @@ end
 
 -- A white, shadowed label in font, aligned horizontal and centred vertically.
 function draw.text(parent, font, horizontal, x, y, width, height)
-  local t = ui.Text.new(parent)
+  local t = draw.new(ui.Text, parent)
   draw.set(t, "font", font)
   draw.set(t, "rgb", draw.COLOURS.text)
   draw.set(t, "isShadowed", true)
@@ -267,8 +331,13 @@ function draw.setEdge(label, rgb)
   for i, copy in ipairs(edge.copies) do
     draw.set(copy, "rgb", rgb)
     for field in pairs(MIRRORED) do
-      if fields[field] ~= nil then
-        draw.set(copy, field, fields[field])
+      -- The label's alpha as its element set it, which draw.set scales again for the copy.
+      local value = fields[field]
+      if field == "alpha" then
+        value = alphas[label]
+      end
+      if value ~= nil then
+        draw.set(copy, field, value)
       end
     end
     draw.set(copy, "hidden", fields.hidden == true)
@@ -452,7 +521,7 @@ end
 -- parts }, parts listing its components.
 function draw.bar(parent, rgb, trackRgb, x, y, width, height)
   local solid = draw.rect(parent, rgb, x, y, width, height)
-  local canvas = ui.Canvas.new(parent)
+  local canvas = draw.new(ui.Canvas, parent)
   draw.pos(canvas, x, y)
   draw.size(canvas, width, height)
   local cover = draw.rect(parent, trackRgb, x, y, width, height)

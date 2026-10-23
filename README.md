@@ -14,7 +14,7 @@ A combat HUD for RuneScape 3. It draws your frames, bars, cooldowns and buffs in
 - Cooldown groups: Major, Rotation, Utility and Defensives. Each icon shows its keybind and seconds left, and Major and Rotation change with your weapon's combat style.
 - Aura rows: combat buffs, upkeep buffs, debuffs on you and debuffs on your target. Each icon shows its time or stacks and gets a ring in its last seconds.
 
-Hover anything for its name and description. Every element can be moved, anchored to another and resized. The HUD hides while the world map is open.
+Hover anything for its name and description. Every element can be moved, anchored to another and resized. The HUD hides while the world map is open, and can fade or hide out of combat.
 
 ## Install
 
@@ -30,7 +30,7 @@ RuneUI runs on the RuneScape beta while plugins are in testing, and needs Pretty
 
 Open the plugin ribbon, choose RuneUI and press **Options**.
 
-- Appearance sets fonts, text size and edge, frame colours and sizes, the bar texture, and whether the game's own target panel and cast bar stay visible. A preview at the top shows every change.
+- Appearance sets fonts, text size and edge, frame colours and sizes, the bar texture, whether the game's own target panel and cast bar stay visible, and how the HUD shows out of combat: at full, faded to an opacity you set, or hidden. It comes back at full in combat, while you have a target unless you turn that off, and while the options window or edit mode is open. A preview at the top shows every change.
 - Cooldown manager sets each group's icon size, wrapping and direction, and its abilities per combat style. Drag icons to reorder them, press **+** to add one and click one to remove it.
 - Buffs sets which row each buff shows in, which debuffs you track, and **Keep up** for buffs you never want to drop. **Find** searches every effect in the game by name or boss.
 - Bars sets the adrenaline markers, bar sizes, the cast bar's colour and font, and fades the game's action bars.

@@ -1,8 +1,9 @@
 -- The options window's Appearance and Bars pages. Each has a preview strip of HUD elements, drawn by src/view
--- from sample models over a Dark or Light backdrop, fixed above its settings: Text, Unit frames and Game
--- interfaces on Appearance, the adrenaline bar and the cast bar on Bars. The settings scroll by pixels inside a
--- clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, and a click lands only where
--- its row shows. Every change saves, then redraws the preview and the HUD.
+-- from sample models over a Dark or Light backdrop, fixed above its settings: Text, Unit frames, Game
+-- interfaces and Out of combat on Appearance, the adrenaline bar and the cast bar on Bars. The settings scroll
+-- by pixels inside a clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, and a
+-- click lands only where its row shows. Every change saves, then redraws the preview and the HUD.
+local autohide = require("src/autohide")
 local colourpicker = require("src/colourpicker")
 local controls = require("src/controls")
 local draw = require("src/draw")
@@ -94,6 +95,7 @@ local TEXTURES = {
   { id = "horizontal", label = "Horizontal" },
 }
 local SHOW_HIDE = { { id = false, label = "Show" }, { id = true, label = "Hide" } }
+local ON_OFF = { { id = true, label = "On" }, { id = false, label = "Off" } }
 local WIDTH_FROM = { { id = false, label = "Own width" }, { id = true, label = "Same as adrenaline" } }
 local MATCH_HUD = { id = "hud", label = "Match HUD" }
 
@@ -298,6 +300,16 @@ local function settingsPage(page, width, height, deps, define)
     return row
   end
 
+  -- Dims each controls.option in buttons, by id or in a list, while faded, as while its setting has no effect.
+  local function fadeOptions(buttons, faded)
+    local alpha = faded and controls.FADED or 1
+    for _, o in pairs(buttons) do
+      for _, part in ipairs({ o.ring, o.bg, o.face, o.label }) do
+        set(part, "alpha", alpha)
+      end
+    end
+  end
+
   -- An On or Off button w wide at x on row, flipping the boolean appearance field. Returns its fade(faded).
   local function toggle(row, x, w, field)
     local by = (ROW_H - OPTION_H) // 2
@@ -312,10 +324,7 @@ local function settingsPage(page, width, height, deps, define)
       set(o.label, "content", appearance[field] and "On" or "Off")
     end
     return function(faded)
-      local alpha = faded and controls.FADED or 1
-      for _, part in ipairs({ o.ring, o.bg, o.face, o.label }) do
-        set(part, "alpha", alpha)
-      end
+      fadeOptions({ o }, faded)
     end
   end
 
@@ -449,6 +458,7 @@ local function settingsPage(page, width, height, deps, define)
     row = settingRow,
     stepperAt = stepper,
     toggle = toggle,
+    fadeOptions = fadeOptions,
     columns = columns,
     colour = colourRow,
     choose = choose,
@@ -547,7 +557,29 @@ function appearancepage.create(page, width, height, deps)
     b.choices("Default target panel", SHOW_HIDE, "hideTargetPanel", 90)
     b.choices("Game cast bar", SHOW_HIDE, "hideCastBar", 90)
 
+    b.heading("Out of combat")
+    b.choices("HUD out of combat", autohide.MODES, "outOfCombat", 90)
+    local opacity = savedappearance.HUD_OPACITY
+    local fadeOpacity = b.stepperAt(
+      b.row("Faded opacity"),
+      b.rowRight - controls.STEPPER_W,
+      opacity.min,
+      opacity.max,
+      savedappearance.OPACITY_STEP,
+      function(appearance)
+        return appearance.outOfCombatOpacity
+      end,
+      function(n)
+        if n ~= deps.saved.appearance().outOfCombatOpacity then
+          b.choose("outOfCombatOpacity", n)
+        end
+      end
+    )
+    local withTarget = b.choices("Show while you have a target", ON_OFF, "showWithTarget", 72)
+
     return function(look, appearance)
+      fadeOpacity(appearance.outOfCombat ~= "fade")
+      b.fadeOptions(withTarget, appearance.outOfCombat == "show")
       view.setLook(elements, look)
       tiles.update(SAMPLE_TILES, 0)
       aura.update(SAMPLE_AURAS, false)

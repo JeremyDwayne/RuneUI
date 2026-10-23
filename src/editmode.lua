@@ -65,9 +65,9 @@ local GRID_CENTER_RGBA = (COLOURS.accent << 8) | 0x73
 
 -- deps: { saved = src/settings, elements = src/view elements by name, view = src/view, label = function
 -- returning a cooldown group's title by element name, reset = function asking to reset positions, done =
--- function run by the toolbar's Done }. Returns { open, close, editing, escape, placeAll, shutdown }; escape
--- handles Esc while editing. An element whose inUse is false, such as a custom group not added, gets no
--- overlay while editing.
+-- function run by the toolbar's Done, changed = function run as edit mode opens or closes, or nil }. Returns
+-- { open, close, editing, escape, placeAll, shutdown }; escape handles Esc while editing. An element whose
+-- inUse is false, such as a custom group not added, gets no overlay while editing.
 function editmode.create(root, deps)
   local saved = deps.saved
   local elements = deps.elements
@@ -586,6 +586,9 @@ function editmode.create(root, deps)
       refreshOverlays()
     end
     showSnap()
+    if deps.changed ~= nil then
+      deps.changed()
+    end
   end
 
   function mode.open()

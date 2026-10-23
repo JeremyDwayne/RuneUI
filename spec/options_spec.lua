@@ -82,6 +82,30 @@ end
 describe("options", function()
   before_each(pretty.reset)
 
+  it("reports the window and edit mode open as configuring, telling main.lua as each opens or closes", function()
+    local root = fake.component()
+    local seen = {}
+    local window
+    window = options.create(root, {
+      saved = settings.load(fakeStore()),
+      tracker = cooldowns.tracker(),
+      elements = { player = view.playerFrame(root) },
+      view = view,
+      refresh = function() end,
+      configured = function()
+        seen[#seen + 1] = window.configuring()
+      end,
+    })
+    assert.is_false(window.configuring())
+    fake.fire("ContentLayerReady", { component = fake.component() })
+    pretty.button("Options")
+    pretty.button("Edit mode")
+    assert.is_true(window.configuring())
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.is_false(window.configuring())
+    assert.are.same({ true, false, true, false }, seen)
+  end)
+
   it("builds the window on the first press of Options, with the HUD placed before it", function()
     local root = fake.component()
     local saved = settings.load(fakeStore())

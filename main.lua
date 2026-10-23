@@ -4,6 +4,7 @@
 -- their vars change, and count down on every Logic tick.
 local adapter = require("src/adapter")
 local auralists = require("src/auralists")
+local autohide = require("src/autohide")
 local auras = require("src/auras")
 local catalog = require("src/catalog")
 local channel = require("src/channel")
@@ -50,13 +51,27 @@ end
 for name, style in pairs(view.AURA_STYLES) do
   elements[name] = view.auraRow(hud, style, tooltip, auraNames.info)
 end
--- The world map draws under the HUD's layer, so the HUD hides while it is open.
+-- The world map draws under the HUD's layer, so the HUD hides while it is open. Out of combat, the Appearance
+-- page's setting fades or hides it.
 view.holdable(elements)
 local tracker = cooldowns.tracker()
 local channelTracker = channel.tracker()
 local auraTracker = auras.tracker()
 local effectsTracker = targeteffects.tracker()
 local optionsWindow
+-- Whether the world map is open, COMBATV2_PLAYER_IS_IN_COMBAT as last read, nil while unread, and whether the
+-- player has a target, which showHud draws the HUD from.
+local mapOpen = false
+local inCombat = nil
+local hasTarget = false
+
+-- Hides the HUD while the world map is open, and fades or hides it out of combat as src/autohide says. Writes
+-- nothing while neither changes.
+local function showHud()
+  local hidden, alpha = autohide.state(saved.appearance(), inCombat, hasTarget, optionsWindow.configuring())
+  view.hold(mapOpen or hidden)
+  view.fade(alpha)
+end
 tracker.seed(presets.INFO)
 tracker.seed(saved.known())
 -- These vars send no change until they next differ, so their values at load seed the trackers.
@@ -89,7 +104,8 @@ Event.VarTransmit.Subscribe("cooldowns", function(e)
   local name, old, new = adapter.varChange(e)
   -- WORLDMAP_FOCUS holds -1 while the world map is closed and a component id while it is open.
   if name == "WORLDMAP_FOCUS" then
-    view.hold(new ~= -1)
+    mapOpen = new ~= -1
+    showHud()
   end
   tracker.onVar(name, old, new)
   channelTracker.onVar(name, old, new)
@@ -215,6 +231,8 @@ local function refresh()
   moved = moved or framesMoved
   moved = updateCooldowns() or moved
   moved = updateAuras(target, appearance.auraBars) or moved
+  hasTarget = not target.hidden
+  showHud()
   -- Anchored elements follow an element whose shown bounds changed.
   if moved then
     optionsWindow.placeAll()
@@ -230,6 +248,9 @@ optionsWindow = options.create(top, {
   auraInfo = auraNames.info,
   describe = adapter.structInfo,
   refresh = refresh,
+  configured = function()
+    showHud()
+  end,
 })
 
 Event.ServerLogic.Subscribe("refresh", function()
@@ -237,6 +258,8 @@ Event.ServerLogic.Subscribe("refresh", function()
   channelTracker.onTick()
   effectsTracker.onTick(adapter.iconStruct)
   channelTracker.read(adapter.iconStruct)
+  -- The var sends no changes, so it is read each tick, and only while the Out of combat setting uses it.
+  inCombat = autohide.reads(saved.appearance()) and adapter.playerVar("COMBATV2_PLAYER_IS_IN_COMBAT") or nil
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then
     saved.learn(learned.key, learned.name, learned.icon)

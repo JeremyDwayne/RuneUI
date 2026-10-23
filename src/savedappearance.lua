@@ -1,7 +1,8 @@
 -- Saved appearance: HUD text, unit frame colours, border and size, bar texture, aura bars and their sizes,
--- action bar fading, whether the game's target panel, buff bars and cast bar are hidden, and the adrenaline
--- bar's marker percents. Pure: reads and writes go through a store with get(key) and set(key, table), so specs
--- use a fake.
+-- action bar fading, whether the game's target panel, buff bars and cast bar are hidden, how the HUD shows out
+-- of combat, and the adrenaline bar's marker percents. Pure: reads and writes go through a store with get(key)
+-- and set(key, table), so specs use a fake.
+local autohide = require("src/autohide")
 local frames = require("src/frames")
 local styling = require("src/style")
 local util = require("src/util")
@@ -32,6 +33,8 @@ savedappearance.AURA_ICON = { min = 18, max = 56 }
 -- The game's action bars, numbered 1 for the main bar to 5, and the percent their faded opacity moves by.
 savedappearance.ACTION_BARS = 5
 savedappearance.OPACITY_STEP = 5
+-- The HUD's faded opacity out of combat, in percent. Above 0, since a transparent component still takes clicks.
+savedappearance.HUD_OPACITY = { min = 10, max = 90 }
 local DEFAULT_MARKERS = { threshold = 50, ultimate = 100 }
 
 -- Whether value is a whole number from low to high.
@@ -81,6 +84,11 @@ local function isOpacity(value)
   return wholeIn(value, 0, 100) and whole(value) % savedappearance.OPACITY_STEP == 0
 end
 
+local function isHudOpacity(value)
+  local range_ = savedappearance.HUD_OPACITY
+  return isOpacity(value) and value >= range_.min and value <= range_.max
+end
+
 -- Each appearance field's default and the check a saved value must pass.
 local FIELDS = {
   texture = { "flat", oneOf(savedappearance.TEXTURES) },
@@ -114,6 +122,9 @@ local FIELDS = {
   castTextSize = { "hud", textSize },
   debuffEdge = { "orange", option(styling.DEBUFF_EDGES) },
   hoverAllBars = { false, isBoolean },
+  outOfCombat = { "show", option(autohide.MODES) },
+  outOfCombatOpacity = { 30, isHudOpacity },
+  showWithTarget = { true, isBoolean },
 }
 for bar = 1, savedappearance.ACTION_BARS do
   FIELDS["barOpacity" .. bar] = { 25, isOpacity }
@@ -168,15 +179,16 @@ function savedappearance.load(store)
 
   -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars, font, textStep, edge, textColour,
   -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight, barWidth, barHeight, castWidth,
-  -- castHeight, castMatchWidth, castColour, castFont, castTextSize, spenders, and barOpacity,
-  -- fadeBar and hoverBar for each action bar 1 to 5, such as fadeBar1, and hoverAllBars }. spenders is a src/style
-  -- SPENDER_PLACES id. castFont and castTextSize are "hud" to follow the HUD text or a family id and a size in
-  -- points. The game's own cast bar is hidden until chosen otherwise, since RuneUI draws one; auraBars draws a
-  -- draining bar under each aura icon.
+  -- castHeight, castMatchWidth, castColour, castFont, castTextSize, spenders, and barOpacity, fadeBar and
+  -- hoverBar for each action bar 1 to 5, such as fadeBar1, hoverAllBars, outOfCombat, outOfCombatOpacity and
+  -- showWithTarget }. spenders is a src/style SPENDER_PLACES id. castFont and castTextSize are "hud" to follow
+  -- the HUD text or a family id and a size in points. The game's own cast bar is hidden until chosen otherwise,
+  -- since RuneUI draws one; auraBars draws a draining bar under each aura icon.
   -- An action bar with fadeBar<n> set draws at barOpacity<n> percent, and hoverBar<n> shows it at full while
   -- the mouse is over it, or over any faded bar while hoverAllBars is on. Each aura row in AURA_ICONS has
   -- <row>Icon, its icon size, and <row>Text, "hud" or its text size, such as combatBuffsIcon. debuffEdge is a
-  -- src/style DEBUFF_EDGES id. Read-only.
+  -- src/style DEBUFF_EDGES id. outOfCombat is a src/autohide MODES id, outOfCombatOpacity the faded percent,
+  -- and showWithTarget keeps the HUD at full while the player has a target. Read-only.
   function s.appearance()
     return appearance
   end

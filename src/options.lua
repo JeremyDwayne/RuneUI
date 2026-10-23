@@ -36,15 +36,17 @@ local FOOTER_GAP = 12
 local BUTTON_H = 27
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
 -- view = src/view, auraInfo(sprite) naming an aura icon, describe(struct) reading a struct's description,
--- refresh = function redrawing the HUD }. Returns
--- { placeAll, redrawBuffs, shutdown }; placeAll places the HUD and edit mode's overlays from the saved
--- positions and anchors, and redrawBuffs redraws the Buffs page while it is shown. The window and its pages
--- are built on the first press of Options, since they are a third of the plugin's components and a load
--- that builds them freezes the game for seconds.
+-- refresh = function redrawing the HUD, configured = function run as the window or edit mode opens or closes,
+-- or nil }. Returns { placeAll, redrawBuffs, configuring, shutdown }; placeAll places the HUD and edit mode's
+-- overlays from the saved positions and anchors, redrawBuffs redraws the Buffs page while it is shown, and
+-- configuring says whether the window or edit mode is open. The window and its pages are built on the first
+-- press of Options, since they are a third of the plugin's components and a load that builds them freezes the
+-- game for seconds.
 function options.create(root, deps)
   local saved = deps.saved
   local tracker = deps.tracker
   local elements = deps.elements
+  local configured = deps.configured or function() end
 
   -- The window and its pages, nil until the first open.
   local window, pageTabs, cooldownPage, buffsPage, appearance, bars
@@ -89,6 +91,7 @@ function options.create(root, deps)
     done = function()
       openWindow()
     end,
+    changed = configured,
   })
 
   -- The open Reset positions confirm, or nil. It sits over the screen, so edit mode's toolbar can open it too.
@@ -108,6 +111,7 @@ function options.create(root, deps)
     bars.cancel()
     closePopups()
     windowOpen = false
+    configured()
   end
 
   function resetPositions()
@@ -249,6 +253,7 @@ function options.create(root, deps)
       window:Show()
     end
     windowOpen = true
+    configured()
     cooldownPage.open()
     if pageTabs:GetActiveIndex() ~= 1 then
       pageTabs:SetActive(1, false)
@@ -300,6 +305,9 @@ function options.create(root, deps)
       if windowOpen and currentPage == "buffs" then
         buffsPage.redraw()
       end
+    end,
+    configuring = function()
+      return windowOpen or editMode.editing()
     end,
     shutdown = function()
       closeConfirm()
