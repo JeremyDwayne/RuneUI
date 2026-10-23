@@ -84,8 +84,8 @@
 <rect x="641" y="196" width="248" height="53" fill="#111111"/>
 <rect x="641" y="196" width="143.84" height="53" fill="#a4511c"/>
 <rect x="641" y="196" width="143.84" height="53" fill="url(#shade)"/>
-<text x="651" y="228.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#000000" text-anchor="start">Rasial</text>
-<text x="650" y="227.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="start">Rasial</text>
+<text x="651" y="228.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#000000" text-anchor="start">Target</text>
+<text x="650" y="227.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="start">Target</text>
 <text x="881" y="228.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#000000" text-anchor="end">58,000 | 58%</text>
 <text x="880" y="227.5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="end">58,000 | 58%</text>
 <rect x="110" y="165" width="26" height="26" fill="#ff8a1f"/>
