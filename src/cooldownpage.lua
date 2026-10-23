@@ -2,6 +2,7 @@
 -- group's display settings and abilities with a "+" picker, drag to swap or insert, and a Remove menu.
 local abilitypicker = require("src/abilitypicker")
 local dragdrop = require("src/dragdrop")
+local controls = require("src/controls")
 local draw = require("src/draw")
 local editor = require("src/editor")
 local presets = require("src/presets")
@@ -18,7 +19,7 @@ local placeOutline = draw.placeOutline
 local hideAll = draw.hideAll
 local hitArea = draw.hitArea
 local on = draw.on
-local button = draw.button
+local button = controls.button
 local FONTS = draw.FONTS
 local COLOURS = draw.WINDOW
 
@@ -144,7 +145,7 @@ function cooldownpage.create(page, width, height, deps)
   settingLabel(1, "Name")
   local titleText =
     text(page, FONTS.body, ui.AlignMode.BOTTOMRIGHT, DETAIL_X + 120, rowY(1), detailRight - DETAIL_X - 120, SETTING_H)
-  local nameField = draw.inputField(page, DETAIL_X + 120, rowY(1) + 11, detailRight - 126 - DETAIL_X - 120, 24, 20)
+  local nameField = controls.inputField(page, DETAIL_X + 120, rowY(1) + 11, detailRight - 126 - DETAIL_X - 120, 24, 20)
   -- The group whose title the field shows; a change arriving after another group was chosen is ignored.
   local nameFor = nil
   on(nameField, "ONCONTENTCHANGED", function(_, _, contents)
@@ -175,7 +176,7 @@ function cooldownpage.create(page, width, height, deps)
 
   -- A row's - number + stepper moving field by 1 from low to high, its number typed. Returns the stepper.
   local function stepper(i, field, low, high)
-    return draw.stepper(page, detailRight - draw.STEPPER_W, rowY(i) + 9, low, high, 1, function(n)
+    return controls.stepper(page, detailRight - controls.STEPPER_W, rowY(i) + 9, low, high, 1, function(n)
       local group = saved.group(selected)
       if group ~= nil and n ~= group[field] then
         saved.setGroup(selected, field, n)
@@ -188,13 +189,13 @@ function cooldownpage.create(page, width, height, deps)
   local perRowLabel = settingLabel(3, "Icons per row")
   local perRowStepper = stepper(3, "perRow", 1, savedgroups.MAX_GROUP_KEYS)
 
-  -- Rows of right-aligned draw.option buttons that save one display setting.
+  -- Rows of right-aligned controls.option buttons that save one display setting.
   local settingChoices = {}
   local function settingChoice(i, field, choices, optionW)
     local row = { field = field, buttons = {} }
     for k, option in ipairs(choices) do
       local x = detailRight - (#choices - k + 1) * (optionW + 4) + 4
-      local b = draw.option(page, option.label, x, rowY(i) + 9, optionW, 28, function()
+      local b = controls.option(page, option.label, x, rowY(i) + 9, optionW, 28, function()
         if saved.group(selected) == nil then
           return
         end
@@ -265,7 +266,7 @@ function cooldownpage.create(page, width, height, deps)
   local function showSettingChoices(group)
     for _, row in ipairs(settingChoices) do
       for _, b in ipairs(row.buttons) do
-        draw.showOption(b, b.value == group[row.field])
+        controls.showOption(b, b.value == group[row.field])
       end
     end
   end

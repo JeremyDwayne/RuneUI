@@ -1,5 +1,6 @@
 -- The cooldown manager's ability picker: a popup under the "+" tile listing abilities in titled sections, one
 -- combat style tab at a time, narrowed by a search box that covers every style. It stays open for several adds.
+local controls = require("src/controls")
 local draw = require("src/draw")
 
 local abilitypicker = {}
@@ -46,7 +47,7 @@ function abilitypicker.create(page, pageW, pageH, deps)
   local edge = hitArea(rect(picker, COLOURS.border, 0, 0, WIDTH, 0))
   local bg = rect(picker, COLOURS.popup, 1, 1, WIDTH - 2, 0)
   rect(picker, COLOURS.line, 1, HEAD, WIDTH - 2, 1)
-  local search = draw.inputField(picker, 10, 6, WIDTH - 49, 24, 30, true)
+  local search = controls.inputField(picker, 10, 6, WIDTH - 49, 24, 30, true)
   set(search, "emptyText", "Find an ability")
   -- The field also reports its contents on Enter, Esc and focus loss, which can come after the picker closed.
   on(search, "ONCONTENTCHANGED", function(_, _, contents)
@@ -75,7 +76,7 @@ function abilitypicker.create(page, pageW, pageH, deps)
     tabs[#tabs + 1] = t
     tabX = tabX + tab.width
   end
-  draw.closeButton(picker, WIDTH - 29, 8, function()
+  controls.closeButton(picker, WIDTH - 29, 8, function()
     deps.close()
   end)
   for i = 1, MAX_ROWS do

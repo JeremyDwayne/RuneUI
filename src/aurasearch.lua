@@ -2,6 +2,7 @@
 -- column of sources and the chosen source's effects, each effect with a Track or Tracked button. Both columns
 -- scroll by the wheel and a src/scrollbar, reusing a fixed set of rows; a click lands only where its row shows.
 -- It draws on open and on a query, scroll, source or choice, never on a page redraw.
+local controls = require("src/controls")
 local draw = require("src/draw")
 local scrollbar = require("src/scrollbar")
 local search = require("src/search")
@@ -17,7 +18,7 @@ local FONTS = draw.FONTS
 local COLOURS = draw.WINDOW
 
 local HEAD = 40
-local CLOSE = draw.CLOSE_SIZE
+local CLOSE = controls.CLOSE_SIZE
 local SOURCE_W = 196
 local SOURCE_ROW = 28
 local LIST_HEAD = 30
@@ -66,8 +67,8 @@ function aurasearch.create(parent, x, y, w, h, deps)
   local close
 
   local title = text(layer, FONTS.body, ui.AlignMode.TOPLEFT, 14, 2, 160, HEAD - 2)
-  local field = draw.inputField(layer, 182, 9, w - 182 - CLOSE - 20, 24, 30, true)
-  draw.closeButton(layer, w - CLOSE - 10, 11, function()
+  local field = controls.inputField(layer, 182, 9, w - 182 - CLOSE - 20, 24, 30, true)
+  controls.closeButton(layer, w - CLOSE - 10, 11, function()
     close()
   end)
   rect(layer, COLOURS.line, 2, HEAD, w - 4, 1)
@@ -209,10 +210,10 @@ function aurasearch.create(parent, x, y, w, h, deps)
     row.name = text(row.layer, FONTS.body, ui.AlignMode.TOPLEFT, 50, 5, buttonX - 60, 18)
     row.info = text(row.layer, FONTS.small, ui.AlignMode.TOPLEFT, 50, 23, buttonX - 60, 16)
     set(row.info, "rgb", COLOURS.mutedText)
-    row.track = draw.button(row.layer, "Track", buttonX, buttonY, BUTTON_W, BUTTON_H, "gold", function(_, cy)
+    row.track = controls.button(row.layer, "Track", buttonX, buttonY, BUTTON_W, BUTTON_H, "gold", function(_, cy)
       chooseFrom(row, true, cy)
     end)
-    row.tracked = draw.button(row.layer, "Tracked", buttonX, buttonY, BUTTON_W, BUTTON_H, "dark", function(_, cy)
+    row.tracked = controls.button(row.layer, "Tracked", buttonX, buttonY, BUTTON_W, BUTTON_H, "dark", function(_, cy)
       chooseFrom(row, false, cy)
     end)
   end, function(row, item)

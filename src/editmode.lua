@@ -2,6 +2,7 @@
 -- an Anchor button on each outline that picks a target and a side from a diagram menu, snapping with guides
 -- over a grid, and a toolbar with a snap toggle, Reset positions and Done.
 local anchormenu = require("src/anchormenu")
+local controls = require("src/controls")
 local draw = require("src/draw")
 local layout = require("src/layout")
 
@@ -14,7 +15,7 @@ local outline = draw.outline
 local placeOutline = draw.placeOutline
 local hitArea = draw.hitArea
 local on = draw.on
-local button = draw.button
+local button = controls.button
 local pressAt = draw.pressAt
 local cursor = draw.cursor
 local hideAll = draw.hideAll

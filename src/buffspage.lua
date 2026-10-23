@@ -8,6 +8,7 @@
 local auralists = require("src/auralists")
 local aurasearch = require("src/aurasearch")
 local dragdrop = require("src/dragdrop")
+local controls = require("src/controls")
 local draw = require("src/draw")
 local editor = require("src/editor")
 local search = require("src/search")
@@ -133,7 +134,7 @@ function buffspage.create(page, width, height, deps)
   local tabParts = {}
   local tabX = MARGIN
   for _, def in ipairs(TABS) do
-    tabParts[def.id] = draw.option(page, def.label, tabX, TAB_Y, def.w, TAB_H, function()
+    tabParts[def.id] = controls.option(page, def.label, tabX, TAB_Y, def.w, TAB_H, function()
       closeMenu()
       finder.close()
       tab = def.id
@@ -154,10 +155,10 @@ function buffspage.create(page, width, height, deps)
     deps.refresh()
   end
 
-  -- A draw.stepper at x on layer from low to high: value(appearance) gives the number shown and save(n) takes
+  -- A controls.stepper at x on layer from low to high: value(appearance) gives the number shown and save(n) takes
   -- a new one. Returns { show(appearance), fade(faded) }.
   local function stepper(layer, x, low, high, value, save)
-    local s = draw.stepper(layer, x, (SIZES_H - OPTION_H) // 2, low, high, 1, save)
+    local s = controls.stepper(layer, x, (SIZES_H - OPTION_H) // 2, low, high, 1, save)
     return {
       show = function(appearance)
         s.show(value(appearance))
@@ -204,7 +205,7 @@ function buffspage.create(page, width, height, deps)
     )
     local textStepper =
       stepper(layer, TEXT_X, savedappearance.TEXT_SIZE.min, savedappearance.TEXT_SIZE.max, textSize, save("Text"))
-    local match = draw.option(layer, "Match HUD", MATCH_X, (SIZES_H - OPTION_H) // 2, MATCH_W, OPTION_H, function()
+    local match = controls.option(layer, "Match HUD", MATCH_X, (SIZES_H - OPTION_H) // 2, MATCH_W, OPTION_H, function()
       save("Text")("hud")
     end)
     return {
@@ -214,7 +215,7 @@ function buffspage.create(page, width, height, deps)
         icon.show(appearance)
         textStepper.show(appearance)
         textStepper.fade(matched)
-        draw.showOption(match, matched)
+        controls.showOption(match, matched)
       end,
     }
   end
@@ -236,7 +237,7 @@ function buffspage.create(page, width, height, deps)
     slots[i] = slot
   end
 
-  local findButton = draw.button(page, "", width - MARGIN - FIND_W, top - 4, FIND_W, FIND_H, "dark", function()
+  local findButton = controls.button(page, "", width - MARGIN - FIND_W, top - 4, FIND_W, FIND_H, "dark", function()
     openSearch()
   end)
 
@@ -328,7 +329,7 @@ function buffspage.create(page, width, height, deps)
       if active then
         current = def
       end
-      draw.showOption(tabParts[def.id], active)
+      controls.showOption(tabParts[def.id], active)
     end
     set(display, "hidden", current.groups ~= nil)
     findButton.group.set("hidden", current.find == nil)

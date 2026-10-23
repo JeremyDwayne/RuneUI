@@ -4,6 +4,7 @@
 -- clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, and a click lands only where
 -- its row shows. Every change saves, then redraws the preview and the HUD.
 local colourpicker = require("src/colourpicker")
+local controls = require("src/controls")
 local draw = require("src/draw")
 local frames = require("src/frames")
 local scrollbar = require("src/scrollbar")
@@ -109,7 +110,7 @@ local function settingsPage(page, width, height, deps, define)
 
   -- Option rows -------------------------------------------------------------------------------------------
 
-  -- Every choice row, each { choices = { [id] = draw.option }, field }, and every stepper's redraw.
+  -- Every choice row, each { choices = { [id] = controls.option }, field }, and every stepper's redraw.
   local choiceRows = {}
   local steppers = {}
 
@@ -117,7 +118,7 @@ local function settingsPage(page, width, height, deps, define)
     local appearance = saved.appearance()
     for _, row in ipairs(choiceRows) do
       for value, option in pairs(row.choices) do
-        draw.showOption(option, value == appearance[row.field])
+        controls.showOption(option, value == appearance[row.field])
       end
     end
     for _, show in ipairs(steppers) do
@@ -148,7 +149,7 @@ local function settingsPage(page, width, height, deps, define)
     for i, choice in ipairs(choices) do
       local x = right - (#choices - i + 1) * (optionW + 4) + 4
       local by = y + (ROW_H - OPTION_H) // 2
-      row.choices[choice.id] = draw.option(parent, choice.label, x, by, optionW, OPTION_H, function(_, cy)
+      row.choices[choice.id] = controls.option(parent, choice.label, x, by, optionW, OPTION_H, function(_, cy)
         if allowed == nil or allowed(by + cy) then
           choose(field, choice.id)
         end
@@ -175,12 +176,12 @@ local function settingsPage(page, width, height, deps, define)
   local function showBackdrop()
     set(backdrop, "rgb", style.find(BACKDROPS, backdropChoice).rgb)
     for id_, option in pairs(backdropOptions) do
-      draw.showOption(option, id_ == backdropChoice)
+      controls.showOption(option, id_ == backdropChoice)
     end
   end
 
   for i, entry in ipairs(BACKDROPS) do
-    backdropOptions[entry.id] = draw.option(page, entry.label, width - 70, 8 + (i - 1) * 26, 62, 22, function()
+    backdropOptions[entry.id] = controls.option(page, entry.label, width - 70, 8 + (i - 1) * 26, 62, 22, function()
       backdropChoice = entry.id
       showBackdrop()
     end)
@@ -275,10 +276,10 @@ local function settingsPage(page, width, height, deps, define)
     return rowOptions(settingRow(label), rowRight, choices, field, optionW)
   end
 
-  -- A draw.stepper at x on row, from low to high in steps of step: value(appearance) gives the number shown and
+  -- A controls.stepper at x on row, from low to high in steps of step: value(appearance) gives the number shown and
   -- save(n) takes a new one. Returns its fade(faded), which dims the stepper while the setting has no effect.
   local function stepper(row, x, low, high, step, value, save)
-    local s = draw.stepper(row.layer, x, (ROW_H - OPTION_H) // 2, low, high, step, save, function(y)
+    local s = controls.stepper(row.layer, x, (ROW_H - OPTION_H) // 2, low, high, step, save, function(y)
       return shows(row, y)
     end)
     wheel(s.buttons[1].bg)
@@ -293,25 +294,25 @@ local function settingsPage(page, width, height, deps, define)
   -- the stepper.
   local function numberRow(label, low, high, value, save)
     local row = settingRow(label)
-    row.fade = stepper(row, rowRight - draw.STEPPER_W, low, high, 1, value, save)
+    row.fade = stepper(row, rowRight - controls.STEPPER_W, low, high, 1, value, save)
     return row
   end
 
   -- An On or Off button w wide at x on row, flipping the boolean appearance field. Returns its fade(faded).
   local function toggle(row, x, w, field)
     local by = (ROW_H - OPTION_H) // 2
-    local o = draw.option(row.layer, "Off", x, by, w, OPTION_H, function(_, y)
+    local o = controls.option(row.layer, "Off", x, by, w, OPTION_H, function(_, y)
       if shows(row, by + y) then
         choose(field, not saved.appearance()[field])
       end
     end)
     wheel(o.bg)
     steppers[#steppers + 1] = function(appearance)
-      draw.showOption(o, appearance[field])
+      controls.showOption(o, appearance[field])
       set(o.label, "content", appearance[field] and "On" or "Off")
     end
     return function(faded)
-      local alpha = faded and draw.FADED or 1
+      local alpha = faded and controls.FADED or 1
       for _, part in ipairs({ o.ring, o.bg, o.face, o.label }) do
         set(part, "alpha", alpha)
       end
@@ -383,7 +384,7 @@ local function settingsPage(page, width, height, deps, define)
     end
     local customX = rowRight - 2 * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP
     local hexX = rowRight - HEX_W
-    local hex = draw.inputField(row.layer, hexX, lineY[2] + (OPTION_H - HEX_H) // 2, HEX_W, HEX_H, 7)
+    local hex = controls.inputField(row.layer, hexX, lineY[2] + (OPTION_H - HEX_H) // 2, HEX_W, HEX_H, 7)
     -- The field also reports its contents on Enter, Esc and focus loss, so an unchanged colour is skipped.
     on(hex, "ONCONTENTCHANGED", function(_, _, contents)
       local rgb = style.parseHex(contents)
@@ -401,7 +402,7 @@ local function settingsPage(page, width, height, deps, define)
       end,
     })
 
-    local custom = draw.option(row.layer, "Custom", customX, lineY[2], SWATCH_W, OPTION_H, function(_, y)
+    local custom = controls.option(row.layer, "Custom", customX, lineY[2], SWATCH_W, OPTION_H, function(_, y)
       if not allowed(lineY[2] + y) then
         return
       end
@@ -426,7 +427,7 @@ local function settingsPage(page, width, height, deps, define)
           set(sw.bg, "rgb", presetRgb(presetID))
           set(sw.ring, "hidden", presetID ~= chosen)
         end
-        draw.showOption(custom, type(chosen) == "number")
+        controls.showOption(custom, type(chosen) == "number")
         if style.parseHex(hex.content) ~= rgb then
           hex.content = style.formatHex(rgb)
         end
@@ -641,7 +642,7 @@ function appearancepage.bars(page, width, height, deps)
       local opacity = "barOpacity" .. bar
       b.toggle(row, fadeX + (FADE_COL - TOGGLE_W) // 2, TOGGLE_W, "fadeBar" .. bar)
       local step = savedappearance.OPACITY_STEP
-      local fadeStepper = b.stepperAt(row, opacityX + (OPACITY_COL - draw.STEPPER_W) // 2, 0, 100, step, function(a)
+      local fadeStepper = b.stepperAt(row, opacityX + (OPACITY_COL - controls.STEPPER_W) // 2, 0, 100, step, function(a)
         return a[opacity]
       end, function(n)
         if n ~= saved.appearance()[opacity] then
