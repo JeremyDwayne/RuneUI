@@ -1,4 +1,4 @@
--- Drawing primitives shared by src/view, src/options and src/editmode: fonts, colours, component builders that
+-- Drawing primitives shared by the HUD elements, the options window and edit mode: fonts, colours, component builders that
 -- skip unchanged writes and log a refused property write once instead of erroring, buttons, and the cursor.
 local draw = {}
 
