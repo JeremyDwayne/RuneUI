@@ -25,6 +25,9 @@ local MAIN_LOCK = interfaces.MAIN_LOCK
 local KEEP_FRAMES = 2
 local FADE_HOOK = "runeuiFade"
 local EPSILON = 0.005
+-- Server ticks a bar stays shown after a press on one of its slots, so a drag off the bar finishes before it
+-- fades: the client gives no sign of a drag ending.
+local HOLD_TICKS = 3
 -- Each bar's root key and keybind labels as { static, key }, built once so the handlers allocate nothing, and the
 -- statics that take its hover: the root, each slot's button and the main bar's lock, which reach past the layers
 -- whose hover reaches the root.
@@ -53,6 +56,8 @@ local fades = {}
 -- last ran with, rendered frames since the last server tick, whether the window resized since the last frame, and
 -- the plugin layer while its resize hook is on.
 local hovered = {}
+-- Ticks left in each bar's hold after a press on one of its slots, by bar number.
+local held = {}
 local fadeLook = nil
 local fadeFrames = KEEP_FRAMES
 local resized = false
@@ -251,9 +256,10 @@ local function anyHovered()
 end
 
 -- Records the mouse entering or leaving static of bar number i, and moves each faded bar to the level it draws at
--- once the mouse is over any of bar i's hover statics or none.
+-- once the mouse is over any of bar i's hover statics or none. A leave during the bar's hold is left for the
+-- tick the hold ends on.
 local function hover(i, staticID, over)
-  if fades[i] == nil then
+  if fades[i] == nil or (not over and (held[i] or 0) > 0) then
     return
   end
   local was = next(hovered[i]) ~= nil
@@ -274,17 +280,23 @@ local function hover(i, staticID, over)
   end
 end
 
--- Subscribes or unsubscribes the mouse over and leave hooks on bar number i's hover statics.
+-- Subscribes or unsubscribes the mouse over, leave and press hooks on bar number i's hover statics. A press
+-- starts the bar's hold.
 local function hoverHooks(i, on)
   local bar = ACTION_BARS[i]
   hovered[i] = {}
+  held[i] = nil
   for _, staticID in ipairs(bar.hoverStatics) do
     local c = component(bar.id, staticID)
-    for hook, over in pairs({ ONMOUSEOVER = true, ONMOUSELEAVE = false }) do
+    for hook, over in pairs({ ONMOUSEOVER = true, ONMOUSELEAVE = false, ONCLICK = "press" }) do
       pcall(function()
         if on then
           c:Subscribe(ui.Hook[hook], FADE_HOOK, function()
-            hover(i, staticID, over)
+            if over == "press" then
+              held[i] = HOLD_TICKS
+            else
+              hover(i, staticID, over)
+            end
           end)
         else
           c:Unsubscribe(ui.Hook[hook], FADE_HOOK)
@@ -320,7 +332,11 @@ function actionbars.fade(appearance)
   fadeLook = appearance
   fadeFrames = 0
   for i in pairs(fades) do
-    dropLeft(i)
+    if (held[i] or 0) > 0 then
+      held[i] = held[i] - 1
+    else
+      dropLeft(i)
+    end
   end
   local any = anyHovered()
   for i, bar in ipairs(ACTION_BARS) do
@@ -406,6 +422,7 @@ function actionbars.restore()
   end
   fades = {}
   hovered = {}
+  held = {}
   resizeHook()
 end
 

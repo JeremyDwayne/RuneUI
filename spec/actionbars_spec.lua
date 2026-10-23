@@ -70,7 +70,7 @@ local function loadActionBars(...)
   end
   _G.id = { Component = { TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP = "top" } }
   _G.ui = {
-    Hook = { ONMOUSEOVER = "ONMOUSEOVER", ONMOUSELEAVE = "ONMOUSELEAVE", ONRESIZE = "ONRESIZE" },
+    Hook = { ONMOUSEOVER = "ONMOUSEOVER", ONMOUSELEAVE = "ONMOUSELEAVE", ONCLICK = "ONCLICK", ONRESIZE = "ONRESIZE" },
     Interfaces = {
       GetComponent = function(_, ...)
         stub.lookups = stub.lookups + 1
@@ -227,6 +227,22 @@ describe("actionbars.fade", function()
       assert.are.equal(0.25, stub.bars[1430][1].alpha)
     end
   )
+
+  it("keeps a bar shown for three ticks after a press on a slot, so a drag off it can finish", function()
+    local stub = loadActionBars(1430)
+    local main = stub.bars[1430]
+    actionbars.fade(look({ fadeBar1 = true }))
+    stub.hook(1430, "ONMOUSEOVER")
+    stub.hook(1430, "ONCLICK", 65)
+    stub.hook(1430, "ONMOUSELEAVE")
+    assert.are.equal(1, main[1].alpha)
+    for _ = 1, 3 do
+      actionbars.fade(look({ fadeBar1 = true }))
+      assert.are.equal(1, main[1].alpha)
+    end
+    actionbars.fade(look({ fadeBar1 = true }))
+    assert.are.equal(0.25, main[1].alpha)
+  end)
 
   it("fades a hovered bar again on the tick after the mouse left it without a leave hook", function()
     local stub = loadActionBars(1430)
