@@ -1,9 +1,8 @@
 -- Saved settings: element positions and anchors, cooldown groups with their display settings and ability
--- lists, marker percents, appearance (HUD text, unit frame colours, border and size, bar texture, aura bars
--- and their sizes,
--- and whether the default target panel, buff bars and cast bar are hidden), edit mode
--- snapping, learned ability names and icons, aura names by icon, the aura row each buff icon belongs to, which
--- debuffs each debuff row tracks, the upkeep buffs kept up, and the order of each kind of aura icon.
+-- lists, marker percents, appearance (HUD text, unit frame colours, border and size, bar texture, aura bars and
+-- their sizes, and whether the default target panel, buff bars and cast bar are hidden), edit mode snapping,
+-- learned ability names and icons, aura names by icon, the aura row each buff icon belongs to, which debuffs
+-- each debuff row tracks, the upkeep buffs kept up, and the order of each kind of aura icon.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
