@@ -3,7 +3,8 @@ local actionbars = require("src/actionbars")
 
 -- Action bars as the client builds them: every static of each bar, a child under the stat bar :9 and each
 -- window frame static, and the main bar's root in window 1477 at :72. Writes and lookups count every alpha or
--- hidden write and component lookup. load(interfaceID) opens a bar, or rebuilds it at its first alphas.
+-- hidden write and component lookup. load(interfaceID) opens a bar, or rebuilds it at its first alphas. With
+-- roundAlpha set, an alpha written is held in a byte, as the client holds it.
 local BAR_LAYOUTS = {
   [1430] = { last = 270, content = 72 },
   [1670] = { last = 198, content = 77 },
@@ -33,6 +34,9 @@ local function loadActionBars(...)
       __index = data,
       __newindex = function(_, key, value)
         stub.writes = stub.writes + 1
+        if key == "alpha" and stub.roundAlpha then
+          value = math.floor(value * 255) / 255
+        end
         data[key] = value
       end,
     }),
@@ -273,6 +277,49 @@ describe("actionbars.fade", function()
     stub.topData.hooks.ONRESIZE()
     actionbars.keepFaded()
     assert.are.equal(0.25, main[9].children[1].alpha)
+  end)
+
+  it("holds a bar at 0% while the client keeps alphas in a byte, shows it at full on hover and restores it", function()
+    local stub = loadActionBars(1430)
+    stub.roundAlpha = true
+    local main = stub.bars[1430]
+    local faded = look({ fadeBar1 = true, barOpacity1 = 0 })
+    actionbars.fade(faded)
+    framesAfterTick()
+    actionbars.fade(faded)
+    framesAfterTick()
+    stub.writes = 0
+    actionbars.fade(faded)
+    framesAfterTick()
+    assert.are.equal(0, stub.writes)
+    local half = math.floor(0.5 * 255) / 255
+    stub.hook(1430, "ONMOUSEOVER")
+    assert.are.same({ 1, half, false }, { main[1].alpha, main[62].alpha, main[63].hidden })
+    stub.hook(1430, "ONMOUSELEAVE")
+    actionbars.fade(look())
+    assert.are.same({ 1, half, false }, { main[1].alpha, main[62].alpha, main[63].hidden })
+  end)
+
+  it("fades the rest of a bar from their own alphas when the client resets only its root", function()
+    local stub = loadActionBars(1430)
+    local main = stub.bars[1430]
+    actionbars.fade(look({ fadeBar1 = true }))
+    getmetatable(main[0]).__index.alpha = 1
+    actionbars.fade(look({ fadeBar1 = true }))
+    assert.are.same({ 0.25, 0.125, true }, { main[0].alpha, main[62].alpha, main[63].hidden })
+    actionbars.fade(look())
+    assert.are.same({ 1, 0.5, false }, { main[0].alpha, main[62].alpha, main[63].hidden })
+  end)
+
+  it("keeps a bar's fade while its interface is unreadable and restores it once it is read again", function()
+    local stub = loadActionBars(1430)
+    local main = stub.bars[1430]
+    actionbars.fade(look({ fadeBar1 = true }))
+    stub.bars[1430] = nil
+    actionbars.fade(look({ fadeBar1 = true }))
+    stub.bars[1430] = main
+    actionbars.fade(look())
+    assert.are.same({ 1, 0.5, false }, { main[0].alpha, main[62].alpha, main[63].hidden })
   end)
 
   it("skips a bar that is not open, and fades a bar on the tick it opens or after the client rebuilds it", function()

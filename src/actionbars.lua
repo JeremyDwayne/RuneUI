@@ -21,7 +21,7 @@ local MAIN_LOCK = interfaces.MAIN_LOCK
 
 -- The rendered frames after each server tick in which the client resets keybind labels, the name RuneUI's
 -- hooks on game components go by, and how far an alpha may drift from the one written before it counts as the
--- client's own change.
+-- client's own change: the client holds an alpha in a byte, so a read differs from the write by under 1/255.
 local KEEP_FRAMES = 2
 local FADE_HOOK = "runeuiFade"
 local EPSILON = 0.005
@@ -42,9 +42,10 @@ for _, bar in ipairs(ACTION_BARS) do
   end
 end
 
--- Fade of each action bar RuneUI changes, by its number: { level, base, written, hidden, watch }. base holds
--- each component's alpha as the client last set it, written the alpha RuneUI wrote, and hidden whether each
--- component RuneUI hid was hidden before, each keyed "interface:static" or "interface:static:category:dynamic".
+-- Fade of each action bar RuneUI changes, by its number: { level, base, written, hidden, watch, away }. base
+-- holds each component's alpha as the client last set it, written the alpha RuneUI wrote, and hidden whether
+-- each component RuneUI hid was hidden before, each keyed "interface:static" or
+-- "interface:static:category:dynamic". away marks a bar whose interface could not be read on the last tick.
 -- watch lists the components read each frame for the client resetting the window frame and stat bars, as
 -- { interface, static, category, dynamic, key }.
 local fades = {}
@@ -71,28 +72,43 @@ local function barPart(bar, staticID)
 end
 
 -- Gives c the hidden state and alpha of part at the fade's level, writing only what changed. A component the
--- client hid stays hidden, and one whose alpha scale is back to 1 gets the client's alpha back.
-local function fadeComponent(fade, key, c, part)
+-- client hid stays hidden, and one whose alpha scale is back to 1 gets the client's alpha back. With check set,
+-- as after the client rebuilt part of the bar, a component the client showed or set since RuneUI wrote it is
+-- hidden again or fades from that alpha; the rest keep the alpha first read from them, so a bar never fades
+-- from its own faded alphas.
+local function fadeComponent(fade, key, c, part, check)
   local hidden, scale = barfade.state(part, fade.level)
-  if hidden and fade.hidden[key] == nil then
-    fade.hidden[key] = read(c, "hidden") == true
-    if not fade.hidden[key] then
+  if hidden then
+    if fade.hidden[key] == nil then
+      fade.hidden[key] = read(c, "hidden") == true
+      if not fade.hidden[key] then
+        pcall(assign, c, "hidden", true)
+      end
+    elseif check and not fade.hidden[key] and read(c, "hidden") ~= true then
       pcall(assign, c, "hidden", true)
     end
-  elseif not hidden and fade.hidden[key] ~= nil then
+  elseif fade.hidden[key] ~= nil then
     if not fade.hidden[key] then
       pcall(assign, c, "hidden", false)
     end
     fade.hidden[key] = nil
   end
-  if fade.base[key] == nil then
+  local written = fade.written[key]
+  local reset = false
+  if written == nil then
     if scale == 1 then
       return
     end
     fade.base[key] = read(c, "alpha") or 1
+  elseif check then
+    local current = read(c, "alpha")
+    if current ~= nil and math.abs(current - written) > EPSILON then
+      fade.base[key] = current
+      reset = true
+    end
   end
   local alpha = fade.base[key] * scale
-  if fade.written[key] ~= alpha then
+  if reset or written ~= alpha then
     pcall(assign, c, "alpha", alpha)
     fade.written[key] = alpha
   end
@@ -141,12 +157,12 @@ end
 
 -- Fades every component of bar at its fade's level: each static and, under a static of no slot part, its
 -- dynamic children, then the background, border and settings button of the window holding it. Watches the
--- first child of the window's background and of the main bar's first stat bar.
-local function fadeBar(bar, fade, root)
+-- first child of the window's background and of the main bar's first stat bar. check passes to fadeComponent.
+local function fadeBar(bar, fade, root, check)
   fade.watch = {}
   local function fadeChildren(interfaceID, staticID, c, watched)
     eachChild(interfaceID, staticID, c, function(key, child, category, dynamic)
-      fadeComponent(fade, key, child, "other")
+      fadeComponent(fade, key, child, "other", check)
       if watched then
         fade.watch[#fade.watch + 1] = { interfaceID, staticID, category, dynamic, key }
         watched = false
@@ -157,7 +173,7 @@ local function fadeBar(bar, fade, root)
     local c = component(bar.id, staticID)
     if c ~= nil then
       local part = barPart(bar, staticID)
-      fadeComponent(fade, bar.id .. ":" .. staticID, c, part)
+      fadeComponent(fade, bar.id .. ":" .. staticID, c, part, check)
       if part == "other" then
         fadeChildren(bar.id, staticID, c, bar.id == MAIN_BAR and staticID == STAT_BARS[1])
       end
@@ -166,7 +182,7 @@ local function fadeBar(bar, fade, root)
   for i, staticID in ipairs(windowStatics(root) or {}) do
     local c = component(WINDOWS, staticID)
     if c ~= nil then
-      fadeComponent(fade, WINDOWS .. ":" .. staticID, c, "other")
+      fadeComponent(fade, WINDOWS .. ":" .. staticID, c, "other", check)
       fadeChildren(WINDOWS, staticID, c, i == 1)
     end
   end
@@ -296,9 +312,10 @@ local function resizeHook()
 end
 
 -- Runs each server tick with the appearance settings, fading each open action bar to its barOpacity while its
--- fadeBar is on. A bar the player has not opened is skipped, and one the client rebuilt is faded again whole. A bar
--- the mouse left unseen fades again. A bar whose settings are off gets every component back as the client drew
--- it. Reads each faded bar's root and each hovered static when nothing changed.
+-- fadeBar is on. A bar the player has not opened is skipped. A faded bar whose interface cannot be read this
+-- tick keeps its record and is faded or restored again once it reads. One the client rebuilt is faded again from
+-- the alphas the client gave it. A bar the mouse left unseen fades again. A bar whose settings are off gets every
+-- component back as the client drew it. Reads each faded bar's root and each hovered static when nothing changed.
 function actionbars.fade(appearance)
   fadeLook = appearance
   fadeFrames = 0
@@ -309,22 +326,25 @@ function actionbars.fade(appearance)
   for i, bar in ipairs(ACTION_BARS) do
     local wanted = barfade.level(appearance, i, false) < 100
     local fade = fades[i]
-    local root = (wanted or fade ~= nil) and component(bar.id, 0)
-    if not root then
-      fades[i] = nil
-    else
-      if fade ~= nil and rebuilt(bar, fade, root) then
-        fade = nil
+    local root = (wanted or fade ~= nil) and component(bar.id, 0) or nil
+    if root == nil then
+      if fade ~= nil then
+        fade.away = true
       end
+    else
+      local again = fade ~= nil and (fade.away or rebuilt(bar, fade, root))
       if fade == nil then
         fade = { level = 100, base = {}, written = {}, hidden = {} }
         fades[i] = fade
         hoverHooks(i, true)
+      elseif again then
+        hoverHooks(i, true)
       end
       local level = barfade.level(appearance, i, next(hovered[i]) ~= nil, any)
-      if fade.level ~= level then
+      if fade.level ~= level or again then
         fade.level = level
-        fadeBar(bar, fade, root)
+        fade.away = nil
+        fadeBar(bar, fade, root, again)
       end
       if not wanted then
         hoverHooks(i, false)

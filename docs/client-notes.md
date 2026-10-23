@@ -43,3 +43,7 @@ The client API is thinly documented. These facts came from probing it in the gam
 - No game font draws the check mark U+2713; each draws `?`. Mark a chosen option by fill and ring instead.
 - `NOTO_SANS_11PT_BOLD_OUTLINE`, `_13PT_` and `_21PT_` draw white text with a dark outline that reads on white.
 - The global `os` is nil, so there is no `os.clock` for timing. The two root layers report the whole window in UI units, such as 1710 by 1041 on a Retina Mac.
+- `prl` runs `PluginShutdown` before the reload, so a reload restores what the plugin changed.
+- The client holds an alpha in a byte: 0.01 written reads back as 2/255. Compare an alpha with what was written to it by a margin of 1/255 or more.
+- The client resets an action bar's root alpha on its own while the bar's other components keep theirs, so a fade keeps each component's original alpha until the client sets that component itself.
+- An action bar slot showing an item draws the item's stack count at full whatever the icon's alpha, and hiding the icon stops the item being used while abilities still cast. A faded bar leaves the icon as it is, so the count shows.
