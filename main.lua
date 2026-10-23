@@ -154,46 +154,62 @@ local function restyle()
   return view.setLook(elements, look)
 end
 
-local function refresh()
-  local appearance = saved.appearance()
-  gameui.apply(appearance)
-  local moved = restyle()
+-- Redraws the player frame, target frame and resource bar from the client. Returns the target model and
+-- whether an element's bounds changed.
+local function updateFrames(appearance)
   elements.player.update(frames.player(adapter.playerReads(), appearance.lifepoints))
-  local effects = effectsTracker.debuffs()
-  local target = frames.target(adapter.targetReads(effects), appearance.lifepoints)
+  local target = frames.target(adapter.targetReads(effectsTracker.debuffs()), appearance.lifepoints)
   elements.target.update(target)
-  local targetDebuffs = target.debuffs or {}
-  effectsTracker.observe(targetDebuffs)
+  effectsTracker.observe(target.debuffs or {})
   local reads = adapter.resourceReads(frames.SPENDERS)
   reads.necromancy = tracker.style() == "necromancy"
   local resource = frames.resource(reads, saved.markers())
   stacks = resource.byAbility
-  if elements.resource.update(resource) then
-    moved = true
-  end
+  local moved = elements.resource.update(resource)
   if elements.player.showSpenders(resource.spenders) then
     moved = true
   end
+  return target, moved
+end
+
+-- Redraws the cast bar and cooldown groups from the trackers and the action bars. Returns whether a group's
+-- bounds changed.
+local function updateCooldowns()
   -- This redraw covers any change waiting for the next Logic tick.
   channelTracker.changed()
   tracker.changed()
   elements.castbar.update(channelTracker.model())
   slots = adapter.barSlots()
-  if updateGroups() then
-    moved = true
-  end
-  local bars = appearance.auraBars
+  return updateGroups()
+end
+
+-- Redraws each aura row for the target shown. Returns whether a row's bounds changed.
+local function updateAuras(target, bars)
+  local targetDebuffs = target.debuffs or {}
   auraFilters.hasTarget = not target.hidden
   -- Listing each debuff seen puts it on the Buffs page; seeDebuff saves only a new one.
   for _, sprite in ipairs(targetDebuffs) do
     saved.seeDebuff("target", sprite)
   end
+  local moved = false
   for name, models in pairs(auraTracker.rows(saved.auras(), targetDebuffs, auraFilters, effectsTracker.timers())) do
     if elements[name].update(models, bars) then
       moved = true
     end
   end
-  -- Anchored elements follow a row whose shown tiles changed.
+  return moved
+end
+
+-- Redraws the whole HUD from the client, each server tick and after a settings change.
+local function refresh()
+  local appearance = saved.appearance()
+  gameui.apply(appearance)
+  local moved = restyle()
+  local target, framesMoved = updateFrames(appearance)
+  moved = moved or framesMoved
+  moved = updateCooldowns() or moved
+  moved = updateAuras(target, appearance.auraBars) or moved
+  -- Anchored elements follow an element whose shown bounds changed.
   if moved then
     optionsWindow.placeAll()
   end
