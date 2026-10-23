@@ -85,7 +85,9 @@ targeteffects.LENGTHS = {
   [14377] = one("Stagger", 100),
   [14395] = one("Vulnerability", 100),
   [14266] = one("Pulverise", 50),
-  [30098] = one("Bloat", 33), -- Bloated
+  -- Bloated: the bit shows on the tick Bloat is cast and clears 35 ticks later at close range, a few more from
+  -- further off. The shorter length keeps the countdown from outlasting the icon.
+  [30098] = one("Bloat", 35),
   [30100] = one("Invoke Death", 1000), -- Death Mark
   [17255] = one("Corruption Shot", 10),
   [30372] = { ticks = 18 }, -- Soulfire
