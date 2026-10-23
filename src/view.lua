@@ -41,6 +41,16 @@ function view.arrange(elements, positions, anchors)
   return resolved
 end
 
+-- Lets view.hold hide every element, by name, while a game window the HUD draws over is open.
+function view.holdable(elements)
+  for _, element in pairs(elements) do
+    draw.holdable(element.layer)
+  end
+end
+
+-- Hides every view.holdable element while held is true, and shows each as it was once false.
+view.hold = draw.hold
+
 -- Gives each element its look; returns whether any element's bounds changed.
 function view.setLook(elements, look)
   local moved = false
