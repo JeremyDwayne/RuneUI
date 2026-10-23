@@ -10,7 +10,6 @@
 <rect x="501" y="115" width="36" height="36" fill="#000000"/>
 <rect x="502" y="116" width="34" height="34" fill="#27231f"/>
 <image x="503" y="117" width="32" height="32" href="data:image/png;base64,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" preserveAspectRatio="xMidYMid meet"/>
-<rect x="499" y="113" width="40" height="40" fill="none" stroke="#ffffff" stroke-width="2"/>
 <text x="520.0" y="149" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.799999999999999" font-weight="bold" fill="#000000" text-anchor="middle">9</text>
 <text x="519.0" y="148" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="10.799999999999999" font-weight="bold" fill="#ffffff" text-anchor="middle">9</text>
 <rect x="427" y="161" width="35" height="35" fill="#000000"/>
@@ -102,7 +101,6 @@
 <rect x="864" y="165" width="26" height="26" fill="#ff8a1f"/>
 <rect x="865" y="166" width="24" height="24" fill="#27231f"/>
 <image x="866" y="167" width="22" height="22" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAADWElEQVR42mM4w8Dwn5qYAUxgAf///2cEUoyB3ilxTQ0rj+QXzjnS0LBom5iYtB5UCSO6HoIGgrCPZ1T2lCmn/ixe/fJ/V+fa+yKScsakG4gwlAlIaRaXLT62Ydv7v87uid1ycnKCUNczkGogKxDzALF5TcPys7sO/Pnv6hYzHciXBWIuIGbGYyCmd0NDQ5krqqZWz5y56dK8BWc+bNjy4t/kGXseTZ+z6XhYZL47NEiYsBoICy8kl7EAMbu3R3Tg4qWnnuw7/PX/hl2vfx8+9ed/R8/KnZr6ptogNVC1zDBHwA2EBjDIUGYrKyve6uopNXZ2HoFAMX4VNZOYpWtuvDh19f//jr5NB4FiRkAsmpZVU5qZ3xYONYwFxYVBQamxzq4hWaAIAGKzCRPWXFm89OwjLS3rKCBfxscnIWXC1K2LODh47IB8FS+f1Nbtex79CQ1MmQniA7FVVFhBGdzAuuqlJ2bOOv2ntnHl0cbm5WfnzD32fs+hr/+XrLrxLCQsOwWogReIOUGGl1XPmrpx16s/e45++T9p6q7HDU2rj1dWLri0bMl1RMLOKZh/dOnKZ//Xb33/f9fBX/8373j9f/3Ol79PXf7/v3/ShkX29vEcIC8JCUlortt6++4xoPjabc9+7zvy5f/2fT/+r930/v+sBbcRBtZXztnW0rHqbkBwQU9QSNb0KTP2Pj506ic4zGRkVO1ALoMGh7SLS0TqolVXnx45/et/YVHvsdDIgh7fgIJ5k6YeeAM3UExMRheo2BiIBYFYdsrUdce7ulfvgEaAclH5tKnrtt25bWXrnwIyVEJCMXjxylMP4mJzO4F8bpAYL6+YJdxA5PRnbOzDFRaZ7c7Kyg1KGmIeHqmtm/a8+X300v//85ddfszPIx0EFBcwMLCxDwzMNEVOcujJBiyIyAGhzBlZdaUbt9z8t/vwJ2CYvvp96OSv/0tWHHvk4BBgz4AA0MSNlA5x5GHWzJzm8LiEwun9k3c83rX34/+Cgp5jWVm1HX7B2Sb19fVM9fVAdSTkZRYorVLbuOr4tj0///v6pXRDw4wJhMkpbVhYWDgsy6uWX1qz6e0/H/+cuUJCQtJklTawjB+fWFKxcOm1/3Pm3/w/c/ah91Jy6lZQeezlIbWrAACp1xiN29elhQAAAABJRU5ErkJggg==" preserveAspectRatio="xMidYMid meet"/>
-<rect x="862" y="163" width="30" height="30" fill="none" stroke="#ffffff" stroke-width="2"/>
 <text x="878.0" y="189" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="9" font-weight="bold" fill="#000000" text-anchor="middle">48</text>
 <text x="877.0" y="188" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="9" font-weight="bold" fill="#ffffff" text-anchor="middle">48</text>
 <rect x="110" y="252" width="26" height="26" fill="#000000"/>
@@ -211,41 +209,41 @@
 <image x="598" y="336" width="28" height="28" href="data:image/png;base64,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" preserveAspectRatio="xMidYMid meet"/>
 <text x="625" y="347" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="9" font-weight="bold" fill="#000000" text-anchor="end">]</text>
 <text x="624" y="346" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="9" font-weight="bold" fill="#ffffff" text-anchor="end">]</text>
-<line x1="456" y1="133" x2="463" y2="133" stroke="#9c9b99" stroke-width="1"/>
-<circle cx="463" cy="133" r="2" fill="#9c9b99"/>
-<text x="452" y="137" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Combat buffs</text>
-<line x1="573" y1="178" x2="600" y2="178" stroke="#9c9b99" stroke-width="1"/>
-<circle cx="600" cy="178" r="2" fill="#9c9b99"/>
-<text x="606" y="182" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="start">Major</text>
-<line x1="330" y1="154" x2="362" y2="202" stroke="#9c9b99" stroke-width="1"/>
-<circle cx="362" cy="202" r="2" fill="#9c9b99"/>
-<text x="300" y="150" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Rotation</text>
-<line x1="98" y1="223" x2="110" y2="223" stroke="#9c9b99" stroke-width="1"/>
-<circle cx="110" cy="223" r="2" fill="#9c9b99"/>
-<text x="95" y="227" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Player frame</text>
-<line x1="890" y1="223" x2="902" y2="223" stroke="#9c9b99" stroke-width="1"/>
-<circle cx="902" cy="223" r="2" fill="#9c9b99"/>
-<text x="906" y="227" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="start">Target frame</text>
-<line x1="98" y1="178" x2="110" y2="178" stroke="#9c9b99" stroke-width="1"/>
-<circle cx="110" cy="178" r="2" fill="#9c9b99"/>
-<text x="95" y="182" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Debuffs on you</text>
-<line x1="890" y1="178" x2="902" y2="178" stroke="#9c9b99" stroke-width="1"/>
-<circle cx="902" cy="178" r="2" fill="#9c9b99"/>
-<text x="906" y="182" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="start">Debuffs on the target</text>
-<line x1="98" y1="265" x2="110" y2="265" stroke="#9c9b99" stroke-width="1"/>
-<circle cx="110" cy="265" r="2" fill="#9c9b99"/>
-<text x="95" y="269" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Upkeep buffs</text>
-<line x1="348" y1="255" x2="361" y2="255" stroke="#9c9b99" stroke-width="1"/>
-<circle cx="361" cy="255" r="2" fill="#9c9b99"/>
-<text x="345" y="259" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Adrenaline bar</text>
-<line x1="348" y1="277" x2="361" y2="277" stroke="#9c9b99" stroke-width="1"/>
-<circle cx="361" cy="277" r="2" fill="#9c9b99"/>
-<text x="345" y="281" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Cast bar</text>
-<line x1="563" y1="318" x2="600" y2="318" stroke="#9c9b99" stroke-width="1"/>
-<circle cx="600" cy="318" r="2" fill="#9c9b99"/>
-<text x="606" y="322" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="start">Utility</text>
-<line x1="627" y1="350" x2="660" y2="350" stroke="#9c9b99" stroke-width="1"/>
-<circle cx="660" cy="350" r="2" fill="#9c9b99"/>
-<text x="666" y="354" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="start">Defensives</text>
+<line x1="454" y1="133" x2="463" y2="133" stroke="#9c9b99" stroke-width="1"/>
+<circle cx="454" cy="133" r="2.5" fill="#9c9b99"/>
+<text x="446" y="137" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Combat buffs</text>
+<line x1="604" y1="178" x2="573" y2="178" stroke="#9c9b99" stroke-width="1"/>
+<circle cx="604" cy="178" r="2.5" fill="#9c9b99"/>
+<text x="612" y="182" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="start">Major</text>
+<line x1="367" y1="182" x2="364" y2="199" stroke="#9c9b99" stroke-width="1"/>
+<circle cx="367" cy="182" r="2.5" fill="#9c9b99"/>
+<text x="375" y="186" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="start">Rotation</text>
+<line x1="94" y1="223" x2="110" y2="223" stroke="#9c9b99" stroke-width="1"/>
+<circle cx="94" cy="223" r="2.5" fill="#9c9b99"/>
+<text x="86" y="227" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Player frame</text>
+<line x1="904" y1="223" x2="890" y2="223" stroke="#9c9b99" stroke-width="1"/>
+<circle cx="904" cy="223" r="2.5" fill="#9c9b99"/>
+<text x="912" y="227" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="start">Target frame</text>
+<line x1="94" y1="178" x2="110" y2="178" stroke="#9c9b99" stroke-width="1"/>
+<circle cx="94" cy="178" r="2.5" fill="#9c9b99"/>
+<text x="86" y="182" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Debuffs on you</text>
+<line x1="904" y1="178" x2="890" y2="178" stroke="#9c9b99" stroke-width="1"/>
+<circle cx="904" cy="178" r="2.5" fill="#9c9b99"/>
+<text x="912" y="182" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="start">Debuffs on the target</text>
+<line x1="94" y1="265" x2="110" y2="265" stroke="#9c9b99" stroke-width="1"/>
+<circle cx="94" cy="265" r="2.5" fill="#9c9b99"/>
+<text x="86" y="269" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Upkeep buffs</text>
+<line x1="344" y1="255" x2="361" y2="255" stroke="#9c9b99" stroke-width="1"/>
+<circle cx="344" cy="255" r="2.5" fill="#9c9b99"/>
+<text x="336" y="259" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Adrenaline bar</text>
+<line x1="344" y1="277" x2="361" y2="277" stroke="#9c9b99" stroke-width="1"/>
+<circle cx="344" cy="277" r="2.5" fill="#9c9b99"/>
+<text x="336" y="281" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="end">Cast bar</text>
+<line x1="604" y1="318" x2="563" y2="318" stroke="#9c9b99" stroke-width="1"/>
+<circle cx="604" cy="318" r="2.5" fill="#9c9b99"/>
+<text x="612" y="322" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="start">Utility</text>
+<line x1="664" y1="350" x2="627" y2="350" stroke="#9c9b99" stroke-width="1"/>
+<circle cx="664" cy="350" r="2.5" fill="#9c9b99"/>
+<text x="672" y="354" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#c7ccd1" text-anchor="start">Defensives</text>
 </g>
 </svg>
