@@ -196,6 +196,45 @@ describe("buffspage", function()
     end))
   end)
 
+  -- How many shown labels read content.
+  local function count(content)
+    local n = 0
+    fake.find(function(_, d)
+      n = n + (d.content == content and 1 or 0)
+      return false
+    end)
+    return n
+  end
+
+  it("saves combat and upkeep buff sizes apart from Buffs on you, refreshing the HUD", function()
+    local _, saved, refreshed = open()
+    fake.press("+", 1)
+    fake.press("-", 3)
+    assert.are.same({ 37, 25 }, { saved.appearance().combatBuffsIcon, saved.appearance().upkeepBuffsIcon })
+    assert.are.equal(2, refreshed.count)
+    assert.is_true(shows("37"))
+  end)
+
+  it("gives a row its own text size from Text size and dims it again on Match HUD", function()
+    local _, saved = open()
+    fake.press("+", 4)
+    assert.are.equal(11, saved.appearance().upkeepBuffsText)
+    fake.press("Match HUD", 2)
+    assert.are.equal("hud", saved.appearance().upkeepBuffsText)
+    local field = fake.find(function(_, d)
+      return d.content == "10" and d.alpha == 0.45
+    end)
+    assert.is_not_nil(field)
+  end)
+
+  it("sizes only the tracked row on a debuff tab", function()
+    local _, saved = open()
+    fake.press("Debuffs you inflict")
+    assert.are.same({ 1, 1 }, { count("Icon size"), count("Text size") })
+    fake.press("+", 1)
+    assert.are.same({ 27, 26 }, { saved.appearance().targetDebuffsIcon, saved.appearance().playerDebuffsIcon })
+  end)
+
   it("makes no client writes when redrawn unchanged", function()
     local page = open()
     fake.writes = 0

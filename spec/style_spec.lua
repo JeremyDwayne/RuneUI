@@ -20,6 +20,15 @@ local DEFAULTS = {
   castFont = "hud",
   castTextSize = "hud",
   spenders = "below",
+  combatBuffsIcon = 36,
+  combatBuffsText = "hud",
+  upkeepBuffsIcon = 26,
+  upkeepBuffsText = "hud",
+  playerDebuffsIcon = 26,
+  playerDebuffsText = "hud",
+  targetDebuffsIcon = 26,
+  targetDebuffsText = "hud",
+  debuffEdge = "orange",
 }
 
 local function appearance(changes)
@@ -132,6 +141,37 @@ describe("style.look", function()
       nil
     )
     assert.are.same({ "CINZEL_18PT_BOLD", 333, 0x6b3fa0 }, { own.fonts.cast, own.castWidth, own.castColour })
+  end)
+
+  it("sizes each aura row's text in its role at Match HUD, following the text step", function()
+    local look = style.look(appearance({ textStep = 2, upkeepBuffsIcon = 40 }), nil)
+    assert.are.same({
+      size = 36,
+      points = 15,
+      font = "MUSEO_SANS_15PT_BOLD",
+      stacksPoints = 12,
+      stacksFont = "NOTOSANS_BOLD_12",
+    }, look.auras.combatBuffs)
+    assert.are.same({ 40, 12, "NOTOSANS_BOLD_12" }, {
+      look.auras.upkeepBuffs.size,
+      look.auras.upkeepBuffs.points,
+      look.auras.upkeepBuffs.font,
+    })
+  end)
+
+  it("gives an aura row's time and stacks its own text size once it has one", function()
+    local row = style.look(appearance({ font = "noto", targetDebuffsText = 16 }), nil).auras.targetDebuffs
+    assert.are.same(
+      { 16, "NOTOSANS_BOLD_16", 16, "NOTOSANS_BOLD_16" },
+      { row.points, row.font, row.stacksPoints, row.stacksFont }
+    )
+  end)
+
+  it("edges debuff icons in the chosen colour", function()
+    assert.are.same(
+      { 0xff8a1f, 0xffffff },
+      { style.look(appearance(), nil).debuffEdge, style.look(appearance({ debuffEdge = "white" }), nil).debuffEdge }
+    )
   end)
 
   it("colours a frame from a preset, the equipped style or a hex number", function()

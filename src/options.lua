@@ -11,6 +11,7 @@ local editmode = require("src/editmode")
 local editor = require("src/editor")
 local presets = require("src/presets")
 local settings = require("src/settings")
+local style = require("src/style")
 
 local options = {}
 
@@ -797,6 +798,7 @@ function options.create(root, deps)
   appearance.choiceRow(buffsPage.display, 24, 18, PAGE_W - 48, "Game buff bars", showHide, "hideBuffBars", 120)
   local auraIcons = { { id = false, label = "Plain" }, { id = true, label = "With bars" } }
   appearance.choiceRow(buffsPage.display, 24, 68, PAGE_W - 48, "Aura icons", auraIcons, "auraBars", 120)
+  appearance.choiceRow(buffsPage.display, 24, 118, PAGE_W - 48, "Debuff border", style.DEBUFF_EDGES, "debuffEdge", 96)
 
   -- Edit mode ----------------------------------------------------------------------------------------
 

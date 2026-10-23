@@ -212,10 +212,10 @@ end
 -- The look an element shows until it is given one.
 local DEFAULT_LOOK = style.look(settings.defaultAppearance(), nil)
 
--- Writes look's font for role, a text colour and the edge to a draw.edgedText label. dark draws Auto's dark text
--- with a light edge and no shadow; rgb overrides the look's text colour. Every write skips an unchanged value.
-local function styleText(label, role, look, dark, rgb)
-  local font = look.fonts[role]
+-- Writes the font name font, a text colour and look's edge to a draw.edgedText label. dark draws Auto's dark
+-- text with a light edge and no shadow; rgb overrides the look's text colour. Every write skips an unchanged
+-- value.
+local function styleFont(label, font, look, dark, rgb)
   local native = look.outline and not dark and style.outlineFont(font)
   set(label, "font", id.Font[native or font])
   local colour = rgb or look.text
@@ -229,6 +229,11 @@ local function styleText(label, role, look, dark, rgb)
     edge = dark and style.LIGHT_EDGE or style.DARK_EDGE
   end
   draw.setEdge(label, edge)
+end
+
+-- styleFont with look's font for role.
+local function styleText(label, role, look, dark, rgb)
+  styleFont(label, look.fonts[role], look, dark, rgb)
 end
 
 -- Gives each element its look; returns whether any element's bounds changed.
@@ -1252,27 +1257,13 @@ function view.castBar(root)
   return bar
 end
 
--- Aura rows by HUD element: tile size, which end the icons gather at, and whether they are debuffs, which get
--- an orange edge. timeRole, a src/style text role, and timeHeight size the time text along a tile's bottom.
+-- Aura rows by HUD element: which end the icons gather at, and whether they are debuffs, edged in the look's
+-- debuffEdge colour. name keys the row's icon size and text in a src/style look's auras.
 view.AURA_STYLES = {
-  targetDebuffs = {
-    size = 26,
-    align = "right",
-    debuff = true,
-    timeRole = "small",
-    timeHeight = 11,
-    kind = "Debuff on target",
-  },
-  playerDebuffs = {
-    size = 26,
-    align = "left",
-    debuff = true,
-    timeRole = "small",
-    timeHeight = 11,
-    kind = "Debuff on you",
-  },
-  upkeepBuffs = { size = 26, align = "left", timeRole = "small", timeHeight = 11, kind = "Buff" },
-  combatBuffs = { size = 36, align = "centre", timeRole = "body", timeHeight = 13, kind = "Buff" },
+  targetDebuffs = { name = "targetDebuffs", align = "right", debuff = true, kind = "Debuff on target" },
+  playerDebuffs = { name = "playerDebuffs", align = "left", debuff = true, kind = "Debuff on you" },
+  upkeepBuffs = { name = "upkeepBuffs", align = "left", kind = "Buff" },
+  combatBuffs = { name = "combatBuffs", align = "centre", kind = "Buff" },
 }
 local AURA_GAP = 2
 -- Room around the tiles for the highlight, which draws up to 3px outside a tile.
@@ -1286,48 +1277,57 @@ local STRIPE_GAP = 2
 -- A missing Keep up buff's icon alpha.
 local MISSING_ALPHA = 0.35
 
--- Builds one aura tile's components as a draw.group. The bar's cover moves on its own, so it sits outside
--- the group.
-local function auraTile(layer, aura)
-  local size = aura.size
-  local inner = size - 2
-  local group = draw.group()
+-- Builds one aura tile's components, sized by fitTile: an edge, black or a debuff's look colour, round the
+-- game's dark slot, with the icon over it.
+local function auraTile(layer)
   local white = COLOURS.highlight
-  local timeY = size - aura.timeHeight - 3
-  local parts = {
-    group = group,
+  return {
     ring = {
-      group.add(rect(layer, white, 0, 0, size + 4, 2), -2, -2),
-      group.add(rect(layer, white, 0, 0, size + 4, 2), -2, size),
-      group.add(rect(layer, white, 0, 0, 2, size), -2, 0),
-      group.add(rect(layer, white, 0, 0, 2, size), size, 0),
+      rect(layer, white, 0, 0, 0, 0),
+      rect(layer, white, 0, 0, 0, 0),
+      rect(layer, white, 0, 0, 0, 0),
+      rect(layer, white, 0, 0, 0, 0),
     },
-    edge = group.add(rect(layer, aura.debuff and COLOURS.debuff or COLOURS.border, 0, 0, size, size), 0, 0),
-    icon = group.add(ui.Sprite.new(layer), 1, 1),
-    time = group.add(
-      draw.edgedText(layer, FONTS[aura.timeRole], ui.AlignMode.CENTRE, 0, 0, size, aura.timeHeight + 2),
-      0,
-      timeY
-    ),
-    stacks = group.add(draw.edgedText(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12), size - 23, 1),
-    track = group.add(rect(layer, COLOURS.border, 0, 0, size, AURA_BAR), 0, size + 1),
-    fill = group.add(
-      rect(layer, aura.debuff and COLOURS.debuff or COLOURS.dimText, 0, 0, inner, AURA_BAR - 2),
-      1,
-      size + 2
-    ),
-    stripes = group.add(ui.Canvas.new(layer), 1, size + 2),
-    cover = rect(layer, COLOURS.border, 0, 0, inner, AURA_BAR - 2),
-    dashed = group.add(ui.Canvas.new(layer), -3, -3),
+    edge = rect(layer, COLOURS.border, 0, 0, 0, 0),
+    slot = rect(layer, COLOURS.slot, 0, 0, 0, 0),
+    icon = ui.Sprite.new(layer),
+    time = draw.edgedText(layer, FONTS.small, ui.AlignMode.CENTRE, 0, 0, 0, 0),
+    stacks = draw.edgedText(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 0, 0),
+    track = rect(layer, COLOURS.border, 0, 0, 0, AURA_BAR),
+    fill = rect(layer, COLOURS.dimText, 0, 0, 0, AURA_BAR - 2),
+    stripes = ui.Canvas.new(layer),
+    cover = rect(layer, COLOURS.border, 0, 0, 0, AURA_BAR - 2),
+    dashed = ui.Canvas.new(layer),
   }
-  parts.icon:SetSize(inner, inner)
-  parts.stripes:SetSize(inner, AURA_BAR - 2)
+end
+
+-- Sizes an aura tile's parts for a size pixel tile, with its time text timeH tall along the bottom and its
+-- stacks stacksH tall at the top right, and gathers them into parts.group, which moves them together. The bar's
+-- cover moves on its own, so it sits outside the group.
+local function fitTile(parts, size, timeH, stacksH)
+  local inner = size - 2
+  local white = draw.opaque(COLOURS.highlight)
+  local group = draw.group()
+  local ring = parts.ring
+  draw.size(group.add(ring[1], -2, -2), size + 4, 2)
+  draw.size(group.add(ring[2], -2, size), size + 4, 2)
+  draw.size(group.add(ring[3], -2, 0), 2, size)
+  draw.size(group.add(ring[4], size, 0), 2, size)
+  draw.size(group.add(parts.edge, 0, 0), size, size)
+  draw.size(group.add(parts.slot, 1, 1), inner, inner)
+  draw.size(group.add(parts.icon, 1, 1), inner, inner)
+  draw.size(group.add(parts.time, 0, size - timeH - 3), size, timeH + 2)
+  draw.size(group.add(parts.stacks, 1, 1), size - 3, stacksH)
+  draw.size(group.add(parts.track, 0, size + 1), size, AURA_BAR)
+  group.add(parts.fill, 1, size + 2)
+  draw.size(group.add(parts.stripes, 1, size + 2), inner, AURA_BAR - 2)
+  parts.stripes:Clear()
   for x = 0, inner - 1, STRIPE + STRIPE_GAP do
-    parts.stripes:AddRectangle(x, 0, math.min(STRIPE, inner - x), AURA_BAR - 2, draw.opaque(white))
+    parts.stripes:AddRectangle(x, 0, math.min(STRIPE, inner - x), AURA_BAR - 2, white)
   end
-  parts.dashed:SetSize(size + 6, size + 6)
-  draw.dashedBox(parts.dashed, size + 6, size + 6, 2, draw.opaque(white))
-  return parts
+  draw.size(group.add(parts.dashed, -3, -3), size + 6, size + 6)
+  draw.dashedBox(parts.dashed, size + 6, size + 6, 2, white)
+  parts.group = group
 end
 
 -- Shows a src/auras model on parts at x, y. bars draws the bar and the bars-mode highlight. A missing Keep
@@ -1340,6 +1340,7 @@ local function showAura(parts, model, x, y, size, bars)
   draw.hideAll(parts.ring, not ring)
   set(parts.dashed, "hidden", not dashed)
   set(parts.edge, "hidden", false)
+  set(parts.slot, "hidden", false)
   set(parts.icon, "hidden", false)
   draw.icon(parts.icon, model.sprite)
   set(parts.icon, "alpha", model.missing and MISSING_ALPHA or 1)
@@ -1375,22 +1376,20 @@ local function auraStatus(model)
   return stacks and (time .. ", " .. stacks) or time
 end
 
--- A row of up to 10 aura icons gathered at style.align's end. Each icon shows its time left and stacks, and
--- in its refresh window a highlight: a white ring, or with bars on a dashed
--- outline and a striped bar. update takes src/auras models and whether bars
--- are on, and returns whether bounds changed. bounds spans the shown tiles, at least one, so an empty row
--- can still be dragged in edit mode. Hovering an icon shows the name and info from info(sprite), which
--- returns { name, info } or nil, over whether it is a buff or whose debuff, and its time left or stacks.
+-- A row of up to 10 aura icons gathered at aura.align's end, sized by its look's auras entry. Each icon shows
+-- its time left and stacks, and in its refresh window a highlight: a white ring, or with bars on a dashed
+-- outline and a striped bar. update takes src/auras models and whether bars are on, and returns whether bounds
+-- changed. bounds spans the shown tiles, at least one, so an empty row can still be dragged in edit mode.
+-- setLook refits the tiles when the icon size or a text height changes, and returns whether bounds changed.
+-- Hovering an icon shows the name and info from info(sprite), which returns { name, info } or nil, over whether
+-- it is a buff or whose debuff, and its time left or stacks.
 function view.auraRow(root, aura, tooltip, info)
-  local size = aura.size
-  local step = size + AURA_GAP
-  local width = 2 * AURA_MARGIN + MAX_TILES * step - AURA_GAP
-  local height = 2 * AURA_MARGIN + size + AURA_BAR_SPACE
+  local size, step
   local layer = ui.Layer.new(root)
-  layer:SetSize(width, height)
+  local row = { layer = layer }
   local tiles = {}
   for i = 1, MAX_TILES do
-    tiles[i] = auraTile(layer, aura)
+    tiles[i] = auraTile(layer)
   end
 
   -- x of the first of count tiles.
@@ -1406,7 +1405,9 @@ function view.auraRow(root, aura, tooltip, info)
   end
 
   local current = {}
-  local bounds = { x = left(1), y = AURA_MARGIN, w = size, h = size }
+  local shownBars = false
+  local bounds = { x = 0, y = AURA_MARGIN, w = 0, h = 0 }
+  row.bounds = bounds
 
   local function showTooltip(i)
     local model = current[i]
@@ -1431,6 +1432,7 @@ function view.auraRow(root, aura, tooltip, info)
 
   local function update(models, bars)
     current = models
+    shownBars = bars
     local count = math.min(#models, MAX_TILES)
     local shown = math.max(count, 1)
     local x = left(shown)
@@ -1456,21 +1458,45 @@ function view.auraRow(root, aura, tooltip, info)
     return moved
   end
 
+  -- The look shown, and the tile size and text heights its tiles are fitted to.
   local shown = nil
+  local fitted = nil
   local function setLook(look)
     if look == shown then
       return false
     end
     shown = look
+    local own = look.auras[aura.name]
+    local timeH = math.max(11, own.points)
+    local stacksH = math.max(12, own.stacksPoints + 2)
+    local fit = own.size .. ":" .. timeH .. ":" .. stacksH
     for _, parts in ipairs(tiles) do
-      styleText(parts.time, aura.timeRole, look, false)
-      styleText(parts.stacks, "small", look, false)
+      if fit ~= fitted then
+        fitTile(parts, own.size, timeH, stacksH)
+      end
+      styleFont(parts.time, own.font, look, false)
+      styleFont(parts.stacks, own.stacksFont, look, false)
+      if aura.debuff then
+        set(parts.edge, "rgb", look.debuffEdge)
+        set(parts.fill, "rgb", look.debuffEdge)
+      end
     end
-    return false
+    if fit == fitted then
+      return false
+    end
+    fitted = fit
+    size = own.size
+    step = size + AURA_GAP
+    row.width = 2 * AURA_MARGIN + MAX_TILES * step - AURA_GAP
+    row.height = 2 * AURA_MARGIN + size + AURA_BAR_SPACE
+    draw.size(layer, row.width, row.height)
+    return update(current, shownBars)
   end
 
   setLook(DEFAULT_LOOK)
-  return { layer = layer, update = update, setLook = setLook, width = width, height = height, bounds = bounds }
+  row.update = update
+  row.setLook = setLook
+  return row
 end
 
 return view

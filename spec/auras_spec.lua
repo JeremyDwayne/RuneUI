@@ -169,6 +169,20 @@ describe("auras.tracker", function()
     assert.are.same({ { sprite = 30098 }, { sprite = 30212 } }, rows.targetDebuffs)
   end)
 
+  it("times a target debuff from its timer in ticks, as the game's bars show a time", function()
+    local timers =
+      { [30098] = { left = 33, full = 33 }, [30212] = { left = 4, full = 50 }, [14771] = { left = 200, full = 200 } }
+    local rows = auras.tracker().rows({}, { 30098, 30212, 14771, 30100 }, ALL, timers)
+    local bloated, haunted, smoke, mark = table.unpack(rows.targetDebuffs)
+    assert.are.same(
+      { "20", 19.8, 19.8, 1.0, false },
+      { bloated.text, bloated.left, bloated.full, bloated.fill, bloated.highlight }
+    )
+    assert.are.same({ "3", true }, { haunted.text, haunted.highlight })
+    assert.are.equal("2m", smoke.text)
+    assert.are.same({ sprite = 30100 }, mark)
+  end)
+
   it("holds at most 10 icons per row", function()
     local tracker = auras.tracker()
     local reads = { buffs = {}, debuffs = {} }

@@ -1,8 +1,8 @@
 -- Saved settings: element positions and anchors, cooldown groups with their display settings and ability
--- lists, marker percents, appearance (HUD text, unit frame colours, border and size, bar texture, aura bars,
--- and whether the default target panel, buff bars and cast bar are hidden), edit mode
--- snapping, learned ability names and icons, aura names by icon, the aura row each buff icon belongs to, which
--- debuffs each debuff row tracks, the upkeep buffs kept up, and the order of each kind of aura icon.
+-- lists, marker percents, appearance (HUD text, unit frame colours, border and size, bar texture, aura bars and
+-- their sizes, and whether the default target panel, buff bars and cast bar are hidden), edit mode snapping,
+-- learned ability names and icons, aura names by icon, the aura row each buff icon belongs to, which debuffs
+-- each debuff row tracks, the upkeep buffs kept up, and the order of each kind of aura icon.
 -- Pure: reads and writes go through a store with get(key) and set(key, table), so specs use a fake.
 local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
@@ -68,6 +68,12 @@ settings.BAR_WIDTH = { min = 120, max = 500 }
 settings.BAR_HEIGHT = { min = 12, max = 40 }
 settings.CAST_WIDTH = { min = 150, max = 500 }
 settings.CAST_HEIGHT = { min = 14, max = 40 }
+-- An own text size in points, for the cast bar and the aura rows.
+settings.TEXT_SIZE =
+  { min = styling.ROLES.body + settings.TEXT_STEP_MIN, max = styling.ROLES.body + settings.TEXT_STEP_MAX }
+-- Each aura row's default icon size, and the range of one.
+settings.AURA_ICONS = { combatBuffs = 36, upkeepBuffs = 26, playerDebuffs = 26, targetDebuffs = 26 }
+settings.AURA_ICON = { min = 18, max = 56 }
 -- The game's action bars, numbered 1 for the main bar to 5, and the percent their faded opacity moves by.
 settings.ACTION_BARS = 5
 settings.OPACITY_STEP = 5
@@ -462,6 +468,11 @@ local function isBoolean(value)
   return type(value) == "boolean"
 end
 
+-- Checks a saved text size: "hud" to follow the HUD text, or a size in points.
+local function textSize(value)
+  return value == "hud" or wholeIn(value, settings.TEXT_SIZE.min, settings.TEXT_SIZE.max)
+end
+
 -- Each appearance field's default and the check a saved value must pass.
 local APPEARANCE = {
   texture = { "flat", oneOf(settings.TEXTURES) },
@@ -492,13 +503,8 @@ local APPEARANCE = {
     end,
   },
   spenders = { "below", option(styling.SPENDER_PLACES) },
-  castTextSize = {
-    "hud",
-    function(value)
-      return value == "hud"
-        or wholeIn(value, styling.ROLES.body + settings.TEXT_STEP_MIN, styling.ROLES.body + settings.TEXT_STEP_MAX)
-    end,
-  },
+  castTextSize = { "hud", textSize },
+  debuffEdge = { "orange", option(styling.DEBUFF_EDGES) },
 }
 local function isOpacity(value)
   return wholeIn(value, 0, 100) and whole(value) % settings.OPACITY_STEP == 0
@@ -509,6 +515,10 @@ for bar = 1, settings.ACTION_BARS do
   APPEARANCE["hoverBar" .. bar] = { true, isBoolean }
 end
 APPEARANCE.hoverAllBars = { false, isBoolean }
+for row, size in pairs(settings.AURA_ICONS) do
+  APPEARANCE[row .. "Icon"] = { size, range(settings.AURA_ICON.min, settings.AURA_ICON.max) }
+  APPEARANCE[row .. "Text"] = { "hud", textSize }
+end
 
 -- A saved appearance field's value, or its default when unknown or malformed.
 local function readField(field, value)
@@ -903,7 +913,9 @@ function settings.load(store, windowHeight)
   -- points. The game's own cast bar is hidden until chosen otherwise, since RuneUI draws one; auraBars draws a
   -- draining bar under each aura icon.
   -- An action bar with fadeBar<n> set draws at barOpacity<n> percent, and hoverBar<n> shows it at full while
-  -- the mouse is over it, or over any faded bar while hoverAllBars is on. Read-only.
+  -- the mouse is over it, or over any faded bar while hoverAllBars is on. Each aura row in
+  -- settings.AURA_ICONS has <row>Icon, its icon size, and <row>Text, "hud" or its text size, such as
+  -- combatBuffsIcon. debuffEdge is a src/style DEBUFF_EDGES id. Read-only.
   function s.appearance()
     return appearance
   end
