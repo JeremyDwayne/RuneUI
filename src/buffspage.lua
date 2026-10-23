@@ -8,10 +8,11 @@
 local auralists = require("src/auralists")
 local aurasearch = require("src/aurasearch")
 local dragdrop = require("src/dragdrop")
+local controls = require("src/controls")
 local draw = require("src/draw")
 local editor = require("src/editor")
 local search = require("src/search")
-local settings = require("src/settings")
+local savedappearance = require("src/savedappearance")
 local style = require("src/style")
 
 local buffspage = {}
@@ -46,15 +47,11 @@ local SEARCH_H = 440
 -- A sized group's Icon size and Text size line: its height, and the x of each part from the group's left.
 local SIZES_H = 36
 local OPTION_H = 28
-local FIELD_H = 24
-local STEPPER_W = 124
 local ICON_X = 76
 local TEXT_LABEL_X = 236
 local TEXT_X = 312
 local MATCH_X = 448
 local MATCH_W = 104
--- Alpha of the Text size stepper while the text matches the HUD.
-local FADED = 0.45
 
 -- Each group lists the sprites groups(...) files under kind and value: a buff row, or a debuff kind's
 -- tracked or untracked list. row names the HUD aura row a group shows, whose sizes it sets. A tab's search
@@ -120,9 +117,9 @@ local TABS = {
 local MAX_GROUPS = 3
 
 -- page: the options window's page layer, width by height. deps: { saved = src/settings, info(sprite) naming
--- an icon, tooltip = view.tooltip, toScreen(x, y) turning page into screen coordinates, refresh() redrawing
--- the HUD, catalog = src/catalog rows, describe(struct) reading a struct's description, learn(sprite, name,
--- struct) naming an icon at once and returning whether it was unnamed }. Returns { display, redraw, follow,
+-- an icon as src/icons does, tooltip = view.tooltip, toScreen(x, y) turning page into screen coordinates,
+-- refresh() redrawing the HUD, catalog = src/catalog rows, describe(struct) reading a struct's description }.
+-- Returns { display, redraw, follow,
 -- close, popupOpen, destroy }: display is the Display tab's layer for option rows; redraw draws the page from
 -- settings; follow runs each frame to move a drag; close ends a drag and closes the menu and the search;
 -- popupOpen says whether either is open.
@@ -137,7 +134,7 @@ function buffspage.create(page, width, height, deps)
   local tabParts = {}
   local tabX = MARGIN
   for _, def in ipairs(TABS) do
-    tabParts[def.id] = draw.option(page, def.label, tabX, TAB_Y, def.w, TAB_H, function()
+    tabParts[def.id] = controls.option(page, def.label, tabX, TAB_Y, def.w, TAB_H, function()
       closeMenu()
       finder.close()
       tab = def.id
@@ -158,28 +155,15 @@ function buffspage.create(page, width, height, deps)
     deps.refresh()
   end
 
-  -- A - number + stepper at x on layer from low to high, its number typed: value(appearance) gives the number
-  -- shown and save(n) takes a new one. Returns { show(appearance), fade(faded) }.
+  -- A controls.stepper at x on layer from low to high: value(appearance) gives the number shown and save(n) takes
+  -- a new one. Returns { show(appearance), fade(faded) }.
   local function stepper(layer, x, low, high, value, save)
-    local by = (SIZES_H - OPTION_H) // 2
-    local number = draw.numberField(layer, x + 32, (SIZES_H - FIELD_H) // 2, 56, FIELD_H, low, high, save)
-    local function move(delta)
-      return function()
-        save(math.max(low, math.min(high, value(saved.appearance()) + delta)))
-      end
-    end
-    local minus = draw.button(layer, "-", x, by, 28, OPTION_H, "dark", move(-1))
-    local plus = draw.button(layer, "+", x + STEPPER_W - 28, by, 28, OPTION_H, "dark", move(1))
+    local s = controls.stepper(layer, x, (SIZES_H - OPTION_H) // 2, low, high, 1, save)
     return {
       show = function(appearance)
-        number.show(value(appearance))
+        s.show(value(appearance))
       end,
-      fade = function(faded)
-        local alpha = faded and FADED or 1
-        minus.group.set("alpha", alpha)
-        plus.group.set("alpha", alpha)
-        set(number.field, "alpha", alpha)
-      end,
+      fade = s.fade,
     }
   end
 
@@ -209,11 +193,19 @@ function buffspage.create(page, width, height, deps)
     for _, label in ipairs({ { "Icon size", 0 }, { "Text size", TEXT_LABEL_X } }) do
       set(text(layer, FONTS.body, ui.AlignMode.TOPLEFT, label[2], 0, 80, SIZES_H), "content", label[1])
     end
-    local icon = stepper(layer, ICON_X, settings.AURA_ICON.min, settings.AURA_ICON.max, function(appearance)
-      return appearance[field("Icon")]
-    end, save("Icon"))
-    local textStepper = stepper(layer, TEXT_X, settings.TEXT_SIZE.min, settings.TEXT_SIZE.max, textSize, save("Text"))
-    local match = draw.option(layer, "Match HUD", MATCH_X, (SIZES_H - OPTION_H) // 2, MATCH_W, OPTION_H, function()
+    local icon = stepper(
+      layer,
+      ICON_X,
+      savedappearance.AURA_ICON.min,
+      savedappearance.AURA_ICON.max,
+      function(appearance)
+        return appearance[field("Icon")]
+      end,
+      save("Icon")
+    )
+    local textStepper =
+      stepper(layer, TEXT_X, savedappearance.TEXT_SIZE.min, savedappearance.TEXT_SIZE.max, textSize, save("Text"))
+    local match = controls.option(layer, "Match HUD", MATCH_X, (SIZES_H - OPTION_H) // 2, MATCH_W, OPTION_H, function()
       save("Text")("hud")
     end)
     return {
@@ -223,7 +215,7 @@ function buffspage.create(page, width, height, deps)
         icon.show(appearance)
         textStepper.show(appearance)
         textStepper.fade(matched)
-        draw.showOption(match, matched)
+        controls.showOption(match, matched)
       end,
     }
   end
@@ -245,7 +237,7 @@ function buffspage.create(page, width, height, deps)
     slots[i] = slot
   end
 
-  local findButton = draw.button(page, "", width - MARGIN - FIND_W, top - 4, FIND_W, FIND_H, "dark", function()
+  local findButton = controls.button(page, "", width - MARGIN - FIND_W, top - 4, FIND_W, FIND_H, "dark", function()
     openSearch()
   end)
 
@@ -337,7 +329,7 @@ function buffspage.create(page, width, height, deps)
       if active then
         current = def
       end
-      draw.showOption(tabParts[def.id], active)
+      controls.showOption(tabParts[def.id], active)
     end
     set(display, "hidden", current.groups ~= nil)
     findButton.group.set("hidden", current.find == nil)
@@ -391,8 +383,6 @@ function buffspage.create(page, width, height, deps)
           draw.hideAll({ t.edge, t.icon }, false)
           draw.icon(t.icon, sprite)
           set(t.icon, "alpha", def.dim and DIM or 1)
-          -- Asking for a name queues an unnamed icon for the background scan.
-          deps.info(sprite)
           if def.value == "upkeep" and keepUp[tostring(sprite)] and marked < KEEP_MARKS then
             marked = marked + 1
             local m = marks[marked]
@@ -608,15 +598,12 @@ function buffspage.create(page, width, height, deps)
     })
   end
 
-  -- Tracks or untracks a search row on the current tab, naming its icon from the catalog when unnamed.
+  -- Tracks or untracks a search row on the current tab.
   local function choose(row, track)
     if tab == "buffs" then
       saved.setAuraCategory(row.sprite, track and "combat" or "hidden")
     else
       saved.setTracked(tab, row.sprite, track)
-    end
-    if track and row.struct ~= nil and deps.learn(row.sprite, row.name, row.struct) then
-      saved.learnDebuff(row.sprite, row.name, row.struct)
     end
     redraw()
     deps.refresh()
@@ -641,8 +628,7 @@ function buffspage.create(page, width, height, deps)
     end
     table.sort(seen)
     local rows = search.withSeen(deps.catalog, def.find.kind, seen, function(sprite)
-      local found = deps.info(sprite)
-      return found and found.name
+      return deps.info(sprite).name
     end)
     finder.open({
       title = def.label,
@@ -661,11 +647,9 @@ function buffspage.create(page, width, height, deps)
       deps.tooltip.hide()
       return
     end
-    local found = deps.info(t.sprite)
     local x, y = deps.toScreen(t.x, t.y)
     deps.tooltip.show({
-      title = found and found.name or "Unknown",
-      left = found == nil and "Looking up name" or nil,
+      title = deps.info(t.sprite).name or "Unknown",
       info = "Drag to sort or move it, or click for options",
     }, x, y, SIZE)
   end)

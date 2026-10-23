@@ -5,12 +5,15 @@
 local adapter = require("src/adapter")
 local auralists = require("src/auralists")
 local auras = require("src/auras")
+local catalog = require("src/catalog")
 local channel = require("src/channel")
 local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
+local gameui = require("src/gameui")
 local icons = require("src/icons")
 local options = require("src/options")
 local presets = require("src/presets")
+local savedgroups = require("src/savedgroups")
 local settings = require("src/settings")
 local styling = require("src/style")
 local targeteffects = require("src/targeteffects")
@@ -21,7 +24,7 @@ local view = require("src/view")
 local hud = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
 local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
 local saved = settings.load(adapter.store(), tonumber(hud.height))
-local auraNames = icons.index(saved.debuffs(), {
+local auraNames = icons.index(catalog.names, {
   spriteName = adapter.spriteName,
   itemName = adapter.itemName,
   describe = adapter.structInfo,
@@ -35,22 +38,14 @@ local elements = {
 }
 -- Every cooldown group element, built-in then custom. A custom group not in use stays hidden.
 local GROUP_NAMES = {}
-for _, group in ipairs(settings.GROUPS) do
+for _, group in ipairs(savedgroups.GROUPS) do
   GROUP_NAMES[#GROUP_NAMES + 1] = group.name
 end
-for _, name in ipairs(settings.CUSTOM_GROUPS) do
+for _, name in ipairs(savedgroups.CUSTOM_GROUPS) do
   GROUP_NAMES[#GROUP_NAMES + 1] = name
 end
--- Ability descriptions by cooldown key, read from the ability's struct on first hover, false when it has none.
-local abilityInfo = {}
-local function describeAbility(key)
-  if abilityInfo[key] == nil then
-    abilityInfo[key] = adapter.abilityInfo(key) or false
-  end
-  return abilityInfo[key] or nil
-end
 for _, name in ipairs(GROUP_NAMES) do
-  elements[name] = view.cooldownGroup(hud, tooltip, describeAbility)
+  elements[name] = view.cooldownGroup(hud, tooltip, adapter.abilityInfo)
 end
 for name, style in pairs(view.AURA_STYLES) do
   elements[name] = view.auraRow(hud, style, tooltip, auraNames.info)
@@ -87,8 +82,6 @@ local auraFilters = {
   hasTarget = false,
   rank = rank,
 }
--- Struct ids scanned per tick while an aura icon is unnamed, about 48 seconds for a full scan.
-local ICON_SCAN_BUDGET = 1000
 
 Event.VarTransmit.Subscribe("cooldowns", function(e)
   local name, old, new = adapter.varChange(e)
@@ -96,10 +89,7 @@ Event.VarTransmit.Subscribe("cooldowns", function(e)
   channelTracker.onVar(name, old, new)
   effectsTracker.onVar(name, old, new)
 end)
-Event.Draw.Subscribe("targetPanel", adapter.keepTargetPanelHidden)
-Event.Draw.Subscribe("buffBars", adapter.keepBuffBarsHidden)
-Event.Draw.Subscribe("castBar", adapter.keepCastBarHidden)
-Event.Draw.Subscribe("actionBars", adapter.keepActionBarsFaded)
+Event.Draw.Subscribe("gameui", gameui.onFrame)
 
 -- Event.Logic runs 50 times a second, so each of its ticks is 0.02 s.
 local LOGIC_SECONDS = 0.02
@@ -164,53 +154,62 @@ local function restyle()
   return view.setLook(elements, look)
 end
 
-local function refresh()
-  local appearance = saved.appearance()
-  adapter.hideTargetPanel(appearance.hideTargetPanel)
-  adapter.hideBuffBars(appearance.hideBuffBars)
-  adapter.hideCastBar(appearance.hideCastBar)
-  adapter.fadeActionBars(appearance)
-  local moved = restyle()
+-- Redraws the player frame, target frame and resource bar from the client. Returns the target model and
+-- whether an element's bounds changed.
+local function updateFrames(appearance)
   elements.player.update(frames.player(adapter.playerReads(), appearance.lifepoints))
-  local effects = effectsTracker.debuffs()
-  local target = frames.target(adapter.targetReads(effects), appearance.lifepoints)
+  local target = frames.target(adapter.targetReads(effectsTracker.debuffs()), appearance.lifepoints)
   elements.target.update(target)
-  local targetDebuffs = target.debuffs or {}
-  effectsTracker.observe(targetDebuffs)
+  effectsTracker.observe(target.debuffs or {})
   local reads = adapter.resourceReads(frames.SPENDERS)
   reads.necromancy = tracker.style() == "necromancy"
   local resource = frames.resource(reads, saved.markers())
   stacks = resource.byAbility
-  if elements.resource.update(resource) then
-    moved = true
-  end
+  local moved = elements.resource.update(resource)
   if elements.player.showSpenders(resource.spenders) then
     moved = true
   end
+  return target, moved
+end
+
+-- Redraws the cast bar and cooldown groups from the trackers and the action bars. Returns whether a group's
+-- bounds changed.
+local function updateCooldowns()
   -- This redraw covers any change waiting for the next Logic tick.
   channelTracker.changed()
   tracker.changed()
   elements.castbar.update(channelTracker.model())
   slots = adapter.barSlots()
-  if updateGroups() then
-    moved = true
-  end
-  local bars = appearance.auraBars
+  return updateGroups()
+end
+
+-- Redraws each aura row for the target shown. Returns whether a row's bounds changed.
+local function updateAuras(target, bars)
+  local targetDebuffs = target.debuffs or {}
   auraFilters.hasTarget = not target.hidden
   -- Listing each debuff seen puts it on the Buffs page; seeDebuff saves only a new one.
   for _, sprite in ipairs(targetDebuffs) do
     saved.seeDebuff("target", sprite)
   end
+  local moved = false
   for name, models in pairs(auraTracker.rows(saved.auras(), targetDebuffs, auraFilters, effectsTracker.timers())) do
-    -- Asking for each aura's name queues unnamed icons for the background scan.
-    for _, model in ipairs(models) do
-      auraNames.info(model.sprite)
-    end
     if elements[name].update(models, bars) then
       moved = true
     end
   end
-  -- Anchored elements follow a row whose shown tiles changed.
+  return moved
+end
+
+-- Redraws the whole HUD from the client, each server tick and after a settings change.
+local function refresh()
+  local appearance = saved.appearance()
+  gameui.apply(appearance)
+  local moved = restyle()
+  local target, framesMoved = updateFrames(appearance)
+  moved = moved or framesMoved
+  moved = updateCooldowns() or moved
+  moved = updateAuras(target, appearance.auraBars) or moved
+  -- Anchored elements follow an element whose shown bounds changed.
   if moved then
     optionsWindow.placeAll()
   end
@@ -224,7 +223,6 @@ optionsWindow = options.create(top, {
   view = view,
   auraInfo = auraNames.info,
   describe = adapter.structInfo,
-  learnName = auraNames.learn,
   refresh = refresh,
 })
 
@@ -244,18 +242,12 @@ Event.ServerLogic.Subscribe("refresh", function()
   for _, read in ipairs(auraReads.debuffs) do
     saved.seeDebuff("player", read.sprite)
   end
-  for _, found in ipairs(auraNames.step(adapter.iconStruct, ICON_SCAN_BUDGET)) do
-    saved.learnDebuff(found.sprite, found.name, found.struct)
-  end
   refresh()
 end)
 refresh()
 
 function PluginShutdown()
-  adapter.hideTargetPanel(false)
-  adapter.hideBuffBars(false)
-  adapter.hideCastBar(false)
-  adapter.restoreActionBars()
+  gameui.restore()
   optionsWindow.shutdown()
   for _, element in pairs(elements) do
     element.layer:Destroy()

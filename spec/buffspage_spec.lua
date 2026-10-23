@@ -39,7 +39,7 @@ end
 
 -- A Buffs page with Bone Shield in combat buffs, an antifire in upkeep, and Stun Immune seen on a target.
 -- info names every icon "Icon" unless given, and the search lists catalog, CATALOG unless given. Returns the
--- page, the settings, a count of HUD refreshes, the icons the search named, and the page layer.
+-- page, the settings, a count of HUD refreshes, and the page layer.
 local function open(info, catalog)
   local saved = settings.load(fakeStore())
   saved.learnAura(BONE_SHIELD, "combat")
@@ -48,16 +48,11 @@ local function open(info, catalog)
   local root = fake.component()
   local layer = fake.component(root)
   local refreshed = { count = 0 }
-  local learned = {}
   local page = buffspage.create(layer, 698, 498, {
     saved = saved,
     catalog = catalog or CATALOG,
     describe = function()
       return "Chills you.<br>More."
-    end,
-    learn = function(sprite, name, struct)
-      learned[#learned + 1] = { sprite, name, struct }
-      return true
     end,
     info = info or function()
       return { name = "Icon" }
@@ -71,7 +66,7 @@ local function open(info, catalog)
     end,
   })
   page.redraw()
-  return page, saved, refreshed, learned, layer
+  return page, saved, refreshed, layer
 end
 
 local function shows(content)
@@ -186,16 +181,6 @@ describe("buffspage", function()
     end))
   end)
 
-  it("says a name is being looked up in an icon's tooltip until it loads", function()
-    open(function()
-      return nil
-    end)
-    fake.hook(tileEdge(BONE_SHIELD), "ONMOUSEOVER")
-    assert.is_not_nil(fake.find(function(_, d)
-      return d.content == "Looking up name"
-    end))
-  end)
-
   -- How many shown labels read content.
   local function count(content)
     local n = 0
@@ -242,8 +227,8 @@ describe("buffspage", function()
     assert.are.equal(0, fake.writes)
   end)
 
-  it("tracks a debuff from the search, naming it at once, and stops tracking it from Tracked", function()
-    local _, saved, _, learned, layer = open()
+  it("tracks a debuff from the search and stops tracking it from Tracked", function()
+    local _, saved, _, layer = open()
     fake.press("Debuffs on you")
     fake.press("Find debuffs")
     assert.is_true(searchShows("Find a debuff or boss"))
@@ -251,8 +236,6 @@ describe("buffspage", function()
     assert.is_true(shows("Chills you."))
     fake.press("Track", 2)
     assert.is_true(saved.tracked("player")[tostring(HOARY_CHILL)])
-    assert.are.same({ { HOARY_CHILL, "Hoary Chill", 41057 } }, learned)
-    assert.are.equal("Hoary Chill", saved.debuffs()[tostring(HOARY_CHILL)].name)
     assert.is_not_nil(fake.find(function(_, d)
       return d.parent == layer and d.sprite == HOARY_CHILL
     end))

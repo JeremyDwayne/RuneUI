@@ -1,6 +1,10 @@
 -- The debuffs each debuff row tracks by default, and the Buffs page's groups. Pure: settings supplies the
 -- saved choices.
+local util = require("src/util")
+
 local auralists = {}
+
+local indexOf = util.indexOf
 
 -- Debuffs a player applies to the target and keeps up or times, by sprite, most important first.
 auralists.TARGET_DEFAULTS = {
@@ -187,14 +191,6 @@ function auralists.ranks(groups)
     target = positions(groups.order.target),
     player = positions(groups.order.player),
   }
-end
-
-local function indexOf(list, sprite)
-  for i, s in ipairs(list) do
-    if s == sprite then
-      return i
-    end
-  end
 end
 
 -- Dropping sprite on target, a src/editor dropTarget result, in list, the group under the cursor in display
