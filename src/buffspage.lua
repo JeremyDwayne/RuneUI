@@ -46,15 +46,11 @@ local SEARCH_H = 440
 -- A sized group's Icon size and Text size line: its height, and the x of each part from the group's left.
 local SIZES_H = 36
 local OPTION_H = 28
-local FIELD_H = 24
-local STEPPER_W = 124
 local ICON_X = 76
 local TEXT_LABEL_X = 236
 local TEXT_X = 312
 local MATCH_X = 448
 local MATCH_W = 104
--- Alpha of the Text size stepper while the text matches the HUD.
-local FADED = 0.45
 
 -- Each group lists the sprites groups(...) files under kind and value: a buff row, or a debuff kind's
 -- tracked or untracked list. row names the HUD aura row a group shows, whose sizes it sets. A tab's search
@@ -158,28 +154,15 @@ function buffspage.create(page, width, height, deps)
     deps.refresh()
   end
 
-  -- A - number + stepper at x on layer from low to high, its number typed: value(appearance) gives the number
-  -- shown and save(n) takes a new one. Returns { show(appearance), fade(faded) }.
+  -- A draw.stepper at x on layer from low to high: value(appearance) gives the number shown and save(n) takes
+  -- a new one. Returns { show(appearance), fade(faded) }.
   local function stepper(layer, x, low, high, value, save)
-    local by = (SIZES_H - OPTION_H) // 2
-    local number = draw.numberField(layer, x + 32, (SIZES_H - FIELD_H) // 2, 56, FIELD_H, low, high, save)
-    local function move(delta)
-      return function()
-        save(math.max(low, math.min(high, value(saved.appearance()) + delta)))
-      end
-    end
-    local minus = draw.button(layer, "-", x, by, 28, OPTION_H, "dark", move(-1))
-    local plus = draw.button(layer, "+", x + STEPPER_W - 28, by, 28, OPTION_H, "dark", move(1))
+    local s = draw.stepper(layer, x, (SIZES_H - OPTION_H) // 2, low, high, 1, save)
     return {
       show = function(appearance)
-        number.show(value(appearance))
+        s.show(value(appearance))
       end,
-      fade = function(faded)
-        local alpha = faded and FADED or 1
-        minus.group.set("alpha", alpha)
-        plus.group.set("alpha", alpha)
-        set(number.field, "alpha", alpha)
-      end,
+      fade = s.fade,
     }
   end
 

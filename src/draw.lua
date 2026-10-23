@@ -1,5 +1,6 @@
--- Drawing primitives shared by the HUD elements, the options window and edit mode: fonts, colours, component builders that
--- skip unchanged writes and log a refused property write once instead of erroring, buttons, and the cursor.
+-- Drawing primitives shared by the HUD elements, the options window and edit mode: fonts, colours, component
+-- builders that skip unchanged writes and log a refused property write once instead of erroring, buttons,
+-- fields and the cursor.
 local draw = {}
 
 -- Closest client fonts to 13px values, 10px labels and seconds sized to each tile.
@@ -95,16 +96,19 @@ local function edgeOn(obj)
   return edge ~= nil and edge.on and edge or nil
 end
 
+local function assign(obj, field, value)
+  obj[field] = value
+end
+
 -- Writes a component property unless it already holds value, logging the first failure per property. A
--- draw.edgedText label's edge copies take the same write while its edge is on.
+-- draw.edgedText label's edge copies take the same write while its edge is on. Runs on every redraw, so it
+-- passes assign to pcall rather than building a closure per write.
 function draw.set(obj, field, value)
   local fields = writtenFor(obj)
   if fields[field] == value then
     return
   end
-  local ok, err = pcall(function()
-    obj[field] = value
-  end)
+  local ok, err = pcall(assign, obj, field, value)
   if ok then
     fields[field] = value
     local edge = MIRRORED[field] and edgeOn(obj)
@@ -116,21 +120,6 @@ function draw.set(obj, field, value)
   elseif not warned[field] then
     warned[field] = true
     log("cannot set " .. field .. ":", err)
-  end
-end
-
--- Readers of the value each PrettyUI setter writes, by setter name.
-local CONTROL_VALUES = {
-  SetActive = function(c)
-    return c:GetActiveIndex()
-  end,
-}
-
--- Calls a PrettyUI control's setter with value and notify off, unless the control already holds value, so a
--- redraw where nothing changed makes no PrettyUI calls.
-function draw.control(control, method, value)
-  if CONTROL_VALUES[method](control) ~= value then
-    control[method](control, value, false)
   end
 end
 
@@ -200,32 +189,13 @@ function draw.rect(parent, rgb, x, y, width, height)
   return r
 end
 
-local alignWarned = false
-
--- The two-argument AlignTo raised a newindex error in the client; fall back to the one-argument form,
--- which applies the alignment to both axes.
-local function align(t, horizontal)
-  local ok, err = pcall(function()
-    t:AlignTo(horizontal, ui.AlignMode.CENTRE)
-  end)
-  if ok then
-    return
-  end
-  if not alignWarned then
-    alignWarned = true
-    log("two-axis AlignTo failed, using one axis:", err)
-  end
-  pcall(function()
-    t:AlignTo(horizontal)
-  end)
-end
-
+-- A white, shadowed label in font, aligned horizontal and centred vertically.
 function draw.text(parent, font, horizontal, x, y, width, height)
   local t = ui.Text.new(parent)
   draw.set(t, "font", font)
   draw.set(t, "rgb", draw.COLOURS.text)
   draw.set(t, "isShadowed", true)
-  align(t, horizontal)
+  t:AlignTo(horizontal, ui.AlignMode.CENTRE)
   draw.pos(t, x, y)
   draw.size(t, width, height)
   return t
@@ -400,6 +370,45 @@ function draw.numberField(parent, x, y, w, h, low, high, onChoose, step)
     draw.set(field, "content", tostring(shown))
   end)
   return number
+end
+
+-- The width of a draw.stepper, and the height of its buttons.
+draw.STEPPER_W = 124
+local STEPPER_H = 28
+-- Alpha of a control whose setting has no effect at the moment.
+draw.FADED = 0.45
+
+-- A "- number +" stepper at x, y on parent, draw.STEPPER_W wide: a draw.numberField between two dark buttons
+-- that move the shown number by step from low to high. save(n) takes each new number, from a button or the
+-- field. allowed(y), when given, takes a button click's y on parent and says whether it lands where the stepper
+-- shows, for a stepper in a clipped list. Returns { show(n), fade(faded), field, buttons }: show puts n in the
+-- field, fade dims the stepper while its setting has no effect, and buttons holds the two draw.buttons.
+function draw.stepper(parent, x, y, low, high, step, save, allowed)
+  local field = draw.numberField(parent, x + 32, y + 2, 56, 24, low, high, save, step)
+  local shown = low
+  local function move(delta)
+    return function(_, cy)
+      if allowed == nil or allowed(y + cy) then
+        save(math.max(low, math.min(high, shown + delta)))
+      end
+    end
+  end
+  local minus = draw.button(parent, "-", x, y, STEPPER_H, STEPPER_H, "dark", move(-step))
+  local plus = draw.button(parent, "+", x + draw.STEPPER_W - STEPPER_H, y, STEPPER_H, STEPPER_H, "dark", move(step))
+  return {
+    field = field.field,
+    buttons = { minus, plus },
+    show = function(n)
+      shown = n
+      field.show(n)
+    end,
+    fade = function(faded)
+      local alpha = faded and draw.FADED or 1
+      minus.group.set("alpha", alpha)
+      plus.group.set("alpha", alpha)
+      draw.set(field.field, "alpha", alpha)
+    end,
+  }
 end
 
 -- An options window choice button at x, y sized w by h: dark with a bronze edge, or once draw.showOption marks

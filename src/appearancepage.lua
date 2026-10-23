@@ -30,7 +30,6 @@ local HEADING_H = 40
 local END_SPACE = 32
 local MARGIN = 16
 local OPTION_H = 28
-local STEPPER_W = 124
 local COLUMNS_H = 30
 -- The Bars page's action bar table: the Fade, Opacity and Show on hover columns' widths, right to left from
 -- the row's right edge, and each toggle's width.
@@ -39,8 +38,6 @@ local OPACITY_COL = 136
 local FADE_COL = 96
 local TOGGLE_W = 72
 local ACTION_BAR_NAMES = { "Main bar", "Action bar 2", "Action bar 3", "Action bar 4", "Action bar 5" }
--- Alpha of a stepper whose setting another choice overrides.
-local FADED = 0.45
 -- Colour rows: two lines of swatches and the hex field, and the picker's shade square and hue strip under them.
 local SWATCH_W = 84
 local SWATCH_GAP = 4
@@ -282,39 +279,25 @@ local function settingsPage(page, width, height, deps, define)
     return rowOptions(settingRow(label), rowRight, choices, field, optionW)
   end
 
-  -- A - number + stepper STEPPER_W wide at x on row, from low to high in steps of step, its number typed:
-  -- value(appearance) gives the number shown and save(n) takes a new one. Returns its fade(faded), which dims the
-  -- stepper while the setting has no effect.
+  -- A draw.stepper at x on row, from low to high in steps of step: value(appearance) gives the number shown and
+  -- save(n) takes a new one. Returns its fade(faded), which dims the stepper while the setting has no effect.
   local function stepper(row, x, low, high, step, value, save)
-    local by = (ROW_H - OPTION_H) // 2
-    local field = draw.numberField(row.layer, x + 32, (ROW_H - HEX_H) // 2, 56, HEX_H, low, high, save, step)
-    local function move(delta)
-      return function(_, y)
-        if shows(row, by + y) then
-          save(math.max(low, math.min(high, value(saved.appearance()) + delta)))
-        end
-      end
-    end
-    local minus = draw.button(row.layer, "-", x, by, 28, OPTION_H, "dark", move(-step))
-    local plus = draw.button(row.layer, "+", x + STEPPER_W - 28, by, 28, OPTION_H, "dark", move(step))
-    wheel(minus.bg)
-    wheel(plus.bg)
+    local s = draw.stepper(row.layer, x, (ROW_H - OPTION_H) // 2, low, high, step, save, function(y)
+      return shows(row, y)
+    end)
+    wheel(s.buttons[1].bg)
+    wheel(s.buttons[2].bg)
     steppers[#steppers + 1] = function(appearance)
-      field.show(value(appearance))
+      s.show(value(appearance))
     end
-    return function(faded)
-      local alpha = faded and FADED or 1
-      minus.group.set("alpha", alpha)
-      plus.group.set("alpha", alpha)
-      set(field.field, "alpha", alpha)
-    end
+    return s.fade
   end
 
   -- A settings row with a stepper by 1 at its right, as stepper takes. Returns the row, whose fade(faded) dims
   -- the stepper.
   local function numberRow(label, low, high, value, save)
     local row = settingRow(label)
-    row.fade = stepper(row, rowRight - STEPPER_W, low, high, 1, value, save)
+    row.fade = stepper(row, rowRight - draw.STEPPER_W, low, high, 1, value, save)
     return row
   end
 
@@ -332,7 +315,7 @@ local function settingsPage(page, width, height, deps, define)
       set(o.label, "content", appearance[field] and "On" or "Off")
     end
     return function(faded)
-      local alpha = faded and FADED or 1
+      local alpha = faded and draw.FADED or 1
       for _, part in ipairs({ o.ring, o.bg, o.face, o.label }) do
         set(part, "alpha", alpha)
       end
@@ -727,7 +710,7 @@ function appearancepage.bars(page, width, height, deps)
       local opacity = "barOpacity" .. bar
       b.toggle(row, fadeX + (FADE_COL - TOGGLE_W) // 2, TOGGLE_W, "fadeBar" .. bar)
       local step = settings.OPACITY_STEP
-      local fadeStepper = b.stepperAt(row, opacityX + (OPACITY_COL - STEPPER_W) // 2, 0, 100, step, function(a)
+      local fadeStepper = b.stepperAt(row, opacityX + (OPACITY_COL - draw.STEPPER_W) // 2, 0, 100, step, function(a)
         return a[opacity]
       end, function(n)
         if n ~= saved.appearance()[opacity] then

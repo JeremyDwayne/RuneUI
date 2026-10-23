@@ -1,5 +1,5 @@
 local fake = require("spec/support/fake_ui")
-local pretty = require("spec/support/fake_prettyui")
+require("spec/support/fake_prettyui")
 local draw = require("src/draw")
 
 -- A component stand-in that counts property writes and SetPos calls.
@@ -62,13 +62,18 @@ describe("draw", function()
     assert.are.equal(2, attempts)
   end)
 
-  it("calls a PrettyUI setter only when the control holds another value", function()
-    local tabs = prettyui.Tabs.new(fake.component(), { { text = "One" }, { text = "Two" } })
-    pretty.calls = 0
-    draw.control(tabs, "SetActive", 1)
-    draw.control(tabs, "SetActive", 2)
-    draw.control(tabs, "SetActive", 2)
-    assert.are.same({ 1, 2 }, { pretty.calls, tabs:GetActiveIndex() })
+  it("steps a stepper's shown number by step inside its bounds and saves each", function()
+    fake.reset()
+    local savedValues = {}
+    local stepper = draw.stepper(fake.component(), 0, 0, 10, 50, 10, function(n)
+      savedValues[#savedValues + 1] = n
+    end)
+    stepper.show(40)
+    fake.hook(stepper.buttons[2].bg, "ONCLICK", 0, 0)
+    stepper.show(50)
+    fake.hook(stepper.buttons[2].bg, "ONCLICK", 0, 0)
+    fake.hook(stepper.buttons[1].bg, "ONCLICK", 0, 0)
+    assert.are.same({ 50, 50, 40 }, savedValues)
   end)
 
   it("unlights a close X when clicked, since its popup closes under the cursor", function()
