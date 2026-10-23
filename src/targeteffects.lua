@@ -115,13 +115,13 @@ end
 -- runs first, with nameOf(struct) returning { name } for the struct of a just-used ability, read once per use,
 -- then observe(sprites) takes the debuffs the target frame shows. timers() returns { [sprite] = { left, full } }
 -- in ticks for each timed debuff shown since it was applied, the same table until a tick passes with one running
--- or the shown debuffs change. Debuffs shown at load or when the target changes have no known start, so they
--- show no time until applied again.
+-- or the shown debuffs change. A debuff shown at load or when the target changes may have been on already, so it
+-- shows no time unless the ability just used applies it.
 function targeteffects.tracker()
   local values = {}
   local result = nil
   local tick = 0
-  -- Shown debuffs: { start, ticks } for a timed one, with ticks nil until its cause is known, or false.
+  -- Shown debuffs by sprite as { start, ticks }: the tick each showed and its length, nil while untimed.
   local shown = {}
   local count = 0
   -- Whether the next observe sees newly applied debuffs, rather than ones already on.
@@ -138,7 +138,7 @@ function targeteffects.tracker()
     if name == "COMBATV2_JUST_USED_ABILITY" then
       pending = new
     elseif name == "NPCTARGET" then
-      if old ~= new and (count > 0 or primed) then
+      if old ~= new then
         shown = {}
         count = 0
         primed = false
@@ -167,10 +167,11 @@ function targeteffects.tracker()
       local def = targeteffects.LENGTHS[sprite]
       local ticks = def and def.causes and def.causes[name]
       if ticks ~= nil then
-        if entry and tick - entry.start <= CAUSE_WINDOW then
+        if tick - entry.start <= CAUSE_WINDOW then
           entry.ticks = ticks
         elseif not (def.keep and def.keep[name]) then
-          shown[sprite] = { start = tick, ticks = ticks }
+          entry.start = tick
+          entry.ticks = ticks
         end
         timers = nil
       end
@@ -192,15 +193,16 @@ function targeteffects.tracker()
     end
   end
 
-  -- A newly applied debuff's entry: its length from the ability just used, or its own, or false with none.
+  -- A newly shown debuff's entry. Its length comes from the ability just used when that applies it, or else its
+  -- own, except right after load or a target change, when it may have been on already.
   local function applied(sprite)
     local def = targeteffects.LENGTHS[sprite]
-    if not primed or def == nil then
-      return false
-    end
-    local ticks = def.ticks
-    if lastName ~= nil and tick - lastTick <= CAUSE_WINDOW and def.causes and def.causes[lastName] then
+    local ticks = nil
+    if def ~= nil and lastName ~= nil and tick - lastTick <= CAUSE_WINDOW and def.causes then
       ticks = def.causes[lastName]
+    end
+    if ticks == nil and def ~= nil and primed then
+      ticks = def.ticks
     end
     return { start = tick, ticks = ticks }
   end
@@ -233,13 +235,13 @@ function targeteffects.tracker()
       timers = {}
       running = false
       for sprite, entry in pairs(shown) do
-        if entry and entry.ticks ~= nil then
+        if entry.ticks ~= nil then
           local left = entry.ticks - (tick - entry.start)
           if left > 0 then
             timers[sprite] = { left = left, full = entry.ticks }
             running = true
           else
-            shown[sprite] = false
+            entry.ticks = nil
           end
         end
       end
