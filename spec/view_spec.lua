@@ -384,6 +384,19 @@ describe("view", function()
     }
   end
 
+  it("builds an aura row's tiles as auras appear and keeps them hidden once gone", function()
+    local row = auraRow()
+    local empty = #fake.created
+    row.update({}, false)
+    assert.are.equal(empty, #fake.created)
+    row.update({ incite(12)[1], incite(12)[1] }, false)
+    local two = #fake.created
+    assert.is_true(two > empty)
+    row.update({}, false)
+    row.update({ incite(12)[1] }, false)
+    assert.are.equal(two, #fake.created)
+  end)
+
   it("makes no client writes when an aura row redraws unchanged icons, with or without bars", function()
     for _, bars in ipairs({ false, true }) do
       local row = auraRow()

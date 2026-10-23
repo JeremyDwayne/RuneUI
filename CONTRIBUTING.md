@@ -50,7 +50,7 @@ Each module's first comment says what it does and how it is used.
 The plugin runs inside the game's frame, so its cost is the player's frame rate.
 
 - Redraw on the server tick or on the event that changed the data, not every frame.
-- Build components once at load and hide the spares.
+- Build a component once and hide it when unused: the HUD at load, the options window on its first open, and a group or row's tiles as they are first needed.
 - Write through the primitives that skip unchanged values. A tick where nothing changed makes no writes, and the view specs assert it.
 - No looping animations, pulses or fades.
 

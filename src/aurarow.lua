@@ -141,13 +141,11 @@ end
 -- Hovering an icon shows the name and info from info(sprite), a src/icons index, over whether it is a buff or
 -- whose debuff, and its time left or stacks.
 function aurarow.create(root, aura, tooltip, info)
-  local size, step
+  local size, step, timeH, stacksH
   local layer = ui.Layer.new(root)
   local row = { layer = layer }
+  -- The tiles built so far, as auras appear, up to MAX_TILES. Building every spare tile at load cost seconds.
   local tiles = {}
-  for i = 1, MAX_TILES do
-    tiles[i] = auraTile(layer)
-  end
 
   -- x of the first of count tiles.
   local function left(count)
@@ -165,6 +163,9 @@ function aurarow.create(root, aura, tooltip, info)
   local shownBars = false
   local bounds = { x = 0, y = AURA_MARGIN, w = 0, h = 0 }
   row.bounds = bounds
+  -- The look shown, and the tile size and text heights its tiles are fitted to.
+  local shown = nil
+  local fitted = nil
 
   local function showTooltip(i)
     local model = current[i]
@@ -180,27 +181,49 @@ function aurarow.create(root, aura, tooltip, info)
 
   local hover = tooltip.hover(tiles, showTooltip)
 
+  -- Gives parts the fonts and debuff colours of the look shown.
+  local function styleTile(parts)
+    local own = shown.auras[aura.name]
+    styleFont(parts.time, own.font, shown, false)
+    styleFont(parts.stacks, own.stacksFont, shown, false)
+    if aura.debuff then
+      set(parts.edge, "rgb", shown.debuffEdge)
+      set(parts.fill, "rgb", shown.debuffEdge)
+    end
+  end
+
+  -- Tile i, built, fitted and styled on its first use.
+  local function tile(i)
+    local parts = tiles[i]
+    if parts == nil then
+      parts = auraTile(layer)
+      tiles[i] = parts
+      fitTile(parts, size, timeH, stacksH)
+      styleTile(parts)
+      hover.add(parts)
+    end
+    return parts
+  end
+
   local function update(models, bars)
     current = models
     shownBars = bars
     local count = math.min(#models, MAX_TILES)
-    local shown = math.max(count, 1)
-    local x = left(shown)
-    local w = shown * step - AURA_GAP
+    local shownCount = math.max(count, 1)
+    local x = left(shownCount)
+    local w = shownCount * step - AURA_GAP
     local h = size + (bars and AURA_BAR_SPACE or 0)
     local moved = bounds.x ~= x or bounds.w ~= w or bounds.h ~= h
     bounds.x = x
     bounds.w = w
     bounds.h = h
     local first = left(count)
-    for i, parts in ipairs(tiles) do
-      local model = models[i]
-      if i > count then
-        parts.group.set("hidden", true)
-        set(parts.cover, "hidden", true)
-      else
-        showAura(parts, model, first + (i - 1) * step, AURA_MARGIN, size, bars)
-      end
+    for i = 1, count do
+      showAura(tile(i), models[i], first + (i - 1) * step, AURA_MARGIN, size, bars)
+    end
+    for i = count + 1, #tiles do
+      tiles[i].group.set("hidden", true)
+      set(tiles[i].cover, "hidden", true)
     end
     if hover.index ~= nil then
       showTooltip(hover.index)
@@ -208,35 +231,30 @@ function aurarow.create(root, aura, tooltip, info)
     return moved
   end
 
-  -- The look shown, and the tile size and text heights its tiles are fitted to.
-  local shown = nil
-  local fitted = nil
   local function setLook(look)
     if look == shown then
       return false
     end
     shown = look
     local own = look.auras[aura.name]
-    local timeH = math.max(11, own.points)
-    local stacksH = math.max(12, own.stacksPoints + 2)
-    local fit = own.size .. ":" .. timeH .. ":" .. stacksH
-    for _, parts in ipairs(tiles) do
-      if fit ~= fitted then
-        fitTile(parts, own.size, timeH, stacksH)
-      end
-      styleFont(parts.time, own.font, look, false)
-      styleFont(parts.stacks, own.stacksFont, look, false)
-      if aura.debuff then
-        set(parts.edge, "rgb", look.debuffEdge)
-        set(parts.fill, "rgb", look.debuffEdge)
-      end
+    local fit = own.size .. ":" .. math.max(11, own.points) .. ":" .. math.max(12, own.stacksPoints + 2)
+    local refit = fit ~= fitted
+    if refit then
+      fitted = fit
+      size = own.size
+      step = size + AURA_GAP
+      timeH = math.max(11, own.points)
+      stacksH = math.max(12, own.stacksPoints + 2)
     end
-    if fit == fitted then
+    for _, parts in ipairs(tiles) do
+      if refit then
+        fitTile(parts, size, timeH, stacksH)
+      end
+      styleTile(parts)
+    end
+    if not refit then
       return false
     end
-    fitted = fit
-    size = own.size
-    step = size + AURA_GAP
     row.width = 2 * AURA_MARGIN + MAX_TILES * step - AURA_GAP
     row.height = 2 * AURA_MARGIN + size + AURA_BAR_SPACE
     draw.size(layer, row.width, row.height)

@@ -82,6 +82,23 @@ end
 describe("options", function()
   before_each(pretty.reset)
 
+  it("builds the window on the first press of Options, with the HUD placed before it", function()
+    local root = fake.component()
+    local saved = settings.load(fakeStore())
+    local elements = { player = view.playerFrame(root) }
+    options.create(
+      root,
+      { saved = saved, tracker = cooldowns.tracker(), elements = elements, view = view, refresh = function() end }
+    )
+    assert.is_nil(pretty.find("Window"))
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    fake.fire("Draw", {})
+    fake.fire("ContentLayerReady", { component = fake.component() })
+    pretty.button("Options")
+    assert.is_not_nil(pretty.find("Window"))
+    assert.is_not_nil(pretty.find("Tabs"))
+  end)
+
   it("lists Appearance first in the page tabs and opens on it", function()
     openWindow(nil, "Bars")
     pretty.button("Done")
