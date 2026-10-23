@@ -206,6 +206,20 @@ describe("options", function()
     assert.are.equal("white", saved.appearance().debuffEdge)
   end)
 
+  it("saves a page change when the closed ribbon's checkboxes no longer take writes", function()
+    local saved = openWindow(nil, "Buffs")
+    for _, c in ipairs(pretty.made) do
+      if c.kind == "CheckboxButton" then
+        c.SetSelected = function()
+          error("component destroyed")
+        end
+      end
+    end
+    fake.press("Display")
+    fake.press("White")
+    assert.are.equal("white", saved.appearance().debuffEdge)
+  end)
+
   it("closes the reset confirm on Esc, then the window on a second Esc", function()
     local saved = openWindow()
     saved.setPosition("player", { x = 10, y = 20, anchorX = 0, anchorY = 0 })

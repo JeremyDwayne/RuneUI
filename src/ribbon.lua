@@ -47,10 +47,12 @@ function ribbon.create(layer, deps)
   prettyui.FancyButton.new(layer, "Options", deps.open, { x = OPTIONS_X, y = OPTIONS_Y })
   local boxes = {}
 
+  -- Runs after any page change, also while the panel is closed and the client may have destroyed its layer,
+  -- so each write goes through pcall.
   local function show()
     local appearance = deps.saved.appearance()
     for i, switch in ipairs(ribbon.SWITCHES) do
-      boxes[i]:SetSelected(ENABLED, switch.on(appearance) == true, false)
+      pcall(boxes[i].SetSelected, boxes[i], ENABLED, switch.on(appearance) == true, false)
     end
   end
 
