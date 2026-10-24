@@ -73,6 +73,7 @@ describe("view", function()
 
   it("makes no client writes when a cooldown group redraws unchanged tiles", function()
     local tiles = readyTiles(9)
+    tiles[6].queued = true
     tiles[2] = { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, keybind = "Q", remaining = 3.6 }
     tiles[3].count = "8"
     tiles[3].stacks = { key = "necrosis", count = 8, max = 12, gold = 6, notch = 6 }
@@ -252,6 +253,53 @@ describe("view", function()
     necrosis.gold = 0
     bar.update(model)
     assert.are.same({ 0, 8, 2 }, { blocks(draw.WINDOW.accent), blocks(draw.COLOURS.necrosis), clears })
+  end)
+
+  it("borders the queued tile in gold with a light segment once round each tick, and drops it once fired", function()
+    local g = group(38)
+    local tiles = readyTiles(2)
+    g.update(tiles, 0)
+    local built = #fake.created
+    tiles[2].queued = true
+    g.update(tiles, 0)
+    assert.are.equal(built + 7, #fake.created)
+    local function shownOf(rgb)
+      local list = {}
+      for _, c in ipairs(fake.created) do
+        if fake.shown(c) and c.rgb == rgb then
+          list[#list + 1] = c
+        end
+      end
+      return list
+    end
+    local band = shownOf(draw.WINDOW.accent)
+    local x = band[1].x
+    local firstEdge = fake.find(function(_, d)
+      return d.width == 38 and d.rgb == draw.COLOURS.border
+    end)
+    assert.are.same({ 4, 40 }, { #band, x - firstEdge.x })
+    -- At the tick the segment, 30% of the way round, covers the top and the first 7 px of the right side.
+    local chase = shownOf(0xfff1c4)
+    assert.are.same({ x, 0, 38, 2 }, { chase[1].x, chase[1].y, chase[1].width, chase[1].height })
+    assert.are.same({ x + 36, 0, 2, 9 }, { chase[2].x, chase[2].y, chase[2].width, chase[2].height })
+    -- A quarter of a tick later it covers the right side and the first 7 px of the bottom.
+    g.step(0.15)
+    chase = shownOf(0xfff1c4)
+    assert.are.same({ x + 36, 0, 2, 38 }, { chase[1].x, chase[1].y, chase[1].width, chase[1].height })
+    assert.are.same({ x + 29, 36, 9, 2 }, { chase[2].x, chase[2].y, chase[2].width, chase[2].height })
+    fake.writes = 0
+    g.step(0.151)
+    assert.are.equal(0, fake.writes)
+    tiles[2].queued = false
+    g.update(tiles, 0)
+    assert.are.same({ 0, 0 }, { #shownOf(draw.WINDOW.accent), #shownOf(0xfff1c4) })
+    fake.writes = 0
+    g.step(0.3)
+    assert.are.equal(0, fake.writes)
+    tiles[2].queued = true
+    built = #fake.created
+    g.update(tiles, 0)
+    assert.are.same({ built, 4 }, { #fake.created, #shownOf(draw.WINDOW.accent) })
   end)
 
   it("makes no writes stepping a group with no cooling tile", function()
@@ -754,6 +802,69 @@ describe("view", function()
     assert.are.same({ 2, 0 }, marks(bar, 18))
   end)
 
+  -- The adrenaline bar's strip track and gold fill.
+  local function strip(bar)
+    local function part(rgb, height)
+      for _, c in ipairs(fake.created) do
+        if c.parent == bar.layer and c.rgb == rgb and c.height == height then
+          return c
+        end
+      end
+    end
+    return part(draw.COLOURS.border, 5), part(draw.WINDOW.accent, 3)
+  end
+
+  it("fills the adrenaline bar's strip once over the global cooldown, and hides it after", function()
+    local bar = view.resourceBar(fake.component())
+    bar.update({ hidden = false, fill = 0.6, text = "60%", markers = {}, spenders = {} })
+    local track, gold = strip(bar)
+    local inner = bar.bounds.w - 2
+    assert.is_false(fake.shown(gold))
+    fake.writes = 0
+    bar.step(0.3)
+    assert.are.equal(0, fake.writes)
+    bar.setGlobal(0, 1.8, 1.8)
+    assert.are.same({ true, bar.bounds.y + 2, bar.bounds.w, 0 }, { fake.shown(gold), track.y, track.width, gold.width })
+    bar.step(0.6)
+    assert.are.equal(math.floor(inner / 3 + 0.5), gold.width)
+    fake.writes = 0
+    bar.step(0.6)
+    assert.are.equal(0, fake.writes)
+    bar.setGlobal(0, 1.2, 1.8)
+    assert.are.equal(math.floor(inner / 3 + 0.5), gold.width, "the next tick carries on where the last left off")
+    bar.step(0.9)
+    assert.are.equal(math.floor(inner * 5 / 6 + 0.5), gold.width)
+    bar.setGlobal(0.6, 0.6, 1.8)
+    assert.are.equal(inner, gold.width)
+    bar.setGlobal(0, nil)
+    assert.is_false(fake.shown(gold))
+    fake.writes = 0
+    bar.step(0.3)
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("turns the adrenaline bar's strip toward the nearest cooldown group, keeping anchors flush", function()
+    local bar = view.resourceBar(fake.component())
+    bar.update({ hidden = false, fill = 0.6, text = "60%", markers = {}, spenders = {} })
+    local rotation = group(36)
+    rotation.update(readyTiles(5))
+    local elements = { resource = bar, rotation = rotation }
+    local track = strip(bar)
+    local function at(x, y)
+      return { x = x, y = y, anchorX = 0.5, anchorY = 1 }
+    end
+    view.arrange(elements, { rotation = at(-100, -400), resource = at(-139, -300) }, {})
+    assert.are.equal(bar.bounds.y + 2, track.y)
+    view.arrange(elements, { rotation = at(-100, -200), resource = at(-139, -300) }, {})
+    assert.are.equal(bar.bounds.y + bar.bounds.h - 7, track.y)
+    view.arrange(elements, { rotation = at(-100, -400), resource = at(-139, -300) }, {})
+    local anchor = { target = "rotation", side = "top", align = "center", gap = 0, offset = 0 }
+    view.arrange(elements, { rotation = at(-100, -400) }, { resource = anchor })
+    assert.are.equal(bar.bounds.y + bar.bounds.h - 7, track.y)
+    local barBottom = bar.layer.y + bar.bounds.y + bar.bounds.h
+    assert.are.equal(rotation.layer.y + rotation.bounds.y, barBottom)
+  end)
+
   it("makes no writes stepping between channels", function()
     local bar = view.castBar(fake.component())
     bar.update(nil)
@@ -905,7 +1016,7 @@ describe("view", function()
     local bar = elements.resource
     bar.update({ hidden = false, fill = 0.4, text = "40%", markers = { { at = 0.5 }, { at = 1 } }, spenders = {} })
     assert.is_true(setLook(elements, look({ barWidth = 402, barHeight = 30 })))
-    assert.are.same({ 402, 402, 30 }, { bar.layer.width, bar.bounds.w, bar.bounds.h })
+    assert.are.same({ 402, 402, 30 + 9 }, { bar.layer.width, bar.bounds.w, bar.bounds.h }, "with the strip's room")
     local xs = {}
     for _, c in ipairs(fake.created) do
       if c.parent == bar.layer and c.width == 1 and c.height == 28 then

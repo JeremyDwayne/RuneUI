@@ -175,10 +175,14 @@ function draw.set(obj, field, value)
 end
 
 -- Builds a component of kind, such as ui.Sprite, on parent. An element builds its components through this or
--- the builders below, so draw.fade reaches them.
+-- the builders below, so draw.fade reaches them, and one built while faded, such as a tile's lazily built
+-- queued border, starts at the fade's level.
 function draw.new(kind, parent)
   local c = kind.new(parent)
   parents[c] = parent
+  if fading ~= 1 and rootOf(c) then
+    write(c, "alpha", fading, 1)
+  end
   return c
 end
 

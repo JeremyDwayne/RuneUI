@@ -8,6 +8,7 @@ local cooldowngroup = require("src/cooldowngroup")
 local draw = require("src/draw")
 local layout = require("src/layout")
 local resourcebar = require("src/resourcebar")
+local savedgroups = require("src/savedgroups")
 local tooltip = require("src/tooltip")
 local unitframe = require("src/unitframe")
 
@@ -27,14 +28,52 @@ function view.place(layer, at)
   draw.place(layer, at.x, at.y, at.anchorX, at.anchorY)
 end
 
--- Places elements, by name, at positions resolved from src/layout anchors against their bounds. Called at
--- load and on a tick where a cooldown row's bounds changed. Returns the resolved positions.
+-- Every cooldown group's element name, built-in then custom.
+local GROUP_NAMES = {}
+view.GROUP_NAMES = GROUP_NAMES
+for _, group in ipairs(savedgroups.GROUPS) do
+  GROUP_NAMES[#GROUP_NAMES + 1] = group.name
+end
+for _, name in ipairs(savedgroups.CUSTOM_GROUPS) do
+  GROUP_NAMES[#GROUP_NAMES + 1] = name
+end
+
+-- The side of the resource bar, "top" or "bottom", that faces the shown cooldown group nearest it at resolved
+-- positions, or nil with no group shown. It measures from the bar itself, which turning the strip leaves still.
+local function stripSide(elements, resolved)
+  local bar = layout.rect(resolved.resource, elements.resource.bounds)
+  local barMid = resolved.resource.y + elements.resource.middle
+  local nearest = nil
+  local side = nil
+  for _, name in ipairs(GROUP_NAMES) do
+    local group = elements[name]
+    if group ~= nil and group.inUse and group.bounds.w > 0 then
+      local r = layout.rect(resolved[name], group.bounds)
+      local dx = r.x + r.w / 2 - (bar.x + bar.w / 2)
+      local dy = r.y + r.h / 2 - barMid
+      local distance = dx * dx + dy * dy
+      if nearest == nil or distance < nearest then
+        nearest = distance
+        side = dy < 0 and "top" or "bottom"
+      end
+    end
+  end
+  return side
+end
+
+-- Places elements, by name, at positions resolved from src/layout anchors against their bounds, with the
+-- resource bar's strip turned to the nearest cooldown group. Called at load and on a tick where a
+-- cooldown row's bounds changed. Returns the resolved positions.
 function view.arrange(elements, positions, anchors)
   local bounds = {}
   for name, element in pairs(elements) do
     bounds[name] = element.bounds
   end
   local resolved = layout.resolve(positions, anchors, bounds)
+  local bar = elements.resource
+  if bar ~= nil and bar.faceStrip(stripSide(elements, resolved)) then
+    resolved = layout.resolve(positions, anchors, bounds)
+  end
   for name, element in pairs(elements) do
     view.place(element.layer, resolved[name])
   end
