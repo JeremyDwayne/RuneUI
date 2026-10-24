@@ -245,6 +245,14 @@ function adapter.barSlots()
   return slots
 end
 
+-- The icon of the action bar slot that COMBATV2_QUEUED_BAR and _SLOT name, bar and slot, as barSlots last read
+-- it, or nil when nothing is queued or the slot is unknown or empty. Makes no client reads.
+function adapter.slotSprite(bar, slot)
+  local cache = slotCache[interfaces.QUEUED_BARS[bar]]
+  local entry = cache and slot and cache[slot + interfaces.QUEUED_SLOT_OFFSET]
+  return entry and entry.sprite
+end
+
 -- Structs ---------------------------------------------------------------------------------------------------
 
 -- The params an ability or effect struct names and draws itself by. Only these are read: reading some other

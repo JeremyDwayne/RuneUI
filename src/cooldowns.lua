@@ -36,6 +36,10 @@ local RECHARGE_TICKS = 17
 -- and a short lockout var pair, while the base pair holds the cooldown after the last stage.
 local RECASTS = { NECROMANCY_SPECTRAL_SCYTHE = 3, MELEE_DISMEMBER = 3 }
 
+-- Ticks the global cooldown runs after COMBATV2_GLOBAL_COOLDOWN_START, unless COMBATV2_GLOBAL_COOLDOWN_END
+-- names a later tick.
+local GLOBAL_TICKS = 3
+
 -- "MAGIC_SUNSHINE" -> "magic": the combat style a cooldown key belongs to, or nil for a style-free one.
 function cooldowns.styleOf(key)
   return STYLES[key:match("^(%u+)_")]
@@ -81,7 +85,8 @@ end
 
 -- Returns a tracker. onVar takes every numeric var change, onTick runs once per server tick with a
 -- function returning the just-used ability as { key, name, icon } or nil, and returns what it learned.
--- changed() reports once whether a cooldown or the weapon style changed since the last call.
+-- changed() reports once whether a cooldown, the global cooldown, the queued ability or the weapon style changed
+-- since the last call.
 function cooldowns.tracker()
   local abilities = {}
   local order = {}
@@ -92,6 +97,11 @@ function cooldowns.tracker()
   -- The style of the latest styled cooldown to start, and of the worn main-hand weapon.
   local abilityStyle = nil
   local weaponStyle = nil
+  -- The global cooldown's start and end ticks, and the queued ability's bar and slot as the game sends them.
+  local globalStart = nil
+  local globalEnd = nil
+  local queuedBar = 0
+  local queuedSlot = 0
 
   local fired = {}
 
@@ -118,13 +128,34 @@ function cooldowns.tracker()
   -- A _START var holds the server tick its ability fired, which also keeps the clock in step. Weapon
   -- specials such as Instability use COMBATV2_ABILITY_WEAPON_COOLDOWN_<NAME> vars and take the key
   -- WEAPON_<NAME>. A second charge's and a recast stage's vars fold into their ability's key, and a stage's
-  -- start does not count as the ability starting. COMBATV2_MAINHAND_STYLE sets the weapon's style.
+  -- start does not count as the ability starting. COMBATV2_MAINHAND_STYLE sets the weapon's style. The global
+  -- cooldown's START keeps the clock in step too, and COMBATV2_QUEUED_BAR and _SLOT name the queued ability.
   function tracker.onVar(name, old, new)
     if old == new then
       return
     end
     if name == "COMBATV2_JUST_USED_ABILITY" then
       justUsedChanged = true
+      return
+    end
+    if name == "COMBATV2_GLOBAL_COOLDOWN_START" then
+      globalStart = new
+      now = new
+      changed = true
+      return
+    end
+    if name == "COMBATV2_GLOBAL_COOLDOWN_END" then
+      globalEnd = new
+      changed = true
+      return
+    end
+    if name == "COMBATV2_QUEUED_BAR" or name == "COMBATV2_QUEUED_SLOT" then
+      if name == "COMBATV2_QUEUED_BAR" then
+        queuedBar = new
+      else
+        queuedSlot = new
+      end
+      changed = true
       return
     end
     if name == "COMBATV2_MAINHAND_STYLE" then
@@ -218,6 +249,14 @@ function cooldowns.tracker()
     return was
   end
 
+  -- The queued ability's bar and slot as COMBATV2_QUEUED_BAR and _SLOT hold them, or nil with none queued.
+  function tracker.queued()
+    if queuedSlot == nil or queuedSlot <= 0 then
+      return nil
+    end
+    return queuedBar, queuedSlot
+  end
+
   -- The worn weapon's combat style as a STYLES value, else that of the latest started cooldown that has one,
   -- or nil before either.
   function tracker.style()
@@ -247,15 +286,31 @@ function cooldowns.tracker()
     return (now ~= nil and tick ~= nil) and tick - now or 0
   end
 
+  -- Ticks left and length of the global cooldown, or nil while none runs.
+  local function globalCooldown()
+    if globalStart == nil then
+      return nil
+    end
+    local finish = (globalEnd ~= nil and globalEnd > globalStart) and globalEnd or globalStart + GLOBAL_TICKS
+    local left = ticksTo(finish)
+    if left <= 0 then
+      return nil
+    end
+    return left, finish - globalStart
+  end
+
   -- keys: ability keys in display order. slots: { [iconSpriteID] = { keybind, usable } } from the native
   -- bars. A tile whose icon no slot shows takes the name, icon and slot of the first form a slot does show.
   -- A tile with no matching slot counts as usable. A charge ability's tile is ready while a charge is left,
   -- with charges and count its charges left and, below two, recharge = { remaining, length } in seconds for
   -- the next charge. A recast ability's tile counts down its stage lockout while a stage is open, with count such as
   -- "2/3". stacks: a src/frames resource model's byAbility, whose row a spender ability's tile shows as count
-  -- and stacks.
-  function tracker.tiles(keys, slots, stacks)
+  -- and stacks. A ready tile takes global = { remaining, length } in seconds while the global cooldown runs.
+  -- queuedIcon: the icon of the action bar slot whose ability is queued, which marks its tile queued.
+  function tracker.tiles(keys, slots, stacks, queuedIcon)
     stacks = stacks or NO_STACKS
+    local globalLeft, globalLength = globalCooldown()
+    local global = globalLeft and { remaining = globalLeft * 6 / 10, length = globalLength * 6 / 10 }
     local tiles = {}
     for _, key in ipairs(keys) do
       local a = abilities[key] or {}
@@ -310,6 +365,8 @@ function cooldowns.tracker()
         charges = charges,
         recharge = recharge,
         stacks = spender,
+        global = left <= 0 and global or nil,
+        queued = queuedIcon ~= nil and icon == queuedIcon,
       }
     end
     return tiles

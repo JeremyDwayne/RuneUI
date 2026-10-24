@@ -11,7 +11,7 @@ A combat HUD for RuneScape 3. It draws your frames, bars, cooldowns and buffs in
 - Player and target frames with name, lifepoints and a prayer bar.
 - The adrenaline bar with two markers you set, and rows of residual souls and necrosis stacks on Necromancy.
 - A cast bar for channels such as Asphyxiate, with a mark for each hit and the same time as the game's own.
-- Cooldown groups: Major, Rotation, Utility and Defensives. Each icon shows its keybind and seconds left, and Major and Rotation change with your weapon's combat style.
+- Cooldown groups: Major, Rotation, Utility and Defensives. Each icon shows its keybind and seconds left, and Major and Rotation change with your weapon's combat style. After each cast the ready icons wipe down through the 1.8 s global cooldown, marked at each tick, and the ability you have queued gets a gold border with a light that runs round it once a tick.
 - Aura rows: combat buffs, upkeep buffs, debuffs on you and debuffs on your target. Each icon shows its time or stacks and gets a ring in its last seconds.
 
 Hover anything for its name and description. Every element can be moved, anchored to another and resized. The HUD hides while the world map is open, and can fade or hide out of combat.

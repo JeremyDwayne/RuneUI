@@ -73,6 +73,8 @@ describe("view", function()
 
   it("makes no client writes when a cooldown group redraws unchanged tiles", function()
     local tiles = readyTiles(9)
+    tiles[5].global = { remaining = 1.2, length = 1.8 }
+    tiles[6].queued = true
     tiles[2] = { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, keybind = "Q", remaining = 3.6 }
     tiles[3].count = "8"
     tiles[3].stacks = { key = "necrosis", count = 8, max = 12, gold = 6, notch = 6 }
@@ -252,6 +254,93 @@ describe("view", function()
     necrosis.gold = 0
     bar.update(model)
     assert.are.same({ 0, 8, 2 }, { blocks(draw.WINDOW.accent), blocks(draw.COLOURS.necrosis), clears })
+  end)
+
+  it("wipes a ready tile's shade down through the global cooldown, writing only when it moves", function()
+    local g = group(38)
+    local tile = readyTiles(1)[1]
+    tile.global = { remaining = 1.8, length = 1.8 }
+    g.update({ tile }, 0)
+    local shade = fake.find(function(_, d)
+      return d.rgb == draw.COLOURS.border and d.alpha == 0.55
+    end)
+    local function tickMarks()
+      local n = 0
+      for _, c in ipairs(fake.created) do
+        if fake.shown(c) and c.width == 4 and c.height == 1 then
+          n = n + 1
+        end
+      end
+      return n
+    end
+    assert.are.same({ 1, 36, 2 }, { shade.y, shade.height, tickMarks() })
+    g.step(0.9)
+    assert.are.same({ 19, 18, 1 }, { shade.y, shade.height, tickMarks() })
+    fake.writes = 0
+    g.step(0.91)
+    assert.are.equal(0, fake.writes)
+    g.step(1.8)
+    assert.are.same({ false, 0 }, { fake.shown(shade), tickMarks() })
+    fake.writes = 0
+    g.step(1.9)
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("draws no wipe on a cooling tile through the global cooldown", function()
+    local g = group(38)
+    local tile = { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, remaining = 4.2 }
+    tile.global = { remaining = 1.8, length = 1.8 }
+    g.update({ tile }, 0)
+    assert.is_nil(fake.find(function(_, d)
+      return d.alpha == 0.55
+    end))
+  end)
+
+  it("borders the queued tile in gold with a light segment once round each tick, and drops it once fired", function()
+    local g = group(38)
+    local tiles = readyTiles(2)
+    g.update(tiles, 0)
+    local built = #fake.created
+    tiles[2].queued = true
+    g.update(tiles, 0)
+    assert.are.equal(built + 7, #fake.created)
+    local function shownOf(rgb)
+      local list = {}
+      for _, c in ipairs(fake.created) do
+        if fake.shown(c) and c.rgb == rgb then
+          list[#list + 1] = c
+        end
+      end
+      return list
+    end
+    local band = shownOf(draw.WINDOW.accent)
+    local x = band[1].x
+    local firstEdge = fake.find(function(_, d)
+      return d.width == 38 and d.rgb == draw.COLOURS.border
+    end)
+    assert.are.same({ 4, 40 }, { #band, x - firstEdge.x })
+    -- At the tick the segment, 30% of the way round, covers the top and the first 7 px of the right side.
+    local chase = shownOf(0xfff1c4)
+    assert.are.same({ x, 0, 38, 2 }, { chase[1].x, chase[1].y, chase[1].width, chase[1].height })
+    assert.are.same({ x + 36, 0, 2, 9 }, { chase[2].x, chase[2].y, chase[2].width, chase[2].height })
+    -- A quarter of a tick later it covers the right side and the first 7 px of the bottom.
+    g.step(0.15)
+    chase = shownOf(0xfff1c4)
+    assert.are.same({ x + 36, 0, 2, 38 }, { chase[1].x, chase[1].y, chase[1].width, chase[1].height })
+    assert.are.same({ x + 29, 36, 9, 2 }, { chase[2].x, chase[2].y, chase[2].width, chase[2].height })
+    fake.writes = 0
+    g.step(0.151)
+    assert.are.equal(0, fake.writes)
+    tiles[2].queued = false
+    g.update(tiles, 0)
+    assert.are.same({ 0, 0 }, { #shownOf(draw.WINDOW.accent), #shownOf(0xfff1c4) })
+    fake.writes = 0
+    g.step(0.3)
+    assert.are.equal(0, fake.writes)
+    tiles[2].queued = true
+    built = #fake.created
+    g.update(tiles, 0)
+    assert.are.same({ built, 4 }, { #fake.created, #shownOf(draw.WINDOW.accent) })
   end)
 
   it("makes no writes stepping a group with no cooling tile", function()

@@ -209,6 +209,19 @@ describe("adapter.barSlots", function()
     assert.are.equal("E", adapter.barSlots()[14236].keybind)
     assert.are.equal(2, stub.labelReads)
   end)
+
+  it("names the icon in the queued bar and slot from the last read, without reading the client", function()
+    -- Main bar 1430: slot 0 Concentrated Blast, slot 1 Wild Magic.
+    loadBars({
+      [1430] = { [66] = { spriteID = 13309, rgb = 0xffffff }, [79] = { spriteID = 14385, rgb = 0xffffff } },
+    })
+    adapter.barSlots()
+    _G.ui = nil
+    assert.are.same({ 13309, 14385 }, { adapter.slotSprite(1003, 1), adapter.slotSprite(1003, 2) })
+    assert.is_nil(adapter.slotSprite(1003, 3))
+    assert.is_nil(adapter.slotSprite(nil, nil))
+    assert.is_nil(adapter.slotSprite(1, 1))
+  end)
 end)
 
 describe("adapter.iconStruct", function()

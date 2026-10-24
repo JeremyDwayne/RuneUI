@@ -120,9 +120,11 @@ local logicTicks = 0
 local slots = {}
 local stacks = nil
 
--- Shows each group's tiles for the worn weapon's style. Returns whether a group's bounds changed.
+-- Shows each group's tiles for the worn weapon's style, with the queued ability's tile marked. Returns whether a
+-- group's bounds changed.
 local function updateGroups()
   local style = tracker.style()
+  local queuedIcon = adapter.slotSprite(tracker.queued())
   local since = logicTicks * LOGIC_SECONDS
   local moved = false
   for _, name in ipairs(GROUP_NAMES) do
@@ -132,15 +134,16 @@ local function updateGroups()
     if group ~= nil and element.configure(group) then
       moved = true
     end
-    if element.update(tracker.tiles(saved.keys(name, style) or {}, slots, stacks), since) then
+    if element.update(tracker.tiles(saved.keys(name, style) or {}, slots, stacks, queuedIcon), since) then
       moved = true
     end
   end
   return moved
 end
 
--- Shows a channel or a cooldown change on the Logic tick after its vars arrive, and counts the cast bar and
--- cooling tiles down each tick. With nothing channelling or cooling it makes no client calls.
+-- Shows a channel, cooldown or queue change on the Logic tick after its vars arrive, and counts the cast bar and
+-- cooling tiles down each tick, wiping ready tiles through the global cooldown and running the queued tile's
+-- border. With nothing channelling, cooling or queued it makes no client calls.
 Event.Logic.Subscribe("hud", function()
   logicTicks = logicTicks + 1
   if channelTracker.changed() then
