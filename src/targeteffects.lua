@@ -118,7 +118,9 @@ end
 
 -- Returns a tracker. onVar takes every var change, seed takes a function returning a var's value at load, and
 -- debuffs() returns { sprites, complete }: the sprites of the known set bits in target panel order and whether
--- every set bit is known, the same table until a target effect var changes. Each server tick, onTick(nameOf)
+-- every set bit is known, the same table until a target effect var changes or a tick passes after a target
+-- change. On the tick the target changes, a var that did not arrive with the change can still hold the old
+-- target's debuffs, so debuffs() leaves it out until the next tick. Each server tick, onTick(nameOf)
 -- runs first, with nameOf(struct) returning { name } for the struct of a just-used ability, read once per use,
 -- then observe(target, sprites) takes the NPCTARGET read that tick and the debuffs the target frame shows.
 -- timers() returns { [sprite] = { left, full } } in ticks for each timed debuff shown since it was applied, the
@@ -147,16 +149,26 @@ function targeteffects.tracker()
   local remembered = {}
   local recalled = nil
   local recalledAt = 0
+  -- The target effect vars changed since the last tick, whether NPCTARGET changed with them, and the vars left
+  -- out of debuffs() this tick because they may still hold the old target's.
+  local arrived = {}
+  local retargeted = false
+  local stale = nil
 
   local tracker = {}
 
-  function tracker.onVar(name, _, new)
+  function tracker.onVar(name, old, new)
     if name == "COMBATV2_JUST_USED_ABILITY" then
       pending = new
+    elseif name == "NPCTARGET" then
+      if old ~= new then
+        retargeted = true
+      end
     elseif bitsOf[name] ~= nil then
       local value = unsigned(new)
       if values[name] ~= value then
         values[name] = value
+        arrived[name] = true
         result = nil
       end
     end
@@ -189,6 +201,21 @@ function targeteffects.tracker()
 
   function tracker.onTick(nameOf)
     tick = tick + 1
+    if stale ~= nil then
+      stale = nil
+      result = nil
+    end
+    if retargeted then
+      stale = {}
+      for _, name in ipairs(targeteffects.VARS) do
+        stale[name] = not arrived[name]
+      end
+      retargeted = false
+      result = nil
+    end
+    for name in pairs(arrived) do
+      arrived[name] = nil
+    end
     if running then
       timers = nil
     end
@@ -294,7 +321,8 @@ function targeteffects.tracker()
       count = #sprites
       timers = nil
     end
-    primed = true
+    -- A debuff left out on the tick the target changed may have been on already when it shows next tick.
+    primed = stale == nil
   end
 
   function tracker.timers()
@@ -320,7 +348,7 @@ function targeteffects.tracker()
     if result == nil then
       result = { sprites = {}, complete = true }
       for _, name in ipairs(targeteffects.VARS) do
-        local rest = values[name] or 0
+        local rest = (stale == nil or not stale[name]) and values[name] or 0
         for _, bit in ipairs(bitsOf[name]) do
           if rest & bit.mask ~= 0 then
             result.sprites[#result.sprites + 1] = bit.sprite

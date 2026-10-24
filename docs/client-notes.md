@@ -26,7 +26,7 @@ The client API is thinly documented. These facts came from probing it in the gam
 - A server tick's var changes arrive right after its `Event.ServerLogic`, before the next Draw frame.
 - `COMBATV2_PLAYER_IS_IN_COMBAT` reads 1 in combat and 0 out of it, but `VarTransmit` never sends its changes, so read it on the server tick. It clears with the target when the player drops one, and about 16 ticks after the target clears when the target dies. `BANK_TEMP` sends 64 while the bank is open.
 - Each target panel debuff is a bit in one of the 12 `COMBATV2_TARGET_EFFECTS` vars. `VarTransmit` sends the whole var, never the bit's own varbit, and the panel shows the change on the next tick, filling its slots in bit order.
-- On a target swap, `NPCTARGET` and the `COMBATV2_TARGET_EFFECTS` vars change in the same burst, the effect vars first. A debuff still on the new target can arrive a tick or two later.
+- On a target change, `NPCTARGET` arrives in the same burst as some of the `COMBATV2_TARGET_EFFECTS` vars, which can come before it. Others follow a tick later, so for one tick a var can still hold the old target's debuffs, and a debuff on the new target can arrive a tick or two late.
 - Bloat's bit in `COMBATV2_TARGET_EFFECTS_11` and `COMBATV2_TARGET_SIDE_PANEL_TARGET_NECROMANCY_BLOATED` set in the same burst as `COMBATV2_COOLDOWN_NECROMANCY_BLOAT_START` on the cast tick. They cleared 35 ticks after a recast on a target in melee range and 38 after an opening cast from further off.
 - `NPCList.ByUID(NPCTARGET)` finds the target, but the entity's `uid` reads `NPCTARGET` + 65536, so never compare the two.
 - On the cast bar 764, the client fades the spark's glow `:19` in from opaque around each tick, so alpha 0 does not hold there. Hiding it holds.
