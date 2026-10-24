@@ -27,8 +27,8 @@ interfaces.SLOT_BUTTON = 1
 interfaces.SLOT_ICON = 2
 interfaces.SLOT_KEYBIND = 9
 interfaces.SLOT_DIM = 0x333333
--- The native bar each COMBATV2_QUEUED_BAR value names, and the offset from COMBATV2_QUEUED_SLOT to the bar's
--- 0-based slot.
+-- The native bar each COMBATV2_QUEUED_BAR value names, and the offset from COMBATV2_QUEUED_SLOT, counted from 1,
+-- to the bar's slot counted from 0. A queue from a bar not listed draws no border.
 interfaces.QUEUED_BARS = { [1003] = 1430 }
 interfaces.QUEUED_SLOT_OFFSET = -1
 
