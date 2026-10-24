@@ -1,6 +1,6 @@
 -- A cooldown group: a grid of ability tiles, each with its icon or initials, keybind, seconds left while
--- cooling, a count or bar for charges, recast stages and spender stacks, a wipe through the global cooldown and
--- a gold border while its ability is queued.
+-- cooling, a count or bar for charges, recast stages and spender stacks, a shade through the global cooldown
+-- and a gold border while its ability is queued.
 local cooldowngroup = {}
 
 local draw = require("src/draw")
@@ -34,12 +34,9 @@ local BLOCKED_ALPHA = 0.6
 local TILE_BAR = 3
 local LIT_TILE_BAR = 5
 local COUNT_HEIGHT = 14
--- A ready tile's global cooldown wipe: a shade over the part of the tile the cooldown has still to run, a light
--- line along its top edge, and short marks at each tick boundary the shade still covers.
-local WIPE_ALPHA = 0.55
-local WIPE_EDGE_ALPHA = 0.85
-local TICK_MARK_ALPHA = 0.22
-local TICK_MARK = 4
+-- A ready tile's global cooldown shade, over the bottom share of the tile that the cooldown's ticks left are of
+-- its length, so it steps down a third each server tick.
+local SHADE_ALPHA = 0.55
 -- A queued tile's border: a steady gold band, and a light segment that runs once around it each server tick.
 local SERVER_TICK = 0.6
 local BAND = 2
@@ -55,9 +52,6 @@ local function tile(layer)
     initials = draw.edgedText(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, 0, 12),
     dim = rect(layer, COLOURS.border, 0, 0, 0, 0),
     shade = rect(layer, COLOURS.border, 0, 0, 0, 0),
-    wipeEdge = rect(layer, COLOURS.highlight, 0, 0, 0, 0),
-    firstMark = rect(layer, COLOURS.highlight, 0, 0, 0, 0),
-    secondMark = rect(layer, COLOURS.highlight, 0, 0, 0, 0),
     track = rect(layer, COLOURS.border, 0, 0, 0, 0),
     fill = rect(layer, COLOURS.highlight, 0, 0, 0, 0),
     gold = rect(layer, GOLD, 0, 0, 0, 0),
@@ -68,7 +62,6 @@ local function tile(layer)
     seconds = draw.edgedText(layer, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, 0, 0),
   }
   parts.bar = { parts.track, parts.fill, parts.gold, parts.notchEdge, parts.notch }
-  parts.wipe = { parts.shade, parts.wipeEdge, parts.firstMark, parts.secondMark }
   parts.all = {
     parts.edge,
     parts.background,
@@ -76,9 +69,6 @@ local function tile(layer)
     parts.initials,
     parts.dim,
     parts.shade,
-    parts.wipeEdge,
-    parts.firstMark,
-    parts.secondMark,
     parts.track,
     parts.fill,
     parts.gold,
@@ -90,13 +80,10 @@ local function tile(layer)
   }
   parts.inner = { parts.background, parts.icon, parts.dim }
   draw.hideAll(parts.bar, true)
-  draw.hideAll(parts.wipe, true)
+  set(parts.shade, "hidden", true)
   set(parts.background, "alpha", TILE_ALPHA)
   set(parts.dim, "alpha", COOLING_DIM)
-  set(parts.shade, "alpha", WIPE_ALPHA)
-  set(parts.wipeEdge, "alpha", WIPE_EDGE_ALPHA)
-  set(parts.firstMark, "alpha", TICK_MARK_ALPHA)
-  set(parts.secondMark, "alpha", TICK_MARK_ALPHA)
+  set(parts.shade, "alpha", SHADE_ALPHA)
   return parts
 end
 
@@ -134,10 +121,6 @@ local function placeTile(parts, x, y, size)
   pos(parts.keybind, x + size - 24, y + 2)
   pos(parts.seconds, x, y)
   draw.size(parts.seconds, size, size)
-  pos(parts.firstMark, x + 1, y + 1 + (size - 2) // 3)
-  draw.size(parts.firstMark, TICK_MARK, 1)
-  pos(parts.secondMark, x + 1, y + 1 + (size - 2) * 2 // 3)
-  draw.size(parts.secondMark, TICK_MARK, 1)
   local b = parts.border
   if b ~= nil then
     local sides = b.sides
@@ -152,31 +135,20 @@ local function placeTile(parts, x, y, size)
   end
 end
 
--- Shows a ready tile's global cooldown wipe, since seconds after the server tick its model was read at: a shade
--- from how far the cooldown has run down to the tile's bottom, with a light top edge and the tick marks it
--- covers. Hides them all once the cooldown has run or on a tile with none.
-local function showWipe(parts, since)
+-- Shades the bottom of a ready tile by the share of the global cooldown left at the server tick its model was
+-- read at, or hides the shade on a tile with none.
+local function showShade(parts)
   local global = parts.global
   local inner = parts.size - 2
-  local top = inner
+  local shaded = 0
   if global ~= nil then
-    local done = 1 - (global.remaining - since) / global.length
-    top = math.floor(inner * math.max(0, math.min(1, done)))
+    shaded = math.floor(inner * math.min(1, global.remaining / global.length) + 0.5)
   end
-  if top >= inner then
-    draw.hideAll(parts.wipe, true)
-    return
+  set(parts.shade, "hidden", shaded <= 0)
+  if shaded > 0 then
+    pos(parts.shade, parts.x + 1, parts.y + 1 + inner - shaded)
+    draw.size(parts.shade, inner, shaded)
   end
-  local x = parts.x + 1
-  local y = parts.y + 1
-  set(parts.shade, "hidden", false)
-  set(parts.wipeEdge, "hidden", false)
-  pos(parts.shade, x, y + top)
-  draw.size(parts.shade, inner, inner - top)
-  pos(parts.wipeEdge, x, y + top)
-  draw.size(parts.wipeEdge, inner, 1)
-  set(parts.firstMark, "hidden", inner // 3 <= top)
-  set(parts.secondMark, "hidden", inner * 2 // 3 <= top)
 end
 
 -- Moves piece over the part from a to b of side, 1 to 4 clockwise from the top, of parts' queued border band,
@@ -318,7 +290,7 @@ local function showTile(parts, model, since, look, size)
     showSeconds(parts, since)
   end
   parts.global = model.ready and model.global or nil
-  showWipe(parts, since)
+  showShade(parts)
   local barH = showBar(parts, model, since, size)
   set(parts.count, "hidden", model.count == nil)
   if model.count ~= nil then
@@ -349,15 +321,15 @@ end
 
 -- A cooldown group of up to savedgroups.MAX_GROUP_KEYS ability tiles laid out by layout.grid. configure takes
 -- { size, perRow, grow }, returns whether it changed, and redraws on the next update. update takes src/cooldowns
--- tiles and the seconds since the server tick they were read at, and returns whether bounds changed; bounds spans the
--- shown tiles, and an empty group's sides meet at its axis. step(since) counts the cooling tiles down, moves
--- recharge bars and global cooldown wipes, and runs the queued tile's border from that tick, and returns at once
--- when none moves. setInUse(false) hides a custom group that is not in use and collapses its bounds. Tiles are built
--- as the group first needs them, inside its layer, and never destroyed. Ready tiles are bright with their keybind;
--- cooling tiles are dimmed with whole seconds left; tiles whose ability can't be cast are tinted dark. Ready tiles
--- wipe through the global cooldown, and the queued ability's tile has a gold border with a light segment running
--- round it. Hovering a tile shows its tooltip, with the description describe(key) returns, when given. setLook(look)
--- restyles the tiles' text and returns false, as it moves no bounds.
+-- tiles and the seconds since the server tick they were read at, and returns whether bounds changed; bounds spans
+-- the shown tiles, and an empty group's sides meet at its axis. step(since) counts the cooling tiles down, moves
+-- recharge bars and runs the queued tile's border from that tick, and returns at once when none moves.
+-- setInUse(false) hides a custom group that is not in use and collapses its bounds. Tiles are built as the group
+-- first needs them, inside its layer, and never destroyed. Ready tiles are bright with their keybind; cooling tiles
+-- are dimmed with whole seconds left; tiles whose ability can't be cast are tinted dark. Ready tiles are shaded a
+-- third less each tick of the global cooldown, and the queued ability's tile has a gold border with a light
+-- segment running round it. Hovering a tile shows its tooltip, with the description describe(key) returns, when
+-- given. setLook(look) restyles the tiles' text and returns false, as it moves no bounds.
 function cooldowngroup.create(root, tooltip, describe)
   local max = savedgroups.MAX_GROUP_KEYS
   local layer = ui.Layer.new(root)
@@ -365,7 +337,7 @@ function cooldowngroup.create(root, tooltip, describe)
   local display = nil
   local inUse = true
   local current = {}
-  -- Shown tiles, how many of them are cooling, recharging, wiping or queued, and the queued tile's index or nil.
+  -- Shown tiles, how many of them are cooling, recharging or queued, and the queued tile's index or nil.
   local count = 0
   local moving = 0
   local queued = nil
@@ -458,7 +430,7 @@ function cooldowngroup.create(root, tooltip, describe)
         end
         showQueued(parts, layer, isQueued, shownSince)
         local counting = model.remaining ~= nil or model.recharge ~= nil
-        if counting or parts.global ~= nil or isQueued then
+        if counting or isQueued then
           moving = moving + 1
         end
       end
@@ -491,9 +463,6 @@ function cooldowngroup.create(root, tooltip, describe)
       end
       if parts.recharge ~= nil then
         draw.width(parts.fill, rechargeWidth(parts, since))
-      end
-      if parts.global ~= nil then
-        showWipe(parts, since)
       end
     end
     if queued ~= nil then

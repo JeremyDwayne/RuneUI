@@ -256,7 +256,7 @@ describe("view", function()
     assert.are.same({ 0, 8, 2 }, { blocks(draw.WINDOW.accent), blocks(draw.COLOURS.necrosis), clears })
   end)
 
-  it("wipes a ready tile's shade down through the global cooldown, writing only when it moves", function()
+  it("shades a ready tile's bottom by the global cooldown's share left, writing only at server ticks", function()
     local g = group(38)
     local tile = readyTiles(1)[1]
     tile.global = { remaining = 1.8, length = 1.8 }
@@ -264,29 +264,22 @@ describe("view", function()
     local shade = fake.find(function(_, d)
       return d.rgb == draw.COLOURS.border and d.alpha == 0.55
     end)
-    local function tickMarks()
-      local n = 0
-      for _, c in ipairs(fake.created) do
-        if fake.shown(c) and c.width == 4 and c.height == 1 then
-          n = n + 1
-        end
-      end
-      return n
-    end
-    assert.are.same({ 1, 36, 2 }, { shade.y, shade.height, tickMarks() })
-    g.step(0.9)
-    assert.are.same({ 19, 18, 1 }, { shade.y, shade.height, tickMarks() })
+    assert.are.same({ 1, 36 }, { shade.y, shade.height })
     fake.writes = 0
-    g.step(0.91)
+    g.step(0.5)
     assert.are.equal(0, fake.writes)
-    g.step(1.8)
-    assert.are.same({ false, 0 }, { fake.shown(shade), tickMarks() })
-    fake.writes = 0
-    g.step(1.9)
-    assert.are.equal(0, fake.writes)
+    tile.global = { remaining = 1.2, length = 1.8 }
+    g.update({ tile }, 0)
+    assert.are.same({ 13, 24 }, { shade.y, shade.height })
+    tile.global = { remaining = 0.6, length = 1.8 }
+    g.update({ tile }, 0)
+    assert.are.same({ 25, 12 }, { shade.y, shade.height })
+    tile.global = nil
+    g.update({ tile }, 0)
+    assert.is_false(fake.shown(shade))
   end)
 
-  it("draws no wipe on a cooling tile through the global cooldown", function()
+  it("draws no shade on a cooling tile through the global cooldown", function()
     local g = group(38)
     local tile = { key = "MAGIC_BLAST", name = "Blast", initials = "BLA", icon = 13309, remaining = 4.2 }
     tile.global = { remaining = 1.8, length = 1.8 }
@@ -843,6 +836,67 @@ describe("view", function()
     assert.are.same({ 2, 0 }, marks(bar, 18))
   end)
 
+  -- The adrenaline bar's tick strip track and gold fill.
+  local function strip(bar)
+    local function part(rgb, height)
+      for _, c in ipairs(fake.created) do
+        if c.parent == bar.layer and c.rgb == rgb and c.height == height then
+          return c
+        end
+      end
+    end
+    return part(draw.COLOURS.border, 5), part(draw.WINDOW.accent, 3)
+  end
+
+  it("fills the adrenaline bar's tick strip once each server tick while ticking, and hides it after", function()
+    local bar = view.resourceBar(fake.component())
+    bar.update({ hidden = false, fill = 0.6, text = "60%", markers = {}, spenders = {} })
+    local track, gold = strip(bar)
+    local inner = bar.bounds.w - 2
+    assert.is_false(fake.shown(gold))
+    fake.writes = 0
+    bar.step(0.3)
+    assert.are.equal(0, fake.writes)
+    bar.setTicking(true, 0)
+    assert.are.same({ true, bar.bounds.y + 2, bar.bounds.w, 0 }, { fake.shown(gold), track.y, track.width, gold.width })
+    bar.step(0.3)
+    assert.are.equal(inner // 2, gold.width)
+    fake.writes = 0
+    bar.step(0.301)
+    assert.are.equal(0, fake.writes)
+    bar.step(0.6)
+    assert.are.equal(inner, gold.width)
+    bar.step(0.9)
+    assert.are.equal(inner, gold.width)
+    bar.setTicking(false, 0.9)
+    assert.is_false(fake.shown(gold))
+    fake.writes = 0
+    bar.step(0.3)
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("turns the adrenaline bar's tick strip toward the nearest cooldown group, keeping anchors flush", function()
+    local bar = view.resourceBar(fake.component())
+    bar.update({ hidden = false, fill = 0.6, text = "60%", markers = {}, spenders = {} })
+    local rotation = group(36)
+    rotation.update(readyTiles(5))
+    local elements = { resource = bar, rotation = rotation }
+    local track = strip(bar)
+    local function at(x, y)
+      return { x = x, y = y, anchorX = 0.5, anchorY = 1 }
+    end
+    view.arrange(elements, { rotation = at(-100, -400), resource = at(-139, -300) }, {})
+    assert.are.equal(bar.bounds.y + 2, track.y)
+    view.arrange(elements, { rotation = at(-100, -200), resource = at(-139, -300) }, {})
+    assert.are.equal(bar.bounds.y + bar.bounds.h - 7, track.y)
+    view.arrange(elements, { rotation = at(-100, -400), resource = at(-139, -300) }, {})
+    local anchor = { target = "rotation", side = "top", align = "center", gap = 0, offset = 0 }
+    view.arrange(elements, { rotation = at(-100, -400) }, { resource = anchor })
+    assert.are.equal(bar.bounds.y + bar.bounds.h - 7, track.y)
+    local barBottom = bar.layer.y + bar.bounds.y + bar.bounds.h
+    assert.are.equal(rotation.layer.y + rotation.bounds.y, barBottom)
+  end)
+
   it("makes no writes stepping between channels", function()
     local bar = view.castBar(fake.component())
     bar.update(nil)
@@ -994,7 +1048,7 @@ describe("view", function()
     local bar = elements.resource
     bar.update({ hidden = false, fill = 0.4, text = "40%", markers = { { at = 0.5 }, { at = 1 } }, spenders = {} })
     assert.is_true(setLook(elements, look({ barWidth = 402, barHeight = 30 })))
-    assert.are.same({ 402, 402, 30 }, { bar.layer.width, bar.bounds.w, bar.bounds.h })
+    assert.are.same({ 402, 402, 30 + 9 }, { bar.layer.width, bar.bounds.w, bar.bounds.h }, "with the tick strip's room")
     local xs = {}
     for _, c in ipairs(fake.created) do
       if c.parent == bar.layer and c.width == 1 and c.height == 28 then

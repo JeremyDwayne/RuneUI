@@ -14,7 +14,6 @@ local gameui = require("src/gameui")
 local icons = require("src/icons")
 local options = require("src/options")
 local presets = require("src/presets")
-local savedgroups = require("src/savedgroups")
 local settings = require("src/settings")
 local styling = require("src/style")
 local targeteffects = require("src/targeteffects")
@@ -38,13 +37,7 @@ local elements = {
   castbar = view.castBar(hud),
 }
 -- Every cooldown group element, built-in then custom. A custom group not in use stays hidden.
-local GROUP_NAMES = {}
-for _, group in ipairs(savedgroups.GROUPS) do
-  GROUP_NAMES[#GROUP_NAMES + 1] = group.name
-end
-for _, name in ipairs(savedgroups.CUSTOM_GROUPS) do
-  GROUP_NAMES[#GROUP_NAMES + 1] = name
-end
+local GROUP_NAMES = view.GROUP_NAMES
 for _, name in ipairs(GROUP_NAMES) do
   elements[name] = view.cooldownGroup(hud, tooltip, adapter.abilityInfo)
 end
@@ -120,12 +113,13 @@ local logicTicks = 0
 local slots = {}
 local stacks = nil
 
--- Shows each group's tiles for the worn weapon's style, with the queued ability's tile marked. Returns whether a
--- group's bounds changed.
+-- Shows each group's tiles for the worn weapon's style, with the queued ability's tile marked, and runs the
+-- resource bar's tick strip through the global cooldown. Returns whether a group's bounds changed.
 local function updateGroups()
   local style = tracker.style()
   local queuedIcon = adapter.slotSprite(tracker.queued())
   local since = logicTicks * LOGIC_SECONDS
+  elements.resource.setTicking(tracker.inGlobalCooldown(), since)
   local moved = false
   for _, name in ipairs(GROUP_NAMES) do
     local element = elements[name]
@@ -142,8 +136,8 @@ local function updateGroups()
 end
 
 -- Shows a channel, cooldown or queue change on the Logic tick after its vars arrive, and counts the cast bar and
--- cooling tiles down each tick, wiping ready tiles through the global cooldown and running the queued tile's
--- border. With nothing channelling, cooling or queued it makes no client calls.
+-- cooling tiles down each tick, filling the tick strip through the global cooldown and running the queued tile's
+-- border. With nothing channelling, cooling, queued or in the global cooldown it makes no client calls.
 Event.Logic.Subscribe("hud", function()
   logicTicks = logicTicks + 1
   if channelTracker.changed() then
@@ -155,6 +149,7 @@ Event.Logic.Subscribe("hud", function()
     optionsWindow.placeAll()
   end
   local since = logicTicks * LOGIC_SECONDS
+  elements.resource.step(since)
   for _, name in ipairs(GROUP_NAMES) do
     elements[name].step(since)
   end

@@ -299,6 +299,11 @@ function cooldowns.tracker()
     return left, finish - globalStart
   end
 
+  -- Whether the global cooldown runs at the current server tick.
+  function tracker.inGlobalCooldown()
+    return globalCooldown() ~= nil
+  end
+
   -- keys: ability keys in display order. slots: { [iconSpriteID] = { keybind, usable } } from the native
   -- bars. A tile whose icon no slot shows takes the name, icon and slot of the first form a slot does show.
   -- A tile with no matching slot counts as usable. A charge ability's tile is ready while a charge is left,
