@@ -1,6 +1,6 @@
 -- A cooldown group: a grid of ability tiles, each with its icon or initials, keybind, seconds left while
--- cooling, a count or bar for charges, recast stages and spender stacks, a shade through the global cooldown
--- and a gold border while its ability is queued.
+-- cooling, a count or bar for charges, recast stages and spender stacks, and a gold border while its ability
+-- is queued.
 local cooldowngroup = {}
 
 local draw = require("src/draw")
@@ -34,9 +34,6 @@ local BLOCKED_ALPHA = 0.6
 local TILE_BAR = 3
 local LIT_TILE_BAR = 5
 local COUNT_HEIGHT = 14
--- A ready tile's global cooldown shade, over the bottom share of the tile that the cooldown's ticks left are of
--- its length, so it steps down a third each server tick.
-local SHADE_ALPHA = 0.55
 -- A queued tile's border: a steady gold band, and a light segment that runs once around it each server tick.
 local SERVER_TICK = 0.6
 local BAND = 2
@@ -51,7 +48,6 @@ local function tile(layer)
     icon = draw.new(ui.Sprite, layer),
     initials = draw.edgedText(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, 0, 12),
     dim = rect(layer, COLOURS.border, 0, 0, 0, 0),
-    shade = rect(layer, COLOURS.border, 0, 0, 0, 0),
     track = rect(layer, COLOURS.border, 0, 0, 0, 0),
     fill = rect(layer, COLOURS.highlight, 0, 0, 0, 0),
     gold = rect(layer, GOLD, 0, 0, 0, 0),
@@ -68,7 +64,6 @@ local function tile(layer)
     parts.icon,
     parts.initials,
     parts.dim,
-    parts.shade,
     parts.track,
     parts.fill,
     parts.gold,
@@ -80,10 +75,8 @@ local function tile(layer)
   }
   parts.inner = { parts.background, parts.icon, parts.dim }
   draw.hideAll(parts.bar, true)
-  set(parts.shade, "hidden", true)
   set(parts.background, "alpha", TILE_ALPHA)
   set(parts.dim, "alpha", COOLING_DIM)
-  set(parts.shade, "alpha", SHADE_ALPHA)
   return parts
 end
 
@@ -132,22 +125,6 @@ local function placeTile(parts, x, y, size)
     draw.size(sides[3], size, BAND)
     pos(sides[4], x, y)
     draw.size(sides[4], BAND, size)
-  end
-end
-
--- Shades the bottom of a ready tile by the share of the global cooldown left at the server tick its model was
--- read at, or hides the shade on a tile with none.
-local function showShade(parts)
-  local global = parts.global
-  local inner = parts.size - 2
-  local shaded = 0
-  if global ~= nil then
-    shaded = math.floor(inner * math.min(1, global.remaining / global.length) + 0.5)
-  end
-  set(parts.shade, "hidden", shaded <= 0)
-  if shaded > 0 then
-    pos(parts.shade, parts.x + 1, parts.y + 1 + inner - shaded)
-    draw.size(parts.shade, inner, shaded)
   end
 end
 
@@ -289,8 +266,6 @@ local function showTile(parts, model, since, look, size)
   if model.remaining ~= nil then
     showSeconds(parts, since)
   end
-  parts.global = model.ready and model.global or nil
-  showShade(parts)
   local barH = showBar(parts, model, since, size)
   set(parts.count, "hidden", model.count == nil)
   if model.count ~= nil then
@@ -326,10 +301,10 @@ end
 -- recharge bars and runs the queued tile's border from that tick, and returns at once when none moves.
 -- setInUse(false) hides a custom group that is not in use and collapses its bounds. Tiles are built as the group
 -- first needs them, inside its layer, and never destroyed. Ready tiles are bright with their keybind; cooling tiles
--- are dimmed with whole seconds left; tiles whose ability can't be cast are tinted dark. Ready tiles are shaded a
--- third less each tick of the global cooldown, and the queued ability's tile has a gold border with a light
--- segment running round it. Hovering a tile shows its tooltip, with the description describe(key) returns, when
--- given. setLook(look) restyles the tiles' text and returns false, as it moves no bounds.
+-- are dimmed with whole seconds left; tiles whose ability can't be cast are tinted dark. The queued ability's tile
+-- has a gold border with a light segment running round it. Hovering a tile shows its tooltip, with the
+-- description describe(key) returns, when given. setLook(look) restyles the tiles' text and returns false, as it
+-- moves no bounds.
 function cooldowngroup.create(root, tooltip, describe)
   local max = savedgroups.MAX_GROUP_KEYS
   local layer = ui.Layer.new(root)

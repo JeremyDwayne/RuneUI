@@ -62,7 +62,7 @@ local function stripSide(elements, resolved)
 end
 
 -- Places elements, by name, at positions resolved from src/layout anchors against their bounds, with the
--- resource bar's tick strip turned to the nearest cooldown group. Called at load and on a tick where a
+-- resource bar's strip turned to the nearest cooldown group. Called at load and on a tick where a
 -- cooldown row's bounds changed. Returns the resolved positions.
 function view.arrange(elements, positions, anchors)
   local bounds = {}

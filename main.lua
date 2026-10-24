@@ -114,12 +114,12 @@ local slots = {}
 local stacks = nil
 
 -- Shows each group's tiles for the worn weapon's style, with the queued ability's tile marked, and runs the
--- resource bar's tick strip through the global cooldown. Returns whether a group's bounds changed.
+-- resource bar's strip through the global cooldown. Returns whether a group's bounds changed.
 local function updateGroups()
   local style = tracker.style()
   local queuedIcon = adapter.slotSprite(tracker.queued())
   local since = logicTicks * LOGIC_SECONDS
-  elements.resource.setTicking(tracker.inGlobalCooldown(), since)
+  elements.resource.setGlobal(since, tracker.globalCooldown())
   local moved = false
   for _, name in ipairs(GROUP_NAMES) do
     local element = elements[name]
@@ -136,7 +136,7 @@ local function updateGroups()
 end
 
 -- Shows a channel, cooldown or queue change on the Logic tick after its vars arrive, and counts the cast bar and
--- cooling tiles down each tick, filling the tick strip through the global cooldown and running the queued tile's
+-- cooling tiles down each tick, filling the strip through the global cooldown and running the queued tile's
 -- border. With nothing channelling, cooling, queued or in the global cooldown it makes no client calls.
 Event.Logic.Subscribe("hud", function()
   logicTicks = logicTicks + 1

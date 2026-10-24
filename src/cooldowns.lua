@@ -299,9 +299,13 @@ function cooldowns.tracker()
     return left, finish - globalStart
   end
 
-  -- Whether the global cooldown runs at the current server tick.
-  function tracker.inGlobalCooldown()
-    return globalCooldown() ~= nil
+  -- Seconds left and length of the global cooldown at the current server tick, or nil while none runs.
+  function tracker.globalCooldown()
+    local left, length = globalCooldown()
+    if left == nil then
+      return nil
+    end
+    return left * 6 / 10, length * 6 / 10
   end
 
   -- keys: ability keys in display order. slots: { [iconSpriteID] = { keybind, usable } } from the native
@@ -310,12 +314,10 @@ function cooldowns.tracker()
   -- with charges and count its charges left and, below two, recharge = { remaining, length } in seconds for
   -- the next charge. A recast ability's tile counts down its stage lockout while a stage is open, with count such as
   -- "2/3". stacks: a src/frames resource model's byAbility, whose row a spender ability's tile shows as count
-  -- and stacks. A ready tile takes global = { remaining, length } in seconds while the global cooldown runs.
+  -- and stacks.
   -- queuedIcon: the icon of the action bar slot whose ability is queued, which marks its tile queued.
   function tracker.tiles(keys, slots, stacks, queuedIcon)
     stacks = stacks or NO_STACKS
-    local globalLeft, globalLength = globalCooldown()
-    local global = globalLeft and { remaining = globalLeft * 6 / 10, length = globalLength * 6 / 10 }
     local tiles = {}
     for _, key in ipairs(keys) do
       local a = abilities[key] or {}
@@ -370,7 +372,6 @@ function cooldowns.tracker()
         charges = charges,
         recharge = recharge,
         stacks = spender,
-        global = left <= 0 and global or nil,
         queued = queuedIcon ~= nil and icon == queuedIcon,
       }
     end
