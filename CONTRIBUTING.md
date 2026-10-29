@@ -50,7 +50,9 @@ Each module's first comment says what it does and how it is used.
 The plugin runs inside the game's frame, so its cost is the player's frame rate.
 
 - Redraw on the server tick or on the event that changed the data, not every frame.
-- Build a component once and hide it when unused: the HUD at load, the options window on its first open, and a group or row's tiles as they are first needed.
+- Build a component once and hide it when unused: the HUD at load, and a group or row's tiles as they are first needed.
+- Every plugin on a root layer shares its 4096 component ids, so the options window and edit mode build as they open and are destroyed as they close. Each options page builds on the first visit to its tab.
+- Draw a row of similar parts, such as choice buttons, on one canvas rather than a component each.
 - Write through the primitives that skip unchanged values. A tick where nothing changed makes no writes, and the view specs assert it.
 - Animate only a short game state, such as the global cooldown or a queued ability, and stop when it ends. Nothing loops, pulses or fades at rest.
 

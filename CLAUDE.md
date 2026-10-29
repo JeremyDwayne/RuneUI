@@ -24,6 +24,7 @@ RuneUI is a combat HUD plugin for RuneScape 3, written in Lua 5.4 and loaded by 
 - `main.lua` wires the events: var changes feed the trackers, the server tick reads the adapter and redraws, the logic tick counts the cast bar and cooldowns down, the draw frame keeps hidden game interfaces hidden, and shutdown restores everything.
 - Measured rates: Draw about 30 a second, Logic 50 a second, ServerLogic every 0.6 s, var changes in bursts during combat.
 - A steady tick makes zero component writes, and the view, options and edit mode specs assert it. Draw and Logic handlers return before any client call when idle. The few per-frame reads exist because the client rebuilds a hidden interface between ticks, and each is commented where it happens.
+- Every plugin on a root layer shares its 4096 dynamic component ids. The HUD on `TOPLEVEL_V2__GAME_AREA` is built once at load; the options window and edit mode on `TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP` hold nothing while closed. A create the client refuses gets a stand-in from `draw.new`, so build every component through it, and never pass a constructor straight to `pcall`, which aborts the client.
 - Save to PersistentDB when a value changes, never per tick.
 
 ## Client behaviour
