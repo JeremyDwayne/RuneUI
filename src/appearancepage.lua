@@ -353,23 +353,6 @@ local function settingsPage(page, width, height, deps, define)
     end, step)
   end
 
-  -- A preset swatch on parent at x, y in its colour with its name on it, a white ring when chosen.
-  local function swatch(parent, x, y, label, onClick)
-    local sw = {
-      ring = rect(parent, COLOURS.ring, x - 2, y - 2, SWATCH_W + 4, OPTION_H + 4),
-      bg = hitArea(rect(parent, COLOURS.border, x, y, SWATCH_W, OPTION_H)),
-      label = draw.edgedText(parent, FONTS.small, ui.AlignMode.CENTRE, x, y, SWATCH_W, OPTION_H),
-    }
-    set(sw.label, "content", label)
-    set(sw.label, "isShadowed", false)
-    draw.setEdge(sw.label, COLOURS.border)
-    on(sw.bg, "ONCLICK", function(_, _, cy)
-      onClick(y + cy)
-    end)
-    wheel(sw.bg)
-    return sw
-  end
-
   -- Each colour row's redraw, given the appearance.
   local colourRows = {}
 
@@ -382,17 +365,51 @@ local function settingsPage(page, width, height, deps, define)
       return shows(row, y)
     end
     local lineY = { 10, 10 + OPTION_H + 8 }
+    -- Each preset's swatch draws on one canvas: its colour, its name in white with a black edge, and a white
+    -- ring when chosen. A transparent hit area over each takes its clicks.
+    local canvas = draw.new(ui.Canvas, row.layer)
+    draw.pos(canvas, 0, 0)
+    draw.size(canvas, rowRight + 2, lineY[2] + OPTION_H + 2)
     local swatches = {}
     local perLine = 5
     for i, preset in ipairs(presets) do
       local line = (i - 1) // perLine + 1
       local slot = (i - 1) % perLine
-      local x = rowRight - perLine * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP + slot * (SWATCH_W + SWATCH_GAP)
-      swatches[preset.id] = swatch(row.layer, x, lineY[line], preset.label, function(y)
-        if allowed(y) then
+      local sw = {
+        id = preset.id,
+        label = preset.label,
+        x = rowRight - perLine * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP + slot * (SWATCH_W + SWATCH_GAP),
+        y = lineY[line],
+      }
+      sw.bg = hitArea(rect(row.layer, COLOURS.border, sw.x, sw.y, SWATCH_W, OPTION_H))
+      set(sw.bg, "alpha", 0)
+      on(sw.bg, "ONCLICK", function(_, _, cy)
+        if allowed(sw.y + cy) then
           choose(field, preset.id)
         end
       end)
+      wheel(sw.bg)
+      swatches[i] = sw
+    end
+    -- The chosen preset and swatch colours last drawn, so a redraw that changes neither writes nothing.
+    local drawn = nil
+    local function drawSwatches(chosen)
+      local key = tostring(chosen)
+      for _, sw in ipairs(swatches) do
+        key = key .. ":" .. presetRgb(sw.id)
+      end
+      if key == drawn then
+        return
+      end
+      drawn = key
+      canvas:Clear()
+      for _, sw in ipairs(swatches) do
+        if sw.id == chosen then
+          canvas:AddRectangle(sw.x - 2, sw.y - 2, SWATCH_W + 4, OPTION_H + 4, draw.opaque(COLOURS.ring))
+        end
+        canvas:AddRectangle(sw.x, sw.y, SWATCH_W, OPTION_H, draw.opaque(presetRgb(sw.id)))
+        draw.addEdgedText(canvas, sw.x, sw.y, SWATCH_W, OPTION_H, sw.label, FONTS.small, 0xffffff, COLOURS.border)
+      end
     end
     local customX = rowRight - 2 * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP
     local hexX = rowRight - HEX_W
@@ -435,10 +452,7 @@ local function settingsPage(page, width, height, deps, define)
         local rgb = shownRgb(look)
         colourRows[field].rgb = rgb
         local chosen = appearance[field]
-        for presetID, sw in pairs(swatches) do
-          set(sw.bg, "rgb", presetRgb(presetID))
-          set(sw.ring, "hidden", presetID ~= chosen)
-        end
+        drawSwatches(chosen)
         controls.showOption(custom, type(chosen) == "number")
         if style.parseHex(hex.content) ~= rgb then
           hex.content = style.formatHex(rgb)

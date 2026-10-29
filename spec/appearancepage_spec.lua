@@ -17,15 +17,18 @@ local function fakeStore()
   }
 end
 
--- An open Appearance page on a 698 by 562 page layer. Returns the page, its settings and a count of HUD refreshes.
+-- An open Appearance page on a 698 by 562 page layer. Returns the page, its settings, a count of HUD refreshes
+-- and the number of components the page built.
 local function open()
   local root = fake.component()
   local saved = settings.load(fakeStore())
   local refreshed = { count = 0 }
+  local tooltip = view.tooltip(root)
+  local before = fake.live(root)
   local page = appearancepage.create(root, 698, 562, {
     saved = saved,
     view = view,
-    tooltip = view.tooltip(root),
+    tooltip = tooltip,
     auraInfo = function()
       return {}
     end,
@@ -35,7 +38,7 @@ local function open()
     end,
   })
   page.open()
-  return page, saved, refreshed
+  return page, saved, refreshed, fake.live(root) - before
 end
 
 local function label(content)
@@ -209,12 +212,9 @@ describe("appearance page", function()
     assert.are.same({ 6, "19" }, { saved.appearance().textStep, field.content })
   end)
 
-  -- A swatch's name draws over four outline copies, so its label is the fifth shown text reading it.
-  local SWATCH_LABEL = 5
-
   it("saves a preset colour and shows its hex", function()
     local _, saved = open()
-    fake.press("Game green", SWATCH_LABEL)
+    fake.pressText("Game green")
     assert.are.equal("gameGreen", saved.appearance().playerColour)
     local field = hexField()
     assert.are.equal("#2B8A1E", field.content)
@@ -376,5 +376,10 @@ describe("appearance page", function()
     local clears = cleared[1].clears
     fake.hook(hit, "ONCLICK")
     assert.is_true(cleared[1].clears > clears)
+  end)
+
+  it("builds the page and its preview in at most 420 components, since the plugin layer's ids are shared", function()
+    local _, _, _, built = open()
+    assert.is_true(built <= 420, built)
   end)
 end)

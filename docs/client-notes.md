@@ -58,3 +58,4 @@ The client API is thinly documented. These facts came from probing it in the gam
 - Once the pool is full, `ui.X.new` raises `Failed to create Rectangle (category=0 ID=4096) - invalid dynamic ID`, and the client keeps running. `Destroy` frees a component's ids at once.
 - `pcall(ui.Rectangle.new, parent)` aborts the whole client. A Lua function that calls the constructor, passed to `pcall`, works.
 - A create with an explicit category and dynamic id already in use does not raise, so explicit ids can collide with another plugin's.
+- A canvas draws `AddText(x, y, w, h, text, config)` with a `ui.TextDataConfig` of font, centred alignment, `rgba` and `isShadowed` pixel for pixel as a `ui.Text` of the same font, colour and shadow, and four offset copies draw the same edge as four offset labels. Rectangles on a canvas draw as filled `ui.Rectangle`s do.

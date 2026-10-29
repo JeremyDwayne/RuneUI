@@ -3,17 +3,18 @@
 -- and MoveToFront calls, and each component's clears counts its Clear calls; component() builds a root;
 -- fire(name, payload) runs Event handlers, and Event.<name>.Unsubscribe(ref) drops one; hook(c, name) runs a
 -- component's hook; find(predicate) returns the first created component that is shown and matches;
--- press(label) clicks the hit area under a shown label; reset() forgets every component and handler, for a
--- before_each. MoveToFront marks a shown component fronted and a hidden one undrawn, along with each hidden
--- direct child, as the client stops drawing those for good. Destroy marks a component destroyed, and with it
--- everything under it; live(root) counts the components under root not destroyed. Setting limit makes a create
--- raise, as the client's does, once that many live components sit under the create's top root.
+-- press(label) clicks the hit area under a shown label, and pressText(text) the one under a canvas's text;
+-- reset() forgets every component and handler, for a before_each. MoveToFront marks a shown component fronted
+-- and a hidden one undrawn, along with each hidden direct child, as the client stops drawing those for good.
+-- Destroy marks a component destroyed, and with it everything under it; live(root) counts the components under
+-- root not destroyed. Setting limit makes a create raise, as the client's does, once that many live components
+-- sit under the create's top root.
 local fake = { writes = 0, mouse = { x = 0, y = 0 }, created = {}, handlers = {}, limit = nil }
 
 local dataOf = setmetatable({}, { __mode = "k" })
 
 local function call(method)
-  return function(c, a, b)
+  return function(c, a, b, ...)
     if method:match("^Set") or method:match("^Add") or method == "Clear" or method == "MoveToFront" then
       fake.writes = fake.writes + 1
     end
@@ -34,6 +35,11 @@ local function call(method)
     end
     if method == "Clear" then
       data.clears = (data.clears or 0) + 1
+      data.texts = nil
+    end
+    if method == "AddText" then
+      data.texts = data.texts or {}
+      data.texts[#data.texts + 1] = { x = a, y = b, text = select(3, ...) }
     end
     if method == "Destroy" then
       data.destroyed = true
@@ -191,6 +197,24 @@ function fake.press(label, nth)
   fake.hook(hit, "ONCLICK")
 end
 
+-- Clicks the shown hit area at the spot of the shown canvas text reading text, as press does for a label.
+function fake.pressText(text)
+  for _, c in ipairs(fake.created) do
+    local d = dataOf[c]
+    for _, t in ipairs(d.texts or {}) do
+      if t.text == text and fake.shown(c) then
+        for _, hit in ipairs(fake.created) do
+          local h = dataOf[hit]
+          if h.parent == d.parent and h.hooks.ONCLICK and h.x == d.x + t.x and h.y == d.y + t.y and fake.shown(hit) then
+            return fake.hook(hit, "ONCLICK")
+          end
+        end
+      end
+    end
+  end
+  error("no canvas text " .. text)
+end
+
 function fake.hasHook(c, name)
   return dataOf[c].hooks[name] ~= nil
 end
@@ -209,6 +233,11 @@ _G.ui = {
   Sprite = constructor,
   Canvas = constructor,
   InputField = constructor,
+  TextDataConfig = {
+    new = function()
+      return {}
+    end,
+  },
   TextContentVisibilityMode = { VISIBLE = 0 },
   InputFieldFilterMode = { NONE = 0 },
   InputFieldActionResult = { NONE = 0, CONTENT_CHANGE = 2, SUBMIT = 3, SUBMIT_ON_FOCUS_LOSS = 5 },

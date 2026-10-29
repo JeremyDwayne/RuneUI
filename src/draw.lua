@@ -346,6 +346,34 @@ function draw.text(parent, font, horizontal, x, y, width, height)
   return t
 end
 
+-- Canvas text configs by font and colour, each built once: centred in its box and unshadowed.
+local textConfigs = {}
+
+local function textConfig(font, rgb)
+  local key = tostring(font) .. ":" .. rgb
+  local config = textConfigs[key]
+  if config == nil then
+    config = ui.TextDataConfig.new()
+    config.font = font
+    config.alignHorizontal = ui.AlignMode.CENTRE
+    config.alignVertical = ui.AlignMode.CENTRE
+    config.rgba = draw.opaque(rgb)
+    config.isShadowed = false
+    textConfigs[key] = config
+  end
+  return config
+end
+
+-- Adds text centred in the w by h box at x, y on canvas, in font and rgb over four copies in edgeRgb offset 1px
+-- diagonally, the outline draw.edgedText draws with five components.
+function draw.addEdgedText(canvas, x, y, w, h, text, font, rgb, edgeRgb)
+  local edge = textConfig(font, edgeRgb)
+  for _, offset in ipairs(EDGE_OFFSETS) do
+    canvas:AddText(x + offset[1], y + offset[2], w, h, text, edge)
+  end
+  canvas:AddText(x, y, w, h, text, textConfig(font, rgb))
+end
+
 -- A draw.text label with four hidden copies under it, offset 1px diagonally, that draw.setEdge shows as an
 -- outline. Built before the label so they draw beneath it.
 function draw.edgedText(parent, font, horizontal, x, y, width, height)
