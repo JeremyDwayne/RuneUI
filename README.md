@@ -1,10 +1,8 @@
-![RuneUI](assets/branding/runeui-banner.png)
+![RuneUI, a combat HUD for RuneScape 3. The default layout: the player and target frames beside the rotation, with a queued ability bordered in gold, the global cooldown strip over the adrenaline bar, and the cooldown groups, bars and aura rows around them](assets/hud.png)
 
 # RuneUI
 
 A combat HUD for RuneScape 3. It draws your frames, bars, cooldowns and buffs in one block below your character, so everything you check mid-fight sits together.
-
-![The default layout: the player and target frames beside the rotation, with a queued ability bordered in gold, the global cooldown strip over the adrenaline bar, and the cooldown groups, bars and aura rows around them](assets/hud.png)
 
 ## What it shows
 
