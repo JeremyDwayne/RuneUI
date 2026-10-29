@@ -54,6 +54,14 @@ The plugin runs inside the game's frame, so its cost is the player's frame rate.
 - Write through the primitives that skip unchanged values. A tick where nothing changed makes no writes, and the view specs assert it.
 - Animate only a short game state, such as the global cooldown or a queued ability, and stop when it ends. Nothing loops, pulses or fades at rest.
 
+## Release
+
+The submission zip holds only what the client loads and a moderator reads, with `main.lua` and `plugin.json` at its top level. Specs, tools and images stay in the repository.
+
+```sh
+git archive -o runeui.zip HEAD main.lua plugin.json src docs README.md LICENSE
+```
+
 ## Style
 
 - StyLua formats everything and luacheck catches unused and shadowed names.
