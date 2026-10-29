@@ -63,15 +63,29 @@ end
 -- A typed whole number from low to high in steps of step in a w by h field at x, y. A keystroke
 -- leaving a number in range on a step calls onChoose(n); Enter, Esc or focus loss calls it with the typed number
 -- rounded to a step and clamped, then shows the chosen value again, so the field never keeps text it did not
--- take. Returns { field, show(n) }.
+-- take. Returns { field, show(n), clip(clipped) }: clip blanks the field's text while clipped.
 local function numberField(parent, x, y, w, h, low, high, onChoose, step)
   local field = controls.inputField(parent, x, y, w, h, #tostring(high))
   local number = { field = field }
   local shown
+  local clipped = false
+
+  local function showText()
+    draw.set(field, "content", clipped and "" or tostring(shown))
+  end
 
   function number.show(n)
     shown = n
-    draw.set(field, "content", tostring(n))
+    showText()
+  end
+
+  function number.clip(c)
+    if c ~= clipped then
+      clipped = c
+      if shown ~= nil then
+        showText()
+      end
+    end
   end
 
   draw.on(field, "ONCONTENTCHANGED", function(_, reason, contents)
@@ -89,7 +103,7 @@ local function numberField(parent, x, y, w, h, low, high, onChoose, step)
       return
     end
     draw.forget(field, "content")
-    draw.set(field, "content", tostring(shown))
+    showText()
   end)
   return number
 end
@@ -183,15 +197,17 @@ end
 -- The width of a controls.stepper, and the height of its buttons.
 controls.STEPPER_W = 124
 local STEPPER_H = 28
+local STEPPER_FIELD_H = 24
 -- Alpha of a control whose setting has no effect at the moment.
 controls.FADED = 0.45
 
 -- A "- number +" stepper at x, y on parent, controls.STEPPER_W wide: a numberField between two game buttons
 -- that move the shown number by step from low to high. save(n) takes each new number, from a button or the
--- field. Returns { show(n), fade(faded), field, buttons }: show puts n in the field, fade dims the stepper while
--- its setting has no effect, and buttons holds the two game buttons.
+-- field. Returns { show(n), fade(faded), clip(clipped), field, fieldY, fieldH, buttons }: show puts n in the
+-- field, fade dims the stepper while its setting has no effect, clip blanks the field's text while clipped,
+-- fieldY and fieldH give the field's top on parent and its height, and buttons holds the two game buttons.
 function controls.stepper(parent, x, y, low, high, step, save)
-  local field = numberField(parent, x + 32, y + 2, 56, 24, low, high, save, step)
+  local field = numberField(parent, x + 32, y + 2, 56, STEPPER_FIELD_H, low, high, save, step)
   local shown = low
   local function move(delta)
     return function()
@@ -202,6 +218,9 @@ function controls.stepper(parent, x, y, low, high, step, save)
   local plus = controls.gameButton(parent, "+", x + controls.STEPPER_W - STEPPER_H, y, STEPPER_H, STEPPER_H, move(step))
   return {
     field = field.field,
+    clip = field.clip,
+    fieldY = y + 2,
+    fieldH = STEPPER_FIELD_H,
     buttons = { minus, plus },
     show = function(n)
       shown = n

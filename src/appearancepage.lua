@@ -2,9 +2,9 @@
 -- from sample models over a Dark or Light backdrop, fixed above its settings: Text, Unit frames, Game
 -- interfaces and Out of combat on Appearance, the adrenaline bar and the cast bar on Bars. Choices are the game's
 -- radio groups, switches its check boxes and numbers steppers of game buttons. The settings scroll by pixels
--- inside a clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, and a click on a
--- hit area of RuneUI's own lands only where its row shows. Every change saves, then redraws the preview and the
--- HUD.
+-- inside a clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, a text field
+-- reaching past the layer's edge shows no text, and a click on a hit area of RuneUI's own lands only where its
+-- row shows. Every change saves, then redraws the preview and the HUD.
 local autohide = require("src/autohide")
 local colourpicker = require("src/colourpicker")
 local controls = require("src/controls")
@@ -226,7 +226,8 @@ local function settingsPage(page, width, height, deps, define)
   local content = draw.new(ui.Layer, viewport)
   local rowW = width - 2 * MARGIN - scrollbar.WIDTH - 4
   local rowRight = MARGIN + rowW - 12
-  -- Rows from the top: { layer, y, h }, the content's height and how far it is scrolled.
+  -- Rows from the top: { layer, y, h, fields }, the content's height and how far it is scrolled. Each of fields
+  -- is { y, h, clip(clipped) }, a text field y px down its row and h tall, whose clip blanks its text.
   local rows = {}
   local contentH = 0
   local scroll = 0
@@ -237,6 +238,11 @@ local function settingsPage(page, width, height, deps, define)
     draw.pos(content, 0, -scroll)
     for _, row in ipairs(rows) do
       set(row.layer, "hidden", row.y + row.h <= scroll or row.y >= scroll + viewH)
+      -- The client clips a text field's box to the layer but not its text.
+      for _, f in ipairs(row.fields) do
+        local top = row.y + f.y - scroll
+        f.clip(top < 0 or top + f.h > viewH)
+      end
     end
   end
 
@@ -246,7 +252,7 @@ local function settingsPage(page, width, height, deps, define)
 
   -- A layer at the content's end, h tall, which hides once scrolled wholly out of view. relayout places it.
   local function addRow(h)
-    local row = { layer = draw.new(ui.Layer, content), h = h }
+    local row = { layer = draw.new(ui.Layer, content), h = h, fields = {} }
     rows[#rows + 1] = row
     return row
   end
@@ -303,6 +309,7 @@ local function settingsPage(page, width, height, deps, define)
     local s = controls.stepper(row.layer, x, (ROW_H - OPTION_H) // 2, low, high, step, save)
     wheel(s.buttons[1])
     wheel(s.buttons[2])
+    row.fields[#row.fields + 1] = { y = s.fieldY, h = s.fieldH, clip = s.clip }
     steppers[#steppers + 1] = function(appearance)
       s.show(value(appearance))
     end
@@ -415,7 +422,20 @@ local function settingsPage(page, width, height, deps, define)
     end
     local customX = rowRight - 2 * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP
     local hexX = rowRight - HEX_W
-    local hex = controls.inputField(row.layer, hexX, lineY[2] + (OPTION_H - HEX_H) // 2, HEX_W, HEX_H, 7)
+    local hexY = lineY[2] + (OPTION_H - HEX_H) // 2
+    local hex = controls.inputField(row.layer, hexX, hexY, HEX_W, HEX_H, 7)
+    local hexClipped = false
+    row.fields[#row.fields + 1] = {
+      y = hexY,
+      h = HEX_H,
+      clip = function(clipped)
+        local rgb = colourRows[field] and colourRows[field].rgb
+        if clipped ~= hexClipped and rgb ~= nil then
+          hex.content = clipped and "" or style.formatHex(rgb)
+        end
+        hexClipped = clipped
+      end,
+    }
     -- The field also reports its contents on Enter, Esc and focus loss, so an unchanged colour is skipped.
     on(hex, "ONCONTENTCHANGED", function(_, _, contents)
       local rgb = style.parseHex(contents)
@@ -456,7 +476,7 @@ local function settingsPage(page, width, height, deps, define)
         local chosen = appearance[field]
         drawSwatches(chosen)
         controls.showOption(custom, type(chosen) == "number")
-        if style.parseHex(hex.content) ~= rgb then
+        if not hexClipped and style.parseHex(hex.content) ~= rgb then
           hex.content = style.formatHex(rgb)
         end
         if open then

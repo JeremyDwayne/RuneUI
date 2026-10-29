@@ -205,6 +205,22 @@ describe("appearance page", function()
     assert.are.equal("gameGreen", saved.appearance().playerColour)
   end)
 
+  it("blanks a number field whose box crosses the list's edge, since the client draws its text unclipped", function()
+    open()
+    local _, _, parent = scrollParts("Frame width")
+    local field
+    for _, c in ipairs(fake.created) do
+      if c.parent == parent and fake.hasHook(c, "ONCONTENTCHANGED") then
+        field = c
+      end
+    end
+    -- Down 616 px, 5 px past the top of the Frame width field.
+    wheel(-1, 77)
+    assert.are.same({ true, "" }, { fake.shown(field), field.content })
+    wheel(1, 2)
+    assert.are.equal("250", field.content)
+  end)
+
   it("chooses on a radio group and shows a choice saved elsewhere", function()
     local _, saved = open()
     fake.press("Noto Sans")
