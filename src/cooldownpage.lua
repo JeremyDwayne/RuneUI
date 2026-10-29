@@ -180,22 +180,20 @@ function cooldownpage.create(page, width, height, deps)
   local perRowLabel = settingLabel(3, "Icons per row")
   local perRowStepper = stepper(3, "perRow", 1, savedgroups.MAX_GROUP_KEYS)
 
-  -- Rows of right-aligned controls.option buttons that save one display setting.
+  -- Rows of right-aligned game radio groups that save one display setting, each { radio, field }.
   local settingChoices = {}
   local function settingChoice(i, field, choices, optionW)
-    local row = { field = field, buttons = {} }
-    local group = controls.optionGroup(page)
+    local entries = {}
     for k, option in ipairs(choices) do
-      local x = detailRight - (#choices - k + 1) * (optionW + 4) + 4
-      local b = controls.option(page, option.label, x, rowY(i) + 9, optionW, 28, function()
-        if saved.setGroup(selected, field, option.value) then
-          changed()
-        end
-      end, group)
-      b.value = option.value
-      row.buttons[#row.buttons + 1] = b
+      entries[k] = { id = option.value, label = option.label }
     end
-    settingChoices[#settingChoices + 1] = row
+    local w = #choices * optionW
+    local radio = controls.radio(page, detailRight - w, rowY(i) + 9, w, 28, entries, #choices, function(value)
+      if saved.setGroup(selected, field, value) then
+        changed()
+      end
+    end)
+    settingChoices[#settingChoices + 1] = { radio = radio, field = field }
   end
   settingLabel(4, "Grow")
   settingChoice(4, "grow", {
@@ -203,9 +201,9 @@ function cooldownpage.create(page, width, height, deps)
     { value = "down", label = "Down" },
     { value = "left", label = "Left" },
     { value = "right", label = "Right" },
-  }, 64)
+  }, 80)
   settingLabel(5, "Abilities")
-  settingChoice(5, "shared", { { value = false, label = "Per style" }, { value = true, label = "Every style" } }, 110)
+  settingChoice(5, "shared", { { value = false, label = "Per style" }, { value = true, label = "Every style" } }, 120)
 
   -- Page position of grid slot i.
   local function slotPos(i)
@@ -252,12 +250,10 @@ function cooldownpage.create(page, width, height, deps)
     return tracker.tiles(keys, {})
   end
 
-  -- Marks each choice row's option for group's value chosen.
+  -- Marks each choice row's choice for group's value.
   local function showSettingChoices(group)
     for _, row in ipairs(settingChoices) do
-      for _, b in ipairs(row.buttons) do
-        controls.showOption(b, b.value == group[row.field])
-      end
+      row.radio.show(group[row.field])
     end
   end
 

@@ -101,16 +101,28 @@ local function optionHit(content)
   end)
 end
 
--- Clicks the button labelled content in the row labelled row.
+-- Presses the game button labelled content in the row labelled row.
 local function pressInRow(row, content)
   local parent = label(row).parent
-  local t = fake.find(function(_, d)
-    return d.parent == parent and d.content == content
+  local button = fake.find(function(c, d)
+    return d.parent == parent and d.label == content and fake.hasHook(c, "ONBUTTONPRESSED")
   end)
-  local hit = fake.find(function(c, d)
-    return c ~= t and d.parent == parent and fake.hasHook(c, "ONCLICK") and d.x == t.x and d.y == t.y
+  fake.hook(button, "ONBUTTONPRESSED", 0, 1)
+end
+
+-- The nth check box from the left, default the first, in the row labelled row.
+local function checkInRow(row, nth)
+  local parent = label(row).parent
+  local boxes = {}
+  for _, c in ipairs(fake.created) do
+    if c.parent == parent and c.check then
+      boxes[#boxes + 1] = c
+    end
+  end
+  table.sort(boxes, function(a, b)
+    return a.x < b.x
   end)
-  fake.hook(hit, "ONCLICK")
+  return boxes[nth or 1]
 end
 
 -- The number field in the row labelled row.
@@ -180,16 +192,29 @@ describe("appearance page", function()
     assert.are.equal(0, fake.writes)
   end)
 
-  it("takes no click on a row scrolled out of view or on its clipped part", function()
+  it("takes no click on a swatch's clipped part, and hides a row scrolled out of view", function()
     local _, saved = open()
-    wheel(-1, 10)
-    fake.hook(optionHit("Noto Sans"), "ONCLICK", 4, 2)
-    assert.are.equal("museo", saved.appearance().font)
+    -- Down 296 px, 4 px past the top of the Player colour row's first swatches.
+    wheel(-1, 37)
+    fake.hook(fake.textHit("Game green"), "ONCLICK", 4, 2)
+    assert.are.equal("runeui", saved.appearance().playerColour)
     wheel(-1, 100)
-    assert.is_nil(label("Noto Sans"))
+    assert.is_nil(label("Font"))
     wheel(1, 200)
+    fake.pressText("Game green")
+    assert.are.equal("gameGreen", saved.appearance().playerColour)
+  end)
+
+  it("chooses on a radio group and shows a choice saved elsewhere", function()
+    local _, saved = open()
     fake.press("Noto Sans")
     assert.are.equal("noto", saved.appearance().font)
+    local fonts = fake.find(function(_, d)
+      return d.entries ~= nil and d.entries[1].label == "Museo Sans"
+    end)
+    saved.setAppearance("font", "cinzel")
+    fake.press("Outline")
+    assert.are.equal("Cinzel", fake.chosen(fonts))
   end)
 
   it("saves a typed number once it is in range, and on Enter saves it clamped and shows what it saved", function()
@@ -267,57 +292,52 @@ describe("appearance page", function()
   it("sets how the HUD shows out of combat, dimming the opacity until Fade and the target choice under Show", function()
     local _, saved, refreshed = open()
     wheel(-1, 200)
-    local function dimmed(row, content)
-      local parent = label(row).parent
-      return fake.find(function(_, d)
-        return d.parent == parent and d.content == content
-      end).alpha < 1
+    local function dimmed()
+      return (checkInRow(LAST_ROW).alpha or 1) < 1
     end
-    assert.are.same({ true, true }, { fieldInRow("Faded opacity %").alpha < 1, dimmed(LAST_ROW, "On") })
-    pressInRow("HUD out of combat", "Fade")
+    assert.are.same({ true, true }, { fieldInRow("Faded opacity %").alpha < 1, dimmed() })
+    fake.press("Fade")
     assert.are.same({ "fade", 1 }, { saved.appearance().outOfCombat, refreshed.count })
-    assert.are.same({ false, false }, { fieldInRow("Faded opacity %").alpha < 1, dimmed(LAST_ROW, "On") })
+    assert.are.same({ false, false }, { fieldInRow("Faded opacity %").alpha < 1, dimmed() })
     pressInRow("Faded opacity %", "+")
     assert.are.equal(35, saved.appearance().outOfCombatOpacity)
     fake.hook(fieldInRow("Faded opacity %"), "ONCONTENTCHANGED", ui.InputFieldActionResult.SUBMIT, "2")
     assert.are.same({ 10, "10" }, { saved.appearance().outOfCombatOpacity, fieldInRow("Faded opacity %").content })
-    pressInRow("HUD out of combat", "Hide")
-    pressInRow(LAST_ROW, "Off")
+    fake.press("Hide")
+    fake.press(LAST_ROW)
     local a = saved.appearance()
     assert.are.same({ "hide", false }, { a.outOfCombat, a.showWithTarget })
-    assert.are.same({ true, false }, { fieldInRow("Faded opacity %").alpha < 1, dimmed(LAST_ROW, "On") })
+    assert.are.same({ true, false }, { fieldInRow("Faded opacity %").alpha < 1, dimmed() })
   end)
 
   it("fades an action bar from its row, stepping its opacity by 5 and dimming it until the bar fades", function()
     local saved = openBars()
     wheel(-1, 200)
     assert.is_true(fieldInRow("Main bar").alpha < 1)
-    pressInRow("Main bar", "Off")
+    fake.tick(checkInRow("Main bar"))
     pressInRow("Main bar", "+")
-    pressInRow("Action bar 3", "On")
+    fake.tick(checkInRow("Action bar 3", 2))
     local a = saved.appearance()
     assert.are.same({ true, 30, false, 1 }, { a.fadeBar1, a.barOpacity1, a.hoverBar3, fieldInRow("Main bar").alpha })
-    assert.is_not_nil(fake.find(function(_, d)
-      return d.parent == label("Main bar").parent and d.content == "On"
-    end))
+    assert.is_true(checkInRow("Main bar").value)
     fake.hook(fieldInRow("Main bar"), "ONCONTENTCHANGED", ui.InputFieldActionResult.SUBMIT, "42")
     assert.are.same({ 40, "40" }, { saved.appearance().barOpacity1, fieldInRow("Main bar").content })
-    pressInRow("Hover shows all bars", "Off")
+    fake.press("Hover shows all bars")
     assert.is_true(saved.appearance().hoverAllBars)
   end)
 
   it("turns every action bar's fading off from one switch, dimming each bar's own settings", function()
     local saved = openBars()
     wheel(-1, 200)
-    pressInRow("Main bar", "Off")
+    fake.tick(checkInRow("Main bar"))
     assert.is_false(fieldInRow("Main bar").alpha < 1)
     -- Up 40 px, so the switch's row shows whole.
     wheel(1, 5)
-    pressInRow("Fade action bars", "Off")
+    fake.press("Fade action bars")
     local a = saved.appearance()
     assert.are.same({ false, true }, { a.fadeBars, a.fadeBar1 })
     assert.is_true(fieldInRow("Main bar").alpha < 1)
-    pressInRow("Fade action bars", "On")
+    fake.press("Fade action bars")
     assert.are.same({ true, false }, { saved.appearance().fadeBars, fieldInRow("Main bar").alpha < 1 })
   end)
 
@@ -355,13 +375,13 @@ describe("appearance page", function()
     assert.are.same({ "hud", "13" }, { saved.appearance().castTextSize, size.content })
   end)
 
-  it("redraws only the hovered or chosen option's row, and nothing on a repeated hover", function()
+  it("redraws only the hovered option's frame, and nothing on a repeated hover", function()
     open()
     local before = {}
     for i, c in ipairs(fake.created) do
       before[i] = c.clears or 0
     end
-    local hit = optionHit("Outline")
+    local hit = optionHit("Custom")
     fake.hook(hit, "ONMOUSEOVER")
     local cleared = {}
     for i, c in ipairs(fake.created) do
@@ -373,13 +393,10 @@ describe("appearance page", function()
     fake.writes = 0
     fake.hook(hit, "ONMOUSEOVER")
     assert.are.equal(0, fake.writes)
-    local clears = cleared[1].clears
-    fake.hook(hit, "ONCLICK")
-    assert.is_true(cleared[1].clears > clears)
   end)
 
-  it("builds the page and its preview in at most 420 components, since the plugin layer's ids are shared", function()
+  it("builds the page and its preview in at most 340 components, since the plugin layer's ids are shared", function()
     local _, _, _, built = open()
-    assert.is_true(built <= 420, built)
+    assert.is_true(built <= 340, built)
   end)
 end)

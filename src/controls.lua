@@ -1,5 +1,6 @@
 -- Controls for the options window and edit mode, built on src/draw: buttons, text and number fields, steppers,
--- choice buttons and the close X.
+-- choice buttons and the close X, and the game's own button, radio group and check box, which cost one
+-- component each.
 local draw = require("src/draw")
 local util = require("src/util")
 
@@ -40,6 +41,15 @@ function controls.button(parent, label, x, y, w, h, fill, onClick)
   return { bg = bg, label = t, group = group }
 end
 
+-- Gives c the game stylesheet named sheet, when the client has it.
+local function styled(c, sheet)
+  local sheetID = id.StyleSheet[sheet]
+  if sheetID ~= nil then
+    draw.set(c, "stylesheetID", sheetID)
+  end
+  return c
+end
+
 -- A w by h text field at x, y taking up to maxLength characters, drawn with the plain input style, or the search
 -- box style when search is true.
 function controls.inputField(parent, x, y, w, h, maxLength, search)
@@ -47,11 +57,7 @@ function controls.inputField(parent, x, y, w, h, maxLength, search)
   draw.pos(field, x, y)
   draw.size(field, w, h)
   field:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, maxLength)
-  local sheet = search and id.StyleSheet.INPUT_SEARCHBOX_24PX or id.StyleSheet.INPUT_DEFAULT
-  if sheet ~= nil then
-    draw.set(field, "stylesheetID", sheet)
-  end
-  return field
+  return styled(field, search and "INPUT_SEARCHBOX_24PX" or "INPUT_DEFAULT")
 end
 
 -- A typed whole number from low to high in steps of step in a w by h field at x, y. A keystroke
@@ -88,30 +94,112 @@ local function numberField(parent, x, y, w, h, low, high, onChoose, step)
   return number
 end
 
+-- The game's own button, w by h at x, y on parent, reading label. onPress runs on each press. Returns the button.
+function controls.gameButton(parent, label, x, y, w, h, onPress)
+  local button = styled(draw.new(ui.Button, parent), "BUTTON_DEFAULT")
+  draw.pos(button, x, y)
+  draw.size(button, w, h)
+  draw.set(button, "label", label)
+  draw.on(button, "ONBUTTONPRESSED", function()
+    onPress()
+  end)
+  return button
+end
+
+-- The game's radio group, w by h at x, y on parent: a round button left of each choice's label, { id, label },
+-- in columns columns, one choice at a time. onChoose(id) runs on the player's choice. Returns { group,
+-- show(id) }: show marks id chosen, or none when no choice has it, writing only when that changes.
+function controls.radio(parent, x, y, w, h, choices, columns, onChoose)
+  local group = styled(draw.new(ui.RadioGroup, parent), "RADIO_DEFAULT")
+  draw.pos(group, x, y)
+  draw.size(group, w, h)
+  group:SetVisualParams(columns, 4, 16, 6)
+  local entryOf = {}
+  for i, choice in ipairs(choices) do
+    group:Add(i, choice.label)
+    entryOf[choice.id] = i
+  end
+  local shownEntry = nil
+  draw.on(group, "ONSELECTIONCHANGED", function(_, entry, selected)
+    if selected ~= 1 or entry == shownEntry or choices[entry] == nil then
+      return
+    end
+    shownEntry = entry
+    onChoose(choices[entry].id)
+  end)
+  return {
+    group = group,
+    -- With one choice at a time the client refuses to clear or move the choice itself, so the limits open
+    -- while it moves.
+    show = function(value)
+      local entry = entryOf[value]
+      if entry == shownEntry then
+        return
+      end
+      group:SetSelectionLimits(0, 1)
+      if shownEntry ~= nil then
+        group:SetOptionSelected(shownEntry, false, false)
+      end
+      if entry ~= nil then
+        group:SetOptionSelected(entry, true, false)
+        group:SetSelectionLimits(1, 1)
+      end
+      shownEntry = entry
+    end,
+  }
+end
+
+-- The game's check box, size by size at x, y on parent. onToggle(ticked) runs when the player ticks or unticks
+-- it. Returns { check, show(ticked), fade(faded) }: show ticks it or not, writing only when that changes, and
+-- fade dims it while its setting has no effect.
+function controls.check(parent, x, y, size, onToggle)
+  local check = styled(draw.new(ui.Check, parent), "CHECKBOX_DEFAULT")
+  draw.pos(check, x, y)
+  draw.size(check, size, size)
+  local shown = false
+  draw.on(check, "ONBUTTONPRESSED", function(self)
+    local ticked = self.value == true
+    if ticked == shown then
+      return
+    end
+    shown = ticked
+    onToggle(ticked)
+  end)
+  return {
+    check = check,
+    show = function(ticked)
+      -- The player's ticks change value outside src/draw, so this writes it directly.
+      if ticked ~= shown then
+        shown = ticked
+        check.value = ticked
+      end
+    end,
+    fade = function(faded)
+      draw.set(check, "alpha", faded and controls.FADED or 1)
+    end,
+  }
+end
+
 -- The width of a controls.stepper, and the height of its buttons.
 controls.STEPPER_W = 124
 local STEPPER_H = 28
 -- Alpha of a control whose setting has no effect at the moment.
 controls.FADED = 0.45
 
--- A "- number +" stepper at x, y on parent, controls.STEPPER_W wide: a numberField between two dark buttons
+-- A "- number +" stepper at x, y on parent, controls.STEPPER_W wide: a numberField between two game buttons
 -- that move the shown number by step from low to high. save(n) takes each new number, from a button or the
--- field. allowed(y), when given, takes a button click's y on parent and says whether it lands where the stepper
--- shows, for a stepper in a clipped list. Returns { show(n), fade(faded), field, buttons }: show puts n in the
--- field, fade dims the stepper while its setting has no effect, and buttons holds the two draw.buttons.
-function controls.stepper(parent, x, y, low, high, step, save, allowed)
+-- field. Returns { show(n), fade(faded), field, buttons }: show puts n in the field, fade dims the stepper while
+-- its setting has no effect, and buttons holds the two game buttons.
+function controls.stepper(parent, x, y, low, high, step, save)
   local field = numberField(parent, x + 32, y + 2, 56, 24, low, high, save, step)
   local shown = low
   local function move(delta)
-    return function(_, cy)
-      if allowed == nil or allowed(y + cy) then
-        save(util.clamp(shown + delta, low, high))
-      end
+    return function()
+      save(util.clamp(shown + delta, low, high))
     end
   end
-  local minus = controls.button(parent, "-", x, y, STEPPER_H, STEPPER_H, "dark", move(-step))
-  local plus =
-    controls.button(parent, "+", x + controls.STEPPER_W - STEPPER_H, y, STEPPER_H, STEPPER_H, "dark", move(step))
+  local minus = controls.gameButton(parent, "-", x, y, STEPPER_H, STEPPER_H, move(-step))
+  local plus = controls.gameButton(parent, "+", x + controls.STEPPER_W - STEPPER_H, y, STEPPER_H, STEPPER_H, move(step))
   return {
     field = field.field,
     buttons = { minus, plus },
@@ -121,8 +209,8 @@ function controls.stepper(parent, x, y, low, high, step, save, allowed)
     end,
     fade = function(faded)
       local alpha = faded and controls.FADED or 1
-      minus.group.set("alpha", alpha)
-      plus.group.set("alpha", alpha)
+      draw.set(minus, "alpha", alpha)
+      draw.set(plus, "alpha", alpha)
       draw.set(field.field, "alpha", alpha)
     end,
   }

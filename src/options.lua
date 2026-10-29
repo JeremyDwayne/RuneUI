@@ -4,6 +4,7 @@
 local appearancepage = require("src/appearancepage")
 local buffspage = require("src/buffspage")
 local catalog = require("src/catalog")
+local controls = require("src/controls")
 local cooldownpage = require("src/cooldownpage")
 local draw = require("src/draw")
 local editmode = require("src/editmode")
@@ -31,10 +32,10 @@ local PAGE_X = CONTENT_X
 local PAGE_Y = CONTENT_Y + TAB_STRIP
 local PAGE_W = CONTENT_W
 local PAGE_H = CONTENT_H - FOOTER - TAB_STRIP
--- Footer buttons from the right, and the gap between them and at the window's edge.
-local FOOTER_BUTTONS = { "Done", "Reset positions", "Edit mode" }
+-- Footer game buttons from the right with their widths, and the gap between them and at the window's edge.
+local FOOTER_BUTTONS = { { "Done", 90 }, { "Reset positions", 150 }, { "Edit mode", 110 } }
 local FOOTER_GAP = 12
-local BUTTON_H = 27
+local BUTTON_H = 28
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
 -- view = src/view, auraInfo(sprite) naming an aura icon, describe(struct) reading a struct's description,
 -- refresh = function redrawing the HUD, configured = function run as the window or edit mode opens or closes }.
@@ -232,9 +233,8 @@ function options.create(root, deps)
         end,
         refresh = refresh,
       })
-      local showHide = { { id = false, label = "Show" }, { id = true, label = "Hide" } }
       local display = buffsPage.display
-      appearance.choiceRow(display, 24, 18, PAGE_W - 48, "Game buff bars", showHide, "hideBuffBars", 120)
+      appearance.checkRow(display, 24, 18, PAGE_W - 48, "Hide game buff bars", "hideBuffBars")
       local auraIcons = { { id = false, label = "Plain" }, { id = true, label = "With bars" } }
       appearance.choiceRow(display, 24, 68, PAGE_W - 48, "Aura icons", auraIcons, "auraBars", 120)
       appearance.choiceRow(display, 24, 118, PAGE_W - 48, "Debuff border", style.DEBUFF_EDGES, "debuffEdge", 96)
@@ -301,13 +301,18 @@ function options.create(root, deps)
       end,
     }
     local footerX = CONTENT_W - FOOTER_GAP
-    for _, label in ipairs(FOOTER_BUTTONS) do
-      footerX = footerX - prettyui.FancyButton.getSize(label)
-      window:AddFancyButton(label, footerActions[label], {
-        x = footerX,
-        y = CONTENT_H - FOOTER + (FOOTER - BUTTON_H) // 2,
-        variant = label == "Done" and "positive" or "neutral",
-      })
+    for _, button in ipairs(FOOTER_BUTTONS) do
+      local label, w = button[1], button[2]
+      footerX = footerX - w
+      controls.gameButton(
+        window.content,
+        label,
+        footerX,
+        CONTENT_H - FOOTER + (FOOTER - BUTTON_H) // 2,
+        w,
+        BUTTON_H,
+        footerActions[label]
+      )
       footerX = footerX - FOOTER_GAP
     end
     buildPage("appearance")

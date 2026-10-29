@@ -52,6 +52,7 @@ local TEXT_LABEL_X = 236
 local TEXT_X = 312
 local MATCH_X = 448
 local MATCH_W = 104
+local CHECK = 24
 
 -- Each group lists the sprites groups(...) files under kind and value: a buff row, or a debuff kind's
 -- tracked or untracked list. row names the HUD aura row a group shows, whose sizes it sets. A tab's search
@@ -188,8 +189,9 @@ function buffspage.create(page, width, height, deps)
       controls.stepper(layer, ICON_X, y, savedappearance.AURA_ICON.min, savedappearance.AURA_ICON.max, 1, save("Icon"))
     local textStepper =
       controls.stepper(layer, TEXT_X, y, savedappearance.TEXT_SIZE.min, savedappearance.TEXT_SIZE.max, 1, save("Text"))
-    local match = controls.option(layer, "Match HUD", MATCH_X, y, MATCH_W, OPTION_H, function()
-      save("Text")("hud")
+    set(text(layer, FONTS.body, ui.AlignMode.TOPLEFT, MATCH_X, 0, MATCH_W, SIZES_H), "content", "Match HUD")
+    local match = controls.check(layer, MATCH_X + MATCH_W - CHECK, (SIZES_H - CHECK) // 2, CHECK, function(ticked)
+      save("Text")(ticked and "hud" or textSize(saved.appearance()))
     end)
     return {
       layer = layer,
@@ -198,7 +200,7 @@ function buffspage.create(page, width, height, deps)
         icon.show(appearance[field("Icon")])
         textStepper.show(textSize(appearance))
         textStepper.fade(matched)
-        controls.showOption(match, matched)
+        match.show(matched)
       end,
     }
   end
