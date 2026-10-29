@@ -79,6 +79,7 @@ function editmode.create(root, deps)
     return labelOf(anchor.target) .. ", " .. anchor.side .. ", " .. anchor.align
   end
 
+  -- Every element's position resolved through its anchor, set by mode.placeAll as edit mode opens.
   local resolved = saved.positions()
   local overlays = {}
   -- move: the element being dragged; pick: { name, hover, target } while choosing what name anchors to.
@@ -582,6 +583,7 @@ function editmode.create(root, deps)
     set(toolbar, "hidden", false)
     screenW = tonumber(root.width) or 0
     screenH = tonumber(root.height) or 0
+    mode.placeAll()
     showToolbar()
     refreshOverlays()
     showSnap()

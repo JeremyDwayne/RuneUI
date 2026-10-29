@@ -407,4 +407,13 @@ describe("edit mode", function()
     pretty.button("Edit mode")
     assert.are.same({ 40, -300 }, { layer.x, layer.y })
   end)
+
+  it("puts each overlay over its element on entering, where an anchor places it over a saved position", function()
+    local elements, saved = openOptions()
+    saved.setPosition("player", { x = 500, y = -100, anchorX = 0.5, anchorY = 1 })
+    pretty.button("Edit mode")
+    local layer = elements.player.layer
+    local overlay = overlayOf(elements.player).parent
+    assert.are.same({ layer.x, layer.y }, { overlay.x, overlay.y })
+  end)
 end)
