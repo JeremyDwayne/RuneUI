@@ -63,8 +63,9 @@ local GRID_CENTER_RGBA = (COLOURS.accent << 8) | 0x73
 -- deps: { saved = src/settings, elements = src/view elements by name, view = src/view, label = function
 -- returning a cooldown group's title by element name, reset = function asking to reset positions, done =
 -- function run by the toolbar's Done, changed = function run as edit mode opens or closes }. Returns
--- { open, editing, escape, placeAll, shutdown }; escape handles Esc while editing. An element whose
--- inUse is false, such as a custom group not added, gets no overlay while editing.
+-- { open, editing, escape, placeAll, destroy }; escape handles Esc while editing. An element whose inUse is
+-- false, such as a custom group not added, gets no overlay while editing. src/options builds edit mode as it
+-- opens, since the plugin layer's dynamic ids are shared by every plugin, and leaving destroys it.
 function editmode.create(root, deps)
   local saved = deps.saved
   local elements = deps.elements
@@ -563,24 +564,26 @@ function editmode.create(root, deps)
     mode.placeAll()
   end
 
+  -- Enters edit mode, or leaves it, which destroys edit mode.
   function setEditing(enabled)
-    editing = enabled
     if not enabled then
       cancelPick()
       cancelMove()
+      mode.destroy()
+      deps.changed()
+      return
     end
+    editing = true
     for _, o in pairs(overlays) do
-      set(o.layer, "hidden", not enabled or o.element.inUse == false)
+      set(o.layer, "hidden", o.element.inUse == false)
     end
     floatOwner = nil
     placeFloat()
-    set(toolbar, "hidden", not enabled)
-    if enabled then
-      screenW = tonumber(root.width) or 0
-      screenH = tonumber(root.height) or 0
-      showToolbar()
-      refreshOverlays()
-    end
+    set(toolbar, "hidden", false)
+    screenW = tonumber(root.width) or 0
+    screenH = tonumber(root.height) or 0
+    showToolbar()
+    refreshOverlays()
     showSnap()
     deps.changed()
   end
@@ -658,19 +661,25 @@ function editmode.create(root, deps)
   Event.Draw.Subscribe("runeuiEditMode", followCursor)
   Event.Logic.Subscribe("runeuiEditMode", followCursor)
 
-  function mode.shutdown()
-    toolbar:Destroy()
+  -- Destroys every component edit mode built and drops its handlers, once. Leaving edit mode runs it.
+  local destroyed = false
+  function mode.destroy()
+    if destroyed then
+      return
+    end
+    destroyed = true
+    editing = false
+    for _, c in ipairs({ toolbar, dim, pickOutline, grid, guideX, guideY, landing, float }) do
+      c:Destroy()
+    end
     menu.destroy()
-    dim:Destroy()
-    pickOutline:Destroy()
-    grid:Destroy()
-    guideX:Destroy()
-    guideY:Destroy()
-    landing:Destroy()
     for _, o in pairs(overlays) do
       o.layer:Destroy()
     end
-    float:Destroy()
+    Event.Draw.Unsubscribe("runeuiEditMode")
+    Event.Logic.Unsubscribe("runeuiEditMode")
+    Event.KeyDown.Unsubscribe("runeuiEditModeShift")
+    Event.KeyUp.Unsubscribe("runeuiEditModeShift")
   end
 
   return mode

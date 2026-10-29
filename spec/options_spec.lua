@@ -158,10 +158,11 @@ describe("options", function()
     end))
   end)
 
-  it("builds the window on the first press of Options, with the HUD placed before it", function()
+  it("builds nothing on the root until the first press of Options, with the HUD placed before it", function()
     local root = fake.component()
     local saved = settings.load(fakeStore())
     local elements = { player = view.playerFrame(root) }
+    local hud = fake.live(root)
     options.create(root, {
       saved = saved,
       tracker = cooldowns.tracker(),
@@ -170,6 +171,7 @@ describe("options", function()
       refresh = function() end,
       configured = function() end,
     })
+    assert.are.equal(hud, fake.live(root))
     assert.is_nil(pretty.find("Window"))
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
     fake.fire("Draw", {})

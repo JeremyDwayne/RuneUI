@@ -84,22 +84,47 @@ function options.create(root, deps)
   -- Edit mode ----------------------------------------------------------------------------------------
 
   local resetPositions, openWindow
-  local editMode = editmode.create(root, {
-    saved = saved,
-    elements = elements,
-    view = deps.view,
-    label = function(name)
-      local group = saved.group(name)
-      return group and group.title
-    end,
-    reset = function()
-      resetPositions()
-    end,
-    done = function()
-      openWindow()
-    end,
-    changed = configured,
-  })
+  -- Edit mode while it is open, nil otherwise.
+  local editMode = nil
+
+  local function editing()
+    return editMode ~= nil and editMode.editing()
+  end
+
+  local function openEditMode()
+    editMode = editmode.create(root, {
+      saved = saved,
+      elements = elements,
+      view = deps.view,
+      label = function(name)
+        local group = saved.group(name)
+        return group and group.title
+      end,
+      reset = function()
+        resetPositions()
+      end,
+      done = function()
+        openWindow()
+      end,
+      changed = function()
+        if not editing() then
+          editMode = nil
+        end
+        configured()
+      end,
+    })
+    editMode.open()
+  end
+
+  -- Places the HUD from the saved positions and anchors, through edit mode while it is open so its overlays
+  -- follow.
+  local function placeAll()
+    if editing() then
+      editMode.placeAll()
+    else
+      deps.view.arrange(elements, saved.positions(), saved.anchors())
+    end
+  end
 
   -- The open Reset positions confirm, or nil. It sits over the screen, so edit mode's toolbar can open it too.
   local confirm = nil
@@ -133,7 +158,7 @@ function options.create(root, deps)
       onConfirm = function()
         confirm = nil
         saved.resetPositions()
-        editMode.placeAll()
+        placeAll()
       end,
       onCancel = function()
         confirm = nil
@@ -238,7 +263,7 @@ function options.create(root, deps)
       ["Reset positions"] = resetPositions,
       ["Edit mode"] = function()
         window:Close()
-        editMode.open()
+        openEditMode()
       end,
     }
     local footerX = CONTENT_W - FOOTER_GAP
@@ -291,7 +316,7 @@ function options.create(root, deps)
     end
     if confirm ~= nil then
       closeConfirm()
-    elseif editMode.editing() then
+    elseif editing() then
       editMode.escape()
     elseif window ~= nil and (cooldownPage.popupOpen() or buffsPage.popupOpen()) then
       closePopups()
@@ -314,17 +339,17 @@ function options.create(root, deps)
     })
   end)
 
-  editMode.placeAll()
+  placeAll()
 
   return {
-    placeAll = editMode.placeAll,
+    placeAll = placeAll,
     redrawBuffs = function()
       if windowOpen and currentPage == "buffs" then
         buffsPage.redraw()
       end
     end,
     configuring = function()
-      return windowOpen or editMode.editing()
+      return windowOpen or editing()
     end,
     shutdown = function()
       closeConfirm()
@@ -332,7 +357,9 @@ function options.create(root, deps)
         buffsPage.destroy()
         window:Destroy()
       end
-      editMode.shutdown()
+      if editMode ~= nil then
+        editMode.destroy()
+      end
     end,
   }
 end

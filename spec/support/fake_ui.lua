@@ -1,12 +1,13 @@
 -- Client stand-ins for specs that drive src/view, src/options and src/editmode. require() sets the ui, Event,
 -- Mouse, GameKey, id and log globals and returns the fake: writes counts property writes and Set, Add, Clear
--- and MoveToFront calls; component() builds a root; fire(name, payload) runs Event handlers; hook(c, name)
--- runs a component's hook; find(predicate) returns the first created component that is shown and matches;
--- press(label) clicks the hit area under a shown label; reset() forgets every component and handler, for a
--- before_each. MoveToFront marks a shown component fronted and a hidden one undrawn, along with each hidden
--- direct child, as the client stops drawing those for good. Destroy marks a component destroyed, and with it
--- everything under it; live(root) counts the components under root not destroyed. Setting limit makes a create
--- raise, as the client's does, once that many live components sit under the create's top root.
+-- and MoveToFront calls; component() builds a root; fire(name, payload) runs Event handlers, and
+-- Event.<name>.Unsubscribe(ref) drops one; hook(c, name) runs a component's hook; find(predicate) returns the
+-- first created component that is shown and matches; press(label) clicks the hit area under a shown label;
+-- reset() forgets every component and handler, for a before_each. MoveToFront marks a shown component fronted
+-- and a hidden one undrawn, along with each hidden direct child, as the client stops drawing those for good.
+-- Destroy marks a component destroyed, and with it everything under it; live(root) counts the components under
+-- root not destroyed. Setting limit makes a create raise, as the client's does, once that many live components
+-- sit under the create's top root.
 local fake = { writes = 0, mouse = { x = 0, y = 0 }, created = {}, handlers = {}, limit = nil }
 
 local dataOf = setmetatable({}, { __mode = "k" })
@@ -221,6 +222,11 @@ _G.Event = setmetatable({}, {
       Subscribe = function(ref, fn)
         fake.handlers[name] = fake.handlers[name] or {}
         fake.handlers[name][ref] = fn
+      end,
+      Unsubscribe = function(ref)
+        if fake.handlers[name] ~= nil then
+          fake.handlers[name][ref] = nil
+        end
       end,
     }
   end,
