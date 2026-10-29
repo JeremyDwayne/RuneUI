@@ -58,10 +58,10 @@ function colourpicker.create(parent, x, y, deps)
 
   local function build()
     parts = {}
-    parts.square = draw.hitArea(ui.Canvas.new(parent))
+    parts.square = draw.hitArea(draw.new(ui.Canvas, parent))
     draw.pos(parts.square, x, y)
     draw.size(parts.square, SQUARE_W, colourpicker.H)
-    parts.hue = draw.hitArea(ui.Canvas.new(parent))
+    parts.hue = draw.hitArea(draw.new(ui.Canvas, parent))
     draw.pos(parts.hue, x + SQUARE_W + HUE_GAP, y)
     draw.size(parts.hue, HUE_W, colourpicker.H)
     local segment = colourpicker.H / (#HUE_STOPS - 1)

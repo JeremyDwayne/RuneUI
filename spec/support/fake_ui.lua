@@ -4,8 +4,10 @@
 -- runs a component's hook; find(predicate) returns the first created component that is shown and matches;
 -- press(label) clicks the hit area under a shown label; reset() forgets every component and handler, for a
 -- before_each. MoveToFront marks a shown component fronted and a hidden one undrawn, along with each hidden
--- direct child, as the client stops drawing those for good.
-local fake = { writes = 0, mouse = { x = 0, y = 0 }, created = {}, handlers = {} }
+-- direct child, as the client stops drawing those for good. Destroy marks a component destroyed, and with it
+-- everything under it; live(root) counts the components under root not destroyed. Setting limit makes a create
+-- raise, as the client's does, once that many live components sit under the create's top root.
+local fake = { writes = 0, mouse = { x = 0, y = 0 }, created = {}, handlers = {}, limit = nil }
 
 local dataOf = setmetatable({}, { __mode = "k" })
 
@@ -29,6 +31,9 @@ local function call(method)
     if method == "SetHeight" then
       data.height = a
     end
+    if method == "Destroy" then
+      data.destroyed = true
+    end
     if method == "SetAssociatedObject" then
       data.object = a
     end
@@ -51,7 +56,48 @@ local function subscribe(c, hook, fn)
   dataOf[c].hooks[hook] = fn
 end
 
+-- Whether c or any parent it has is destroyed.
+local function destroyed(c)
+  while c ~= nil do
+    if dataOf[c].destroyed then
+      return true
+    end
+    c = dataOf[c].parent
+  end
+  return false
+end
+
+-- Whether root is c or a parent of c.
+local function under(c, root)
+  while c ~= nil do
+    if c == root then
+      return true
+    end
+    c = dataOf[c].parent
+  end
+  return false
+end
+
+function fake.live(root)
+  local n = 0
+  for _, c in ipairs(fake.created) do
+    if c ~= root and under(c, root) and not destroyed(c) then
+      n = n + 1
+    end
+  end
+  return n
+end
+
 function fake.component(parent)
+  if parent ~= nil and fake.limit ~= nil then
+    local top = parent
+    while dataOf[top].parent ~= nil do
+      top = dataOf[top].parent
+    end
+    if fake.live(top) >= fake.limit then
+      error("Failed to create component (category=0 ID=4096) - invalid dynamic ID")
+    end
+  end
   local data = { hooks = {}, parent = parent, x = 0, y = 0 }
   local c = setmetatable({}, {
     __index = function(_, key)
@@ -80,14 +126,15 @@ function fake.reset()
   fake.writes = 0
   fake.created = {}
   fake.handlers = {}
+  fake.limit = nil
   fake.mouse.x = 0
   fake.mouse.y = 0
 end
 
--- Whether c and every parent it has are shown.
+-- Whether c and every parent it has are shown and not destroyed.
 function fake.shown(c)
   while c ~= nil do
-    if dataOf[c].hidden then
+    if dataOf[c].hidden or dataOf[c].destroyed then
       return false
     end
     c = dataOf[c].parent

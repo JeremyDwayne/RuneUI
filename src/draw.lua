@@ -168,16 +168,63 @@ function draw.set(obj, field, value)
   write(obj, field, value, raw)
 end
 
--- Builds a component of kind, such as ui.Sprite, on parent. An element builds its components through this or
--- the builders below, so draw.fade reaches them, and one built while faded, such as a tile's lazily built
--- queued border, starts at the fade's level.
+-- Stand-ins draw.new returned for creates the client refused, and whether one was refused since the last
+-- draw.refused.
+local standIns = setmetatable({}, { __mode = "k" })
+local refused = false
+
+local function noop() end
+
+-- A stand-in keeps what is written to it and takes every method as a no-op, so code building on it carries on.
+local STAND_IN = {
+  __index = function(_, key)
+    if type(key) == "string" and key:match("^%u") then
+      return noop
+    end
+  end,
+}
+
+local function standIn()
+  local s = setmetatable({}, STAND_IN)
+  standIns[s] = true
+  return s
+end
+
+-- Called through pcall: the client aborts on a constructor passed to pcall directly, but not through a Lua
+-- function.
+local function create(kind, parent)
+  return kind.new(parent)
+end
+
+-- Builds a component of kind, such as ui.Sprite, on parent. Every component RuneUI builds goes through this,
+-- so draw.fade reaches them, and one built while faded, such as a tile's lazily built queued border, starts at
+-- the fade's level. The client refuses a create once its root's 4096 dynamic ids are taken, by every plugin on
+-- it together; a refused create logs the first refusal since the last draw.refused and returns a stand-in, as
+-- does a create on a stand-in.
 function draw.new(kind, parent)
-  local c = kind.new(parent)
+  if standIns[parent] then
+    return standIn()
+  end
+  local ok, c = pcall(create, kind, parent)
+  if not ok or c == nil then
+    if not refused then
+      log("cannot build a component:", c)
+    end
+    refused = true
+    return standIn()
+  end
   parents[c] = parent
   if fading ~= 1 and rootOf(c) then
     write(c, "alpha", fading, 1)
   end
   return c
+end
+
+-- Whether draw.new returned a stand-in since the last call.
+function draw.refused()
+  local was = refused
+  refused = false
+  return was
 end
 
 -- Lets draw.hold hide layer, an element's root layer, whose hidden state the element sets through draw.set,

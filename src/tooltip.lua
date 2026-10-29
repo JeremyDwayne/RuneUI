@@ -48,7 +48,7 @@ end
 -- into paragraphs at <br>, and a last line; hide() clears it and destroy() removes it. It draws above the HUD
 -- from its first show. hover(items, show) wires each item's edge to the tooltip.
 function tooltip.create(root)
-  local layer = ui.Layer.new(root)
+  local layer = draw.new(ui.Layer, root)
   local edge = rect(layer, COLOURS.border, 0, 0, TOOLTIP_WIDTH, 0)
   local inner = rect(layer, COLOURS.tooltipEdge, 1, 1, TOOLTIP_WIDTH - 2, 0)
   local panel = rect(layer, COLOURS.panel, 2, 2, TOOLTIP_WIDTH - 4, 0)

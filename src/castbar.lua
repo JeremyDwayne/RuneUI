@@ -60,7 +60,7 @@ local FLASH_LEVELS = { 1, 0.8, 0.65 }
 -- that tick. step(seconds) moves the fill on smoothly up to the next tick, hides the bar once its last tick runs
 -- out, and does nothing between channels.
 function castbar.create(root)
-  local layer = ui.Layer.new(root)
+  local layer = draw.new(ui.Layer, root)
   local border = rect(layer, COLOURS.border, 0, 0, 0, 0)
   local track = rect(layer, COLOURS.track, 1, 1, 0, 0)
   -- The bar's left edge and width, right of the icon, set by resize.

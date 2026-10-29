@@ -219,7 +219,7 @@ function cooldownpage.create(page, width, height, deps)
       size = TILE,
       edge = group.add(hitArea(rect(page, COLOURS.border, 0, 0, TILE, TILE)), 0, 0),
       bg = group.add(rect(page, COLOURS.editorTile, 0, 0, TILE - 2, TILE - 2), 1, 1),
-      icon = group.add(ui.Sprite.new(page), 1, 1),
+      icon = group.add(draw.new(ui.Sprite, page), 1, 1),
       initials = group.add(text(page, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, TILE - 6, 12), 4, TILE - 15),
     }
     t.icon:SetSize(TILE - 2, TILE - 2)
@@ -373,7 +373,7 @@ function cooldownpage.create(page, width, height, deps)
   end
 
   -- Tile menu: one Remove row under the clicked tile.
-  local menu = ui.Layer.new(page)
+  local menu = draw.new(ui.Layer, page)
   menu:SetSize(140, 30)
   hitArea(rect(menu, COLOURS.border, 0, 0, 140, 30))
   local menuKey = nil

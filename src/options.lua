@@ -184,7 +184,7 @@ function options.create(root, deps)
     -- Each page is a layer on its tab's content, which the page's module draws on.
     local pages = {}
     for i, entry in ipairs(PAGE_LIST) do
-      local page = ui.Layer.new(pageTabs:GetPage(i).content)
+      local page = draw.new(ui.Layer, pageTabs:GetPage(i).content)
       page:SetSize(PAGE_W, PAGE_H)
       -- A click on the page's background closes its popups.
       if entry.id ~= "appearance" and entry.id ~= "bars" then

@@ -43,7 +43,7 @@ end
 -- A w by h text field at x, y taking up to maxLength characters, drawn with the plain input style, or the search
 -- box style when search is true.
 function controls.inputField(parent, x, y, w, h, maxLength, search)
-  local field = ui.InputField.new(parent)
+  local field = draw.new(ui.InputField, parent)
   draw.pos(field, x, y)
   draw.size(field, w, h)
   field:Setup(ui.TextContentVisibilityMode.VISIBLE, ui.InputFieldFilterMode.NONE, maxLength)
@@ -177,7 +177,7 @@ controls.CLOSE_SIZE = 20
 -- A close X at x, y on parent, lit while hovered, calling onClick when clicked. A click unlights it, since its
 -- popup hides with the cursor still over it. Returns the sprite.
 function controls.closeButton(parent, x, y, onClick)
-  local button = draw.hitArea(ui.Sprite.new(parent))
+  local button = draw.hitArea(draw.new(ui.Sprite, parent))
   draw.pos(button, x, y)
   draw.size(button, controls.CLOSE_SIZE, controls.CLOSE_SIZE)
   draw.set(button, "sprite", CLOSE.normal)

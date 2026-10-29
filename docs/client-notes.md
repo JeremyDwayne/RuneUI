@@ -54,3 +54,7 @@ The client API is thinly documented. These facts came from probing it in the gam
 - An action bar slot showing an item draws the item's stack count at full whatever the icon's alpha, and hiding the icon stops the item being used while abilities still cast. A faded bar leaves the icon as it is, so the count shows.
 - An action bar slot's button fires `ONCLICK` on press, `ONHOLD` once, and `ONRELEASE` on release or as soon as the cursor leaves it with the button held. `ONDRAG` and `ONDRAGCOMPLETE` never fire, so nothing marks the end of a drag off the bar.
 - Loading builds components at a cost of seconds for a few thousand, and the client queues the server and logic ticks it missed and replays them after. Keep the load to what the HUD shows and build the rest on first use.
+- Every dynamic component under one static root, nested under layers or not, takes its id from one pool shared by every plugin on that root: dynamic ids 0 to 4095 in category 0. A child of a layer made with a category takes that category's 256 ids instead.
+- Once the pool is full, `ui.X.new` raises `Failed to create Rectangle (category=0 ID=4096) - invalid dynamic ID`, and the client keeps running. `Destroy` frees a component's ids at once.
+- `pcall(ui.Rectangle.new, parent)` aborts the whole client. A Lua function that calls the constructor, passed to `pcall`, works.
+- A create with an explicit category and dynamic id already in use does not raise, so explicit ids can collide with another plugin's.

@@ -173,7 +173,7 @@ local function settingsPage(page, width, height, deps, define)
   -- Preview strip -----------------------------------------------------------------------------------------
 
   local backdrop = hitArea(rect(page, COLOURS.panel, 0, 0, width, STRIP_H))
-  local preview = ui.Layer.new(page)
+  local preview = draw.new(ui.Layer, page)
   preview:SetSize(width, STRIP_H)
   rect(page, COLOURS.border, 0, STRIP_H, width, 1)
   local backdropChoice = "dark"
@@ -196,11 +196,11 @@ local function settingsPage(page, width, height, deps, define)
   -- Scrolling settings ------------------------------------------------------------------------------------
 
   local viewH = height - STRIP_H - 1
-  local viewport = ui.Layer.new(page)
+  local viewport = draw.new(ui.Layer, page)
   draw.pos(viewport, 0, STRIP_H + 1)
   draw.size(viewport, width, viewH)
   local viewportBg = hitArea(rect(viewport, COLOURS.panel, 0, 0, width, viewH))
-  local content = ui.Layer.new(viewport)
+  local content = draw.new(ui.Layer, viewport)
   local rowW = width - 2 * MARGIN - scrollbar.WIDTH - 4
   local rowRight = MARGIN + rowW - 12
   -- Rows from the top: { layer, y, h }, the content's height and how far it is scrolled.
@@ -223,7 +223,7 @@ local function settingsPage(page, width, height, deps, define)
 
   -- A layer at the content's end, h tall, which hides once scrolled wholly out of view. relayout places it.
   local function addRow(h)
-    local row = { layer = ui.Layer.new(content), h = h }
+    local row = { layer = draw.new(ui.Layer, content), h = h }
     rows[#rows + 1] = row
     return row
   end

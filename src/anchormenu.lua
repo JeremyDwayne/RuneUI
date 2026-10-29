@@ -44,13 +44,13 @@ end
 -- spot is clicked }. Returns { open(title, targetName), close(), destroy() }: open names the menu and the
 -- sketch and shows the menu at the cursor, kept inside root.
 function anchormenu.create(root, deps)
-  local menu = ui.Layer.new(root)
+  local menu = draw.new(ui.Layer, root)
   menu:SetSize(MENU_W, MENU_H)
   rect(menu, COLOURS.border, 0, 0, MENU_W, MENU_H)
   hitArea(rect(menu, COLOURS.popup, 1, 1, MENU_W - 2, MENU_H - 2))
   local title = text(menu, FONTS.small, ui.AlignMode.TOPLEFT, 8, 4, MENU_W - 16, 16)
   set(title, "rgb", COLOURS.dimText)
-  local sketch = ui.Canvas.new(menu)
+  local sketch = draw.new(ui.Canvas, menu)
   sketch:SetPos(SKETCH_X, SKETCH_Y)
   sketch:SetSize(SKETCH_W, SKETCH_H)
   draw.dashedBox(sketch, SKETCH_W, SKETCH_H, 1, draw.opaque(COLOURS.dimText))

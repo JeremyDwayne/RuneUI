@@ -91,7 +91,7 @@ function editmode.create(root, deps)
   local screenH = 0
 
   -- The grid, drawn on entering edit mode with snapping on, and redrawn only when the window size changed.
-  local grid = ui.Canvas.new(root)
+  local grid = draw.new(ui.Canvas, root)
   set(grid, "hidden", true)
   local gridW = nil
   local gridH = nil
@@ -135,7 +135,7 @@ function editmode.create(root, deps)
 
   local function overlay(entry, element)
     local o = { name = entry.name, element = element }
-    o.layer = ui.Layer.new(root)
+    o.layer = draw.new(ui.Layer, root)
     o.tint = hitArea(rect(o.layer, COLOURS.accent, 0, 0, 0, 0))
     o.edge = draw.outline(o.layer, COLOURS.accent, 2)
     o.tagBg = rect(o.layer, COLOURS.accent, 2, 2, 0, TAG_H)
@@ -185,7 +185,7 @@ function editmode.create(root, deps)
 
   -- One header for small elements, built after every overlay so it draws above them all and its button takes
   -- the click. It sits above the last small element hovered.
-  local float = ui.Layer.new(root)
+  local float = draw.new(ui.Layer, root)
   local floatTagBg = rect(float, COLOURS.accent, 0, 0, 0, TAG_H)
   local floatTag = text(float, FONTS.small, ui.AlignMode.TOPLEFT, 5, 0, 200, TAG_H)
   set(floatTag, "rgb", COLOURS.accentText)
@@ -219,8 +219,8 @@ function editmode.create(root, deps)
 
   -- Dashed outlines over the picking element and where the chosen spot would put it, and a guide line across
   -- the window on each axis a drag snapped.
-  local pickOutline = ui.Canvas.new(root)
-  local landing = ui.Canvas.new(root)
+  local pickOutline = draw.new(ui.Canvas, root)
+  local landing = draw.new(ui.Canvas, root)
   local guideX = rect(root, COLOURS.accent, 0, 0, 1, 0)
   local guideY = rect(root, COLOURS.accent, 0, 0, 0, 1)
   hideAll({ pickOutline, landing, guideX, guideY }, true)
@@ -294,7 +294,7 @@ function editmode.create(root, deps)
   end
 
   -- Toolbar: Edit mode with Reset positions and Done, or the pick prompt with Cancel.
-  local toolbar = ui.Layer.new(root)
+  local toolbar = draw.new(ui.Layer, root)
   toolbar:SetSize(TOOLBAR_W, TOOLBAR_H)
   toolbar:SetPos(-TOOLBAR_W // 2, 14, 0.5, 0)
   rect(toolbar, COLOURS.border, 0, 0, TOOLBAR_W, TOOLBAR_H)

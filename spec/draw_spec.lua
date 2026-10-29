@@ -255,4 +255,28 @@ describe("draw", function()
       assert.are.equal(1, label.alpha)
     end)
   end)
+
+  it("builds a stand-in for a refused create, which takes writes, calls and children without the client", function()
+    fake.reset()
+    local logged = 0
+    local realLog = _G.log
+    _G.log = function()
+      logged = logged + 1
+    end
+    local root = fake.component()
+    fake.limit = 1
+    draw.new(ui.Layer, root)
+    assert.is_false(draw.refused())
+    local layer = draw.new(ui.Layer, root)
+    draw.set(layer, "hidden", true)
+    layer:SetPos(4, 8)
+    local child = draw.rect(layer, draw.COLOURS.border, 0, 0, 10, 10)
+    draw.on(child, "ONCLICK", function() end)
+    draw.new(ui.Rectangle, root)
+    _G.log = realLog
+    assert.is_true(draw.refused())
+    assert.is_false(draw.refused())
+    assert.are.equal(1, fake.live(root))
+    assert.are.equal(1, logged)
+  end)
 end)
