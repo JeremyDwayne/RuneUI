@@ -9,7 +9,8 @@ local on = draw.on
 local COLOURS = draw.WINDOW
 
 scrollbar.WIDTH = 10
--- The wheel reports many small deltas per turn, negative while scrolling down; each moves WHEEL_STEP px.
+-- The wheel reports many small deltas per turn, each moving WHEEL_STEP px. A positive delta scrolls down, as in
+-- the game's own lists.
 local WHEEL_STEP = 8
 local MIN_THUMB = 24
 -- Side of the transparent square that holds a thumb drag under the cursor, which a fast move cannot leave.
@@ -49,7 +50,7 @@ function scrollbar.create(parent, x, y, h, onScroll)
 
   local function wheel(c)
     on(c, "ONSCROLLWHEEL", function(_, delta)
-      onScroll(scroll - delta * WHEEL_STEP)
+      onScroll(scroll + delta * WHEEL_STEP)
     end)
   end
   wheel(track)

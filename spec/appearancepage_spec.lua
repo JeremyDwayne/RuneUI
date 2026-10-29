@@ -82,7 +82,8 @@ local function scrollParts(content)
   end
 end
 
--- Turns the wheel over the viewport by delta, times times.
+-- Turns the wheel over the viewport by delta, times times. A positive delta scrolls down, as in the game's own
+-- lists.
 local function wheel(delta, times)
   local viewport = scrollParts("Font")
   local bg = fake.find(function(c, d)
@@ -159,9 +160,9 @@ describe("appearance page", function()
   it("scrolls by the wheel and stops with 32 px below the last row", function()
     open()
     local viewport, content, last = scrollParts(LAST_ROW)
-    wheel(-1, 200)
-    assert.are.equal(viewport.height - 32, last.y + last.height + content.y)
     wheel(1, 200)
+    assert.are.equal(viewport.height - 32, last.y + last.height + content.y)
+    wheel(-1, 200)
     assert.are.equal(0, content.y)
   end)
 
@@ -195,12 +196,12 @@ describe("appearance page", function()
   it("takes no click on a swatch's clipped part, and hides a row scrolled out of view", function()
     local _, saved = open()
     -- Down 296 px, 4 px past the top of the Player colour row's first swatches.
-    wheel(-1, 37)
+    wheel(1, 37)
     fake.hook(fake.textHit("Game green"), "ONCLICK", 4, 2)
     assert.are.equal("runeui", saved.appearance().playerColour)
-    wheel(-1, 100)
+    wheel(1, 100)
     assert.is_nil(label("Font"))
-    wheel(1, 200)
+    wheel(-1, 200)
     fake.pressText("Game green")
     assert.are.equal("gameGreen", saved.appearance().playerColour)
   end)
@@ -215,9 +216,9 @@ describe("appearance page", function()
       end
     end
     -- Down 616 px, 5 px past the top of the Frame width field.
-    wheel(-1, 77)
+    wheel(1, 77)
     assert.are.same({ true, "" }, { fake.shown(field), field.content })
-    wheel(1, 2)
+    wheel(-1, 2)
     assert.are.equal("250", field.content)
   end)
 
@@ -226,7 +227,7 @@ describe("appearance page", function()
     local _, content = scrollParts("Font")
     for _, field in ipairs({ fieldInRow("Text size"), hexField() }) do
       local before = content.y
-      fake.hook(field, "ONSCROLLWHEEL", -1)
+      fake.hook(field, "ONSCROLLWHEEL", 1)
       assert.is_true(content.y < before)
     end
   end)
@@ -291,7 +292,7 @@ describe("appearance page", function()
     local hue = style.hsv(style.FRAME_COLOURS.player)
     assert.are.equal(style.rgb(hue, 1, 1), saved.appearance().playerColour)
     local viewport, content, last = scrollParts(LAST_ROW)
-    wheel(-1, 200)
+    wheel(1, 200)
     assert.are.equal(viewport.height - 32, last.y + last.height + content.y)
   end)
 
@@ -317,7 +318,7 @@ describe("appearance page", function()
 
   it("sets how the HUD shows out of combat, dimming the opacity until Fade and the target choice under Show", function()
     local _, saved, refreshed = open()
-    wheel(-1, 200)
+    wheel(1, 200)
     local function dimmed()
       return (checkInRow(LAST_ROW).alpha or 1) < 1
     end
@@ -338,7 +339,7 @@ describe("appearance page", function()
 
   it("fades an action bar from its row, stepping its opacity by 5 and dimming it until the bar fades", function()
     local saved = openBars()
-    wheel(-1, 200)
+    wheel(1, 200)
     assert.is_true(fieldInRow("Main bar").alpha < 1)
     fake.tick(checkInRow("Main bar"))
     pressInRow("Main bar", "+")
@@ -354,11 +355,11 @@ describe("appearance page", function()
 
   it("turns every action bar's fading off from one switch, dimming each bar's own settings", function()
     local saved = openBars()
-    wheel(-1, 200)
+    wheel(1, 200)
     fake.tick(checkInRow("Main bar"))
     assert.is_false(fieldInRow("Main bar").alpha < 1)
     -- Up 40 px, so the switch's row shows whole.
-    wheel(1, 5)
+    wheel(-1, 5)
     fake.press("Fade action bars")
     local a = saved.appearance()
     assert.are.same({ false, true }, { a.fadeBars, a.fadeBar1 })
@@ -369,7 +370,7 @@ describe("appearance page", function()
 
   it("saves a typed opacity only on a step of 5, keeping what is typed until then", function()
     local saved = openBars()
-    wheel(-1, 200)
+    wheel(1, 200)
     local field = fieldInRow("Main bar")
     field.content = "3"
     fake.hook(field, "ONCONTENTCHANGED", ui.InputFieldActionResult.CONTENT_CHANGE, "3")
@@ -382,7 +383,7 @@ describe("appearance page", function()
   it("lets the cast bar take the adrenaline bar's width and the HUD's text size, fading each stepper", function()
     local saved = openBars()
     -- Scrolls 320 px, which shows the cast bar's rows from Width to Text size.
-    wheel(-1, 40)
+    wheel(1, 40)
     local width = fake.find(function(c, d)
       return fake.hasHook(c, "ONCONTENTCHANGED") and d.content == "278"
     end)

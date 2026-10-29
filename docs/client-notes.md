@@ -4,7 +4,7 @@ The client API is thinly documented. These facts came from probing it in the gam
 
 - `MoveToFront` on a hidden component, or on a layer whose direct child is hidden, stops that component drawing for good, even after it is shown. Raise only while visible, as the tooltip does on its first show. A hidden component further down still draws once shown: PrettyUI's `Window:Show` raises the window's root over hidden tab pages and their hidden children, and each drew once shown.
 - Stacking follows creation order, for labels as for rects. Build what must sit on top last.
-- `ONSCROLLWHEEL` fires dozens of times per scroll with deltas from 1 to 14, so scale the delta by pixels.
+- `ONSCROLLWHEEL` fires dozens of times per scroll with deltas from 1 to 14, so scale the delta by pixels. Scrolling down on a positive delta matches the game's own lists on a Mac.
 - `ONRELEASE` fires as soon as the cursor leaves the pressed component, with the button still held. A drag keeps the pressed component under the cursor until release. A 30px hit area that follows the cursor loses fast moves; the drag helper grows it into a transparent 160px square centred on the cursor, which holds the press even under components created after it.
 - A component hidden during its own press gets no `ONRELEASE`.
 - Hooks cannot tell mouse buttons apart, so a right click fires `ONCLICK` too. A destructive action needs a second step.
