@@ -1,8 +1,7 @@
 -- Resolves the saved appearance settings into the look every HUD element draws with: font names per text
 -- role, text edge and colour, unit frame colours, border and frame size, the bars' sizes and the cast bar's
--- colour. Also parses and formats hex colours
--- and converts them to and from hue, saturation and value for the colour picker.
--- Pure: fonts are client font names, which src/view turns into ids.
+-- colour. Also parses and formats hex colours and converts them to and from hue, saturation and value for the
+-- colour picker. Pure: fonts are client font names, which src/view turns into ids.
 local style = {}
 
 -- Each HUD text role's size in points at text step 0.
@@ -68,17 +67,19 @@ style.STYLE_COLOURS = { magic = 0x2a5fa8, ranged = 0x2f7a33, melee = 0x8e2a26, n
 -- Each unit frame's own colour, the RuneUI preset.
 style.FRAME_COLOURS = { player = 0x2f63a8, target = 0xa4511c }
 
--- Unit frame colour presets. RuneUI and Equipped have no rgb of their own: look resolves them per frame.
-style.PRESETS = {
-  { id = "runeui", label = "RuneUI" },
+-- The colour presets both the unit frames and the cast bar offer.
+local SHARED_PRESETS = {
   { id = "gameGreen", label = "Game green", rgb = 0x2b8a1e },
   { id = "gameRed", label = "Game red", rgb = 0xc8281c },
   { id = "magic", label = "Magic", rgb = style.STYLE_COLOURS.magic },
   { id = "ranged", label = "Ranged", rgb = style.STYLE_COLOURS.ranged },
   { id = "melee", label = "Melee", rgb = style.STYLE_COLOURS.melee },
   { id = "necro", label = "Necro", rgb = style.STYLE_COLOURS.necromancy },
-  { id = "equipped", label = "Equipped" },
 }
+
+-- Unit frame colour presets. RuneUI and Equipped have no rgb of their own: look resolves them per frame.
+style.PRESETS = { { id = "runeui", label = "RuneUI" }, table.unpack(SHARED_PRESETS) }
+style.PRESETS[#style.PRESETS + 1] = { id = "equipped", label = "Equipped" }
 
 -- The cast bar's RuneUI fill, for a channel with no combat style.
 style.CAST_COLOUR = 0x23706a
@@ -87,12 +88,7 @@ style.CAST_COLOUR = 0x23706a
 style.CAST_PRESETS = {
   { id = "ability", label = "Ability style" },
   { id = "runeui", label = "RuneUI", rgb = style.CAST_COLOUR },
-  { id = "gameGreen", label = "Game green", rgb = 0x2b8a1e },
-  { id = "gameRed", label = "Game red", rgb = 0xc8281c },
-  { id = "magic", label = "Magic", rgb = style.STYLE_COLOURS.magic },
-  { id = "ranged", label = "Ranged", rgb = style.STYLE_COLOURS.ranged },
-  { id = "melee", label = "Melee", rgb = style.STYLE_COLOURS.melee },
-  { id = "necro", label = "Necro", rgb = style.STYLE_COLOURS.necromancy },
+  table.unpack(SHARED_PRESETS),
 }
 
 -- Where the spender rows sit: under the adrenaline bar, over it, or under the player frame.

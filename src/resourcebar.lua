@@ -69,8 +69,9 @@ function resourcebar.create(root)
     styleText(percent, "body", shown, bright and fillShown >= PERCENT_ON_FILL)
   end
 
-  -- Lays out the spender rows the look puts on the bar and fits the bounds to them; returns whether they moved.
-  local function placeSpenders(spenders)
+  -- Lays out the spender rows of the shown model and look, and fits the bounds to them; returns whether they moved.
+  local function placeSpenders()
+    local spenders = last and not last.hidden and last.spenders or NO_SPENDERS
     if shown.spenders == "player" then
       spenders = NO_SPENDERS
     end
@@ -87,7 +88,6 @@ function resourcebar.create(root)
     end
     bounds.y = y
     bounds.h = h
-    bar.height = h
     return true
   end
 
@@ -109,7 +109,7 @@ function resourcebar.create(root)
     last = model
     set(layer, "hidden", model.hidden)
     if model.hidden then
-      return placeSpenders(NO_SPENDERS)
+      return placeSpenders()
     end
     local w = bounds.w
     fill.setFill(model.fill)
@@ -120,14 +120,13 @@ function resourcebar.create(root)
       pos(markers[i], math.min(math.floor(marker.at * (w - 2)), w - 3) + 1, BAR_Y + 1)
       shadeMark(markers[i], model.fill >= marker.at)
     end
-    return placeSpenders(model.spenders)
+    return placeSpenders()
   end
 
   local function resize(w, h)
     barH = h
     bounds.w = w
     bar.middle = BAR_Y + h / 2
-    bar.width = w
     draw.size(layer, w, 2 * BAR_Y + h + 2)
     draw.size(border, w, h)
     draw.size(track, w - 2, h - 2)
@@ -153,7 +152,7 @@ function resourcebar.create(root)
     end
     fill.setTexture(look.texture)
     stylePercent()
-    local moved = placeSpenders(last and not last.hidden and last.spenders or NO_SPENDERS)
+    local moved = placeSpenders()
     if last ~= nil and resized then
       update(last)
     end
@@ -166,7 +165,7 @@ function resourcebar.create(root)
     end
     stripSide = side
     placeStrip()
-    return placeSpenders(last and not last.hidden and last.spenders or NO_SPENDERS)
+    return placeSpenders()
   end
 
   function bar.setGlobal(since, remaining, length)

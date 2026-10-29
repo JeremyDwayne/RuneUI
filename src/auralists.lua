@@ -1,5 +1,6 @@
 -- The debuffs each debuff row tracks by default, and the Buffs page's groups. Pure: settings supplies the
 -- saved choices.
+local editor = require("src/editor")
 local util = require("src/util")
 
 local auralists = {}
@@ -14,9 +15,9 @@ auralists.TARGET_DEFAULTS = {
   14771, -- Smoke Cloud
   30212, -- Haunted
   21239, -- Dismember
-  21362,
+  21362, -- Slaughter
   14213, -- Slaughter
-  21296,
+  21296, -- Massacre
   14217, -- Massacre
   23401, -- Combust
   19226, -- Corruption Blast
@@ -51,9 +52,9 @@ auralists.PLAYER_DEFAULTS = {
   20293, -- Choking
   35063, -- Apmeken's Burden
   30722, -- Corruption, Corrupted
-  800,
-  1084,
-  33040,
+  800, -- Red virus
+  1084, -- Green virus
+  33040, -- Blue virus
   9150, -- Telos viruses
   30024, -- Drenched
   30721, -- Searing Pain, Soul drained
@@ -63,11 +64,11 @@ auralists.PLAYER_DEFAULTS = {
   9882, -- Corrosion
   25240, -- Bitten
   25241, -- Fatigued
-  25831,
-  25832,
-  25833,
-  25834,
-  25836,
+  25831, -- Attack Stat Reduced
+  25832, -- Strength Stat Reduced
+  25833, -- Defence Stat Reduced
+  25834, -- Ranged Stat Reduced
+  25836, -- Magic Stat Reduced
   25837, -- Stat Reduced
   30213, -- Necromancy Stat Reduced
   33976, -- Resurrection Sickness
@@ -77,9 +78,7 @@ auralists.PLAYER_DEFAULTS = {
 local function positions(list)
   local out = {}
   for i, sprite in ipairs(list) do
-    if out[sprite] == nil then
-      out[sprite] = i
-    end
+    out[sprite] = i
   end
   return out
 end
@@ -147,10 +146,8 @@ function auralists.groups(categories, choices, orders)
   end
   for key, category in pairs(categories) do
     local sprite = tonumber(key)
-    if members[category] ~= nil and sprite ~= nil then
-      members[category][sprite] = true
-      all[sprite] = true
-    end
+    members[category][sprite] = true
+    all[sprite] = true
   end
   groups.order.buffs = ordered(all, orders.buffs, {})
   for _, name in ipairs(CATEGORIES) do
@@ -172,10 +169,7 @@ function auralists.groups(categories, choices, orders)
       place(sprite)
     end
     for key in pairs(choices[kind]) do
-      local sprite = tonumber(key)
-      if sprite ~= nil then
-        place(sprite)
-      end
+      place(tonumber(key))
     end
     local order = ordered(seen, orders[kind], defaults)
     groups.order[kind] = order
@@ -195,22 +189,22 @@ end
 
 -- Dropping sprite on target, a src/editor dropTarget result, in list, the group under the cursor in display
 -- order. order is the kind's full display order. Returns { order, other }: the kind's new order, and for a
--- swap the sprite it traded places with, which takes sprite's old group. Returns nil for a drop on itself or
--- on no icon.
+-- swap the sprite it traded places with, which takes sprite's old group. Returns nil for a drop that leaves
+-- sprite where it is or lands on no icon.
 function auralists.drop(order, list, sprite, target)
+  local action = editor.dropAction(list, sprite, target)
+  if action == nil then
+    return nil
+  end
   local out = {}
   for i, s in ipairs(order) do
     out[i] = s
   end
-  if target.kind == "swap" then
-    local other = list[target.index]
-    if other == nil or other == sprite then
-      return nil
-    end
+  if action.op == "swap" then
     local a = indexOf(out, sprite)
-    local b = indexOf(out, other)
-    out[a], out[b] = other, sprite
-    return { order = out, other = other }
+    local b = indexOf(out, action.other)
+    out[a], out[b] = action.other, sprite
+    return { order = out, other = action.other }
   end
   local rest = {}
   for _, s in ipairs(list) do
@@ -218,16 +212,11 @@ function auralists.drop(order, list, sprite, target)
       rest[#rest + 1] = s
     end
   end
-  local index = target.index
-  local from = indexOf(list, sprite)
-  if from ~= nil and from < index then
-    index = index - 1
-  end
   if #rest == 0 then
     return { order = out }
   end
   table.remove(out, indexOf(out, sprite))
-  local before = rest[index]
+  local before = rest[action.index]
   if before ~= nil then
     table.insert(out, indexOf(out, before), sprite)
   else

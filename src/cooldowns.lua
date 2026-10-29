@@ -17,7 +17,7 @@ local STYLES = {
 -- Combat style by COMBATV2_MAINHAND_STYLE, the main-hand weapon's attack type: 1 magic, 5 and 6 melee, 8 to 10
 -- ranged, 37 necromancy. 7, an empty main hand, keeps the current style, since it shows for a tick between two
 -- weapons.
-cooldowns.ATTACK_STYLES =
+local ATTACK_STYLES =
   { [1] = "magic", [5] = "melee", [6] = "melee", [8] = "ranged", [9] = "ranged", [10] = "ranged", [37] = "necromancy" }
 local BARE_HANDED = 7
 local NO_FORMS = {}
@@ -160,7 +160,7 @@ function cooldowns.tracker()
     end
     if name == "COMBATV2_MAINHAND_STYLE" then
       if new ~= BARE_HANDED then
-        weaponStyle = cooldowns.ATTACK_STYLES[new]
+        weaponStyle = ATTACK_STYLES[new]
       end
       changed = true
       return
@@ -286,8 +286,8 @@ function cooldowns.tracker()
     return (now ~= nil and tick ~= nil) and tick - now or 0
   end
 
-  -- Ticks left and length of the global cooldown, or nil while none runs.
-  local function globalCooldown()
+  -- Seconds left and length of the global cooldown at the current server tick, or nil while none runs.
+  function tracker.globalCooldown()
     if globalStart == nil then
       return nil
     end
@@ -296,16 +296,7 @@ function cooldowns.tracker()
     if left <= 0 then
       return nil
     end
-    return left, finish - globalStart
-  end
-
-  -- Seconds left and length of the global cooldown at the current server tick, or nil while none runs.
-  function tracker.globalCooldown()
-    local left, length = globalCooldown()
-    if left == nil then
-      return nil
-    end
-    return left * 6 / 10, length * 6 / 10
+    return left * 6 / 10, (finish - globalStart) * 6 / 10
   end
 
   -- keys: ability keys in display order. slots: { [iconSpriteID] = { keybind, usable } } from the native

@@ -128,7 +128,11 @@ local function settingsPage(page, width, height, deps, define)
     end
   end
 
+  -- Saves value to the appearance field and redraws, unless the field already holds it.
   local function choose(field, value)
+    if value == saved.appearance()[field] then
+      return
+    end
     saved.setAppearance(field, value)
     redraw()
     deps.refresh()
@@ -292,11 +296,11 @@ local function settingsPage(page, width, height, deps, define)
     return s.fade
   end
 
-  -- A settings row with a stepper by 1 at its right, as stepper takes. Returns the row, whose fade(faded) dims
-  -- the stepper.
-  local function numberRow(label, low, high, value, save)
+  -- A settings row with a stepper at its right, as stepper takes, in steps of step or 1. Returns the row, whose
+  -- fade(faded) dims the stepper.
+  local function numberRow(label, low, high, value, save, step)
     local row = settingRow(label)
-    row.fade = stepper(row, rowRight - controls.STEPPER_W, low, high, 1, value, save)
+    row.fade = stepper(row, rowRight - controls.STEPPER_W, low, high, step or 1, value, save)
     return row
   end
 
@@ -339,15 +343,13 @@ local function settingsPage(page, width, height, deps, define)
     end
   end
 
-  -- A number row for the appearance field, from low to high.
-  local function stepperRow(label, field, low, high)
+  -- A number row for the appearance field, from low to high in steps of step or 1.
+  local function stepperRow(label, field, low, high, step)
     return numberRow(label, low, high, function(appearance)
       return appearance[field]
     end, function(n)
-      if n ~= saved.appearance()[field] then
-        choose(field, n)
-      end
-    end)
+      choose(field, n)
+    end, step)
   end
 
   -- A preset swatch on parent at x, y in its colour with its name on it, a white ring when chosen.
@@ -397,7 +399,7 @@ local function settingsPage(page, width, height, deps, define)
     -- The field also reports its contents on Enter, Esc and focus loss, so an unchanged colour is skipped.
     on(hex, "ONCONTENTCHANGED", function(_, _, contents)
       local rgb = style.parseHex(contents)
-      if rgb ~= nil and rgb ~= saved.appearance()[field] then
+      if rgb ~= nil then
         choose(field, rgb)
       end
     end)
@@ -510,19 +512,11 @@ function appearancepage.create(page, width, height, deps)
     for _, family in ipairs(style.FAMILIES) do
       set(fonts[family.id].label, "font", id.Font[family.sizes[13]])
     end
-    b.number(
-      "Text size",
-      style.ROLES.body + savedappearance.TEXT_STEP_MIN,
-      style.ROLES.body + savedappearance.TEXT_STEP_MAX,
-      function(appearance)
-        return style.ROLES.body + appearance.textStep
-      end,
-      function(n)
-        if n - style.ROLES.body ~= deps.saved.appearance().textStep then
-          b.choose("textStep", n - style.ROLES.body)
-        end
-      end
-    )
+    b.number("Text size", savedappearance.TEXT_SIZE.min, savedappearance.TEXT_SIZE.max, function(appearance)
+      return style.ROLES.body + appearance.textStep
+    end, function(n)
+      b.choose("textStep", n - style.ROLES.body)
+    end)
     b.choices("Text edge", style.EDGES, "edge", 124)
     b.choices("Text colour", style.TEXT_COLOURS, "textColour", 112)
 
@@ -560,25 +554,12 @@ function appearancepage.create(page, width, height, deps)
     b.heading("Out of combat")
     b.choices("HUD out of combat", autohide.MODES, "outOfCombat", 90)
     local opacity = savedappearance.HUD_OPACITY
-    local fadeOpacity = b.stepperAt(
-      b.row("Faded opacity %"),
-      b.rowRight - controls.STEPPER_W,
-      opacity.min,
-      opacity.max,
-      savedappearance.OPACITY_STEP,
-      function(appearance)
-        return appearance.outOfCombatOpacity
-      end,
-      function(n)
-        if n ~= deps.saved.appearance().outOfCombatOpacity then
-          b.choose("outOfCombatOpacity", n)
-        end
-      end
-    )
+    local fadeOpacity =
+      b.stepper("Faded opacity %", "outOfCombatOpacity", opacity.min, opacity.max, savedappearance.OPACITY_STEP)
     local withTarget = b.choices("Show while you have a target", ON_OFF, "showWithTarget", 72)
 
     return function(look, appearance)
-      fadeOpacity(appearance.outOfCombat ~= "fade")
+      fadeOpacity.fade(appearance.outOfCombat ~= "fade")
       b.fadeOptions(withTarget, appearance.outOfCombat == "show")
       view.setLook(elements, look)
       tiles.update(SAMPLE_TILES, 0)
@@ -646,14 +627,11 @@ function appearancepage.bars(page, width, height, deps)
     for _, family in ipairs(style.FAMILIES) do
       set(fonts[family.id].label, "font", id.Font[family.sizes[13]])
     end
-    local low = style.ROLES.body + savedappearance.TEXT_STEP_MIN
-    local high = style.ROLES.body + savedappearance.TEXT_STEP_MAX
-    local size = b.number("Text size", low, high, function(appearance)
+    local textSize = savedappearance.TEXT_SIZE
+    local size = b.number("Text size", textSize.min, textSize.max, function(appearance)
       return appearance.castTextSize == "hud" and style.ROLES.body + appearance.textStep or appearance.castTextSize
     end, function(n)
-      if n ~= saved.appearance().castTextSize then
-        b.choose("castTextSize", n)
-      end
+      b.choose("castTextSize", n)
     end)
     b.options(size, b.rowRight - 132, { MATCH_HUD }, "castTextSize", 104)
 
@@ -681,9 +659,7 @@ function appearancepage.bars(page, width, height, deps)
       local fadeStepper = b.stepperAt(row, opacityX + (OPACITY_COL - controls.STEPPER_W) // 2, 0, 100, step, function(a)
         return a[opacity]
       end, function(n)
-        if n ~= saved.appearance()[opacity] then
-          b.choose(opacity, n)
-        end
+        b.choose(opacity, n)
       end)
       local fadeHover = b.toggle(row, hoverX + (HOVER_COL - TOGGLE_W) // 2, TOGGLE_W, "hoverBar" .. bar)
       barFades[bar] = function(faded)

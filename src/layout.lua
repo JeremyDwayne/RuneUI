@@ -1,6 +1,8 @@
 -- Pure geometry for HUD anchors and snapping. Rects are { x, y, w, h } in UI units from the game window's
 -- bottom center, the space saved positions use. An anchor is { target, side, align, gap, offset }: the
 -- element sits gap pixels outside target's side, with its align edge or center offset from target's.
+local util = require("src/util")
+
 local layout = {}
 
 -- Alignments each side offers, in the order edit mode lists them.
@@ -73,17 +75,11 @@ end
 function layout.capture(child, target, side, align)
   local anchor = { side = side, align = align, gap = 0, offset = 0 }
   local x, y = layout.place(anchor, target, child.w, child.h)
-  if side == "left" then
-    anchor.gap = x - child.x
+  if side == "left" or side == "right" then
+    anchor.gap = side == "left" and x - child.x or child.x - x
     anchor.offset = child.y - y
-  elseif side == "right" then
-    anchor.gap = child.x - x
-    anchor.offset = child.y - y
-  elseif side == "top" then
-    anchor.gap = y - child.y
-    anchor.offset = child.x - x
   else
-    anchor.gap = child.y - y
+    anchor.gap = side == "top" and y - child.y or child.y - y
     anchor.offset = child.x - x
   end
   return anchor
@@ -99,12 +95,8 @@ function layout.grid(count, size, gap, perRow, grow, max)
   local vertical = grow == "up" or grow == "down"
   local along = math.min(max, perRow) * step - gap
   local across = math.ceil(max / perRow) * step - gap
-  local w = along
-  local h = across
-  if not vertical then
-    w = across
-    h = along
-  end
+  local w = vertical and along or across
+  local h = vertical and across or along
 
   -- x, y of a span along and across the axis, flipping across from the far edge for up and left.
   local function place(alongAt, acrossAt, acrossSize)
@@ -128,10 +120,7 @@ function layout.grid(count, size, gap, perRow, grow, max)
     tiles[#tiles + 1] = { x = x, y = y }
   end
 
-  local widest = math.min(count, perRow) * step - gap
-  if count == 0 then
-    widest = 0
-  end
+  local widest = count == 0 and 0 or math.min(count, perRow) * step - gap
   local deep = math.max(1, math.ceil(count / perRow)) * step - gap
   local bx, by = place((along - widest) // 2, 0, deep)
   local bounds = { x = bx, y = by, w = vertical and widest or deep, h = vertical and deep or widest }
@@ -157,15 +146,7 @@ end
 
 -- Whether name may anchor to target: not itself, and not anything anchored to it.
 function layout.canAnchor(anchors, name, target)
-  if target == name then
-    return false
-  end
-  for _, child in ipairs(layout.chain(anchors, name)) do
-    if child == target then
-      return false
-    end
-  end
-  return true
+  return target ~= name and util.indexOf(layout.chain(anchors, name), target) == nil
 end
 
 -- The shift along one axis that brings a span's start, center or end onto another rect's, the nearest within

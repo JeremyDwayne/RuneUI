@@ -8,6 +8,7 @@ local interfaces = require("src/interfaces")
 local actionbars = {}
 
 local read = interfaces.read
+local write = interfaces.write
 local component = interfaces.component
 local MAIN_BAR = interfaces.MAIN_BAR
 local ACTION_BARS = interfaces.ACTION_BARS
@@ -52,7 +53,7 @@ end
 -- watch lists the components read each frame for the client resetting the window frame and stat bars, as
 -- { interface, static, category, dynamic, key }.
 local fades = {}
--- The hover statics of each faded bar the mouse is over, as { [static] = true }, the appearance fadeActionBars
+-- The hover statics of each faded bar the mouse is over, as { [static] = true }, the appearance actionbars.fade
 -- last ran with, rendered frames since the last server tick, whether the window resized since the last frame, and
 -- the plugin layer while its resize hook is on.
 local hovered = {}
@@ -62,10 +63,6 @@ local fadeLook = nil
 local fadeFrames = KEEP_FRAMES
 local resized = false
 local resizeLayer = nil
-
-local function assign(c, field, value)
-  c[field] = value
-end
 
 -- The part a static of bar is, as src/barfade names them.
 local function barPart(bar, staticID)
@@ -87,14 +84,14 @@ local function fadeComponent(fade, key, c, part, check)
     if fade.hidden[key] == nil then
       fade.hidden[key] = read(c, "hidden") == true
       if not fade.hidden[key] then
-        pcall(assign, c, "hidden", true)
+        write(c, "hidden", true)
       end
     elseif check and not fade.hidden[key] and read(c, "hidden") ~= true then
-      pcall(assign, c, "hidden", true)
+      write(c, "hidden", true)
     end
   elseif fade.hidden[key] ~= nil then
     if not fade.hidden[key] then
-      pcall(assign, c, "hidden", false)
+      write(c, "hidden", false)
     end
     fade.hidden[key] = nil
   end
@@ -114,7 +111,7 @@ local function fadeComponent(fade, key, c, part, check)
   end
   local alpha = fade.base[key] * scale
   if reset or written ~= alpha then
-    pcall(assign, c, "alpha", alpha)
+    write(c, "alpha", alpha)
     fade.written[key] = alpha
   end
   if scale == 1 then
@@ -132,24 +129,7 @@ local function refade(fade, key, c, scale)
   end
   fade.base[key] = alpha
   fade.written[key] = alpha * scale
-  pcall(assign, c, "alpha", alpha * scale)
-end
-
--- Calls fn(key, child, category, dynamic) for each dynamic child of c.
-local function eachChild(interfaceID, staticID, c, fn)
-  pcall(function()
-    c:IterateDynamicComponents(function(child)
-      local category = read(child, "categoryID")
-      local dynamic = read(child, "dynamicID")
-      fn(
-        interfaceID .. ":" .. staticID .. ":" .. tostring(category) .. ":" .. tostring(dynamic),
-        child,
-        category,
-        dynamic
-      )
-      return false
-    end)
-  end)
+  write(c, "alpha", alpha * scale)
 end
 
 -- The background, border and settings button statics of the window in 1477 holding the bar whose root is root,
@@ -166,7 +146,7 @@ end
 local function fadeBar(bar, fade, root, check)
   fade.watch = {}
   local function fadeChildren(interfaceID, staticID, c, watched)
-    eachChild(interfaceID, staticID, c, function(key, child, category, dynamic)
+    interfaces.eachChild(c, interfaceID .. ":" .. staticID, function(key, child, category, dynamic)
       fadeComponent(fade, key, child, "other", check)
       if watched then
         fade.watch[#fade.watch + 1] = { interfaceID, staticID, category, dynamic, key }
@@ -220,7 +200,7 @@ local function refadeShells(bar, fade, root)
     local c = component(interfaceID, staticID)
     if c ~= nil then
       refade(fade, interfaceID .. ":" .. staticID, c, scale)
-      eachChild(interfaceID, staticID, c, function(key, child)
+      interfaces.eachChild(c, interfaceID .. ":" .. staticID, function(key, child)
         refade(fade, key, child, scale)
       end)
     end

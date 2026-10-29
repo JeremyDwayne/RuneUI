@@ -1,5 +1,7 @@
 -- Builds display models for the player frame, target frame and resource bar from plain reads.
 -- Pure: no client calls, so specs drive it with fake reads from src/adapter's shape.
+local util = require("src/util")
+
 local frames = {}
 
 -- Unit frame lifepoints texts, with a sample of each.
@@ -30,10 +32,6 @@ frames.SPENDERS = {
   },
 }
 
-local function clamp01(x)
-  return math.max(0, math.min(1, x))
-end
-
 local function oneDecimal(x)
   if x == math.floor(x) then
     return tostring(math.floor(x))
@@ -48,7 +46,7 @@ end
 
 -- Multiplies before dividing so 290 of 1000 reads 29%, not the 28% that 0.29 * 100 floors to.
 local function percentText(part, whole)
-  return math.floor(math.max(0, math.min(part, whole)) * 100 / whole) .. "%"
+  return math.floor(util.clamp(part, 0, whole) * 100 / whole) .. "%"
 end
 
 -- The max from a native "current/max" label such as "13,362/16,845", or nil.
@@ -103,7 +101,7 @@ function frames.player(reads, format)
   local max = labelMax(reads.lifepointsLabel)
   local percent
   if max ~= nil and max > 0 then
-    model.fill = clamp01(reads.lifepoints / max)
+    model.fill = util.clamp(reads.lifepoints / max, 0, 1)
     percent = percentText(reads.lifepoints, max)
   else
     max = nil
@@ -115,7 +113,7 @@ function frames.player(reads, format)
     local prayerMax = labelMax(reads.prayerLabel)
     model.prayerText = tostring(points)
     if prayerMax ~= nil and prayerMax > 0 then
-      model.prayerFill = clamp01(points / prayerMax)
+      model.prayerFill = util.clamp(points / prayerMax, 0, 1)
     end
   end
   return model
@@ -133,7 +131,7 @@ function frames.target(reads, format)
   local lifepoints = reads.lifepointsLabel and tonumber((reads.lifepointsLabel:gsub(",", "")))
   local percent
   if reads.healthPercent ~= nil then
-    model.fill = clamp01(reads.healthPercent / 100)
+    model.fill = util.clamp(reads.healthPercent / 100, 0, 1)
     percent = percentText(reads.healthPercent, 100)
   end
   model.valueText = valueText(format, lifepoints, percent, nil)
@@ -150,12 +148,12 @@ function frames.resource(reads, markers)
   if reads.adrenaline == nil then
     return { hidden = true }
   end
-  local fill = clamp01(reads.adrenaline / 1000)
+  local fill = util.clamp(reads.adrenaline / 1000, 0, 1)
   local model = {
     hidden = false,
     fill = fill,
     text = percentText(reads.adrenaline, 1000),
-    markers = { { at = clamp01(markers.threshold / 100) }, { at = clamp01(markers.ultimate / 100) } },
+    markers = { { at = util.clamp(markers.threshold / 100, 0, 1) }, { at = util.clamp(markers.ultimate / 100, 0, 1) } },
     spenders = {},
     byAbility = {},
   }

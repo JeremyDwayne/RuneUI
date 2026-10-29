@@ -10,25 +10,32 @@ local TRACKED_KEYS = { target = "trackedTarget", player = "trackedPlayer" }
 -- Saved keys of each aura kind's icon order.
 local ORDER_KEYS = { buffs = "orderBuffs", target = "orderTarget", player = "orderPlayer" }
 
--- An icon map's key as the string of a whole number, a sprite id or minus an item id, or nil.
-local function iconKey(key)
-  local n = math.tointeger(tonumber(key))
-  return n and tostring(n)
-end
-
--- A debuff kind's choices, { [tostring(sprite)] = true | false | "seen" }.
-local function readTracked(saved)
+-- An icon map, { [tostring(sprite)] = value }, keeping entries whose key is a whole number, a sprite id or minus an
+-- item id, and whose value passes valid.
+local function readMap(saved, valid)
   local out = {}
   if type(saved) ~= "table" then
     return out
   end
-  for sprite, choice in pairs(saved) do
-    local key = iconKey(sprite)
-    if key ~= nil and (type(choice) == "boolean" or choice == "seen") then
-      out[key] = choice
+  for sprite, value in pairs(saved) do
+    local n = math.tointeger(tonumber(sprite))
+    if n ~= nil and valid(value) then
+      out[tostring(n)] = value
     end
   end
   return out
+end
+
+local function isChoice(value)
+  return type(value) == "boolean" or value == "seen"
+end
+
+local function isTrue(value)
+  return value == true
+end
+
+local function isCategory(value)
+  return AURA_CATEGORIES[value] ~= nil
 end
 
 -- An icon order: a list of whole numbers, each once.
@@ -48,42 +55,14 @@ local function readOrder(saved)
   return out
 end
 
-local function readKeepUp(saved)
-  local out = {}
-  if type(saved) ~= "table" then
-    return out
-  end
-  for sprite, on in pairs(saved) do
-    local key = iconKey(sprite)
-    if key ~= nil and on == true then
-      out[key] = true
-    end
-  end
-  return out
-end
-
-local function readAuras(saved)
-  local out = {}
-  if type(saved) ~= "table" then
-    return out
-  end
-  for sprite, category in pairs(saved) do
-    local key = iconKey(sprite)
-    if key ~= nil and AURA_CATEGORIES[category] then
-      out[key] = category
-    end
-  end
-  return out
-end
-
 -- Loads the aura choices from store, dropping malformed entries.
 function savedauras.load(store)
-  local auras = readAuras(store.get("auras"))
+  local auras = readMap(store.get("auras"), isCategory)
   local tracked = {}
   for kind, key in pairs(TRACKED_KEYS) do
-    tracked[kind] = readTracked(store.get(key))
+    tracked[kind] = readMap(store.get(key), isChoice)
   end
-  local keepUp = readKeepUp(store.get("keepUp"))
+  local keepUp = readMap(store.get("keepUp"), isTrue)
   local orders = {}
   for kind, key in pairs(ORDER_KEYS) do
     orders[kind] = readOrder(store.get(key))
@@ -100,13 +79,9 @@ function savedauras.load(store)
 
   -- Saves the category of a buff icon seen for the first time. No-op once the icon has one.
   function s.learnAura(sprite, category)
-    local key = tostring(sprite)
-    if auras[key] ~= nil then
-      return
+    if auras[tostring(sprite)] == nil then
+      s.setAuraCategory(sprite, category)
     end
-    auras[key] = category
-    auraVersion = auraVersion + 1
-    store.set("auras", auras)
   end
 
   -- Moves a buff icon to another aura row.
@@ -123,13 +98,9 @@ function savedauras.load(store)
 
   -- Lists a debuff of kind seen for the first time, with no choice. No-op once listed.
   function s.seeDebuff(kind, sprite)
-    local key = tostring(sprite)
-    if tracked[kind][key] ~= nil then
-      return
+    if tracked[kind][tostring(sprite)] == nil then
+      s.setTracked(kind, sprite, "seen")
     end
-    tracked[kind][key] = "seen"
-    auraVersion = auraVersion + 1
-    store.set(TRACKED_KEYS[kind], tracked[kind])
   end
 
   function s.setTracked(kind, sprite, on)

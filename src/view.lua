@@ -1,7 +1,7 @@
 -- Draws the HUD from display models. Each element constructor returns { layer, update(model), setLook(look),
--- width, height, bounds }: setLook takes a src/style look, returns at once for the look the element shows,
--- and returns whether its bounds changed; bounds is the shown { x, y, w, h } inside the layer. place()
--- positions a layer on the game window and arrange() places every element from saved positions and anchors.
+-- bounds }: setLook takes a src/style look, returns at once for the look the element shows, and returns whether
+-- its bounds changed; bounds is the shown { x, y, w, h } inside the layer. place() positions a layer on the game
+-- window and arrange() places every element from saved positions and anchors.
 local aurarow = require("src/aurarow")
 local castbar = require("src/castbar")
 local cooldowngroup = require("src/cooldowngroup")

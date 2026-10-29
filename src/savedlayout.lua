@@ -72,20 +72,19 @@ local function copyAnchor(anchor)
     return nil
   end
   local aligns = layout.ALIGNS[anchor.side]
-  if aligns == nil or type(anchor.gap) ~= "number" or type(anchor.offset) ~= "number" then
+  if aligns == nil or util.indexOf(aligns, anchor.align) == nil then
     return nil
   end
-  for _, align in ipairs(aligns) do
-    if anchor.align == align then
-      return {
-        target = anchor.target,
-        side = anchor.side,
-        align = align,
-        gap = whole(anchor.gap),
-        offset = whole(anchor.offset),
-      }
-    end
+  if type(anchor.gap) ~= "number" or type(anchor.offset) ~= "number" then
+    return nil
   end
+  return {
+    target = anchor.target,
+    side = anchor.side,
+    align = anchor.align,
+    gap = whole(anchor.gap),
+    offset = whole(anchor.offset),
+  }
 end
 
 local function copyAnchors(saved)
@@ -198,14 +197,10 @@ function savedlayout.load(store, windowHeight)
     return anchors
   end
 
-  -- Anchors name by a src/layout anchor. The caller checks layout.canAnchor first.
+  -- Anchors name by a src/layout anchor, or unanchors it when anchor is nil. The caller checks
+  -- layout.canAnchor first.
   function s.setAnchor(name, anchor)
     anchors[name] = copyAnchor(anchor)
-    store.set("anchors", anchors)
-  end
-
-  function s.removeAnchor(name)
-    anchors[name] = nil
     store.set("anchors", anchors)
   end
 

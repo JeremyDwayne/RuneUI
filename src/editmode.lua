@@ -11,12 +11,9 @@ local editmode = {}
 local set = draw.set
 local rect = draw.rect
 local text = draw.text
-local outline = draw.outline
-local placeOutline = draw.placeOutline
 local hitArea = draw.hitArea
 local on = draw.on
 local button = controls.button
-local pressAt = draw.pressAt
 local cursor = draw.cursor
 local hideAll = draw.hideAll
 local FONTS = draw.FONTS
@@ -65,15 +62,15 @@ local GRID_CENTER_RGBA = (COLOURS.accent << 8) | 0x73
 
 -- deps: { saved = src/settings, elements = src/view elements by name, view = src/view, label = function
 -- returning a cooldown group's title by element name, reset = function asking to reset positions, done =
--- function run by the toolbar's Done, changed = function run as edit mode opens or closes, or nil }. Returns
--- { open, close, editing, escape, placeAll, shutdown }; escape handles Esc while editing. An element whose
+-- function run by the toolbar's Done, changed = function run as edit mode opens or closes }. Returns
+-- { open, editing, escape, placeAll, shutdown }; escape handles Esc while editing. An element whose
 -- inUse is false, such as a custom group not added, gets no overlay while editing.
 function editmode.create(root, deps)
   local saved = deps.saved
   local elements = deps.elements
 
   local function labelOf(name)
-    return LABELS[name] or (deps.label and deps.label(name)) or name
+    return LABELS[name] or deps.label(name) or name
   end
 
   -- The text on an anchored element's button, such as "Rotation, right, bottom".
@@ -140,7 +137,7 @@ function editmode.create(root, deps)
     local o = { name = entry.name, element = element }
     o.layer = ui.Layer.new(root)
     o.tint = hitArea(rect(o.layer, COLOURS.accent, 0, 0, 0, 0))
-    o.edge = outline(o.layer, COLOURS.accent, 2)
+    o.edge = draw.outline(o.layer, COLOURS.accent, 2)
     o.tagBg = rect(o.layer, COLOURS.accent, 2, 2, 0, TAG_H)
     o.tag = text(o.layer, FONTS.small, ui.AlignMode.TOPLEFT, 7, 2, 0, TAG_H)
     set(o.tag, "rgb", COLOURS.accentText)
@@ -251,7 +248,7 @@ function editmode.create(root, deps)
     draw.place(o.layer, pos.x + b.x, pos.y + b.y, pos.anchorX, pos.anchorY)
     draw.size(o.layer, b.w, b.h)
     draw.size(o.tint, b.w, b.h)
-    placeOutline(o.edge, 2, 2, math.max(0, b.w - 4), math.max(0, b.h - 4))
+    draw.placeOutline(o.edge, 2, 2, math.max(0, b.w - 4), math.max(0, b.h - 4))
     hideAll(o.header, o.small)
     if o == floatOwner then
       placeFloat()
@@ -395,13 +392,7 @@ function editmode.create(root, deps)
       local isPicking = pick ~= nil and pick.name == name
       local hovered = pick ~= nil and pick.hover == name
       set(o.tint, "rgb", (isPicking or hovered) and COLOURS.highlight or COLOURS.accent)
-      local alpha = 0.15
-      if isPicking then
-        alpha = 0.08
-      elseif hovered then
-        alpha = 0.14
-      end
-      set(o.tint, "alpha", alpha)
+      set(o.tint, "alpha", isPicking and 0.08 or hovered and 0.14 or 0.15)
       hideAll(o.edge, isPicking)
       for _, side in ipairs(o.edge) do
         set(side, "rgb", hovered and COLOURS.highlight or COLOURS.accent)
@@ -471,7 +462,7 @@ function editmode.create(root, deps)
       end
     elseif saved.anchors()[o.name] ~= nil then
       saved.setPosition(o.name, resolved[o.name])
-      saved.removeAnchor(o.name)
+      saved.setAnchor(o.name, nil)
       refreshOverlays()
     else
       startPick(o)
@@ -501,7 +492,7 @@ function editmode.create(root, deps)
       choose(o)
       return
     end
-    pressAt(o.tint, x)
+    draw.pressAt(o.tint, x)
     local mx, my = cursor()
     if mx == nil then
       return
@@ -591,16 +582,11 @@ function editmode.create(root, deps)
       refreshOverlays()
     end
     showSnap()
-    if deps.changed ~= nil then
-      deps.changed()
-    end
+    deps.changed()
   end
 
   function mode.open()
     setEditing(true)
-  end
-  function mode.close()
-    setEditing(false)
   end
   function mode.editing()
     return editing

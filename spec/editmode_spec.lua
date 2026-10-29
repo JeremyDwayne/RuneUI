@@ -65,6 +65,7 @@ local function enterEditMode()
     elements = elements,
     view = view,
     refresh = function() end,
+    configured = function() end,
   })
   fake.fire("ContentLayerReady", { component = fake.component() })
   pretty.button("Options")

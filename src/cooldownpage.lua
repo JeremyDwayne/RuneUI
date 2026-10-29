@@ -67,6 +67,13 @@ function cooldownpage.create(page, width, height, deps)
   local selected = "major"
   local confirmDelete = false
 
+  -- Shows name's group in the detail pane and closes the page's popups.
+  local function selectGroup(name)
+    selected = name
+    confirmDelete = false
+    manager.closePopups()
+  end
+
   -- Style tabs: the chosen one underlined, the equipped one marked Equipped.
   local styleTabs = {}
   local styleX = 16
@@ -107,25 +114,19 @@ function cooldownpage.create(page, width, height, deps)
     set(r.shared, "rgb", COLOURS.dimText)
     set(r.count, "rgb", COLOURS.dimText)
     on(r.hit, "ONCLICK", function()
-      if r.name == nil then
-        return
+      if r.name ~= nil then
+        selectGroup(r.name)
+        manager.rebuild()
       end
-      selected = r.name
-      confirmDelete = false
-      manager.closePopups()
-      manager.rebuild()
     end)
     listRows[i] = r
   end
   local newGroup = button(page, "New group", 16, 0, LIST_W - 32, 32, "dark", function()
     local name = saved.addGroup()
-    if name == nil then
-      return
+    if name ~= nil then
+      selectGroup(name)
+      changed()
     end
-    selected = name
-    confirmDelete = false
-    manager.closePopups()
-    changed()
   end)
 
   -- Detail pane: Name, Icon size, Icons per row, Grow and Abilities rows over the group's ability tiles.
@@ -149,20 +150,12 @@ function cooldownpage.create(page, width, height, deps)
   -- The group whose title the field shows; a change arriving after another group was chosen is ignored.
   local nameFor = nil
   on(nameField, "ONCONTENTCHANGED", function(_, _, contents)
-    if nameFor == nil or nameFor ~= selected or saved.group(nameFor) == nil then
-      return
-    end
-    local before = saved.group(nameFor).title
-    saved.setGroup(nameFor, "title", contents or "")
-    if saved.group(nameFor).title ~= before then
+    if nameFor == selected and saved.setGroup(nameFor, "title", contents or "") then
       changed()
     end
   end)
   local deleteButton
   deleteButton = button(page, "Delete", detailRight - 120, rowY(1) + 9, 120, 28, "dark", function()
-    if saved.group(selected) == nil then
-      return
-    end
     if not confirmDelete then
       confirmDelete = true
       set(deleteButton.label, "content", "Click to delete")
@@ -177,9 +170,7 @@ function cooldownpage.create(page, width, height, deps)
   -- A row's - number + stepper moving field by 1 from low to high, its number typed. Returns the stepper.
   local function stepper(i, field, low, high)
     return controls.stepper(page, detailRight - controls.STEPPER_W, rowY(i) + 9, low, high, 1, function(n)
-      local group = saved.group(selected)
-      if group ~= nil and n ~= group[field] then
-        saved.setGroup(selected, field, n)
+      if saved.setGroup(selected, field, n) then
         changed()
       end
     end)
@@ -196,11 +187,9 @@ function cooldownpage.create(page, width, height, deps)
     for k, option in ipairs(choices) do
       local x = detailRight - (#choices - k + 1) * (optionW + 4) + 4
       local b = controls.option(page, option.label, x, rowY(i) + 9, optionW, 28, function()
-        if saved.group(selected) == nil then
-          return
+        if saved.setGroup(selected, field, option.value) then
+          changed()
         end
-        saved.setGroup(selected, field, option.value)
-        changed()
       end)
       b.value = option.value
       row.buttons[#row.buttons + 1] = b

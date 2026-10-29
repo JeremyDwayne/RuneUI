@@ -123,9 +123,7 @@ function scrollbar.create(parent, x, y, h, onScroll)
     follow = follow,
     cancel = function()
       held = nil
-      if grip ~= nil then
-        placeGrip()
-      end
+      placeGrip()
     end,
   }
 end

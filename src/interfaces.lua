@@ -1,5 +1,6 @@
--- Where RuneUI finds what it reads and restyles in the game's own interfaces, and a guarded read of a game
--- component's field. src/adapter reads through this map and src/gameui restyles through it.
+-- Where RuneUI finds what it reads and restyles in the game's own interfaces, and guarded reads, writes and
+-- dynamic child walks of a game component. src/adapter reads through this map, and src/gameui and src/actionbars
+-- restyle through it.
 local interfaces = {}
 
 -- The main action bar, whose stat labels hold the player's maximum lifepoints and prayer.
@@ -82,6 +83,30 @@ function interfaces.read(obj, field)
     return value
   end
   return nil
+end
+
+local function assign(obj, field, value)
+  obj[field] = value
+end
+
+-- Writes value to a field of a game proxy, ignoring a proxy that refuses it. Passes assign to pcall rather than
+-- building a closure per write.
+function interfaces.write(obj, field, value)
+  pcall(assign, obj, field, value)
+end
+
+-- Calls fn(key, child, categoryID, dynamicID, arg) for each dynamic child of c, with key
+-- prefix .. ":category:dynamic". An id that cannot be read reads nil. arg passes through, so a caller needs no
+-- closure of its own.
+function interfaces.eachChild(c, prefix, fn, arg)
+  pcall(function()
+    c:IterateDynamicComponents(function(child)
+      local category = interfaces.read(child, "categoryID")
+      local dynamic = interfaces.read(child, "dynamicID")
+      fn(prefix .. ":" .. tostring(category) .. ":" .. tostring(dynamic), child, category, dynamic, arg)
+      return false
+    end)
+  end)
 end
 
 -- A top-level layer by its id alone, a static component, or a dynamic child when categoryID is given, or nil

@@ -17,7 +17,7 @@ colourpicker.H = 110
 
 -- A picker at x, y on parent. deps: { choose(rgb) taking each picked colour; allowed(y), when given, taking a
 -- click's y on parent and saying whether it lands where the picker shows, for a picker in a clipped list;
--- wheel(component), when given, wiring the wheel on each canvas }. Returns { show(rgb), hide() }: show
+-- wheel(component) wiring the wheel on each canvas }. Returns { show(rgb), hide() }: show
 -- builds the picker if need be and marks rgb.
 function colourpicker.create(parent, x, y, deps)
   local parts = nil
@@ -33,11 +33,14 @@ function colourpicker.create(parent, x, y, deps)
     parts.square:AddGradientV(0, 0, SQUARE_W, colourpicker.H, 0x00000000, 0x000000FF)
   end
 
+  local picker = {}
+
   local function allowed(cy)
     return deps.allowed == nil or deps.allowed(y + cy)
   end
 
-  -- Saves the colour at px, py on the square, or at py on the hue strip when onHue.
+  -- Saves the colour at px, py on the square, or at py on the hue strip when onHue. A hue picked for a grey
+  -- leaves the colour as it is, so the picker repaints in that hue itself.
   local function pick(px, py, onHue)
     local _, sat, v = style.hsv(shown)
     local fy = math.max(0, math.min(1, py / colourpicker.H))
@@ -48,6 +51,9 @@ function colourpicker.create(parent, x, y, deps)
       v = 1 - fy
     end
     deps.choose(style.rgb(hue, sat, v))
+    if onHue then
+      picker.show(shown)
+    end
   end
 
   local function build()
@@ -65,27 +71,19 @@ function colourpicker.create(parent, x, y, deps)
     end
     parts.mark = draw.rect(parent, draw.WINDOW.ring, 0, 0, 6, 6)
     parts.hueMark = draw.rect(parent, draw.WINDOW.ring, 0, 0, HUE_W + 4, 4)
-    if deps.wheel ~= nil then
-      deps.wheel(parts.square)
-      deps.wheel(parts.hue)
+    for _, canvas in ipairs({ parts.square, parts.hue }) do
+      deps.wheel(canvas)
+      draw.on(canvas, "ONCLICK", function(_, px, py)
+        if allowed(py) then
+          pick(px, py, canvas == parts.hue)
+        end
+      end)
     end
-    draw.on(parts.square, "ONCLICK", function(_, px, py)
-      if allowed(py) then
-        pick(px, py, false)
-      end
-    end)
-    draw.on(parts.hue, "ONCLICK", function(_, px, py)
-      if allowed(py) then
-        pick(px, py, true)
-      end
-    end)
   end
 
   local function hideAll(hidden)
     draw.hideAll({ parts.square, parts.hue, parts.mark, parts.hueMark }, hidden)
   end
-
-  local picker = {}
 
   function picker.show(rgb)
     if parts == nil then

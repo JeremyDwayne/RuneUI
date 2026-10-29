@@ -182,12 +182,14 @@ function savedgroups.load(store)
   end
 
   -- Saves one of name's display settings: size and perRow clamped to their ranges, grow one of GROWS, shared a
-  -- boolean, or a title cut to 20 characters and trimmed. Any other value changes nothing.
+  -- boolean, or a title cut to 20 characters and trimmed. Any other value changes nothing. Returns whether the
+  -- setting changed, saving only then.
   function s.setGroup(name, field, value)
     local group = groups[name]
     if group == nil then
-      return
+      return false
     end
+    local before = group[field]
     if field == "size" and type(value) == "number" then
       group.size = clamp(value, savedgroups.SIZE_MIN, savedgroups.SIZE_MAX)
     elseif field == "perRow" and type(value) == "number" then
@@ -199,9 +201,13 @@ function savedgroups.load(store)
     elseif field == "title" and title(value) ~= nil then
       group.title = title(value)
     else
-      return
+      return false
+    end
+    if group[field] == before then
+      return false
     end
     saveGroups()
+    return true
   end
 
   -- Adds a custom group in the first free slot and returns its name, or nil when all are in use.

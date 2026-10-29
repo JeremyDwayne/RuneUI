@@ -14,7 +14,6 @@ local screenPos = hudparts.screenPos
 local DEFAULT_LOOK = hudparts.DEFAULT_LOOK
 -- Aura rows by HUD element: which end the icons gather at, and whether they are debuffs, edged in the look's
 -- debuffEdge colour. name keys the row's icon size and text in a src/style look's auras.
-
 aurarow.STYLES = {
   targetDebuffs = { name = "targetDebuffs", align = "right", debuff = true, kind = "Debuff on target" },
   playerDebuffs = { name = "playerDebuffs", align = "left", debuff = true, kind = "Debuff on you" },
@@ -163,9 +162,8 @@ function aurarow.create(root, aura, tooltip, info)
   local shownBars = false
   local bounds = { x = 0, y = AURA_MARGIN, w = 0, h = 0 }
   row.bounds = bounds
-  -- The look shown, and the tile size and text heights its tiles are fitted to.
+  -- The look shown.
   local shown = nil
-  local fitted = nil
 
   local function showTooltip(i)
     local model = current[i]
@@ -237,14 +235,14 @@ function aurarow.create(root, aura, tooltip, info)
     end
     shown = look
     local own = look.auras[aura.name]
-    local fit = own.size .. ":" .. math.max(11, own.points) .. ":" .. math.max(12, own.stacksPoints + 2)
-    local refit = fit ~= fitted
+    local newTimeH = math.max(11, own.points)
+    local newStacksH = math.max(12, own.stacksPoints + 2)
+    local refit = own.size ~= size or newTimeH ~= timeH or newStacksH ~= stacksH
     if refit then
-      fitted = fit
       size = own.size
       step = size + AURA_GAP
-      timeH = math.max(11, own.points)
-      stacksH = math.max(12, own.stacksPoints + 2)
+      timeH = newTimeH
+      stacksH = newStacksH
     end
     for _, parts in ipairs(tiles) do
       if refit then

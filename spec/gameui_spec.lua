@@ -49,32 +49,32 @@ local function loadTargetPanel()
   return panel, border, rebuild
 end
 
-describe("gameui.hideTargetPanel", function()
+describe("gameui.apply with hideTargetPanel", function()
   it("makes every panel component transparent, again after a reload, and restores original alphas", function()
     local panel, border = loadTargetPanel()
-    gameui.hideTargetPanel(true)
+    gameui.apply({ hideTargetPanel = true })
     assert.are.same({ 0, 0, 0, 0 }, { panel[0].alpha, panel[21].alpha, panel[26].alpha, border.alpha })
 
     panel = loadTargetPanel()
-    gameui.hideTargetPanel(true)
+    gameui.apply({ hideTargetPanel = true })
     assert.are.equal(0, panel[21].alpha)
 
-    gameui.hideTargetPanel(false)
+    gameui.apply({ hideTargetPanel = false })
     assert.are.same({ 1, 1, 0.5 }, { panel[0].alpha, panel[21].alpha, panel[26].alpha })
   end)
 
   it("makes rebuilt border and background sprites transparent on the next frame", function()
     local panel, _, rebuild = loadTargetPanel()
-    gameui.hideTargetPanel(true)
+    gameui.apply({ hideTargetPanel = true })
     local border, background = rebuild()
-    gameui.keepTargetPanelHidden()
+    gameui.onFrame()
     assert.are.same({ 0, 0, 0 }, { panel[21].alpha, border.alpha, background.alpha })
-    gameui.hideTargetPanel(false)
+    gameui.apply({ hideTargetPanel = false })
   end)
 
   it("makes no client reads on a frame while the panel is shown", function()
     loadTargetPanel()
-    gameui.keepTargetPanelHidden()
+    gameui.onFrame()
     assert.are.equal(0, ui.Interfaces.lookups)
   end)
 
@@ -87,9 +87,9 @@ describe("gameui.hideTargetPanel", function()
     })
     border.categoryID = nil
     border.dynamicID = nil
-    gameui.hideTargetPanel(true)
+    gameui.apply({ hideTargetPanel = true })
     assert.are.equal(0, border.alpha)
-    gameui.hideTargetPanel(false)
+    gameui.apply({ hideTargetPanel = false })
     assert.are.equal(1, panel[0].alpha)
   end)
 end)
@@ -109,14 +109,14 @@ local function loadCastBar()
   return bar
 end
 
-describe("gameui.hideCastBar", function()
+describe("gameui.apply with hideCastBar", function()
   it("hides the spark's glow, whose alpha the client animates, and restores it", function()
     local bar = loadCastBar()
-    gameui.hideCastBar(true)
+    gameui.apply({ hideCastBar = true })
     bar[19].alpha = 1
-    gameui.keepCastBarHidden()
+    gameui.onFrame()
     assert.are.same({ 0, true }, { bar[0].alpha, bar[19].hidden })
-    gameui.hideCastBar(false)
+    gameui.apply({ hideCastBar = false })
     assert.are.same({ 1, false }, { bar[0].alpha, bar[19].hidden })
   end)
 end)
@@ -162,16 +162,16 @@ local function loadBuffBar()
   return bar
 end
 
-describe("gameui.hideBuffBars", function()
+describe("gameui.apply with hideBuffBars", function()
   it("hides slot icons, makes the rest transparent, and restores both when turned off", function()
     local bar = loadBuffBar()
-    gameui.hideBuffBars(true)
+    gameui.apply({ hideBuffBars = true })
     local slot = bar.slots[19]
     assert.are.same(
       { 0, true, false, 0, true, 0 },
       { bar.root.alpha, slot[0].hidden, slot[1].hidden, slot[1].alpha, slot[2].hidden, slot[3].alpha }
     )
-    gameui.hideBuffBars(false)
+    gameui.apply({ hideBuffBars = false })
     assert.are.same(
       { 1, false, 1, false, 1 },
       { bar.root.alpha, slot[0].hidden, slot[1].alpha, slot[2].hidden, slot[3].alpha }
@@ -182,43 +182,43 @@ describe("gameui.hideBuffBars", function()
     local bar = loadBuffBar()
     local slot = bar.fill(20)
     slot[0].hidden, slot[2].hidden = true, true
-    gameui.hideBuffBars(true)
-    gameui.hideBuffBars(false)
+    gameui.apply({ hideBuffBars = true })
+    gameui.apply({ hideBuffBars = false })
     assert.are.same({ true, true, false }, { slot[0].hidden, slot[2].hidden, bar.slots[19][0].hidden })
   end)
 
   it("hides a slot again in the frames after a tick once the client fills it", function()
     local bar = loadBuffBar()
-    gameui.hideBuffBars(true)
-    gameui.hideBuffBars(true)
+    gameui.apply({ hideBuffBars = true })
+    gameui.apply({ hideBuffBars = true })
     local slot = bar.fill(19)
-    gameui.keepBuffBarsHidden()
+    gameui.onFrame()
     assert.are.same({ true, 0, true, 0 }, { slot[0].hidden, slot[1].alpha, slot[2].hidden, slot[3].alpha })
-    gameui.hideBuffBars(false)
+    gameui.apply({ hideBuffBars = false })
   end)
 
   it("hides a slot a potion fills several slots past the last buff", function()
     local bar = loadBuffBar()
-    gameui.hideBuffBars(true)
+    gameui.apply({ hideBuffBars = true })
     adapter.auraReads()
-    gameui.hideBuffBars(true)
+    gameui.apply({ hideBuffBars = true })
     local slot = bar.fill(26)
-    gameui.keepBuffBarsHidden()
+    gameui.onFrame()
     assert.is_true(slot[0].hidden)
-    gameui.hideBuffBars(false)
+    gameui.apply({ hideBuffBars = false })
   end)
 
   it("makes no client reads on a frame while the bars are shown or long after a tick", function()
     local bar = loadBuffBar()
-    gameui.keepBuffBarsHidden()
+    gameui.onFrame()
     assert.are.equal(0, bar.interfaces.lookups)
-    gameui.hideBuffBars(true)
+    gameui.apply({ hideBuffBars = true })
     for _ = 1, 20 do
-      gameui.keepBuffBarsHidden()
+      gameui.onFrame()
     end
     bar.interfaces.lookups = 0
-    gameui.keepBuffBarsHidden()
+    gameui.onFrame()
     assert.are.equal(0, bar.interfaces.lookups)
-    gameui.hideBuffBars(false)
+    gameui.apply({ hideBuffBars = false })
   end)
 end)

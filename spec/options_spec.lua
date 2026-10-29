@@ -40,7 +40,14 @@ local function openWindow(mainhand, page)
     major = view.cooldownGroup(root, view.tooltip(root)),
   }
   local saved = settings.load(fakeStore())
-  options.create(root, { saved = saved, tracker = tracker, elements = elements, view = view, refresh = function() end })
+  options.create(root, {
+    saved = saved,
+    tracker = tracker,
+    elements = elements,
+    view = view,
+    refresh = function() end,
+    configured = function() end,
+  })
   fake.fire("ContentLayerReady", { component = fake.component() })
   pretty.button("Options")
   pretty.fire(pretty.find("Tabs"), page or "Cooldown manager")
@@ -118,6 +125,7 @@ describe("options", function()
       refresh = function()
         refreshed = refreshed + 1
       end,
+      configured = function() end,
     })
     local layer = fake.component()
     fake.fire("ContentLayerReady", { component = layer })
@@ -154,10 +162,14 @@ describe("options", function()
     local root = fake.component()
     local saved = settings.load(fakeStore())
     local elements = { player = view.playerFrame(root) }
-    options.create(
-      root,
-      { saved = saved, tracker = cooldowns.tracker(), elements = elements, view = view, refresh = function() end }
-    )
+    options.create(root, {
+      saved = saved,
+      tracker = cooldowns.tracker(),
+      elements = elements,
+      view = view,
+      refresh = function() end,
+      configured = function() end,
+    })
     assert.is_nil(pretty.find("Window"))
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
     fake.fire("Draw", {})
