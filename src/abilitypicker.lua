@@ -34,7 +34,7 @@ local TAB_LIST = {
 -- ability row is clicked; close() when its X is clicked }. Returns { open(x, y, style), close(), isOpen() }:
 -- open shows it on style with its top left at x, y, moved left or up as far as it must be to fit on the page.
 function abilitypicker.create(page, pageW, pageH, deps)
-  local picker = ui.Layer.new(page)
+  local picker = draw.new(ui.Layer, page)
   local rows = {}
   local tabs = {}
   local isOpen = false
@@ -86,7 +86,7 @@ function abilitypicker.create(page, pageW, pageH, deps)
       hover = rect(picker, COLOURS.buttonHover, 1, ry, WIDTH - 2, ROW),
       label = text(picker, FONTS.body, ui.AlignMode.TOPLEFT, 10, ry, WIDTH - 50, ROW),
       iconEdge = rect(picker, COLOURS.border, WIDTH - 30, ry + 2, 22, 22),
-      icon = ui.Sprite.new(picker),
+      icon = draw.new(ui.Sprite, picker),
     }
     r.icon:SetSize(20, 20)
     r.icon:SetPos(WIDTH - 29, ry + 3)

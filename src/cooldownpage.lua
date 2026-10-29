@@ -180,21 +180,20 @@ function cooldownpage.create(page, width, height, deps)
   local perRowLabel = settingLabel(3, "Icons per row")
   local perRowStepper = stepper(3, "perRow", 1, savedgroups.MAX_GROUP_KEYS)
 
-  -- Rows of right-aligned controls.option buttons that save one display setting.
+  -- Rows of right-aligned game radio groups that save one display setting, each { radio, field }.
   local settingChoices = {}
   local function settingChoice(i, field, choices, optionW)
-    local row = { field = field, buttons = {} }
+    local entries = {}
     for k, option in ipairs(choices) do
-      local x = detailRight - (#choices - k + 1) * (optionW + 4) + 4
-      local b = controls.option(page, option.label, x, rowY(i) + 9, optionW, 28, function()
-        if saved.setGroup(selected, field, option.value) then
-          changed()
-        end
-      end)
-      b.value = option.value
-      row.buttons[#row.buttons + 1] = b
+      entries[k] = { id = option.value, label = option.label }
     end
-    settingChoices[#settingChoices + 1] = row
+    local w = #choices * optionW
+    local radio = controls.radio(page, detailRight - w, rowY(i) + 9, w, 28, entries, #choices, function(value)
+      if saved.setGroup(selected, field, value) then
+        changed()
+      end
+    end)
+    settingChoices[#settingChoices + 1] = { radio = radio, field = field }
   end
   settingLabel(4, "Grow")
   settingChoice(4, "grow", {
@@ -202,9 +201,9 @@ function cooldownpage.create(page, width, height, deps)
     { value = "down", label = "Down" },
     { value = "left", label = "Left" },
     { value = "right", label = "Right" },
-  }, 64)
+  }, 80)
   settingLabel(5, "Abilities")
-  settingChoice(5, "shared", { { value = false, label = "Per style" }, { value = true, label = "Every style" } }, 110)
+  settingChoice(5, "shared", { { value = false, label = "Per style" }, { value = true, label = "Every style" } }, 120)
 
   -- Page position of grid slot i.
   local function slotPos(i)
@@ -219,7 +218,7 @@ function cooldownpage.create(page, width, height, deps)
       size = TILE,
       edge = group.add(hitArea(rect(page, COLOURS.border, 0, 0, TILE, TILE)), 0, 0),
       bg = group.add(rect(page, COLOURS.editorTile, 0, 0, TILE - 2, TILE - 2), 1, 1),
-      icon = group.add(ui.Sprite.new(page), 1, 1),
+      icon = group.add(draw.new(ui.Sprite, page), 1, 1),
       initials = group.add(text(page, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, TILE - 6, 12), 4, TILE - 15),
     }
     t.icon:SetSize(TILE - 2, TILE - 2)
@@ -251,12 +250,10 @@ function cooldownpage.create(page, width, height, deps)
     return tracker.tiles(keys, {})
   end
 
-  -- Marks each choice row's option for group's value chosen.
+  -- Marks each choice row's choice for group's value.
   local function showSettingChoices(group)
     for _, row in ipairs(settingChoices) do
-      for _, b in ipairs(row.buttons) do
-        controls.showOption(b, b.value == group[row.field])
-      end
+      row.radio.show(group[row.field])
     end
   end
 
@@ -373,7 +370,7 @@ function cooldownpage.create(page, width, height, deps)
   end
 
   -- Tile menu: one Remove row under the clicked tile.
-  local menu = ui.Layer.new(page)
+  local menu = draw.new(ui.Layer, page)
   menu:SetSize(140, 30)
   hitArea(rect(menu, COLOURS.border, 0, 0, 140, 30))
   local menuKey = nil

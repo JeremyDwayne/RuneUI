@@ -50,7 +50,7 @@ end
 -- src/search rows, kind the src/search kind listed and tracked() the tab's current { [sprite] = true } set; follow
 -- runs every frame to move a held scrollbar thumb.
 function aurasearch.create(parent, x, y, w, h, deps)
-  local layer = ui.Layer.new(parent)
+  local layer = draw.new(ui.Layer, parent)
   draw.pos(layer, x, y)
   draw.size(layer, w, h)
   hitArea(rect(layer, COLOURS.edge, 0, 0, w, h))
@@ -90,7 +90,7 @@ function aurasearch.create(parent, x, y, w, h, deps)
   -- and shows says whether a click at y inside row lands where the viewport shows it.
   local function column(vx, vy, vw, vh, rowH, bg, build, fill)
     local col = { rows = {}, items = {}, scroll = 0 }
-    local viewport = ui.Layer.new(layer)
+    local viewport = draw.new(ui.Layer, layer)
     draw.pos(viewport, vx, vy)
     draw.size(viewport, vw, vh)
     local back = hitArea(rect(viewport, bg, 0, 0, vw, vh))
@@ -115,7 +115,7 @@ function aurasearch.create(parent, x, y, w, h, deps)
     bar = scrollbar.create(viewport, barX, 0, vh, scrollTo)
     bar.wheel(back)
     for i = 1, vh // rowH + 2 do
-      local row = { layer = ui.Layer.new(viewport) }
+      local row = { layer = draw.new(ui.Layer, viewport) }
       draw.size(row.layer, vw - BAR_SPACE, rowH)
       build(row)
       bar.wheel(row.bg)
@@ -202,7 +202,7 @@ function aurasearch.create(parent, x, y, w, h, deps)
     row.bg = hitArea(rect(row.layer, COLOURS.popup, 0, 0, rowW, EFFECT_ROW))
     rect(row.layer, COLOURS.rowAlt, 0, EFFECT_ROW - 1, rowW, 1)
     rect(row.layer, COLOURS.border, 12, (EFFECT_ROW - ICON) // 2, ICON, ICON)
-    row.icon = ui.Sprite.new(row.layer)
+    row.icon = draw.new(ui.Sprite, row.layer)
     draw.pos(row.icon, 13, (EFFECT_ROW - ICON) // 2 + 1)
     draw.size(row.icon, ICON - 2, ICON - 2)
     row.name = text(row.layer, FONTS.body, ui.AlignMode.TOPLEFT, 50, 5, buttonX - 60, 18)

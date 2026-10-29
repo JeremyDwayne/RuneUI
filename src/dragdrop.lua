@@ -22,7 +22,7 @@ local GHOST_OFFSET = 8
 -- frame and returns before reading the mouse unless a press is held.
 function dragdrop.create(layer, ghostSize, handlers)
   local ghost = draw.group()
-  local ghostIcon = ghost.add(ui.Sprite.new(layer), 0, 0)
+  local ghostIcon = ghost.add(draw.new(ui.Sprite, layer), 0, 0)
   local ghostInitials =
     ghost.add(draw.text(layer, draw.FONTS.small, ui.AlignMode.CENTRE, 0, 0, ghostSize, ghostSize), 0, 0)
   ghostIcon:SetSize(ghostSize, ghostSize)

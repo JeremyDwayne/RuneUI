@@ -294,7 +294,7 @@ end
 -- moves no bounds.
 function cooldowngroup.create(root, tooltip, describe)
   local max = savedgroups.MAX_GROUP_KEYS
-  local layer = ui.Layer.new(root)
+  local layer = draw.new(ui.Layer, root)
   local tiles = {}
   local display = nil
   local current = {}

@@ -39,9 +39,9 @@ local function group(root, tooltip, name, count)
   return g
 end
 
--- Edit mode over every HUD element with default settings, entered from the options window. Returns the
--- elements by name, the settings and the options window.
-local function enterEditMode()
+-- The options window over every HUD element with default settings, opened. Returns the elements by name, the
+-- settings, the options window and the root.
+local function openOptions()
   local root = fake.component()
   root:SetSize(1710, 1041)
   local tooltip = view.tooltip(root)
@@ -69,8 +69,14 @@ local function enterEditMode()
   })
   fake.fire("ContentLayerReady", { component = fake.component() })
   pretty.button("Options")
+  return elements, saved, window, root
+end
+
+-- Edit mode entered from the options window, returning as openOptions does.
+local function enterEditMode()
+  local elements, saved, window, root = openOptions()
   pretty.button("Edit mode")
-  return elements, saved, window
+  return elements, saved, window, root
 end
 
 -- Presses or releases Shift.
@@ -376,5 +382,38 @@ describe("edit mode", function()
     fake.mouse.x = 303
     logicTick()
     assert.are.equal(-110, elements.major.layer.x)
+  end)
+
+  it("builds edit mode on entering it and destroys it with its handlers on leaving", function()
+    local _, _, window, root = openOptions()
+    pretty.button("Done")
+    local before = fake.live(root)
+    pretty.button("Options")
+    pretty.button("Edit mode")
+    assert.is_true(fake.live(root) > before)
+    assert.is_not_nil(fake.handlers.Draw.runeuiEditMode)
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.is_false(window.configuring())
+    assert.are.equal(before, fake.live(root))
+    assert.is_nil(fake.handlers.Draw.runeuiEditMode)
+  end)
+
+  it("places the HUD from the saved positions while edit mode is not built, as edit mode places it", function()
+    local elements, saved, window = openOptions()
+    saved.setPosition("major", { x = 40, y = -300, anchorX = 0.5, anchorY = 1 })
+    window.placeAll()
+    local layer = elements.major.layer
+    assert.are.same({ 40, -300 }, { layer.x, layer.y })
+    pretty.button("Edit mode")
+    assert.are.same({ 40, -300 }, { layer.x, layer.y })
+  end)
+
+  it("puts each overlay over its element on entering, where an anchor places it over a saved position", function()
+    local elements, saved = openOptions()
+    saved.setPosition("player", { x = 500, y = -100, anchorX = 0.5, anchorY = 1 })
+    pretty.button("Edit mode")
+    local layer = elements.player.layer
+    local overlay = overlayOf(elements.player).parent
+    assert.are.same({ layer.x, layer.y }, { overlay.x, overlay.y })
   end)
 end)

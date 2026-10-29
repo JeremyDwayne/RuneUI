@@ -141,7 +141,7 @@ end
 -- whose debuff, and its time left or stacks.
 function aurarow.create(root, aura, tooltip, info)
   local size, step, timeH, stacksH
-  local layer = ui.Layer.new(root)
+  local layer = draw.new(ui.Layer, root)
   local row = { layer = layer }
   -- The tiles built so far, as auras appear, up to MAX_TILES. Building every spare tile at load cost seconds.
   local tiles = {}

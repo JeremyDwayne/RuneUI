@@ -52,6 +52,7 @@ local TEXT_LABEL_X = 236
 local TEXT_X = 312
 local MATCH_X = 448
 local MATCH_W = 104
+local CHECK = 24
 
 -- Each group lists the sprites groups(...) files under kind and value: a buff row, or a debuff kind's
 -- tracked or untracked list. row names the HUD aura row a group shows, whose sizes it sets. A tab's search
@@ -119,7 +120,7 @@ local MAX_GROUPS = 3
 -- page: the options window's page layer, width by height. deps: { saved = src/settings, info(sprite) naming
 -- an icon as src/icons does, tooltip = view.tooltip, toScreen(x, y) turning page into screen coordinates,
 -- refresh() redrawing the HUD, catalog = src/catalog rows, describe(struct) reading a struct's description }.
--- Returns { display, redraw, follow, close, popupOpen, destroy }: display is the Display tab's layer for option
+-- Returns { display, redraw, follow, close, popupOpen }: display is the Display tab's layer for option
 -- rows; redraw draws the page from settings; follow runs each frame to move a drag; close ends a drag and closes
 -- the menu and the search; popupOpen says whether either is open.
 function buffspage.create(page, width, height, deps)
@@ -134,18 +135,19 @@ function buffspage.create(page, width, height, deps)
 
   local tabParts = {}
   local tabX = MARGIN
+  local tabGroup = controls.optionGroup(page)
   for _, def in ipairs(TABS) do
     tabParts[def.id] = controls.option(page, def.label, tabX, TAB_Y, def.w, TAB_H, function()
       closeMenu()
       finder.close()
       tab = def.id
       redraw()
-    end)
+    end, tabGroup)
     tabX = tabX + def.w + 6
   end
 
   local top = TAB_Y + TAB_H + 12
-  local display = ui.Layer.new(page)
+  local display = draw.new(ui.Layer, page)
   display:SetSize(width, height - top)
   display:SetPos(0, top)
 
@@ -159,7 +161,7 @@ function buffspage.create(page, width, height, deps)
   -- A sized group's Icon size and Text size line on its own layer, saving the fields of slot.def.row. Returns
   -- { layer, show(appearance) }.
   local function sizeLine(slot)
-    local layer = ui.Layer.new(page)
+    local layer = draw.new(ui.Layer, page)
     layer:SetSize(width - 2 * MARGIN, SIZES_H)
     local function field(name)
       return slot.def.row .. name
@@ -187,8 +189,9 @@ function buffspage.create(page, width, height, deps)
       controls.stepper(layer, ICON_X, y, savedappearance.AURA_ICON.min, savedappearance.AURA_ICON.max, 1, save("Icon"))
     local textStepper =
       controls.stepper(layer, TEXT_X, y, savedappearance.TEXT_SIZE.min, savedappearance.TEXT_SIZE.max, 1, save("Text"))
-    local match = controls.option(layer, "Match HUD", MATCH_X, y, MATCH_W, OPTION_H, function()
-      save("Text")("hud")
+    set(text(layer, FONTS.body, ui.AlignMode.TOPLEFT, MATCH_X, 0, MATCH_W, SIZES_H), "content", "Match HUD")
+    local match = controls.check(layer, MATCH_X + MATCH_W - CHECK, (SIZES_H - CHECK) // 2, CHECK, function(ticked)
+      save("Text")(ticked and "hud" or textSize(saved.appearance()))
     end)
     return {
       layer = layer,
@@ -197,7 +200,7 @@ function buffspage.create(page, width, height, deps)
         icon.show(appearance[field("Icon")])
         textStepper.show(textSize(appearance))
         textStepper.fade(matched)
-        controls.showOption(match, matched)
+        match.show(matched)
       end,
     }
   end
@@ -210,7 +213,7 @@ function buffspage.create(page, width, height, deps)
       label = text(page, FONTS.body, ui.AlignMode.TOPLEFT, MARGIN, 0, 200, 18),
       note = text(page, FONTS.small, ui.AlignMode.TOPLEFT, MARGIN + 140, 0, width - 2 * MARGIN - 140, 18),
       box = rect(page, COLOURS.row, MARGIN, 0, width - 2 * MARGIN, 0),
-      dashes = ui.Canvas.new(page),
+      dashes = draw.new(ui.Canvas, page),
     }
     set(slot.note, "rgb", COLOURS.mutedText)
     slot.dashes:SetSize(width, height)
@@ -227,7 +230,7 @@ function buffspage.create(page, width, height, deps)
   for i = 1, TILES do
     local t = {
       edge = hitArea(rect(page, COLOURS.border, 0, 0, SIZE, SIZE)),
-      icon = ui.Sprite.new(page),
+      icon = draw.new(ui.Sprite, page),
       size = SIZE,
     }
     t.icon:SetSize(SIZE - 2, SIZE - 2)
@@ -396,7 +399,7 @@ function buffspage.create(page, width, height, deps)
 
   -- Menu ------------------------------------------------------------------------------------------------
 
-  local menu = ui.Layer.new(page)
+  local menu = draw.new(ui.Layer, page)
   local menuEdge = hitArea(rect(menu, COLOURS.border, 0, 0, MENU_W, MENU_ROW))
   local menuRows = {}
   local menuTile = nil
@@ -632,7 +635,6 @@ function buffspage.create(page, width, height, deps)
     popupOpen = function()
       return menuTile ~= nil or finder.isOpen()
     end,
-    destroy = deps.tooltip.destroy,
   }
 end
 

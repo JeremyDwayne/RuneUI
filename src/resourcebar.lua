@@ -40,7 +40,7 @@ local PERCENT_ON_FILL = 0.56
 -- layer, which the strip and rows leave where it is.
 
 function resourcebar.create(root)
-  local layer = ui.Layer.new(root)
+  local layer = draw.new(ui.Layer, root)
   local rows = spenderRows(layer)
   local border = rect(layer, COLOURS.border, 0, BAR_Y, 0, 0)
   local track = rect(layer, COLOURS.track, 1, BAR_Y + 1, 0, 0)

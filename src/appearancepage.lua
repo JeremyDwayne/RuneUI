@@ -1,8 +1,10 @@
 -- The options window's Appearance and Bars pages. Each has a preview strip of HUD elements, drawn by src/view
 -- from sample models over a Dark or Light backdrop, fixed above its settings: Text, Unit frames, Game
--- interfaces and Out of combat on Appearance, the adrenaline bar and the cast bar on Bars. The settings scroll
--- by pixels inside a clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, and a
--- click lands only where its row shows. Every change saves, then redraws the preview and the HUD.
+-- interfaces and Out of combat on Appearance, the adrenaline bar and the cast bar on Bars. Choices are the game's
+-- radio groups, switches its check boxes and numbers steppers of game buttons. The settings scroll by pixels
+-- inside a clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, a text field
+-- reaching past the layer's edge shows no text, and a click on a hit area of RuneUI's own lands only where its
+-- row shows. Every change saves, then redraws the preview and the HUD.
 local autohide = require("src/autohide")
 local colourpicker = require("src/colourpicker")
 local controls = require("src/controls")
@@ -33,9 +35,11 @@ local HEADING_H = 40
 local END_SPACE = 32
 local MARGIN = 16
 local OPTION_H = 28
+-- A check box's side.
+local CHECK = 24
 local COLUMNS_H = 30
 -- The Bars page's action bar table: the Fade, Opacity and Show on hover columns' widths, right to left from
--- the row's right edge, and each toggle's width.
+-- the row's right edge, and the width each check box centres in.
 local HOVER_COL = 120
 local OPACITY_COL = 136
 local FADE_COL = 96
@@ -94,34 +98,31 @@ local TEXTURES = {
   { id = "vertical", label = "Vertical" },
   { id = "horizontal", label = "Horizontal" },
 }
-local SHOW_HIDE = { { id = false, label = "Show" }, { id = true, label = "Hide" } }
-local ON_OFF = { { id = true, label = "On" }, { id = false, label = "Off" } }
 local WIDTH_FROM = { { id = false, label = "Own width" }, { id = true, label = "Same as adrenaline" } }
 local MATCH_HUD = { id = "hud", label = "Match HUD" }
+local MATCH_W = 90
 
 -- A settings page on page, width by height. deps: { saved = src/settings, view = src/view, tooltip =
 -- view.tooltip, auraInfo(sprite), tracker = src/cooldowns tracker for the equipped style, refresh() redrawing the
 -- HUD }. define(b) builds the preview's elements on b.preview and the rows through b, and returns
--- drawPreview(look, appearance). Returns { open, choiceRow, follow, cancel }: open redraws the page from settings,
--- choiceRow(parent, x, y, w, label, choices, field, optionW) builds a row of option buttons on another page,
--- such as the Buffs page's Display tab, follow runs every frame to move a held scrollbar thumb, and cancel ends
--- one.
+-- drawPreview(look, appearance). Returns { open, choiceRow, checkRow, follow, cancel }: open redraws the page
+-- from settings, choiceRow(parent, x, y, w, label, choices, field, optionW) builds a row of choices and
+-- checkRow(parent, x, y, w, label, field) a row with a check box on another page, such as the Buffs page's
+-- Display tab, follow runs every frame to move a held scrollbar thumb, and cancel ends one.
 local function settingsPage(page, width, height, deps, define)
   local saved = deps.saved
   local redraw
 
   -- Option rows -------------------------------------------------------------------------------------------
 
-  -- Every choice row, each { choices = { [id] = controls.option }, field }, and every stepper's redraw.
+  -- Every choice row, each { radio = controls.radio, field }, and every stepper's and check box's redraw.
   local choiceRows = {}
   local steppers = {}
 
   local function showChoices()
     local appearance = saved.appearance()
     for _, row in ipairs(choiceRows) do
-      for value, option in pairs(row.choices) do
-        controls.showOption(option, value == appearance[row.field])
-      end
+      row.radio.show(appearance[row.field])
     end
     for _, show in ipairs(steppers) do
       show(appearance)
@@ -147,22 +148,43 @@ local function settingsPage(page, width, height, deps, define)
     return bg
   end
 
-  -- Right-aligned option buttons optionW wide, ending at right, choosing the saved appearance field from
-  -- choices, { { id, label } }. allowed(y), when given, takes the y of a click inside a button and says whether
-  -- it lands where the row shows. Returns the buttons by id.
-  local function options(parent, right, y, choices, field, optionW, allowed)
-    local row = { choices = {}, field = field }
-    for i, choice in ipairs(choices) do
-      local x = right - (#choices - i + 1) * (optionW + 4) + 4
-      local by = y + (ROW_H - OPTION_H) // 2
-      row.choices[choice.id] = controls.option(parent, choice.label, x, by, optionW, OPTION_H, function(_, cy)
-        if allowed == nil or allowed(by + cy) then
-          choose(field, choice.id)
-        end
-      end)
+  -- A radio group of choices, { { id, label } }, in columns optionW wide ending at right, choosing the saved
+  -- appearance field. Returns the controls.radio.
+  local function options(parent, right, y, choices, field, optionW)
+    local w = #choices * optionW
+    local radio = controls.radio(
+      parent,
+      right - w,
+      y + (ROW_H - OPTION_H) // 2,
+      w,
+      OPTION_H,
+      choices,
+      #choices,
+      function(value)
+        choose(field, value)
+      end
+    )
+    choiceRows[#choiceRows + 1] = { radio = radio, field = field }
+    return radio
+  end
+
+  -- A check box at x in a row at y on parent, ticked while ticked(appearance) holds; onToggle(ticked) takes the
+  -- player's tick. Returns the controls.check.
+  local function checkAt(parent, x, y, ticked, onToggle)
+    local box = controls.check(parent, x, y + (ROW_H - CHECK) // 2, CHECK, onToggle)
+    steppers[#steppers + 1] = function(appearance)
+      box.show(ticked(appearance))
     end
-    choiceRows[#choiceRows + 1] = row
-    return row.choices
+    return box
+  end
+
+  -- A check box centred in w from x, ticked while the boolean appearance field is true.
+  local function checkBox(parent, x, y, w, field)
+    return checkAt(parent, x + (w - CHECK) // 2, y, function(appearance)
+      return appearance[field] == true
+    end, function(ticked)
+      choose(field, ticked)
+    end)
   end
 
   local function choiceRow(parent, x, y, w, label, choices, field, optionW)
@@ -170,40 +192,42 @@ local function settingsPage(page, width, height, deps, define)
     return options(parent, x + w - 12, y, choices, field, optionW)
   end
 
+  local function checkRow(parent, x, y, w, label, field)
+    rowBox(parent, x, y, w, label, false)
+    return checkBox(parent, x + w - 12 - CHECK, y, CHECK, field)
+  end
+
   -- Preview strip -----------------------------------------------------------------------------------------
 
   local backdrop = hitArea(rect(page, COLOURS.panel, 0, 0, width, STRIP_H))
-  local preview = ui.Layer.new(page)
+  local preview = draw.new(ui.Layer, page)
   preview:SetSize(width, STRIP_H)
   rect(page, COLOURS.border, 0, STRIP_H, width, 1)
   local backdropChoice = "dark"
-  local backdropOptions = {}
+  local backdropRadio
 
   local function showBackdrop()
     set(backdrop, "rgb", style.find(BACKDROPS, backdropChoice).rgb)
-    for id_, option in pairs(backdropOptions) do
-      controls.showOption(option, id_ == backdropChoice)
-    end
+    backdropRadio.show(backdropChoice)
   end
 
-  for i, entry in ipairs(BACKDROPS) do
-    backdropOptions[entry.id] = controls.option(page, entry.label, width - 70, 8 + (i - 1) * 26, 62, 22, function()
-      backdropChoice = entry.id
-      showBackdrop()
-    end)
-  end
+  backdropRadio = controls.radio(page, width - 86, 8, 78, 52, BACKDROPS, 1, function(value)
+    backdropChoice = value
+    showBackdrop()
+  end)
 
   -- Scrolling settings ------------------------------------------------------------------------------------
 
   local viewH = height - STRIP_H - 1
-  local viewport = ui.Layer.new(page)
+  local viewport = draw.new(ui.Layer, page)
   draw.pos(viewport, 0, STRIP_H + 1)
   draw.size(viewport, width, viewH)
   local viewportBg = hitArea(rect(viewport, COLOURS.panel, 0, 0, width, viewH))
-  local content = ui.Layer.new(viewport)
+  local content = draw.new(ui.Layer, viewport)
   local rowW = width - 2 * MARGIN - scrollbar.WIDTH - 4
   local rowRight = MARGIN + rowW - 12
-  -- Rows from the top: { layer, y, h }, the content's height and how far it is scrolled.
+  -- Rows from the top: { layer, y, h, fields }, the content's height and how far it is scrolled. Each of fields
+  -- is { y, h, clip(clipped) }, a text field y px down its row and h tall, whose clip blanks its text.
   local rows = {}
   local contentH = 0
   local scroll = 0
@@ -214,6 +238,11 @@ local function settingsPage(page, width, height, deps, define)
     draw.pos(content, 0, -scroll)
     for _, row in ipairs(rows) do
       set(row.layer, "hidden", row.y + row.h <= scroll or row.y >= scroll + viewH)
+      -- The client clips a text field's box to the layer but not its text.
+      for _, f in ipairs(row.fields) do
+        local top = row.y + f.y - scroll
+        f.clip(top < 0 or top + f.h > viewH)
+      end
     end
   end
 
@@ -223,7 +252,7 @@ local function settingsPage(page, width, height, deps, define)
 
   -- A layer at the content's end, h tall, which hides once scrolled wholly out of view. relayout places it.
   local function addRow(h)
-    local row = { layer = ui.Layer.new(content), h = h }
+    local row = { layer = draw.new(ui.Layer, content), h = h, fields = {} }
     rows[#rows + 1] = row
     return row
   end
@@ -267,29 +296,21 @@ local function settingsPage(page, width, height, deps, define)
     return row
   end
 
-  -- Option buttons on row's layer ending at right, choosing field from choices; returns the buttons by id.
-  local function rowOptions(row, right, choices, field, optionW)
-    local buttons = options(row.layer, right, 0, choices, field, optionW, function(y)
-      return shows(row, y)
-    end)
-    for _, option in pairs(buttons) do
-      wheel(option.bg)
-    end
-    return buttons
-  end
-
+  -- A settings row with a radio group at its right choosing field from choices; returns the controls.radio.
   local function scrolledChoices(label, choices, field, optionW)
-    return rowOptions(settingRow(label), rowRight, choices, field, optionW)
+    local radio = options(settingRow(label).layer, rowRight, 0, choices, field, optionW)
+    wheel(radio.group)
+    return radio
   end
 
   -- A controls.stepper at x on row, from low to high in steps of step: value(appearance) gives the number shown and
   -- save(n) takes a new one. Returns its fade(faded), which dims the stepper while the setting has no effect.
   local function stepper(row, x, low, high, step, value, save)
-    local s = controls.stepper(row.layer, x, (ROW_H - OPTION_H) // 2, low, high, step, save, function(y)
-      return shows(row, y)
-    end)
-    wheel(s.buttons[1].bg)
-    wheel(s.buttons[2].bg)
+    local s = controls.stepper(row.layer, x, (ROW_H - OPTION_H) // 2, low, high, step, save)
+    wheel(s.buttons[1])
+    wheel(s.buttons[2])
+    wheel(s.field)
+    row.fields[#row.fields + 1] = { y = s.fieldY, h = s.fieldH, clip = s.clip }
     steppers[#steppers + 1] = function(appearance)
       s.show(value(appearance))
     end
@@ -304,32 +325,22 @@ local function settingsPage(page, width, height, deps, define)
     return row
   end
 
-  -- Dims each controls.option in buttons, by id or in a list, while faded, as while its setting has no effect.
-  local function fadeOptions(buttons, faded)
-    local alpha = faded and controls.FADED or 1
-    for _, o in pairs(buttons) do
-      for _, part in ipairs({ o.ring, o.bg, o.face, o.label }) do
-        set(part, "alpha", alpha)
-      end
-    end
+  -- A check box centred in w at x on row, ticked while the boolean appearance field is true. Returns its
+  -- fade(faded).
+  local function toggle(row, x, w, field)
+    local box = checkBox(row.layer, x, 0, w, field)
+    wheel(box.check)
+    return box.fade
   end
 
-  -- An On or Off button w wide at x on row, flipping the boolean appearance field. Returns its fade(faded).
-  local function toggle(row, x, w, field)
-    local by = (ROW_H - OPTION_H) // 2
-    local o = controls.option(row.layer, "Off", x, by, w, OPTION_H, function(_, y)
-      if shows(row, by + y) then
-        choose(field, not saved.appearance()[field])
-      end
-    end)
-    wheel(o.bg)
-    steppers[#steppers + 1] = function(appearance)
-      controls.showOption(o, appearance[field])
-      set(o.label, "content", appearance[field] and "On" or "Off")
-    end
-    return function(faded)
-      fadeOptions({ o }, faded)
-    end
+  -- A check box at x on row, as checkAt takes.
+  local function rowCheckAt(row, x, ticked, onToggle)
+    wheel(checkAt(row.layer, x, 0, ticked, onToggle).check)
+  end
+
+  -- A settings row with a check box at its right for the boolean appearance field. Returns its fade(faded).
+  local function checkSetting(label, field)
+    return toggle(settingRow(label), rowRight - CHECK, CHECK, field)
   end
 
   -- A row of column labels, each { label, x, w } centred over its column, under the first, which sits left.
@@ -352,23 +363,6 @@ local function settingsPage(page, width, height, deps, define)
     end, step)
   end
 
-  -- A preset swatch on parent at x, y in its colour with its name on it, a white ring when chosen.
-  local function swatch(parent, x, y, label, onClick)
-    local sw = {
-      ring = rect(parent, COLOURS.ring, x - 2, y - 2, SWATCH_W + 4, OPTION_H + 4),
-      bg = hitArea(rect(parent, COLOURS.border, x, y, SWATCH_W, OPTION_H)),
-      label = draw.edgedText(parent, FONTS.small, ui.AlignMode.CENTRE, x, y, SWATCH_W, OPTION_H),
-    }
-    set(sw.label, "content", label)
-    set(sw.label, "isShadowed", false)
-    draw.setEdge(sw.label, COLOURS.border)
-    on(sw.bg, "ONCLICK", function(_, _, cy)
-      onClick(y + cy)
-    end)
-    wheel(sw.bg)
-    return sw
-  end
-
   -- Each colour row's redraw, given the appearance.
   local colourRows = {}
 
@@ -381,21 +375,69 @@ local function settingsPage(page, width, height, deps, define)
       return shows(row, y)
     end
     local lineY = { 10, 10 + OPTION_H + 8 }
+    -- Each preset's swatch draws on one canvas: its colour, its name in white with a black edge, and a white
+    -- ring when chosen. A transparent hit area over each takes its clicks.
+    local canvas = draw.new(ui.Canvas, row.layer)
+    draw.pos(canvas, 0, 0)
+    draw.size(canvas, rowRight + 2, lineY[2] + OPTION_H + 2)
     local swatches = {}
     local perLine = 5
     for i, preset in ipairs(presets) do
       local line = (i - 1) // perLine + 1
       local slot = (i - 1) % perLine
-      local x = rowRight - perLine * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP + slot * (SWATCH_W + SWATCH_GAP)
-      swatches[preset.id] = swatch(row.layer, x, lineY[line], preset.label, function(y)
-        if allowed(y) then
+      local sw = {
+        id = preset.id,
+        label = preset.label,
+        x = rowRight - perLine * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP + slot * (SWATCH_W + SWATCH_GAP),
+        y = lineY[line],
+      }
+      sw.bg = hitArea(rect(row.layer, COLOURS.border, sw.x, sw.y, SWATCH_W, OPTION_H))
+      set(sw.bg, "alpha", 0)
+      on(sw.bg, "ONCLICK", function(_, _, cy)
+        if allowed(sw.y + cy) then
           choose(field, preset.id)
         end
       end)
+      wheel(sw.bg)
+      swatches[i] = sw
+    end
+    -- The chosen preset and swatch colours last drawn, so a redraw that changes neither writes nothing.
+    local drawn = nil
+    local function drawSwatches(chosen)
+      local key = tostring(chosen)
+      for _, sw in ipairs(swatches) do
+        key = key .. ":" .. presetRgb(sw.id)
+      end
+      if key == drawn then
+        return
+      end
+      drawn = key
+      canvas:Clear()
+      for _, sw in ipairs(swatches) do
+        if sw.id == chosen then
+          canvas:AddRectangle(sw.x - 2, sw.y - 2, SWATCH_W + 4, OPTION_H + 4, draw.opaque(COLOURS.ring))
+        end
+        canvas:AddRectangle(sw.x, sw.y, SWATCH_W, OPTION_H, draw.opaque(presetRgb(sw.id)))
+        draw.addEdgedText(canvas, sw.x, sw.y, SWATCH_W, OPTION_H, sw.label, FONTS.small, 0xffffff, COLOURS.border)
+      end
     end
     local customX = rowRight - 2 * (SWATCH_W + SWATCH_GAP) + SWATCH_GAP
     local hexX = rowRight - HEX_W
-    local hex = controls.inputField(row.layer, hexX, lineY[2] + (OPTION_H - HEX_H) // 2, HEX_W, HEX_H, 7)
+    local hexY = lineY[2] + (OPTION_H - HEX_H) // 2
+    local hex = controls.inputField(row.layer, hexX, hexY, HEX_W, HEX_H, 7)
+    wheel(hex)
+    local hexClipped = false
+    row.fields[#row.fields + 1] = {
+      y = hexY,
+      h = HEX_H,
+      clip = function(clipped)
+        local rgb = colourRows[field] and colourRows[field].rgb
+        if clipped ~= hexClipped and rgb ~= nil then
+          hex.content = clipped and "" or style.formatHex(rgb)
+        end
+        hexClipped = clipped
+      end,
+    }
     -- The field also reports its contents on Enter, Esc and focus loss, so an unchanged colour is skipped.
     on(hex, "ONCONTENTCHANGED", function(_, _, contents)
       local rgb = style.parseHex(contents)
@@ -434,12 +476,9 @@ local function settingsPage(page, width, height, deps, define)
         local rgb = shownRgb(look)
         colourRows[field].rgb = rgb
         local chosen = appearance[field]
-        for presetID, sw in pairs(swatches) do
-          set(sw.bg, "rgb", presetRgb(presetID))
-          set(sw.ring, "hidden", presetID ~= chosen)
-        end
+        drawSwatches(chosen)
         controls.showOption(custom, type(chosen) == "number")
-        if style.parseHex(hex.content) ~= rgb then
+        if not hexClipped and style.parseHex(hex.content) ~= rgb then
           hex.content = style.formatHex(rgb)
         end
         if open then
@@ -454,13 +493,13 @@ local function settingsPage(page, width, height, deps, define)
     rowRight = rowRight,
     heading = heading,
     choices = scrolledChoices,
-    options = rowOptions,
+    checkAt = rowCheckAt,
     number = numberRow,
     stepper = stepperRow,
     row = settingRow,
     stepperAt = stepper,
     toggle = toggle,
-    fadeOptions = fadeOptions,
+    check = checkSetting,
     columns = columns,
     colour = colourRow,
     choose = choose,
@@ -491,6 +530,7 @@ local function settingsPage(page, width, height, deps, define)
       scrollTo(scroll)
     end,
     choiceRow = choiceRow,
+    checkRow = checkRow,
     follow = bar.follow,
     cancel = bar.cancel,
   }
@@ -508,17 +548,14 @@ function appearancepage.create(page, width, height, deps)
     local elements = { tiles, aura, player, target }
 
     b.heading("Text")
-    local fonts = b.choices("Font", style.FAMILIES, "font", 112)
-    for _, family in ipairs(style.FAMILIES) do
-      set(fonts[family.id].label, "font", id.Font[family.sizes[13]])
-    end
+    b.choices("Font", style.FAMILIES, "font", 130)
     b.number("Text size", savedappearance.TEXT_SIZE.min, savedappearance.TEXT_SIZE.max, function(appearance)
       return style.ROLES.body + appearance.textStep
     end, function(n)
       b.choose("textStep", n - style.ROLES.body)
     end)
-    b.choices("Text edge", style.EDGES, "edge", 124)
-    b.choices("Text colour", style.TEXT_COLOURS, "textColour", 112)
+    b.choices("Text edge", style.EDGES, "edge", 150)
+    b.choices("Text colour", style.TEXT_COLOURS, "textColour", 130)
 
     b.heading("Unit frames")
     for _, frame in ipairs({ "player", "target" }) do
@@ -541,26 +578,26 @@ function appearancepage.create(page, width, height, deps)
         end
       )
     end
-    b.choices("Bar texture", TEXTURES, "texture", 112)
-    b.choices("Frame border", style.BORDERS, "border", 112)
-    b.choices("Lifepoints text", frames.LIFEPOINTS, "lifepoints", 118)
+    b.choices("Bar texture", TEXTURES, "texture", 120)
+    b.choices("Frame border", style.BORDERS, "border", 120)
+    b.choices("Lifepoints text", frames.LIFEPOINTS, "lifepoints", 140)
     b.stepper("Frame width", "frameWidth", savedappearance.FRAME_WIDTH.min, savedappearance.FRAME_WIDTH.max)
     b.stepper("Frame height", "frameHeight", savedappearance.FRAME_HEIGHT.min, savedappearance.FRAME_HEIGHT.max)
 
     b.heading("Game interfaces")
-    b.choices("Default target panel", SHOW_HIDE, "hideTargetPanel", 90)
-    b.choices("Game cast bar", SHOW_HIDE, "hideCastBar", 90)
+    b.check("Hide default target panel", "hideTargetPanel")
+    b.check("Hide game cast bar", "hideCastBar")
 
     b.heading("Out of combat")
     b.choices("HUD out of combat", autohide.MODES, "outOfCombat", 90)
     local opacity = savedappearance.HUD_OPACITY
     local fadeOpacity =
       b.stepper("Faded opacity %", "outOfCombatOpacity", opacity.min, opacity.max, savedappearance.OPACITY_STEP)
-    local withTarget = b.choices("Show while you have a target", ON_OFF, "showWithTarget", 72)
+    local fadeWithTarget = b.check("Show while you have a target", "showWithTarget")
 
     return function(look, appearance)
       fadeOpacity.fade(appearance.outOfCombat ~= "fade")
-      b.fadeOptions(withTarget, appearance.outOfCombat == "show")
+      fadeWithTarget(appearance.outOfCombat == "show")
       view.setLook(elements, look)
       tiles.update(SAMPLE_TILES, 0)
       aura.update(SAMPLE_AURAS, false)
@@ -607,7 +644,7 @@ function appearancepage.bars(page, width, height, deps)
     b.choices("Spenders", style.SPENDER_PLACES, "spenders", 150)
 
     b.heading("Cast bar")
-    b.choices("Width from", WIDTH_FROM, "castMatchWidth", 160)
+    b.choices("Width from", WIDTH_FROM, "castMatchWidth", 180)
     local widthRow = b.stepper("Width", "castWidth", savedappearance.CAST_WIDTH.min, savedappearance.CAST_WIDTH.max)
     b.stepper("Height", "castHeight", savedappearance.CAST_HEIGHT.min, savedappearance.CAST_HEIGHT.max)
     local function presetRgb(presetID)
@@ -623,20 +660,27 @@ function appearancepage.bars(page, width, height, deps)
     for _, family in ipairs(style.FAMILIES) do
       fontChoices[#fontChoices + 1] = family
     end
-    local fonts = b.choices("Font", fontChoices, "castFont", 104)
-    for _, family in ipairs(style.FAMILIES) do
-      set(fonts[family.id].label, "font", id.Font[family.sizes[13]])
-    end
+    b.choices("Font", fontChoices, "castFont", 118)
     local textSize = savedappearance.TEXT_SIZE
     local size = b.number("Text size", textSize.min, textSize.max, function(appearance)
       return appearance.castTextSize == "hud" and style.ROLES.body + appearance.textStep or appearance.castTextSize
     end, function(n)
       b.choose("castTextSize", n)
     end)
-    b.options(size, b.rowRight - 132, { MATCH_HUD }, "castTextSize", 104)
+    local matchX = b.rowRight - controls.STEPPER_W - 16 - CHECK
+    b.checkAt(size, matchX, function(appearance)
+      return appearance.castTextSize == "hud"
+    end, function(ticked)
+      b.choose("castTextSize", ticked and "hud" or style.ROLES.body + saved.appearance().textStep)
+    end)
+    set(
+      text(size.layer, FONTS.body, ui.AlignMode.TOPLEFT, matchX - MATCH_W, 0, MATCH_W, ROW_H),
+      "content",
+      MATCH_HUD.label
+    )
 
     b.heading("Action bars")
-    b.choices("Fade action bars", ON_OFF, "fadeBars", 72)
+    b.check("Fade action bars", "fadeBars")
     local right = b.rowRight
     local hoverX = right - HOVER_COL
     local opacityX = hoverX - OPACITY_COL

@@ -54,6 +54,24 @@ local function openWindow(mainhand, page)
   return saved
 end
 
+-- Options over a player frame on a new root, with the ribbon built and the window not yet opened. Returns the
+-- root, the window and the number of HUD components on the root.
+local function optionsOnRoot()
+  local root = fake.component()
+  local elements = { player = view.playerFrame(root) }
+  local hud = fake.live(root)
+  local window = options.create(root, {
+    saved = settings.load(fakeStore()),
+    tracker = cooldowns.tracker(),
+    elements = elements,
+    view = view,
+    refresh = function() end,
+    configured = function() end,
+  })
+  fake.fire("ContentLayerReady", { component = fake.component() })
+  return root, window, hud
+end
+
 -- Opens the ability picker from the "+" tile, the third "+" after the two steppers'.
 local function openPicker()
   fake.press("+", 3)
@@ -158,10 +176,11 @@ describe("options", function()
     end))
   end)
 
-  it("builds the window on the first press of Options, with the HUD placed before it", function()
+  it("builds nothing on the root until the first press of Options, with the HUD placed before it", function()
     local root = fake.component()
     local saved = settings.load(fakeStore())
     local elements = { player = view.playerFrame(root) }
+    local hud = fake.live(root)
     options.create(root, {
       saved = saved,
       tracker = cooldowns.tracker(),
@@ -170,6 +189,7 @@ describe("options", function()
       refresh = function() end,
       configured = function() end,
     })
+    assert.are.equal(hud, fake.live(root))
     assert.is_nil(pretty.find("Window"))
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
     fake.fire("Draw", {})
@@ -216,6 +236,22 @@ describe("options", function()
     fake.press("Display")
     fake.press("White")
     assert.are.equal("white", saved.appearance().debuffEdge)
+  end)
+
+  it("shows the saved Display settings on the Buffs page's first visit", function()
+    local saved = openWindow(nil, "Appearance")
+    saved.setAppearance("debuffEdge", "white")
+    saved.setAppearance("hideBuffBars", true)
+    pretty.fire(pretty.find("Tabs"), "Buffs")
+    fake.press("Display")
+    local edges = fake.find(function(_, d)
+      return d.entries ~= nil and d.entries[1].label == "Orange"
+    end)
+    assert.are.equal("White", fake.chosen(edges) or "none")
+    local hide = fake.find(function(_, d)
+      return d.check
+    end)
+    assert.is_true(hide.value)
   end)
 
   it("saves a page change when the closed ribbon's checkboxes no longer take writes", function()
@@ -533,5 +569,45 @@ describe("options", function()
     fake.writes = 0
     logicTick()
     assert.are.equal(0, fake.writes)
+  end)
+
+  it("destroys the window and its pages on closing, and an idle tick after reopening writes nothing", function()
+    local root, _, hud = optionsOnRoot()
+    pretty.button("Options")
+    for _, page in ipairs({ "Cooldown manager", "Buffs", "Bars" }) do
+      pretty.fire(pretty.find("Tabs"), page)
+    end
+    pretty.button("Done")
+    assert.are.equal(hud, fake.live(root))
+    pretty.button("Options")
+    assert.is_true(shows("Font"))
+    fake.writes = 0
+    logicTick()
+    fake.fire("Draw", {})
+    assert.are.equal(0, fake.writes)
+  end)
+
+  it("builds Appearance as the window opens and each other page once, on the first visit to its tab", function()
+    local root = optionsOnRoot()
+    pretty.button("Options")
+    local opened = fake.live(root)
+    pretty.fire(pretty.find("Tabs"), "Cooldown manager")
+    local visited = fake.live(root)
+    assert.is_true(visited > opened)
+    pretty.fire(pretty.find("Tabs"), "Appearance")
+    pretty.fire(pretty.find("Tabs"), "Cooldown manager")
+    assert.are.equal(visited, fake.live(root))
+  end)
+
+  it("leaves nothing on the root and the window closed while the plugin layer is full", function()
+    local root, window, hud = optionsOnRoot()
+    fake.limit = hud + 40
+    pretty.button("Options")
+    assert.are.equal(hud, fake.live(root))
+    assert.is_false(window.configuring())
+    fake.limit = nil
+    pretty.button("Options")
+    assert.is_true(window.configuring())
+    assert.is_true(shows("Font"))
   end)
 end)

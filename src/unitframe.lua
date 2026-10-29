@@ -76,7 +76,7 @@ local VALUE_SPACE = 110
 -- hosts spender rows under it when look.spenders is "player": showSpenders(spenders) draws a src/frames resource
 -- model's list there and returns whether the bounds, which span the frame and those rows, changed.
 local function unitFrame(root, kind, power)
-  local layer = ui.Layer.new(root)
+  local layer = draw.new(ui.Layer, root)
   local rows = power and spenderRows(layer)
   local border = rect(layer, COLOURS.border, 0, 0, 0, 0)
   local track = rect(layer, COLOURS.healthTrack, 1, 1, 0, 0)

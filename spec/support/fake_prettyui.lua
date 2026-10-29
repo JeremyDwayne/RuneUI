@@ -3,7 +3,7 @@
 -- Show and Close; find(kind, match) returns the first live component of that kind whose root is shown and that
 -- match(c) accepts; fire(c, value) acts as the player would, choosing a tab by index or label, pressing a
 -- button, clicking a CheckboxButton's choice of that value (default its first), or answering a Confirm with
--- "confirm" or "cancel"; button(text) presses the shown FancyButton reading text; reset() forgets every
+-- "confirm" or "cancel"; button(text) presses the shown FancyButton or game button reading text; reset() forgets every
 -- component and resets fake_ui as well. Each component keeps its options and a fake_ui root, and hosts keep a
 -- content layer for raw components.
 local fake = require("spec/support/fake_ui")
@@ -43,11 +43,15 @@ function pretty.Window.new(parent, options)
     if self.options.onClose then
       self.options.onClose(self)
     end
-    self.root.hidden = true
+    if self.options.destroyOnClose then
+      self:Destroy()
+    else
+      self.root.hidden = true
+    end
   end
   function w.Destroy(self)
     self.destroyed = true
-    self.root.hidden = true
+    self.root:Destroy()
   end
   return w
 end
@@ -150,7 +154,7 @@ function pretty.Confirm.new(parent, options)
   local dialog = make("Confirm", parent, options)
   function dialog.Destroy(self)
     self.destroyed = true
-    self.root.hidden = true
+    self.root:Destroy()
   end
   return dialog
 end
@@ -189,7 +193,9 @@ function pretty.button(text)
   local b = pretty.find("FancyButton", function(c)
     return c.text == text
   end)
-  assert(b, "no shown button " .. text)
+  if b == nil then
+    return fake.press(text)
+  end
   pretty.fire(b)
 end
 

@@ -63,8 +63,9 @@ local GRID_CENTER_RGBA = (COLOURS.accent << 8) | 0x73
 -- deps: { saved = src/settings, elements = src/view elements by name, view = src/view, label = function
 -- returning a cooldown group's title by element name, reset = function asking to reset positions, done =
 -- function run by the toolbar's Done, changed = function run as edit mode opens or closes }. Returns
--- { open, editing, escape, placeAll, shutdown }; escape handles Esc while editing. An element whose
--- inUse is false, such as a custom group not added, gets no overlay while editing.
+-- { open, editing, escape, placeAll, destroy }; escape handles Esc while editing. An element whose inUse is
+-- false, such as a custom group not added, gets no overlay while editing. src/options builds edit mode as it
+-- opens, since the plugin layer's dynamic ids are shared by every plugin, and leaving destroys it.
 function editmode.create(root, deps)
   local saved = deps.saved
   local elements = deps.elements
@@ -78,6 +79,7 @@ function editmode.create(root, deps)
     return labelOf(anchor.target) .. ", " .. anchor.side .. ", " .. anchor.align
   end
 
+  -- Every element's position resolved through its anchor, set by mode.placeAll as edit mode opens.
   local resolved = saved.positions()
   local overlays = {}
   -- move: the element being dragged; pick: { name, hover, target } while choosing what name anchors to.
@@ -91,7 +93,7 @@ function editmode.create(root, deps)
   local screenH = 0
 
   -- The grid, drawn on entering edit mode with snapping on, and redrawn only when the window size changed.
-  local grid = ui.Canvas.new(root)
+  local grid = draw.new(ui.Canvas, root)
   set(grid, "hidden", true)
   local gridW = nil
   local gridH = nil
@@ -135,7 +137,7 @@ function editmode.create(root, deps)
 
   local function overlay(entry, element)
     local o = { name = entry.name, element = element }
-    o.layer = ui.Layer.new(root)
+    o.layer = draw.new(ui.Layer, root)
     o.tint = hitArea(rect(o.layer, COLOURS.accent, 0, 0, 0, 0))
     o.edge = draw.outline(o.layer, COLOURS.accent, 2)
     o.tagBg = rect(o.layer, COLOURS.accent, 2, 2, 0, TAG_H)
@@ -185,7 +187,7 @@ function editmode.create(root, deps)
 
   -- One header for small elements, built after every overlay so it draws above them all and its button takes
   -- the click. It sits above the last small element hovered.
-  local float = ui.Layer.new(root)
+  local float = draw.new(ui.Layer, root)
   local floatTagBg = rect(float, COLOURS.accent, 0, 0, 0, TAG_H)
   local floatTag = text(float, FONTS.small, ui.AlignMode.TOPLEFT, 5, 0, 200, TAG_H)
   set(floatTag, "rgb", COLOURS.accentText)
@@ -219,8 +221,8 @@ function editmode.create(root, deps)
 
   -- Dashed outlines over the picking element and where the chosen spot would put it, and a guide line across
   -- the window on each axis a drag snapped.
-  local pickOutline = ui.Canvas.new(root)
-  local landing = ui.Canvas.new(root)
+  local pickOutline = draw.new(ui.Canvas, root)
+  local landing = draw.new(ui.Canvas, root)
   local guideX = rect(root, COLOURS.accent, 0, 0, 1, 0)
   local guideY = rect(root, COLOURS.accent, 0, 0, 0, 1)
   hideAll({ pickOutline, landing, guideX, guideY }, true)
@@ -294,7 +296,7 @@ function editmode.create(root, deps)
   end
 
   -- Toolbar: Edit mode with Reset positions and Done, or the pick prompt with Cancel.
-  local toolbar = ui.Layer.new(root)
+  local toolbar = draw.new(ui.Layer, root)
   toolbar:SetSize(TOOLBAR_W, TOOLBAR_H)
   toolbar:SetPos(-TOOLBAR_W // 2, 14, 0.5, 0)
   rect(toolbar, COLOURS.border, 0, 0, TOOLBAR_W, TOOLBAR_H)
@@ -563,24 +565,27 @@ function editmode.create(root, deps)
     mode.placeAll()
   end
 
+  -- Enters edit mode, or leaves it, which destroys edit mode.
   function setEditing(enabled)
-    editing = enabled
     if not enabled then
       cancelPick()
       cancelMove()
+      mode.destroy()
+      deps.changed()
+      return
     end
+    editing = true
     for _, o in pairs(overlays) do
-      set(o.layer, "hidden", not enabled or o.element.inUse == false)
+      set(o.layer, "hidden", o.element.inUse == false)
     end
     floatOwner = nil
     placeFloat()
-    set(toolbar, "hidden", not enabled)
-    if enabled then
-      screenW = tonumber(root.width) or 0
-      screenH = tonumber(root.height) or 0
-      showToolbar()
-      refreshOverlays()
-    end
+    set(toolbar, "hidden", false)
+    screenW = tonumber(root.width) or 0
+    screenH = tonumber(root.height) or 0
+    mode.placeAll()
+    showToolbar()
+    refreshOverlays()
     showSnap()
     deps.changed()
   end
@@ -658,19 +663,25 @@ function editmode.create(root, deps)
   Event.Draw.Subscribe("runeuiEditMode", followCursor)
   Event.Logic.Subscribe("runeuiEditMode", followCursor)
 
-  function mode.shutdown()
-    toolbar:Destroy()
+  -- Destroys every component edit mode built and drops its handlers, once. Leaving edit mode runs it.
+  local destroyed = false
+  function mode.destroy()
+    if destroyed then
+      return
+    end
+    destroyed = true
+    editing = false
+    for _, c in ipairs({ toolbar, dim, pickOutline, grid, guideX, guideY, landing, float }) do
+      c:Destroy()
+    end
     menu.destroy()
-    dim:Destroy()
-    pickOutline:Destroy()
-    grid:Destroy()
-    guideX:Destroy()
-    guideY:Destroy()
-    landing:Destroy()
     for _, o in pairs(overlays) do
       o.layer:Destroy()
     end
-    float:Destroy()
+    Event.Draw.Unsubscribe("runeuiEditMode")
+    Event.Logic.Unsubscribe("runeuiEditMode")
+    Event.KeyDown.Unsubscribe("runeuiEditModeShift")
+    Event.KeyUp.Unsubscribe("runeuiEditModeShift")
   end
 
   return mode

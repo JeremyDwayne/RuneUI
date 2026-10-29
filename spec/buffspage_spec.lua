@@ -303,7 +303,7 @@ describe("buffspage", function()
       return d.parent == first.parent and fake.hasHook(c, "ONSCROLLWHEEL")
     end)
     for _ = 1, 200 do
-      fake.hook(bg, "ONSCROLLWHEEL", -1)
+      fake.hook(bg, "ONSCROLLWHEEL", 1)
     end
     assert.is_false(shows("Effect 01"))
     assert.is_true(shows("Effect 20"))
