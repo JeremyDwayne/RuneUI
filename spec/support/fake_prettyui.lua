@@ -43,11 +43,15 @@ function pretty.Window.new(parent, options)
     if self.options.onClose then
       self.options.onClose(self)
     end
-    self.root.hidden = true
+    if self.options.destroyOnClose then
+      self:Destroy()
+    else
+      self.root.hidden = true
+    end
   end
   function w.Destroy(self)
     self.destroyed = true
-    self.root.hidden = true
+    self.root:Destroy()
   end
   return w
 end
@@ -150,7 +154,7 @@ function pretty.Confirm.new(parent, options)
   local dialog = make("Confirm", parent, options)
   function dialog.Destroy(self)
     self.destroyed = true
-    self.root.hidden = true
+    self.root:Destroy()
   end
   return dialog
 end

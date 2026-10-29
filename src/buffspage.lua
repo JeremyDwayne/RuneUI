@@ -119,7 +119,7 @@ local MAX_GROUPS = 3
 -- page: the options window's page layer, width by height. deps: { saved = src/settings, info(sprite) naming
 -- an icon as src/icons does, tooltip = view.tooltip, toScreen(x, y) turning page into screen coordinates,
 -- refresh() redrawing the HUD, catalog = src/catalog rows, describe(struct) reading a struct's description }.
--- Returns { display, redraw, follow, close, popupOpen, destroy }: display is the Display tab's layer for option
+-- Returns { display, redraw, follow, close, popupOpen }: display is the Display tab's layer for option
 -- rows; redraw draws the page from settings; follow runs each frame to move a drag; close ends a drag and closes
 -- the menu and the search; popupOpen says whether either is open.
 function buffspage.create(page, width, height, deps)
@@ -632,7 +632,6 @@ function buffspage.create(page, width, height, deps)
     popupOpen = function()
       return menuTile ~= nil or finder.isOpen()
     end,
-    destroy = deps.tooltip.destroy,
   }
 end
 

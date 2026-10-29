@@ -40,8 +40,9 @@ local BUTTON_H = 27
 -- refresh = function redrawing the HUD, configured = function run as the window or edit mode opens or closes }.
 -- Returns { placeAll, redrawBuffs, configuring, shutdown }; placeAll places the HUD and edit mode's overlays from
 -- the saved positions and anchors, redrawBuffs redraws the Buffs page while it is shown, and configuring says
--- whether the window or edit mode is open. The window and its pages are built on the first press of Options,
--- since they are a third of the plugin's components and a load that builds them freezes the game for seconds.
+-- whether the window or edit mode is open. Every plugin on the plugin layer shares its 4096 dynamic ids, so the
+-- window builds as it opens, with the Appearance page, each other page builds on the first visit to its tab,
+-- and closing destroys them all. A window whose build is refused logs and stays closed.
 function options.create(root, deps)
   local saved = deps.saved
   local tracker = deps.tracker
@@ -56,20 +57,26 @@ function options.create(root, deps)
     showRibbon()
   end
 
-  -- The window and its pages, nil until the first open.
-  local window, pageTabs, cooldownPage, buffsPage, appearance, bars
+  -- The window, its page tabs, each page's layer by id and the Buffs tooltip while the window is open, and each
+  -- page's module once built; nil otherwise.
+  local window, pageTabs, pageLayers, buffsTooltip
+  local cooldownPage, buffsPage, appearance, bars
   local currentPage = nil
   local windowOpen = false
+  local buildPage
 
-  -- Closes the popups of every page, as a click on a page's background or Esc does.
+  -- Closes the popups of every built page, as a click on a page's background or Esc does.
   local function closePopups()
-    if window ~= nil then
+    if cooldownPage ~= nil then
       cooldownPage.closePopups()
+    end
+    if buffsPage ~= nil then
       buffsPage.close()
     end
   end
 
   local function showPage(pageID)
+    buildPage(pageID)
     closePopups()
     currentPage = pageID
     if pageID == "buffs" then
@@ -136,12 +143,27 @@ function options.create(root, deps)
     end
   end
 
+  -- Destroys the Buffs tooltip, which sits on root, and forgets the window and its pages.
+  local function forgetWindow()
+    if buffsTooltip ~= nil then
+      buffsTooltip.destroy()
+    end
+    window, pageTabs, pageLayers, buffsTooltip = nil, nil, nil, nil
+    cooldownPage, buffsPage, appearance, bars = nil, nil, nil, nil
+  end
+
+  -- Runs as the window closes; PrettyUI then destroys it.
   local function closeWindow()
     closeConfirm()
-    cooldownPage.close()
+    if cooldownPage ~= nil then
+      cooldownPage.close()
+    end
     appearance.cancel()
-    bars.cancel()
+    if bars ~= nil then
+      bars.cancel()
+    end
     closePopups()
+    forgetWindow()
     windowOpen = false
     configured()
   end
@@ -175,7 +197,52 @@ function options.create(root, deps)
     { id = "bars", label = "Bars" },
   }
 
-  -- Builds the window, a page per tab and the footer. PrettyUI builds the window open.
+  -- Builds page pageID on its tab's layer unless it is built. The Buffs page's Display tab takes option rows
+  -- from the Appearance page, which builds as the window opens.
+  function buildPage(pageID)
+    local page = pageLayers[pageID]
+    local pageDeps = {
+      saved = saved,
+      view = deps.view,
+      tooltip = buffsTooltip,
+      auraInfo = deps.auraInfo,
+      tracker = tracker,
+      refresh = refresh,
+    }
+    if pageID == "appearance" and appearance == nil then
+      appearance = appearancepage.create(page, PAGE_W, PAGE_H, pageDeps)
+    elseif pageID == "bars" and bars == nil then
+      bars = appearancepage.bars(page, PAGE_W, PAGE_H, pageDeps)
+    elseif pageID == "cooldowns" and cooldownPage == nil then
+      cooldownPage = cooldownpage.create(page, PAGE_W, PAGE_H, {
+        saved = saved,
+        tracker = tracker,
+        refresh = refresh,
+      })
+      cooldownPage.open()
+    elseif pageID == "buffs" and buffsPage == nil then
+      buffsPage = buffspage.create(page, PAGE_W, PAGE_H, {
+        saved = saved,
+        info = deps.auraInfo,
+        catalog = catalog.rows,
+        describe = deps.describe,
+        tooltip = buffsTooltip,
+        toScreen = function(px, py)
+          return window.root.x + PAGE_X + px, window.root.y + PAGE_Y + py
+        end,
+        refresh = refresh,
+      })
+      local showHide = { { id = false, label = "Show" }, { id = true, label = "Hide" } }
+      local display = buffsPage.display
+      appearance.choiceRow(display, 24, 18, PAGE_W - 48, "Game buff bars", showHide, "hideBuffBars", 120)
+      local auraIcons = { { id = false, label = "Plain" }, { id = true, label = "With bars" } }
+      appearance.choiceRow(display, 24, 68, PAGE_W - 48, "Aura icons", auraIcons, "auraBars", 120)
+      appearance.choiceRow(display, 24, 118, PAGE_W - 48, "Debuff border", style.DEBUFF_EDGES, "debuffEdge", 96)
+    end
+  end
+
+  -- Builds the window, a layer per page tab, the footer and the Appearance page. PrettyUI builds the window
+  -- open, and destroys it once closed.
   local function build()
     window = prettyui.Window.new(root, {
       title = "RuneUI",
@@ -186,6 +253,7 @@ function options.create(root, deps)
       xAnchor = 0.5,
       yAnchor = 0.5,
       scrollable = false,
+      destroyOnClose = true,
       onClose = function()
         closeWindow()
       end,
@@ -207,7 +275,7 @@ function options.create(root, deps)
     })
 
     -- Each page is a layer on its tab's content, which the page's module draws on.
-    local pages = {}
+    pageLayers = {}
     for i, entry in ipairs(PAGE_LIST) do
       local page = draw.new(ui.Layer, pageTabs:GetPage(i).content)
       page:SetSize(PAGE_W, PAGE_H)
@@ -217,43 +285,9 @@ function options.create(root, deps)
           closePopups()
         end)
       end
-      pages[entry.id] = page
+      pageLayers[entry.id] = page
     end
-
-    cooldownPage = cooldownpage.create(pages.cooldowns, PAGE_W, PAGE_H, {
-      saved = saved,
-      tracker = tracker,
-      refresh = refresh,
-    })
-
-    local buffsTooltip = deps.view.tooltip(root)
-    buffsPage = buffspage.create(pages.buffs, PAGE_W, PAGE_H, {
-      saved = saved,
-      info = deps.auraInfo,
-      catalog = catalog.rows,
-      describe = deps.describe,
-      tooltip = buffsTooltip,
-      toScreen = function(px, py)
-        return window.root.x + PAGE_X + px, window.root.y + PAGE_Y + py
-      end,
-      refresh = refresh,
-    })
-
-    local pageDeps = {
-      saved = saved,
-      view = deps.view,
-      tooltip = buffsTooltip,
-      auraInfo = deps.auraInfo,
-      tracker = tracker,
-      refresh = refresh,
-    }
-    appearance = appearancepage.create(pages.appearance, PAGE_W, PAGE_H, pageDeps)
-    bars = appearancepage.bars(pages.bars, PAGE_W, PAGE_H, pageDeps)
-    local showHide = { { id = false, label = "Show" }, { id = true, label = "Hide" } }
-    appearance.choiceRow(buffsPage.display, 24, 18, PAGE_W - 48, "Game buff bars", showHide, "hideBuffBars", 120)
-    local auraIcons = { { id = false, label = "Plain" }, { id = true, label = "With bars" } }
-    appearance.choiceRow(buffsPage.display, 24, 68, PAGE_W - 48, "Aura icons", auraIcons, "auraBars", 120)
-    appearance.choiceRow(buffsPage.display, 24, 118, PAGE_W - 48, "Debuff border", style.DEBUFF_EDGES, "debuffEdge", 96)
+    buffsTooltip = deps.view.tooltip(root)
 
     -- Edit mode closes the window, which covers the HUD, and its toolbar's Done returns to the window.
     local footerActions = {
@@ -276,17 +310,26 @@ function options.create(root, deps)
       })
       footerX = footerX - FOOTER_GAP
     end
+    buildPage("appearance")
   end
 
   function openWindow()
-    if window == nil then
-      build()
-    else
+    if window ~= nil then
       window:Show()
+    else
+      draw.refused()
+      local ok, err = pcall(build)
+      if not ok or draw.refused() then
+        log("cannot open the options window:", ok and "the plugin layer has no ids left" or err)
+        if window ~= nil then
+          window:Destroy()
+        end
+        forgetWindow()
+        return
+      end
     end
     windowOpen = true
     configured()
-    cooldownPage.open()
     if pageTabs:GetActiveIndex() ~= 1 then
       pageTabs:SetActive(1, false)
     end
@@ -296,16 +339,22 @@ function options.create(root, deps)
   -- Ticks ---------------------------------------------------------------------------------------------
 
   -- Moves a drag with the cursor. It runs every frame through Event.Draw so a drag keeps up with the mouse,
-  -- and on Event.Logic as well in case Draw does not fire. Each returns before reading the mouse unless a
-  -- press is held, and nothing runs until the window is built.
+  -- and on Event.Logic as well in case Draw does not fire. Each page returns before reading the mouse unless a
+  -- press is held, and nothing runs while the window is closed.
   local function followCursor()
     if window == nil then
       return
     end
-    buffsPage.follow()
-    cooldownPage.follow()
     appearance.follow()
-    bars.follow()
+    if buffsPage ~= nil then
+      buffsPage.follow()
+    end
+    if cooldownPage ~= nil then
+      cooldownPage.follow()
+    end
+    if bars ~= nil then
+      bars.follow()
+    end
   end
   Event.Draw.Subscribe("runeuiOptions", followCursor)
   Event.Logic.Subscribe("runeuiOptions", followCursor)
@@ -318,7 +367,7 @@ function options.create(root, deps)
       closeConfirm()
     elseif editing() then
       editMode.escape()
-    elseif window ~= nil and (cooldownPage.popupOpen() or buffsPage.popupOpen()) then
+    elseif (cooldownPage ~= nil and cooldownPage.popupOpen()) or (buffsPage ~= nil and buffsPage.popupOpen()) then
       closePopups()
     elseif windowOpen then
       window:Close()
@@ -354,8 +403,8 @@ function options.create(root, deps)
     shutdown = function()
       closeConfirm()
       if window ~= nil then
-        buffsPage.destroy()
         window:Destroy()
+        forgetWindow()
       end
       if editMode ~= nil then
         editMode.destroy()
