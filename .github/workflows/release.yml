@@ -1,0 +1,35 @@
+name: Release
+
+# Pushing a tag such as v0.1.0 runs the checks, then publishes a GitHub release with runeui-010.zip: only the
+# files the client loads and a moderator reads, with main.lua and plugin.json at the top level. The notes list
+# the changes since the previous tag.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check the tag matches plugin.json
+        run: test "v$(jq -r .version plugin.json)" = "$GITHUB_REF_NAME"
+      - name: Zip the plugin, named with its version's digits
+        run: |
+          version=$(jq -r .version plugin.json)
+          zip="runeui-${version//./}.zip"
+          git archive -o "$zip" HEAD main.lua plugin.json src docs README.md LICENSE
+          echo "ZIP=$zip" >> "$GITHUB_ENV"
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "$ZIP" --title "RuneUI $GITHUB_REF_NAME" --generate-notes

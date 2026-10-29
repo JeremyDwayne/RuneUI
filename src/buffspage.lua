@@ -119,14 +119,15 @@ local MAX_GROUPS = 3
 -- page: the options window's page layer, width by height. deps: { saved = src/settings, info(sprite) naming
 -- an icon as src/icons does, tooltip = view.tooltip, toScreen(x, y) turning page into screen coordinates,
 -- refresh() redrawing the HUD, catalog = src/catalog rows, describe(struct) reading a struct's description }.
--- Returns { display, redraw, follow,
--- close, popupOpen, destroy }: display is the Display tab's layer for option rows; redraw draws the page from
--- settings; follow runs each frame to move a drag; close ends a drag and closes the menu and the search;
--- popupOpen says whether either is open.
+-- Returns { display, redraw, follow, close, popupOpen, destroy }: display is the Display tab's layer for option
+-- rows; redraw draws the page from settings; follow runs each frame to move a drag; close ends a drag and closes
+-- the menu and the search; popupOpen says whether either is open.
 function buffspage.create(page, width, height, deps)
   local saved = deps.saved
   local cols = (width - 2 * MARGIN - 2 * PAD + GAP) // STEP
   local tab = "buffs"
+  -- The TABS entry of tab, from the last redraw.
+  local tabDef = nil
   local redraw, closeMenu, drag, finder, openSearch
 
   -- Tabs ------------------------------------------------------------------------------------------------
@@ -155,18 +156,6 @@ function buffspage.create(page, width, height, deps)
     deps.refresh()
   end
 
-  -- A controls.stepper at x on layer from low to high: value(appearance) gives the number shown and save(n) takes
-  -- a new one. Returns { show(appearance), fade(faded) }.
-  local function stepper(layer, x, low, high, value, save)
-    local s = controls.stepper(layer, x, (SIZES_H - OPTION_H) // 2, low, high, 1, save)
-    return {
-      show = function(appearance)
-        s.show(value(appearance))
-      end,
-      fade = s.fade,
-    }
-  end
-
   -- A sized group's Icon size and Text size line on its own layer, saving the fields of slot.def.row. Returns
   -- { layer, show(appearance) }.
   local function sizeLine(slot)
@@ -193,27 +182,20 @@ function buffspage.create(page, width, height, deps)
     for _, label in ipairs({ { "Icon size", 0 }, { "Text size", TEXT_LABEL_X } }) do
       set(text(layer, FONTS.body, ui.AlignMode.TOPLEFT, label[2], 0, 80, SIZES_H), "content", label[1])
     end
-    local icon = stepper(
-      layer,
-      ICON_X,
-      savedappearance.AURA_ICON.min,
-      savedappearance.AURA_ICON.max,
-      function(appearance)
-        return appearance[field("Icon")]
-      end,
-      save("Icon")
-    )
+    local y = (SIZES_H - OPTION_H) // 2
+    local icon =
+      controls.stepper(layer, ICON_X, y, savedappearance.AURA_ICON.min, savedappearance.AURA_ICON.max, 1, save("Icon"))
     local textStepper =
-      stepper(layer, TEXT_X, savedappearance.TEXT_SIZE.min, savedappearance.TEXT_SIZE.max, textSize, save("Text"))
-    local match = controls.option(layer, "Match HUD", MATCH_X, (SIZES_H - OPTION_H) // 2, MATCH_W, OPTION_H, function()
+      controls.stepper(layer, TEXT_X, y, savedappearance.TEXT_SIZE.min, savedappearance.TEXT_SIZE.max, 1, save("Text"))
+    local match = controls.option(layer, "Match HUD", MATCH_X, y, MATCH_W, OPTION_H, function()
       save("Text")("hud")
     end)
     return {
       layer = layer,
       show = function(appearance)
         local matched = appearance[field("Text")] == "hud"
-        icon.show(appearance)
-        textStepper.show(appearance)
+        icon.show(appearance[field("Icon")])
+        textStepper.show(textSize(appearance))
         textStepper.fade(matched)
         controls.showOption(match, matched)
       end,
@@ -311,8 +293,7 @@ function buffspage.create(page, width, height, deps)
       assign(slot.def, t.sprite)
     end
     saved.setOrder(kind, moved.order)
-    redraw()
-    deps.refresh()
+    changed()
   end
 
   -- Draws the page, unless an icon is being dragged, so a refresh cannot move the grab area.
@@ -323,18 +304,17 @@ function buffspage.create(page, width, height, deps)
     local choices = { target = saved.tracked("target"), player = saved.tracked("player") }
     local groups = auralists.groups(saved.auras(), choices, saved.orders())
     orders = groups.order
-    local current = nil
     for _, def in ipairs(TABS) do
       local active = def.id == tab
       if active then
-        current = def
+        tabDef = def
       end
       controls.showOption(tabParts[def.id], active)
     end
-    set(display, "hidden", current.groups ~= nil)
-    findButton.group.set("hidden", current.find == nil)
-    if current.find ~= nil then
-      set(findButton.label, "content", current.find.label)
+    set(display, "hidden", tabDef.groups ~= nil)
+    findButton.group.set("hidden", tabDef.find == nil)
+    if tabDef.find ~= nil then
+      set(findButton.label, "content", tabDef.find.label)
     end
     local keepUp = saved.keepUp()
     local appearance = saved.appearance()
@@ -342,7 +322,7 @@ function buffspage.create(page, width, height, deps)
     local used = 0
     local marked = 0
     for i, slot in ipairs(slots) do
-      local def = current.groups and current.groups[i]
+      local def = tabDef.groups and tabDef.groups[i]
       draw.hideAll({ slot.label, slot.note, slot.box, slot.dashes }, def == nil)
       set(slot.sizes.layer, "hidden", def == nil or def.row == nil)
       slot.def = def
@@ -463,7 +443,9 @@ function buffspage.create(page, width, height, deps)
             place(tile, slot, { kind = "insert", index = #slot.list + 1 })
           end
         end
-        entries[#entries + 1] = { label = label, current = current, action = action }
+        if not current or t.def.kind == "buff" then
+          entries[#entries + 1] = { label = label, current = current, action = action }
+        end
       end
     end
     if t.def.value == "upkeep" then
@@ -472,19 +454,9 @@ function buffspage.create(page, width, height, deps)
         label = keeping and "Keep up: on" or "Keep up: off",
         action = function(tile)
           saved.setKeepUp(tile.sprite, not keeping)
-          redraw()
-          deps.refresh()
+          changed()
         end,
       }
-    end
-    if t.def.kind ~= "buff" then
-      local kept = {}
-      for _, e in ipairs(entries) do
-        if not e.current then
-          kept[#kept + 1] = e
-        end
-      end
-      entries = kept
     end
     return entries
   end
@@ -514,12 +486,9 @@ function buffspage.create(page, width, height, deps)
   local function targetAt(px, py)
     for _, slot in ipairs(slots) do
       if slot.def ~= nil and py >= slot.top - PAD and py <= slot.bottom + PAD then
-        local line = math.max(0, math.min(slot.lines - 1, (py - slot.top - PAD) // STEP))
-        local first = line * cols
-        local count = math.max(0, math.min(cols, #slot.list - first))
-        local target = editor.dropTarget({ count = count, step = STEP, size = SIZE, offset = 0 }, px - MARGIN - PAD)
-        target.index = target.index + first
-        return slot, target, line
+        local y = py - slot.top - PAD
+        local grid = { count = #slot.list, step = STEP, size = SIZE, perRow = cols }
+        return slot, editor.gridDropTarget(grid, px - MARGIN - PAD, y), math.max(0, math.min(slot.lines - 1, y // STEP))
       end
     end
   end
@@ -605,8 +574,7 @@ function buffspage.create(page, width, height, deps)
     else
       saved.setTracked(tab, row.sprite, track)
     end
-    redraw()
-    deps.refresh()
+    changed()
   end
 
   finder = aurasearch.create(page, MARGIN, SEARCH_Y, width - 2 * MARGIN, math.min(SEARCH_H, height - SEARCH_Y - 16), {
@@ -615,25 +583,19 @@ function buffspage.create(page, width, height, deps)
   })
 
   function openSearch()
-    local def = nil
-    for _, d in ipairs(TABS) do
-      if d.id == tab then
-        def = d
-      end
-    end
     closeMenu()
     local seen = {}
     for key in pairs(tab == "buffs" and saved.auras() or saved.tracked(tab)) do
       seen[#seen + 1] = tonumber(key)
     end
     table.sort(seen)
-    local rows = search.withSeen(deps.catalog, def.find.kind, seen, function(sprite)
+    local rows = search.withSeen(deps.catalog, tabDef.find.kind, seen, function(sprite)
       return deps.info(sprite).name
     end)
     finder.open({
-      title = def.label,
-      empty = def.find.empty,
-      kind = def.find.kind,
+      title = tabDef.label,
+      empty = tabDef.find.empty,
+      kind = tabDef.find.kind,
       rows = rows,
       tracked = trackedNow,
     })

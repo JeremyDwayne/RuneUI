@@ -45,10 +45,10 @@ local function firstLine(info)
 end
 
 -- A w by h popup at x, y on parent, hidden until opened. deps: { describe(struct) returning a description or
--- nil, choose(row, on) tracking or untracking a src/search row }. Returns { open(view), close, isOpen, follow,
--- cancel }: open shows view, { title, empty, kind, rows, tracked() }, where empty is the field's placeholder,
--- rows the src/search rows, kind the src/search kind listed and tracked() the tab's current { [sprite] = true }
--- set; follow runs every frame to move a held scrollbar thumb, and cancel ends one.
+-- nil, choose(row, on) tracking or untracking a src/search row }. Returns { open(view), close, isOpen, follow }:
+-- open shows view, { title, empty, kind, rows, tracked() }, where empty is the field's placeholder, rows the
+-- src/search rows, kind the src/search kind listed and tracked() the tab's current { [sprite] = true } set; follow
+-- runs every frame to move a held scrollbar thumb.
 function aurasearch.create(parent, x, y, w, h, deps)
   local layer = ui.Layer.new(parent)
   draw.pos(layer, x, y)
@@ -60,8 +60,6 @@ function aurasearch.create(parent, x, y, w, h, deps)
   local view = nil
   local query = ""
   local source = "All"
-  local sources = {}
-  local effects = {}
   -- First lines by struct id, false for a struct with no description.
   local infos = {}
   local close
@@ -229,7 +227,7 @@ function aurasearch.create(parent, x, y, w, h, deps)
 
   -- Lists the chosen source's effects, keeping the scroll when keep is true, as after a choice.
   function fillEffects(keep)
-    effects = search.rows(view.rows, view.kind, source, query, view.tracked())
+    local effects = search.rows(view.rows, view.kind, source, query, view.tracked())
     local tracked = 0
     for _, item in ipairs(effects) do
       if item.tracked then
@@ -249,11 +247,10 @@ function aurasearch.create(parent, x, y, w, h, deps)
 
   -- Lists the sources matching the query, choosing All while one is typed.
   local function fillSources()
-    sources = search.sources(view.rows, view.kind, query)
     if query ~= "" then
       source = "All"
     end
-    sourceCol.show(sources)
+    sourceCol.show(search.sources(view.rows, view.kind, query))
     fillEffects()
   end
 
@@ -307,11 +304,6 @@ function aurasearch.create(parent, x, y, w, h, deps)
     follow = function()
       for _, col in ipairs(columns) do
         col.bar.follow()
-      end
-    end,
-    cancel = function()
-      for _, col in ipairs(columns) do
-        col.bar.cancel()
       end
     end,
   }

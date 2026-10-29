@@ -94,7 +94,9 @@ local FIELDS = {
   texture = { "flat", oneOf(savedappearance.TEXTURES) },
   hideTargetPanel = { false, isBoolean },
   hideBuffBars = { false, isBoolean },
+  -- The game's cast bar is hidden until chosen otherwise, since RuneUI draws one.
   hideCastBar = { true, isBoolean },
+  -- Draws a draining bar under each aura icon.
   auraBars = { false, isBoolean },
   font = { "museo", option(styling.FAMILIES) },
   textStep = { 0, range(savedappearance.TEXT_STEP_MIN, savedappearance.TEXT_STEP_MAX) },
@@ -125,19 +127,19 @@ local FIELDS = {
   fadeBars = { true, isBoolean },
   outOfCombat = { "show", option(autohide.MODES) },
   outOfCombatOpacity = { 30, isHudOpacity },
+  -- Keeps the HUD at full while the player has a target.
   showWithTarget = { true, isBoolean },
-  outOfCombatPick = {
-    "fade",
-    function(value)
-      return value == "fade" or value == "hide"
-    end,
-  },
+  -- The last Fade or Hide picked for outOfCombat.
+  outOfCombatPick = { "fade", oneOf({ "fade", "hide" }) },
 }
+-- An action bar with fadeBar<n> set draws at barOpacity<n> percent while fadeBars is on, and hoverBar<n> shows it
+-- at full while the mouse is over it, or over any faded bar while hoverAllBars is on.
 for bar = 1, savedappearance.ACTION_BARS do
   FIELDS["barOpacity" .. bar] = { 25, isOpacity }
   FIELDS["fadeBar" .. bar] = { false, isBoolean }
   FIELDS["hoverBar" .. bar] = { true, isBoolean }
 end
+-- Each aura row's icon size and text size, "hud" or points, such as combatBuffsIcon and combatBuffsText.
 for row, size in pairs(savedappearance.AURA_ICONS) do
   FIELDS[row .. "Icon"] = { size, range(savedappearance.AURA_ICON.min, savedappearance.AURA_ICON.max) }
   FIELDS[row .. "Text"] = { "hud", textSize }
@@ -184,20 +186,7 @@ function savedappearance.load(store)
 
   local s = {}
 
-  -- { texture, hideTargetPanel, hideBuffBars, hideCastBar, auraBars, font, textStep, edge, textColour,
-  -- playerColour, targetColour, border, lifepoints, frameWidth, frameHeight, barWidth, barHeight, castWidth,
-  -- castHeight, castMatchWidth, castColour, castFont, castTextSize, spenders, and barOpacity, fadeBar and
-  -- hoverBar for each action bar 1 to 5, such as fadeBar1, hoverAllBars, fadeBars, outOfCombat,
-  -- outOfCombatOpacity, showWithTarget and outOfCombatPick }. spenders is a src/style SPENDER_PLACES id.
-  -- castFont and castTextSize are "hud" to follow the HUD text or a family id and a size in points. The game's
-  -- own cast bar is hidden until chosen otherwise, since RuneUI draws one; auraBars draws a draining bar under
-  -- each aura icon.
-  -- An action bar with fadeBar<n> set draws at barOpacity<n> percent while fadeBars is on, and hoverBar<n>
-  -- shows it at full while the mouse is over it, or over any faded bar while hoverAllBars is on. Each aura row
-  -- in AURA_ICONS has <row>Icon, its icon size, and <row>Text, "hud" or its text size, such as combatBuffsIcon.
-  -- debuffEdge is a src/style DEBUFF_EDGES id. outOfCombat is a src/autohide MODES id, outOfCombatOpacity the
-  -- faded percent, showWithTarget keeps the HUD at full while the player has a target, and outOfCombatPick is
-  -- the last Fade or Hide picked. Read-only.
+  -- Every field in FIELDS by name with its value. Read-only.
   function s.appearance()
     return appearance
   end

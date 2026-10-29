@@ -1,6 +1,7 @@
 local fake = require("spec/support/fake_ui")
 local pretty = require("spec/support/fake_prettyui")
 local cooldowns = require("src/cooldowns")
+local draw = require("src/draw")
 local options = require("src/options")
 local savedgroups = require("src/savedgroups")
 local savedlayout = require("src/savedlayout")
@@ -64,6 +65,7 @@ local function enterEditMode()
     elements = elements,
     view = view,
     refresh = function() end,
+    configured = function() end,
   })
   fake.fire("ContentLayerReady", { component = fake.component() })
   pretty.button("Options")
@@ -224,6 +226,15 @@ describe("edit mode", function()
     assert.is_false(shows("Anchor Major to Player"))
     assert.is_false(shows("Click the element to anchor Major to"))
     assert.is_true(shows("Edit mode"))
+  end)
+
+  it("shows a small element's Picking label in dark text on its white button", function()
+    local elements = enterEditMode()
+    pickSmall(elements.major)
+    local label = fake.find(function(c, d)
+      return d.content == "Picking" and fake.shown(c)
+    end)
+    assert.are.equal(draw.COLOURS.accentText, label.rgb)
   end)
 
   it("refuses a target anchored to the picking element and says why", function()

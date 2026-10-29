@@ -37,17 +37,16 @@ local FOOTER_GAP = 12
 local BUTTON_H = 27
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
 -- view = src/view, auraInfo(sprite) naming an aura icon, describe(struct) reading a struct's description,
--- refresh = function redrawing the HUD, configured = function run as the window or edit mode opens or closes,
--- or nil }. Returns { placeAll, redrawBuffs, configuring, shutdown }; placeAll places the HUD and edit mode's
--- overlays from the saved positions and anchors, redrawBuffs redraws the Buffs page while it is shown, and
--- configuring says whether the window or edit mode is open. The window and its pages are built on the first
--- press of Options, since they are a third of the plugin's components and a load that builds them freezes the
--- game for seconds.
+-- refresh = function redrawing the HUD, configured = function run as the window or edit mode opens or closes }.
+-- Returns { placeAll, redrawBuffs, configuring, shutdown }; placeAll places the HUD and edit mode's overlays from
+-- the saved positions and anchors, redrawBuffs redraws the Buffs page while it is shown, and configuring says
+-- whether the window or edit mode is open. The window and its pages are built on the first press of Options,
+-- since they are a third of the plugin's components and a load that builds them freezes the game for seconds.
 function options.create(root, deps)
   local saved = deps.saved
   local tracker = deps.tracker
   local elements = deps.elements
-  local configured = deps.configured or function() end
+  local configured = deps.configured
   -- Redraws the ribbon panel's switches, once the client has built it.
   local showRibbon = function() end
 
@@ -75,8 +74,7 @@ function options.create(root, deps)
     currentPage = pageID
     if pageID == "buffs" then
       buffsPage.redraw()
-    end
-    if pageID == "appearance" then
+    elseif pageID == "appearance" then
       appearance.open()
     elseif pageID == "bars" then
       bars.open()

@@ -57,22 +57,12 @@ local function tile(layer)
     keybind = draw.edgedText(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 21, 12),
     seconds = draw.edgedText(layer, FONTS.seconds, ui.AlignMode.CENTRE, 0, 0, 0, 0),
   }
+  local all = {}
+  for _, part in pairs(parts) do
+    all[#all + 1] = part
+  end
+  parts.all = all
   parts.bar = { parts.track, parts.fill, parts.gold, parts.notchEdge, parts.notch }
-  parts.all = {
-    parts.edge,
-    parts.background,
-    parts.icon,
-    parts.initials,
-    parts.dim,
-    parts.track,
-    parts.fill,
-    parts.gold,
-    parts.notchEdge,
-    parts.notch,
-    parts.count,
-    parts.keybind,
-    parts.seconds,
-  }
   parts.inner = { parts.background, parts.icon, parts.dim }
   draw.hideAll(parts.bar, true)
   set(parts.background, "alpha", TILE_ALPHA)
@@ -83,17 +73,14 @@ end
 -- Builds a tile's queued border on its first queue, over the tile's other parts: four gold band sides and the
 -- three pieces the running segment can span.
 local function border(layer)
-  local sides = {}
+  local sides, chase, all = {}, {}, {}
   for i = 1, 4 do
     sides[i] = rect(layer, GOLD, 0, 0, 0, 0)
+    all[i] = sides[i]
   end
-  local chase = {}
   for i = 1, 3 do
     chase[i] = rect(layer, CHASE, 0, 0, 0, 0)
-  end
-  local all = { table.unpack(sides) }
-  for _, piece in ipairs(chase) do
-    all[#all + 1] = piece
+    all[4 + i] = chase[i]
   end
   return { sides = sides, chase = chase, all = all }
 end
@@ -310,7 +297,6 @@ function cooldowngroup.create(root, tooltip, describe)
   local layer = ui.Layer.new(root)
   local tiles = {}
   local display = nil
-  local inUse = true
   local current = {}
   -- Shown tiles, how many of them are cooling, recharging or queued, and the queued tile's index or nil.
   local count = 0
@@ -351,13 +337,12 @@ function cooldowngroup.create(root, tooltip, describe)
   end
 
   function group.setInUse(on)
-    inUse = on
     group.inUse = on
     set(layer, "hidden", not on)
   end
 
   function group.update(models, since)
-    if not inUse then
+    if not group.inUse then
       current = {}
       count = 0
       moving = 0

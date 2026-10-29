@@ -6,11 +6,10 @@ local util = require("src/util")
 local controls = {}
 
 -- Button fills: normal and hover colours, dark text for the bright ones, and an edge colour for the edged ones.
--- plain, accent and light suit edit mode; dark and gold suit the options window.
+-- plain and accent suit edit mode; dark and gold suit the options window.
 local FILLS = {
   plain = { draw.COLOURS.button, draw.COLOURS.buttonHover },
   accent = { draw.COLOURS.accent, draw.COLOURS.accentHover, dark = draw.COLOURS.accentText },
-  light = { draw.COLOURS.highlight, draw.COLOURS.dimText, dark = draw.COLOURS.accentText },
   dark = { draw.WINDOW.button, draw.WINDOW.buttonHover, edge = draw.WINDOW.bronze, text = draw.WINDOW.text },
   gold = { draw.WINDOW.accent, draw.WINDOW.accentHover, dark = draw.WINDOW.accentText },
 }
@@ -27,13 +26,8 @@ function controls.button(parent, label, x, y, w, h, fill, onClick)
   local face = colours.edge and group.add(draw.rect(parent, normal, x + 1, y + 1, w - 2, h - 2), 1, 1) or bg
   local t = group.add(draw.text(parent, draw.FONTS.body, ui.AlignMode.CENTRE, x, y, w, h), 0, 0)
   draw.set(t, "content", label)
-  if colours.text then
-    draw.set(t, "rgb", colours.text)
-  end
-  if colours.dark then
-    draw.set(t, "rgb", colours.dark)
-    draw.set(t, "isShadowed", false)
-  end
+  draw.set(t, "rgb", colours.dark or colours.text or draw.COLOURS.text)
+  draw.set(t, "isShadowed", colours.dark == nil)
   draw.on(bg, "ONMOUSEOVER", function()
     draw.set(face, "rgb", hover)
   end)
@@ -43,8 +37,6 @@ function controls.button(parent, label, x, y, w, h, fill, onClick)
   draw.on(bg, "ONCLICK", function(_, cx, cy)
     onClick(cx, cy)
   end)
-  group.x = x
-  group.y = y
   return { bg = bg, label = t, group = group }
 end
 
@@ -62,12 +54,11 @@ function controls.inputField(parent, x, y, w, h, maxLength, search)
   return field
 end
 
--- A typed whole number from low to high in steps of step, 1 when nil, in a w by h field at x, y. A keystroke
+-- A typed whole number from low to high in steps of step in a w by h field at x, y. A keystroke
 -- leaving a number in range on a step calls onChoose(n); Enter, Esc or focus loss calls it with the typed number
 -- rounded to a step and clamped, then shows the chosen value again, so the field never keeps text it did not
 -- take. Returns { field, show(n) }.
-function controls.numberField(parent, x, y, w, h, low, high, onChoose, step)
-  step = step or 1
+local function numberField(parent, x, y, w, h, low, high, onChoose, step)
   local field = controls.inputField(parent, x, y, w, h, #tostring(high))
   local number = { field = field }
   local shown
@@ -103,13 +94,13 @@ local STEPPER_H = 28
 -- Alpha of a control whose setting has no effect at the moment.
 controls.FADED = 0.45
 
--- A "- number +" stepper at x, y on parent, controls.STEPPER_W wide: a controls.numberField between two dark buttons
+-- A "- number +" stepper at x, y on parent, controls.STEPPER_W wide: a numberField between two dark buttons
 -- that move the shown number by step from low to high. save(n) takes each new number, from a button or the
 -- field. allowed(y), when given, takes a button click's y on parent and says whether it lands where the stepper
 -- shows, for a stepper in a clipped list. Returns { show(n), fade(faded), field, buttons }: show puts n in the
 -- field, fade dims the stepper while its setting has no effect, and buttons holds the two draw.buttons.
 function controls.stepper(parent, x, y, low, high, step, save, allowed)
-  local field = controls.numberField(parent, x + 32, y + 2, 56, 24, low, high, save, step)
+  local field = numberField(parent, x + 32, y + 2, 56, 24, low, high, save, step)
   local shown = low
   local function move(delta)
     return function(_, cy)

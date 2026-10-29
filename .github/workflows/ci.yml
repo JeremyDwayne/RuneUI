@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -26,10 +27,10 @@ jobs:
       - name: Lint
         run: luacheck .
       - name: Syntax
-        run: for f in main.lua src/*.lua spec/*.lua spec/support/*.lua tools/*.lua; do luac -p "$f"; done
+        run: for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac -p "$f"; done
       - name: Format
         uses: JohnnyMorganz/stylua-action@76fd70c03e6340ceaf673366712db9b20560b402 # v5.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           version: 2.6.0
-          args: --check main.lua src spec tools
+          args: --check main.lua src spec

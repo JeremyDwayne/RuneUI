@@ -270,8 +270,6 @@ function castbar.create(root)
   -- Sizes every part for a w by h bar, the icon a square filling its height, and redraws a running channel.
   local function resize(w, h)
     local inner = h - 2
-    bar.width = w
-    bar.height = h
     bounds.w = w
     bounds.h = h
     barX = inner + 2

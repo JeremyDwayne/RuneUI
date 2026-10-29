@@ -49,8 +49,6 @@ savedlayout.DEFAULT_ANCHORS = {
 -- The default major group's top sits this fraction of the window height above its bottom, below the
 -- player's character, which the camera keeps near the middle of the window at any size.
 local MAJOR_HEIGHT = 0.315
--- Saved positions and anchors from an older default layout are dropped once, on the first load of this one.
-savedlayout.LAYOUT_VERSION = 3
 local POSITION_FIELDS = { "x", "y", "anchorX", "anchorY" }
 
 -- A saved position with every field a number, as integers, or nil.
@@ -74,20 +72,19 @@ local function copyAnchor(anchor)
     return nil
   end
   local aligns = layout.ALIGNS[anchor.side]
-  if aligns == nil or type(anchor.gap) ~= "number" or type(anchor.offset) ~= "number" then
+  if aligns == nil or util.indexOf(aligns, anchor.align) == nil then
     return nil
   end
-  for _, align in ipairs(aligns) do
-    if anchor.align == align then
-      return {
-        target = anchor.target,
-        side = anchor.side,
-        align = align,
-        gap = whole(anchor.gap),
-        offset = whole(anchor.offset),
-      }
-    end
+  if type(anchor.gap) ~= "number" or type(anchor.offset) ~= "number" then
+    return nil
   end
+  return {
+    target = anchor.target,
+    side = anchor.side,
+    align = anchor.align,
+    gap = whole(anchor.gap),
+    offset = whole(anchor.offset),
+  }
 end
 
 local function copyAnchors(saved)
@@ -162,20 +159,12 @@ local function defaultPositions(windowHeight)
   return out
 end
 
--- Loads the layout from store, dropping malformed values and a layout saved for an older default. windowHeight,
--- the game window's height in UI units, places the default HUD; specs leave it out.
+-- Loads the layout from store, dropping malformed values. windowHeight, the game window's height in UI units,
+-- places the default HUD; specs leave it out.
 function savedlayout.load(store, windowHeight)
   local defaults = defaultPositions(windowHeight)
   local positions = readPositions(store.get("layout"))
   local anchors = readAnchors(store.get("anchors"), positions)
-  local version = store.get("version")
-  if type(version) ~= "table" or version.layout ~= savedlayout.LAYOUT_VERSION then
-    positions = {}
-    anchors = copyAnchors(savedlayout.DEFAULT_ANCHORS)
-    store.set("layout", positions)
-    store.set("anchors", anchors)
-    store.set("version", { layout = savedlayout.LAYOUT_VERSION })
-  end
   local savedEditMode = store.get("editMode")
   local editMode = { snap = type(savedEditMode) ~= "table" or savedEditMode.snap ~= false }
 
@@ -208,14 +197,10 @@ function savedlayout.load(store, windowHeight)
     return anchors
   end
 
-  -- Anchors name by a src/layout anchor. The caller checks layout.canAnchor first.
+  -- Anchors name by a src/layout anchor, or unanchors it when anchor is nil. The caller checks
+  -- layout.canAnchor first.
   function s.setAnchor(name, anchor)
     anchors[name] = copyAnchor(anchor)
-    store.set("anchors", anchors)
-  end
-
-  function s.removeAnchor(name)
-    anchors[name] = nil
     store.set("anchors", anchors)
   end
 

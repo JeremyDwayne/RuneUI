@@ -1,11 +1,10 @@
 -- One tooltip for every HUD icon and the options window's icons: a dark panel above the hovered icon, below
--- it when there is no room, with a white outline on the icon.
+-- it when there is no room, kept inside the side edges, with a white outline on the icon.
 local tooltip = {}
 
 local draw = require("src/draw")
 
 local set = draw.set
-local pos = draw.pos
 local rect = draw.rect
 local text = draw.text
 local FONTS = draw.FONTS
@@ -44,11 +43,10 @@ local function paragraphs(info)
   return out
 end
 
--- One tooltip for every HUD icon: a dark panel above the hovered icon, below it when there is no room, kept
--- inside the side edges, with a white outline on the icon. show(content, x, y, size) takes the icon's screen
--- position and { title, left, right, info, foot }: the name, a status row with left and right ends when either
--- is given, the description split into paragraphs at <br>, and a last line; hide() clears it and destroy()
--- removes it. It draws above the HUD from its first show. hover(items, show) wires each item's edge to the tooltip.
+-- The tooltip on root. show(content, x, y, size) takes the icon's screen position and { title, left, right,
+-- info, foot }: the name, a status row with left and right ends when either is given, the description split
+-- into paragraphs at <br>, and a last line; hide() clears it and destroy() removes it. It draws above the HUD
+-- from its first show. hover(items, show) wires each item's edge to the tooltip.
 function tooltip.create(root)
   local layer = ui.Layer.new(root)
   local edge = rect(layer, COLOURS.border, 0, 0, TOOLTIP_WIDTH, 0)
@@ -120,7 +118,7 @@ function tooltip.create(root)
     if screenWidth ~= nil and screenWidth > TOOLTIP_WIDTH then
       panelX = math.max(0, math.min(x, screenWidth - TOOLTIP_WIDTH))
     end
-    pos(layer, panelX, top)
+    draw.pos(layer, panelX, top)
     draw.placeOutline(highlight, x + 2, y + 2, size - 4, size - 4)
     setHidden(false)
     -- The client stops drawing a component moved to the front while hidden, so this waits for the first show.

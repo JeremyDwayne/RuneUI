@@ -247,9 +247,7 @@ optionsWindow = options.create(top, {
   auraInfo = auraNames.info,
   describe = adapter.structInfo,
   refresh = refresh,
-  configured = function()
-    showHud()
-  end,
+  configured = showHud,
 })
 
 Event.ServerLogic.Subscribe("refresh", function()

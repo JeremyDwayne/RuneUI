@@ -255,15 +255,10 @@ end
 
 -- Structs ---------------------------------------------------------------------------------------------------
 
--- The params an ability or effect struct names and draws itself by. Only these are read: reading some other
--- params logs a conversion error to the console.
-local function nameParams()
-  return config.Param.COMBATV2_ABILITY_NAME, config.Param.COMBATV2_ABILITY_ICON
-end
-
--- struct's name and icon, each nil when it has none.
+-- struct's name and icon, each nil when it has none. Reads only these two params: reading some other params logs
+-- a conversion error to the console.
 local function nameAndIcon(struct)
-  local nameParam, iconParam = nameParams()
+  local nameParam, iconParam = config.Param.COMBATV2_ABILITY_NAME, config.Param.COMBATV2_ABILITY_ICON
   local name = nil
   local icon = nil
   if struct:HasParam(nameParam) then
@@ -333,14 +328,19 @@ local function describe(struct)
   end
 end
 
+-- fn(arg) when it returns a string, or nil, also when it raises.
+local function text(fn, arg)
+  local ok, value = pcall(fn, arg)
+  return ok and type(value) == "string" and value or nil
+end
+
 local function readStructInfo(structID)
   return describe(config.Struct.FromID(structID))
 end
 
 -- The description of the struct at structID, for src/icons, or nil.
 function adapter.structInfo(structID)
-  local ok, info = pcall(readStructInfo, structID)
-  return ok and type(info) == "string" and info or nil
+  return text(readStructInfo, structID)
 end
 
 local function readAbilityInfo(key)
@@ -354,8 +354,7 @@ local abilityInfo = {}
 -- tooltips, or nil. Each key reads the client once, on its first hover.
 function adapter.abilityInfo(key)
   if abilityInfo[key] == nil then
-    local ok, info = pcall(readAbilityInfo, key)
-    abilityInfo[key] = ok and type(info) == "string" and info or false
+    abilityInfo[key] = text(readAbilityInfo, key) or false
   end
   return abilityInfo[key] or nil
 end
@@ -366,18 +365,12 @@ end
 
 -- The name of an item id, for src/icons, or nil.
 function adapter.itemName(objID)
-  local ok, name = pcall(readItemName, objID)
-  return ok and type(name) == "string" and name or nil
-end
-
-local function readSpriteName(sprite)
-  return id.Sprite.FromID(sprite)
+  return text(readItemName, objID)
 end
 
 -- The config name of a sprite id, for src/icons, or nil.
 function adapter.spriteName(sprite)
-  local ok, name = pcall(readSpriteName, sprite)
-  return ok and type(name) == "string" and name or nil
+  return text(id.Sprite.FromID, sprite)
 end
 
 -- Saved data ------------------------------------------------------------------------------------------------

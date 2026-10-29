@@ -16,7 +16,7 @@ targeteffects.BITS = {
   { var = "COMBATV2_TARGET_EFFECTS", mask = 0x40000000, sprite = 14371 }, -- Enfeeble
   { var = "COMBATV2_TARGET_EFFECTS_5", mask = 0x80000, sprite = 26104 }, -- Stun Immune
   { var = "COMBATV2_TARGET_EFFECTS_5", mask = 0x80000000, sprite = 17255 }, -- Corruption Shot
-  { var = "COMBATV2_TARGET_EFFECTS_6", mask = 0x80000000, sprite = 26026 }, -- the bit named MAGIC_CURSE
+  { var = "COMBATV2_TARGET_EFFECTS_6", mask = 0x80000000, sprite = 26026 }, -- Sap Magic Attack
   { var = "COMBATV2_TARGET_EFFECTS_8", mask = 0x40, sprite = 15037 }, -- Chain
   { var = "COMBATV2_TARGET_EFFECTS_8", mask = 0x80, sprite = 14771 }, -- Smoke Cloud
   { var = "COMBATV2_TARGET_EFFECTS_11", mask = 0x20, sprite = 30098 }, -- Bloated
@@ -32,7 +32,10 @@ end
 -- Target debuff lengths in ticks by sprite. ticks is the length when no cause is known. causes gives the length
 -- each inflicting ability or spell applies, by name, and a use of one while the debuff is on restarts it, unless
 -- keep names it. Debuffs whose length varies with gear, renews on plain hits, has no end, or is unsettled have
--- no entry and show no time.
+-- no entry and show no time, such as Death Mark, which lasts until it executes.
+-- Each length is the one the inflicting ability or spell's own description states, in ticks of 0.6 s: "1 minute"
+-- is 100 ticks, and a spell's "10 seconds" rounds to 17. A damage over time's length is its hits times their
+-- spacing, as the description gives them.
 targeteffects.LENGTHS = {
   [14392] = { -- Bound
     causes = {
@@ -76,8 +79,8 @@ targeteffects.LENGTHS = {
     },
   },
   [9228] = { causes = { Backstab = 100, Obliterate = 100 } }, -- Base hit chance increased
-  [23401] = one("Combust", 30),
-  [19226] = one("Corruption Blast", 10),
+  [23401] = one("Combust", 30), -- 10 hits, 3 ticks apart
+  [19226] = one("Corruption Blast", 10), -- 5 hits, 2 ticks apart
   [14391] = one("Curse", 100),
   [14371] = one("Enfeeble", 100),
   [15037] = { ticks = 10, causes = { Chain = 10, ["Greater Chain"] = 10 } },
@@ -85,12 +88,12 @@ targeteffects.LENGTHS = {
   [14377] = one("Stagger", 100),
   [14395] = one("Vulnerability", 100),
   [14266] = one("Pulverise", 50),
-  -- Bloated: the bit shows on the tick Bloat is cast and clears 35 ticks later at close range, a few more from
-  -- further off. The shorter length keeps the countdown from outlasting the icon.
+  -- Bloated: the description gives 10 hits 3 ticks apart, but the bit shows on the tick Bloat is cast and clears
+  -- 35 ticks later at close range, a few more from further off. The shorter measured length keeps the countdown
+  -- from outlasting the icon.
   [30098] = one("Bloat", 35),
-  [30100] = one("Invoke Death", 1000), -- Death Mark
-  [17255] = one("Corruption Shot", 10),
-  [30372] = { ticks = 18 }, -- Soulfire
+  [17255] = one("Corruption Shot", 10), -- 5 hits, 2 ticks apart
+  [30372] = { ticks = 18 }, -- Soulfire: 6 burns, 3 ticks apart
 }
 
 -- Ticks after a debuff shows within which the ability named as just used is the one that applied it. A spell's
@@ -116,19 +119,7 @@ local function unsigned(value)
   return (math.type(value) == "integer" and value or 0) & 0xFFFFFFFF
 end
 
--- Returns a tracker. onVar takes every var change, seed takes a function returning a var's value at load, and
--- debuffs() returns { sprites, complete }: the sprites of the known set bits in target panel order and whether
--- every set bit is known, the same table until a target effect var changes or a tick passes after a target
--- change. On the tick the target changes, a var that did not arrive with the change can still hold the old
--- target's debuffs, so debuffs() leaves it out until the next tick. Each server tick, onTick(nameOf)
--- runs first, with nameOf(struct) returning { name } for the struct of a just-used ability, read once per use,
--- then observe(target, sprites) takes the NPCTARGET read that tick and the debuffs the target frame shows.
--- timers() returns { [sprite] = { left, full } } in ticks for each timed debuff shown since it was applied, the
--- same table until a tick passes with one running or the shown debuffs change. A debuff shown at load or when
--- the target changes may have been on already, so it shows no time unless the ability just used applies it or
--- the tracker remembers its timer on that target. A remembered timer counts on while the target is not shown,
--- and only debuffs seen on the target are known: one applied or renewed by anyone while the player looks at
--- another target keeps the old timer.
+-- Returns a tracker of the target's debuffs and their timers.
 function targeteffects.tracker()
   local values = {}
   local result = nil
@@ -157,6 +148,7 @@ function targeteffects.tracker()
 
   local tracker = {}
 
+  -- Takes every var change.
   function tracker.onVar(name, old, new)
     if name == "COMBATV2_JUST_USED_ABILITY" then
       pending = new
@@ -174,6 +166,7 @@ function targeteffects.tracker()
     end
   end
 
+  -- Takes read(name) returning a var's value at load.
   function tracker.seed(read)
     for _, name in ipairs(targeteffects.VARS) do
       values[name] = unsigned(read(name))
@@ -199,6 +192,7 @@ function targeteffects.tracker()
     end
   end
 
+  -- Runs first each server tick. nameOf(struct) returns { name } for a just-used ability's struct, read once per use.
   function tracker.onTick(nameOf)
     tick = tick + 1
     if stale ~= nil then
@@ -288,6 +282,8 @@ function targeteffects.tracker()
     return { start = tick, ticks = ticks }
   end
 
+  -- Runs each server tick after onTick, with the NPCTARGET read and the debuffs the target frame shows. Only debuffs
+  -- seen on a target are known: one applied or renewed while the player looks at another keeps its old timer.
   function tracker.observe(uid, sprites)
     if uid ~= target then
       leave()
@@ -325,6 +321,8 @@ function targeteffects.tracker()
     primed = stale == nil
   end
 
+  -- { [sprite] = { left, full } } in ticks for each timed debuff shown since it was applied, the same table until a
+  -- tick passes with one running or the shown debuffs change.
   function tracker.timers()
     if timers == nil then
       timers = {}
@@ -344,6 +342,8 @@ function targeteffects.tracker()
     return timers
   end
 
+  -- { sprites, complete }: the sprites of the known set bits in target panel order and whether every set bit is
+  -- known, the same table until a target effect var changes or a tick passes after a target change.
   function tracker.debuffs()
     if result == nil then
       result = { sprites = {}, complete = true }

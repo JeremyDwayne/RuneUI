@@ -38,7 +38,7 @@ Settings save between sessions.
 
 ## What it reads
 
-RuneUI only shows what the game already tells you: your stats, cooldowns and action bars, the game's buff bars and target panel, and ability and effect names from the game's own data. The one addition is a countdown on debuffs you put on your target, timed from their known length. Each target keeps its countdowns while you look at another, though RuneUI cannot see a debuff renewed on a target you are not looking at. It never sends input, needs no permissions and sends nothing off your computer. Hiding a game interface makes it transparent, and turning the option off, reloading or disabling RuneUI restores it.
+RuneUI only shows what the game already tells you: your stats, cooldowns and action bars, the game's buff bars and target panel, and ability and effect names from the game's own data. The one addition is a countdown on debuffs you put on your target, timed from the length the ability or spell's own description gives. Each target keeps its countdowns while you look at another, though RuneUI cannot see a debuff renewed on a target you are not looking at. It never sends input, needs no permissions and sends nothing off your computer. Hiding a game interface makes it transparent, and turning the option off, reloading or disabling RuneUI restores it.
 
 ## Development
 
@@ -47,8 +47,8 @@ Specs run with busted, linting with luacheck and formatting with StyLua, all on 
 ```sh
 busted
 luacheck .
-for f in main.lua src/*.lua spec/*.lua spec/support/*.lua tools/*.lua; do luac5.4 -p "$f"; done
-stylua --check main.lua src spec tools
+for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; done
+stylua --check main.lua src spec
 ```
 
 Run `prl runeui` in the game console to reload after a change. [CONTRIBUTING.md](CONTRIBUTING.md) explains how the code fits together.

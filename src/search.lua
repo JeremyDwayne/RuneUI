@@ -104,16 +104,12 @@ function search.rows(rows, kind, source, query, tracked)
     local listed = source == "All" and not inAll[id] or row.source == source
     if row.kind == kind and listed and matches(row, query) then
       inAll[id] = true
-      out[#out + 1] = {
-        sprite = row.sprite,
-        name = row.name,
-        struct = row.struct,
-        source = row.source,
-        kind = row.kind,
-        cause = row.cause,
-        info = row.info,
-        tracked = tracked[row.sprite] == true,
-      }
+      local copy = {}
+      for field, value in pairs(row) do
+        copy[field] = value
+      end
+      copy.tracked = tracked[row.sprite] == true
+      out[#out + 1] = copy
     end
   end
   table.sort(out, function(a, b)

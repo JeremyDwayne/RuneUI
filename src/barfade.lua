@@ -1,5 +1,5 @@
 -- How the game's action bars draw while faded: each bar's opacity from the appearance settings, and each
--- component's hidden state and alpha scale from its part. src/adapter writes the result to the client.
+-- component's hidden state and alpha scale from its part. src/actionbars writes the result to the client.
 local barfade = {}
 
 -- A slot's parts by static ID offset from its background sprite. Any other offset is "other".

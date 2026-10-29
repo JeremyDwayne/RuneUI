@@ -1,6 +1,7 @@
 -- RuneUI's panel on the plugin ribbon: the Options button, and switches for out of combat fading and action bar
 -- fading, so a player can turn either off, such as while skilling, without opening the options window. src/options
 -- builds it each time the client builds the ribbon's content layer.
+local autohide = require("src/autohide")
 local draw = require("src/draw")
 
 local ribbon = {}
@@ -19,12 +20,10 @@ local SWITCH_GAP = 10
 local ENABLED = "on"
 
 -- The switches top down: each label, whether it is on for an appearance, and set(saved, on) saving it.
-ribbon.SWITCHES = {
+local SWITCHES = {
   {
     label = "Out of combat",
-    on = function(appearance)
-      return appearance.outOfCombat ~= "show"
-    end,
+    on = autohide.reads,
     set = function(saved, on)
       saved.setOutOfCombat(on)
     end,
@@ -51,12 +50,12 @@ function ribbon.create(layer, deps)
   -- so each write goes through pcall.
   local function show()
     local appearance = deps.saved.appearance()
-    for i, switch in ipairs(ribbon.SWITCHES) do
+    for i, switch in ipairs(SWITCHES) do
       pcall(boxes[i].SetSelected, boxes[i], ENABLED, switch.on(appearance) == true, false)
     end
   end
 
-  for i, switch in ipairs(ribbon.SWITCHES) do
+  for i, switch in ipairs(SWITCHES) do
     local y = SWITCHES_Y + (i - 1) * (LABEL_H + CHECKBOX_GAP + CHECKBOX_H + SWITCH_GAP)
     local label = draw.text(layer, draw.FONTS.small, ui.AlignMode.TOPLEFT, OPTIONS_X, y, LABEL_W, LABEL_H)
     draw.set(label, "rgb", draw.WINDOW.accent)

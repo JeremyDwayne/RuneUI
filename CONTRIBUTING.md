@@ -30,8 +30,8 @@ Run all four before opening a pull request. CI runs the same.
 ```sh
 busted
 luacheck .
-for f in main.lua src/*.lua spec/*.lua spec/support/*.lua tools/*.lua; do luac5.4 -p "$f"; done
-stylua --check main.lua src spec tools
+for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; done
+stylua --check main.lua src spec
 ```
 
 A bug fix starts with a spec that fails without it.
@@ -41,7 +41,7 @@ A bug fix starts with a spec that fails without it.
 - One module reads the game client and two write to its interfaces. Everything else sees plain tables, so it runs in specs without the game.
 - Trackers turn var changes and tick reads into display models. Saved settings load through a small store, which specs replace with a fake.
 - Each HUD element, options page and popup is its own module. All of them draw through one set of primitives that skip unchanged writes.
-- The catalog of every buff and debuff is generated from a dump of the game's data. Edit the sources beside it and regenerate, rather than the output.
+- The catalog of every buff and debuff is plain data kept by hand, one row per line, which StyLua leaves alone.
 
 Each module's first comment says what it does and how it is used.
 
@@ -53,6 +53,20 @@ The plugin runs inside the game's frame, so its cost is the player's frame rate.
 - Build a component once and hide it when unused: the HUD at load, the options window on its first open, and a group or row's tiles as they are first needed.
 - Write through the primitives that skip unchanged values. A tick where nothing changed makes no writes, and the view specs assert it.
 - Animate only a short game state, such as the global cooldown or a queued ability, and stop when it ends. Nothing loops, pulses or fades at rest.
+
+## Release
+
+The submission zip holds only what the client loads and a moderator reads, with `main.lua` and `plugin.json` at its top level. Specs and images stay in the repository.
+
+To release, set `version` in `plugin.json`, merge, then tag that commit on main and push the tag:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The release workflow runs the checks, fails if the tag does not match `plugin.json`, and attaches the zip, such as `runeui-010.zip` for 0.1.0, to a GitHub release. It lists the files the zip holds.
+
+Upload that zip to mod.io as a new file with the same version, and never delete an earlier file. Moderators review the newest file against the last approved version, so its changelog lists every change since that version. The release notes list changes since the previous tag; when that tag was never approved, list the changes since the last approved one with `gh release view` on each release in between.
 
 ## Style
 
