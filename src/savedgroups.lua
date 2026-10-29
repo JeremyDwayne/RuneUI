@@ -1,7 +1,6 @@
 -- Saved cooldown groups: each group's title and display settings, its ability list per combat style or shared,
 -- and the name and icon learned for each ability. Pure: reads and writes go through a store with get(key) and
 -- set(key, table), so specs use a fake.
-local cooldowns = require("src/cooldowns")
 local presets = require("src/presets")
 local util = require("src/util")
 
@@ -28,26 +27,20 @@ savedgroups.GROUPS = {
 }
 -- The first custom group a new install starts with, holding the defensive abilities.
 local DEFENSIVES = { name = "custom1", title = "Defensives", size = 30, perRow = 8, grow = "down", shared = true }
--- Element names of the groups a player can add, in the order they fill, and a new one's display settings.
+-- Element names of the groups a player can add, in the order they fill.
 savedgroups.CUSTOM_GROUPS = { "custom1", "custom2", "custom3", "custom4" }
-local CUSTOM_DEFAULT = { size = 36, perRow = 8, grow = "down", shared = true }
 -- The list a per-style group shows before any combat style is known.
 local NO_KEYS = {}
 
--- The ability keys in a saved list, each mapped to its ability by cooldowns.baseKey and kept once, in order.
+-- The ability keys in a saved list, each kept once, in order.
 local function stringsOnly(list)
   local out = {}
   if type(list) ~= "table" then
     return out
   end
-  local seen = {}
   for _, key in ipairs(list) do
-    if type(key) == "string" then
-      key = cooldowns.baseKey(key)
-      if not seen[key] then
-        seen[key] = true
-        out[#out + 1] = key
-      end
+    if type(key) == "string" and indexOf(out, key) == nil then
+      out[#out + 1] = key
     end
   end
   return out
@@ -94,144 +87,60 @@ local function readGroup(saved, default)
   return group
 end
 
+-- A new custom group's title and display settings.
 local function customDefault(name)
-  local default = { title = "Group " .. name:match("%d+$") }
-  for field, value in pairs(CUSTOM_DEFAULT) do
-    default[field] = value
-  end
-  return default
+  return { title = "Group " .. name:match("%d+$"), size = 36, perRow = 8, grow = "down", shared = true }
 end
 
-local function append(list, key)
-  if indexOf(list, key) == nil then
-    list[#list + 1] = key
-  end
-end
-
--- Whether any list that shows with style holds key.
-local function held(groups, key, style)
-  for _, group in pairs(groups) do
-    if indexOf(group.shared and group.keys or group.styles[style], key) ~= nil then
-      return true
-    end
-  end
-  return false
-end
-
--- Whether any list held with any style holds key.
-local function heldAnywhere(groups, key)
-  for _, style in ipairs(savedgroups.STYLES) do
-    if held(groups, key, style) then
-      return true
-    end
-  end
-  return false
-end
-
--- Fills each style whose per-style lists are all empty with its src/presets lists, an empty utility list with
--- the utility preset, and an unused first custom group with the Defensives preset, once each, skipping keys
--- another list already shows. seeded records which are done, so a list emptied or a group deleted on purpose
--- stays so. Returns whether anything was done.
-local function seed(groups, seeded)
-  local changed = false
-  for _, style in ipairs(savedgroups.STYLES) do
-    if not seeded[style] then
-      seeded[style], changed = true, true
-      local empty = true
-      for _, group in pairs(groups) do
-        if #group.styles[style] > 0 then
-          empty = false
-        end
-      end
-      for name, keys in pairs(empty and presets.STYLES[style] or {}) do
-        for _, key in ipairs(keys) do
-          if not held(groups, key, style) then
-            append(groups[name].styles[style], key)
-          end
-        end
-      end
-    end
-  end
-  if not seeded.utility then
-    seeded.utility = true
-    changed = true
-    for _, key in ipairs(#groups.utility.keys == 0 and presets.UTILITY or {}) do
-      if not heldAnywhere(groups, key) then
-        append(groups.utility.keys, key)
-      end
-    end
-  end
-  if not seeded.defensives then
-    seeded.defensives = true
-    changed = true
-    if groups[DEFENSIVES.name] == nil then
-      local group = readGroup(nil, DEFENSIVES)
-      for _, key in ipairs(presets.DEFENSIVES) do
-        if not heldAnywhere(groups, key) then
-          append(group.keys, key)
-        end
-      end
-      groups[DEFENSIVES.name] = group
-    end
-  end
-  return changed
-end
-
--- { seeded = { [style, "utility" or "defensives"] = true }, groups = { [name] = group record } } from the saved
--- cooldownGroups, seeded from src/presets, and whether seeding changed it. Every built-in group is present; a
--- custom one only once added.
+-- { [name] = group record } from the saved cooldownGroups. Every built-in group is present, and a custom one
+-- only once added. With nothing saved, each group starts with its src/presets lists and the first custom group
+-- holds the Defensives preset.
 local function readCooldownGroups(saved)
-  local stored = type(saved) == "table" and type(saved.groups) == "table" and saved.groups or {}
+  local stored = type(saved) == "table" and type(saved.groups) == "table" and saved.groups or nil
   local groups = {}
   for _, default in ipairs(savedgroups.GROUPS) do
-    groups[default.name] = readGroup(stored[default.name], default)
+    groups[default.name] = readGroup(stored and stored[default.name], default)
+  end
+  if stored == nil then
+    for style, lists in pairs(presets.STYLES) do
+      for name, keys in pairs(lists) do
+        groups[name].styles[style] = { table.unpack(keys) }
+      end
+    end
+    groups.utility.keys = { table.unpack(presets.UTILITY) }
+    groups[DEFENSIVES.name] = readGroup({ keys = presets.DEFENSIVES }, DEFENSIVES)
+    return groups
   end
   for _, name in ipairs(savedgroups.CUSTOM_GROUPS) do
     if type(stored[name]) == "table" then
       groups[name] = readGroup(stored[name], customDefault(name))
     end
   end
-  local seeded = {}
-  local savedSeeded = type(saved) == "table" and type(saved.seeded) == "table" and saved.seeded or {}
-  for _, name in ipairs({ "utility", "defensives", table.unpack(savedgroups.STYLES) }) do
-    seeded[name] = savedSeeded[name] == true
-  end
-  local changed = seed(groups, seeded)
-  return { seeded = seeded, groups = groups }, changed
+  return groups
 end
 
--- Saved names and icons by ability key. An entry under a second charge's key loads under its ability's, unless
--- the ability has its own entry. An entry under a recast stage's key names the stage, not the ability, so it is
--- dropped.
+-- Saved names and icons by ability key.
 local function readKnown(saved)
   local known = {}
   if type(saved) ~= "table" then
     return known
   end
   for key, info in pairs(saved) do
-    if type(key) == "string" and type(info) == "table" and not key:match("_RECAST_%d+$") then
-      local base = cooldowns.baseKey(key)
-      if key == base or known[base] == nil then
-        local icon = type(info.icon) == "number" and whole(info.icon) or nil
-        known[base] = { name = type(info.name) == "string" and info.name or nil, icon = icon }
-      end
+    if type(key) == "string" and type(info) == "table" then
+      local icon = type(info.icon) == "number" and whole(info.icon) or nil
+      known[key] = { name = type(info.name) == "string" and info.name or nil, icon = icon }
     end
   end
   return known
 end
 
--- Loads the groups and known abilities from store, dropping malformed values, and seeds new groups from
--- src/presets.
+-- Loads the groups and known abilities from store, dropping malformed values.
 function savedgroups.load(store)
-  local cooldownGroups, changed = readCooldownGroups(store.get("cooldownGroups"))
-  local groups = cooldownGroups.groups
+  local groups = readCooldownGroups(store.get("cooldownGroups"))
   local known = readKnown(store.get("known"))
 
   local function saveGroups()
-    store.set("cooldownGroups", cooldownGroups)
-  end
-  if changed then
-    saveGroups()
+    store.set("cooldownGroups", { groups = groups })
   end
 
   -- The list of name's group that shows with style: its shared list, or style's own.

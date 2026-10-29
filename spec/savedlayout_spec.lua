@@ -1,26 +1,12 @@
 local fakeStore = require("spec/support/fake_store")
 local savedlayout = require("src/savedlayout")
 
--- Saved data from this layout version, so positions and anchors in it are kept.
-local CURRENT = { layout = savedlayout.LAYOUT_VERSION }
-
 describe("savedlayout", function()
   it("resets positions to the defaults", function()
     local s = savedlayout.load(fakeStore())
     s.setPosition("player", { x = 1, y = 2, anchorX = 0, anchorY = 0 })
     s.resetPositions()
     assert.are.same(savedlayout.DEFAULT_POSITIONS.player, s.positions().player)
-  end)
-
-  it("drops positions and anchors saved for an older default layout once", function()
-    local store = fakeStore({
-      layout = { player = { x = 5, y = 6, anchorX = 0.5, anchorY = 1 } },
-      anchors = { player = { target = "target", side = "left", align = "top", gap = 0, offset = 0 } },
-    })
-    local s = savedlayout.load(store)
-    assert.are.same(savedlayout.DEFAULT_ANCHORS, s.anchors())
-    s.setPosition("target", { x = 7, y = 8, anchorX = 0.5, anchorY = 1 })
-    assert.are.equal(7, savedlayout.load(store).positions().target.x)
   end)
 
   it("round-trips anchors through the store, restoring floats as integers", function()
@@ -39,7 +25,6 @@ describe("savedlayout", function()
     local store = fakeStore({
       anchors = { player = { target = "rotation", side = "left", align = "bottom", gap = 0, offset = 0 } },
       layout = { target = { x = 5, y = 6, anchorX = 0.5, anchorY = 1 } },
-      version = CURRENT,
     })
     local anchors = savedlayout.load(store).anchors()
     assert.are.same(savedlayout.DEFAULT_ANCHORS.playerDebuffs, anchors.playerDebuffs)
@@ -57,7 +42,6 @@ describe("savedlayout", function()
 
   it("drops saved anchors with unknown elements, sides or alignments, and cycles", function()
     local s = savedlayout.load(fakeStore({
-      version = CURRENT,
       anchors = {
         player = { target = "rotation", side = "left", align = "left", gap = 0, offset = 0 },
         rotation = { target = "player", side = "under", align = "top", gap = 0, offset = 0 },

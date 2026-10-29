@@ -2,26 +2,14 @@ local fakeStore = require("spec/support/fake_store")
 local presets = require("src/presets")
 local savedgroups = require("src/savedgroups")
 
--- The position of key in list, or nil.
-local function indexOfKey(list, key)
-  for i, k in ipairs(list) do
-    if k == key then
-      return i
-    end
-  end
-end
-
--- Saved groups that every style and Utility have been seeded into from src/presets.
-local SEEDED = { utility = true, defensives = true, necromancy = true, magic = true, ranged = true, melee = true }
-
--- A store whose seeded groups hold groups, { [name] = saved group }.
-local function seededStore(groups)
-  return fakeStore({ cooldownGroups = { seeded = SEEDED, groups = groups or {} } })
+-- A store whose saved cooldown groups are groups, { [name] = saved group }.
+local function groupsStore(groups)
+  return fakeStore({ cooldownGroups = { groups = groups or {} } })
 end
 
 -- Magic's major holds X and Y and its rotation A, B and C; the shared utility holds U.
 local function edited()
-  return savedgroups.load(seededStore({
+  return savedgroups.load(groupsStore({
     major = { styles = { magic = { "X", "Y" } } },
     rotation = { styles = { magic = { "A", "B", "C" } } },
     utility = { keys = { "U" } },
@@ -29,23 +17,6 @@ local function edited()
 end
 
 describe("savedgroups", function()
-  it("loads a second charge's or recast stage's saved key as its ability's, keeping one of each", function()
-    local s = savedgroups.load(seededStore({
-      utility = { keys = { "MAGIC_SURGE_CHARGE2", "MAGIC_SURGE", "RANGED_ESCAPE_CHARGE2" } },
-    }))
-    assert.are.same({ "MAGIC_SURGE", "RANGED_ESCAPE" }, s.keys("utility", "magic"))
-  end)
-
-  it("loads a name saved under a second charge as its ability's and drops one saved under a recast stage", function()
-    local s = savedgroups.load(fakeStore({
-      known = {
-        MAGIC_SURGE_CHARGE2 = { name = "Surge", icon = 14233 },
-        MELEE_DISMEMBER_RECAST_2 = { name = "Slaughter", icon = 21362 },
-      },
-    }))
-    assert.are.same({ MAGIC_SURGE = { name = "Surge", icon = 14233 } }, s.known())
-  end)
-
   it("fills every style and Utility from the presets on the first load", function()
     local s = savedgroups.load(fakeStore())
     for style, lists in pairs(presets.STYLES) do
@@ -55,30 +26,13 @@ describe("savedgroups", function()
     assert.are.same(presets.UTILITY, s.keys("utility", "melee"))
   end)
 
-  it("fills only styles with nothing in them, once, so a style emptied on purpose stays empty", function()
-    local store = fakeStore({ cooldownGroups = { groups = { rotation = { styles = { magic = { "A" } } } } } })
+  it("fills from the presets only while nothing is saved, so a list emptied on purpose stays empty", function()
+    local store = fakeStore()
     local s = savedgroups.load(store)
-    assert.are.same({ { "A" }, {} }, { s.keys("rotation", "magic"), s.keys("major", "magic") })
-    assert.are.same(presets.STYLES.ranged.rotation, s.keys("rotation", "ranged"))
     for _, key in ipairs(presets.STYLES.ranged.rotation) do
       s.remove(key, "ranged")
     end
     assert.are.same({}, savedgroups.load(store).keys("rotation", "ranged"))
-  end)
-
-  it("leaves a preset ability out of a style where another list already shows it", function()
-    local s = savedgroups.load(fakeStore({
-      cooldownGroups = {
-        seeded = { utility = true },
-        groups = {
-          utility = { keys = { "MAGIC_SUNSHINE" } },
-        },
-      },
-    }))
-    local major = { table.unpack(presets.STYLES.magic.major, 2) }
-    assert.are.equal("MAGIC_SUNSHINE", presets.STYLES.magic.major[1])
-    assert.are.same(major, s.keys("major", "magic"))
-    assert.are.same({ "MAGIC_SUNSHINE" }, s.keys("utility", "magic"))
   end)
 
   it("shows a per-style group as empty until a style is known", function()
@@ -140,20 +94,6 @@ describe("savedgroups", function()
     local major = savedgroups.load(store).group("major")
     assert.are.same({ 56, 1, "left" }, { major.size, major.perRow, major.grow })
     assert.are.equal("integer", math.type(major.size))
-  end)
-
-  it("leaves out of Defensives a defensive another style's list already holds", function()
-    local seeded = { utility = true, necromancy = true, magic = true, ranged = true, melee = true }
-    local s = savedgroups.load(fakeStore({
-      cooldownGroups = {
-        seeded = seeded,
-        groups = {
-          rotation = { styles = { magic = { "DEFENCE_FREEDOM" } } },
-        },
-      },
-    }))
-    assert.is_nil(indexOfKey(s.group("custom1").keys, "DEFENCE_FREEDOM"))
-    assert.are.equal(#presets.DEFENSIVES - 1, #s.group("custom1").keys)
   end)
 
   it("starts with Defensives as the first custom group, adds up to three more, and deletes only custom ones", function()

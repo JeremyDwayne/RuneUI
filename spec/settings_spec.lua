@@ -2,19 +2,14 @@ local fakeStore = require("spec/support/fake_store")
 local savedlayout = require("src/savedlayout")
 local settings = require("src/settings")
 
--- Saved data from this layout version, so positions and anchors in it are kept.
-local CURRENT = { layout = savedlayout.LAYOUT_VERSION }
--- Saved groups that every style and Utility have been seeded into from src/presets.
-local SEEDED = { utility = true, defensives = true, necromancy = true, magic = true, ranged = true, melee = true }
-
--- A store whose seeded groups hold groups, { [name] = saved group }.
-local function seededStore(groups)
-  return fakeStore({ cooldownGroups = { seeded = SEEDED, groups = groups or {} } })
+-- A store whose saved cooldown groups are groups, { [name] = saved group }.
+local function groupsStore(groups)
+  return fakeStore({ cooldownGroups = { groups = groups or {} } })
 end
 
 describe("settings", function()
   it("round-trips positions, groups, markers and known abilities through the store", function()
-    local store = seededStore()
+    local store = groupsStore()
     local s = settings.load(store)
     s.setPosition("player", { x = 10, y = -20, anchorX = 0.5, anchorY = 1 })
     s.add("rotation", "magic", "MAGIC_DRAGON_BREATH")
@@ -31,7 +26,6 @@ describe("settings", function()
 
   it("restores whole numbers that PersistentDB returns as floats as integers", function()
     local s = settings.load(fakeStore({
-      version = CURRENT,
       layout = { player = { x = -427.0, y = -429.0, anchorX = 0.5, anchorY = 1.0 } },
       known = { A = { name = "Alpha", icon = 34171.0 } },
       markers = { threshold = 55.0, ultimate = 100.0 },
@@ -44,10 +38,8 @@ describe("settings", function()
 
   it("ignores unknown keys and malformed values in saved data", function()
     local s = settings.load(fakeStore({
-      version = CURRENT,
       layout = { player = { x = "far", y = 0 }, target = { x = 5, y = 6, anchorX = 0.5, anchorY = 1 }, bogus = {} },
       cooldownGroups = {
-        seeded = SEEDED,
         groups = {
           rotation = { styles = { magic = { "A", 7 }, ranged = "nope" }, size = "big", grow = "sideways" },
           major = "broken",
