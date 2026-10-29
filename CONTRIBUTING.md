@@ -58,9 +58,15 @@ The plugin runs inside the game's frame, so its cost is the player's frame rate.
 
 The submission zip holds only what the client loads and a moderator reads, with `main.lua` and `plugin.json` at its top level. Specs, tools and images stay in the repository.
 
+To release, set `version` in `plugin.json`, merge, then tag that commit on main and push the tag:
+
 ```sh
-git archive -o runeui.zip HEAD main.lua plugin.json src docs README.md LICENSE
+git tag v0.1.0 && git push origin v0.1.0
 ```
+
+The release workflow runs the checks, fails if the tag does not match `plugin.json`, and attaches the zip, such as `runeui-010.zip` for 0.1.0, to a GitHub release. It lists the files the zip holds.
+
+Upload that zip to mod.io as a new file with the same version, and never delete an earlier file. Moderators review the newest file against the last approved version, so its changelog lists every change since that version. The release notes list changes since the previous tag; when that tag was never approved, list the changes since the last approved one with `gh release view` on each release in between.
 
 ## Style
 
