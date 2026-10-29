@@ -61,25 +61,49 @@ local function title(value)
   end
 end
 
+-- A number clamped from low to high as a setting holds it, or nil when value is not a number.
+local function inRange(value, low, high)
+  if type(value) == "number" then
+    return clamp(whole(value), low, high)
+  end
+end
+
+-- Each display setting's rule, taking a stored or chosen value and returning it as the group holds it, or nil
+-- when it is not one: a title cut to TITLE_MAX characters and trimmed, size and perRow clamped to their
+-- ranges, grow one of GROWS, and shared a boolean.
+local SETTINGS = {
+  title = title,
+  size = function(value)
+    return inRange(value, savedgroups.SIZE_MIN, savedgroups.SIZE_MAX)
+  end,
+  perRow = function(value)
+    return inRange(value, 1, savedgroups.MAX_GROUP_KEYS)
+  end,
+  grow = function(value)
+    if isGrow(value) then
+      return value
+    end
+  end,
+  shared = function(value)
+    if type(value) == "boolean" then
+      return value
+    end
+  end,
+}
+
 -- A group record from saved, a stored table or nil, with default's title and display settings for anything
 -- missing or malformed: { title, size, perRow, grow, shared, keys, styles = { [style] = { key } } }. keys is
 -- the shared list.
 local function readGroup(saved, default)
   saved = type(saved) == "table" and saved or {}
   local styles = type(saved.styles) == "table" and saved.styles or {}
-  local group = {
-    title = title(saved.title) or default.title,
-    size = type(saved.size) == "number" and clamp(whole(saved.size), savedgroups.SIZE_MIN, savedgroups.SIZE_MAX)
-      or default.size,
-    perRow = type(saved.perRow) == "number" and clamp(whole(saved.perRow), 1, savedgroups.MAX_GROUP_KEYS)
-      or default.perRow,
-    grow = isGrow(saved.grow) and saved.grow or default.grow,
-    shared = default.shared,
-    keys = stringsOnly(saved.keys),
-    styles = {},
-  }
-  if type(saved.shared) == "boolean" then
-    group.shared = saved.shared
+  local group = { keys = stringsOnly(saved.keys), styles = {} }
+  for field, rule in pairs(SETTINGS) do
+    local value = rule(saved[field])
+    if value == nil then
+      value = default[field]
+    end
+    group[field] = value
   end
   for _, style in ipairs(savedgroups.STYLES) do
     group.styles[style] = stringsOnly(styles[style])
@@ -181,31 +205,19 @@ function savedgroups.load(store)
     return groups[name]
   end
 
-  -- Saves one of name's display settings: size and perRow clamped to their ranges, grow one of GROWS, shared a
-  -- boolean, or a title cut to 20 characters and trimmed. Any other value changes nothing. Returns whether the
-  -- setting changed, saving only then.
+  -- Saves one of name's display settings as its SETTINGS rule takes it. A value the rule refuses changes
+  -- nothing. Returns whether the setting changed, saving only then.
   function s.setGroup(name, field, value)
     local group = groups[name]
-    if group == nil then
+    local rule = SETTINGS[field]
+    if group == nil or rule == nil then
       return false
     end
-    local before = group[field]
-    if field == "size" and type(value) == "number" then
-      group.size = clamp(value, savedgroups.SIZE_MIN, savedgroups.SIZE_MAX)
-    elseif field == "perRow" and type(value) == "number" then
-      group.perRow = clamp(value, 1, savedgroups.MAX_GROUP_KEYS)
-    elseif field == "grow" and isGrow(value) then
-      group.grow = value
-    elseif field == "shared" and type(value) == "boolean" then
-      group.shared = value
-    elseif field == "title" and title(value) ~= nil then
-      group.title = title(value)
-    else
+    value = rule(value)
+    if value == nil or value == group[field] then
       return false
     end
-    if group[field] == before then
-      return false
-    end
+    group[field] = value
     saveGroups()
     return true
   end
