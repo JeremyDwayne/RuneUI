@@ -32,7 +32,10 @@ end
 -- Target debuff lengths in ticks by sprite. ticks is the length when no cause is known. causes gives the length
 -- each inflicting ability or spell applies, by name, and a use of one while the debuff is on restarts it, unless
 -- keep names it. Debuffs whose length varies with gear, renews on plain hits, has no end, or is unsettled have
--- no entry and show no time.
+-- no entry and show no time, such as Death Mark, which lasts until it executes.
+-- Each length is the one the inflicting ability or spell's own description states, in ticks of 0.6 s: "1 minute"
+-- is 100 ticks, and a spell's "10 seconds" rounds to 17. A damage over time's length is its hits times their
+-- spacing, as the description gives them.
 targeteffects.LENGTHS = {
   [14392] = { -- Bound
     causes = {
@@ -76,8 +79,8 @@ targeteffects.LENGTHS = {
     },
   },
   [9228] = { causes = { Backstab = 100, Obliterate = 100 } }, -- Base hit chance increased
-  [23401] = one("Combust", 30),
-  [19226] = one("Corruption Blast", 10),
+  [23401] = one("Combust", 30), -- 10 hits, 3 ticks apart
+  [19226] = one("Corruption Blast", 10), -- 5 hits, 2 ticks apart
   [14391] = one("Curse", 100),
   [14371] = one("Enfeeble", 100),
   [15037] = { ticks = 10, causes = { Chain = 10, ["Greater Chain"] = 10 } },
@@ -85,12 +88,12 @@ targeteffects.LENGTHS = {
   [14377] = one("Stagger", 100),
   [14395] = one("Vulnerability", 100),
   [14266] = one("Pulverise", 50),
-  -- Bloated: the bit shows on the tick Bloat is cast and clears 35 ticks later at close range, a few more from
-  -- further off. The shorter length keeps the countdown from outlasting the icon.
+  -- Bloated: the description gives 10 hits 3 ticks apart, but the bit shows on the tick Bloat is cast and clears
+  -- 35 ticks later at close range, a few more from further off. The shorter measured length keeps the countdown
+  -- from outlasting the icon.
   [30098] = one("Bloat", 35),
-  [30100] = one("Invoke Death", 1000), -- Death Mark
-  [17255] = one("Corruption Shot", 10),
-  [30372] = { ticks = 18 }, -- Soulfire
+  [17255] = one("Corruption Shot", 10), -- 5 hits, 2 ticks apart
+  [30372] = { ticks = 18 }, -- Soulfire: 6 burns, 3 ticks apart
 }
 
 -- Ticks after a debuff shows within which the ability named as just used is the one that applied it. A spell's
