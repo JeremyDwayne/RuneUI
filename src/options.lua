@@ -238,6 +238,8 @@ function options.create(root, deps)
       local auraIcons = { { id = false, label = "Plain" }, { id = true, label = "With bars" } }
       appearance.choiceRow(display, 24, 68, PAGE_W - 48, "Aura icons", auraIcons, "auraBars", 120)
       appearance.choiceRow(display, 24, 118, PAGE_W - 48, "Debuff border", style.DEBUFF_EDGES, "debuffEdge", 96)
+      -- The Appearance page redrew its rows as the window opened, before these were built.
+      appearance.open()
     end
   end
 

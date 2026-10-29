@@ -238,6 +238,22 @@ describe("options", function()
     assert.are.equal("white", saved.appearance().debuffEdge)
   end)
 
+  it("shows the saved Display settings on the Buffs page's first visit", function()
+    local saved = openWindow(nil, "Appearance")
+    saved.setAppearance("debuffEdge", "white")
+    saved.setAppearance("hideBuffBars", true)
+    pretty.fire(pretty.find("Tabs"), "Buffs")
+    fake.press("Display")
+    local edges = fake.find(function(_, d)
+      return d.entries ~= nil and d.entries[1].label == "Orange"
+    end)
+    assert.are.equal("White", fake.chosen(edges) or "none")
+    local hide = fake.find(function(_, d)
+      return d.check
+    end)
+    assert.is_true(hide.value)
+  end)
+
   it("saves a page change when the closed ribbon's checkboxes no longer take writes", function()
     local saved = openWindow(nil, "Buffs")
     for _, c in ipairs(pretty.made) do
