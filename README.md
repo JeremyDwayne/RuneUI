@@ -47,8 +47,8 @@ Specs run with busted, linting with luacheck and formatting with StyLua, all on 
 ```sh
 busted
 luacheck .
-for f in main.lua src/*.lua spec/*.lua spec/support/*.lua tools/*.lua; do luac5.4 -p "$f"; done
-stylua --check main.lua src spec tools
+for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; done
+stylua --check main.lua src spec
 ```
 
 Run `prl runeui` in the game console to reload after a change. [CONTRIBUTING.md](CONTRIBUTING.md) explains how the code fits together.

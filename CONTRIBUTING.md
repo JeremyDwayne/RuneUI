@@ -30,8 +30,8 @@ Run all four before opening a pull request. CI runs the same.
 ```sh
 busted
 luacheck .
-for f in main.lua src/*.lua spec/*.lua spec/support/*.lua tools/*.lua; do luac5.4 -p "$f"; done
-stylua --check main.lua src spec tools
+for f in main.lua src/*.lua spec/*.lua spec/support/*.lua; do luac5.4 -p "$f"; done
+stylua --check main.lua src spec
 ```
 
 A bug fix starts with a spec that fails without it.
@@ -41,7 +41,7 @@ A bug fix starts with a spec that fails without it.
 - One module reads the game client and two write to its interfaces. Everything else sees plain tables, so it runs in specs without the game.
 - Trackers turn var changes and tick reads into display models. Saved settings load through a small store, which specs replace with a fake.
 - Each HUD element, options page and popup is its own module. All of them draw through one set of primitives that skip unchanged writes.
-- The catalog of every buff and debuff is generated from a dump of the game's data. Edit the sources beside it and regenerate, rather than the output.
+- The catalog of every buff and debuff is plain data kept by hand, one row per line, which StyLua leaves alone.
 
 Each module's first comment says what it does and how it is used.
 
@@ -56,7 +56,7 @@ The plugin runs inside the game's frame, so its cost is the player's frame rate.
 
 ## Release
 
-The submission zip holds only what the client loads and a moderator reads, with `main.lua` and `plugin.json` at its top level. Specs, tools and images stay in the repository.
+The submission zip holds only what the client loads and a moderator reads, with `main.lua` and `plugin.json` at its top level. Specs and images stay in the repository.
 
 To release, set `version` in `plugin.json`, merge, then tag that commit on main and push the tag:
 
