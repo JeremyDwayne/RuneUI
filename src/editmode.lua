@@ -177,6 +177,15 @@ function editmode.create(root, deps)
     end
   end
 
+  -- Fills a header button and colours its text to read on that fill: light text on the dark panel, dark text
+  -- on the light chip and picking fills.
+  local function paintButton(bg, label, fill)
+    local plain = fill == COLOURS.panel
+    set(bg, "rgb", fill)
+    set(label, "rgb", plain and COLOURS.text or COLOURS.accentText)
+    set(label, "isShadowed", plain)
+  end
+
   -- One header for small elements, built after every overlay so it draws above them all and its button takes
   -- the click. It sits above the last small element hovered.
   local float = ui.Layer.new(root)
@@ -206,11 +215,9 @@ function editmode.create(root, deps)
     set(floatTag, "content", o.label)
     draw.pos(floatButton, o.tagW, 0)
     draw.size(floatButton, o.buttonW, TAG_H)
-    set(floatButton, "rgb", o.buttonFill or COLOURS.panel)
+    paintButton(floatButton, floatButtonText, o.buttonFill or COLOURS.panel)
     draw.pos(floatButtonText, o.tagW + 6, 0)
     set(floatButtonText, "content", o.buttonContent or "Anchor")
-    set(floatButtonText, "rgb", o.buttonFill == COLOURS.chip and COLOURS.accentText or COLOURS.text)
-    set(floatButtonText, "isShadowed", o.buttonFill ~= COLOURS.chip)
   end
 
   -- Dashed outlines over the picking element and where the chosen spot would put it, and a guide line across
@@ -410,9 +417,7 @@ function editmode.create(root, deps)
       end
       showLabel(o)
       set(o.buttonText, "content", content)
-      set(o.buttonText, "rgb", fill == COLOURS.panel and COLOURS.text or COLOURS.accentText)
-      set(o.buttonText, "isShadowed", fill == COLOURS.panel)
-      set(o.button, "rgb", fill)
+      paintButton(o.button, o.buttonText, fill)
       o.buttonContent = content
       o.buttonFill = fill
       o.buttonW = #content * CHAR_W + 12
