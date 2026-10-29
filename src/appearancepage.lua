@@ -152,6 +152,7 @@ local function settingsPage(page, width, height, deps, define)
   -- it lands where the row shows. Returns the buttons by id.
   local function options(parent, right, y, choices, field, optionW, allowed)
     local row = { choices = {}, field = field }
+    local group = controls.optionGroup(parent)
     for i, choice in ipairs(choices) do
       local x = right - (#choices - i + 1) * (optionW + 4) + 4
       local by = y + (ROW_H - OPTION_H) // 2
@@ -159,7 +160,7 @@ local function settingsPage(page, width, height, deps, define)
         if allowed == nil or allowed(by + cy) then
           choose(field, choice.id)
         end
-      end)
+      end, group)
     end
     choiceRows[#choiceRows + 1] = row
     return row.choices
@@ -186,11 +187,12 @@ local function settingsPage(page, width, height, deps, define)
     end
   end
 
+  local backdropGroup = controls.optionGroup(page)
   for i, entry in ipairs(BACKDROPS) do
     backdropOptions[entry.id] = controls.option(page, entry.label, width - 70, 8 + (i - 1) * 26, 62, 22, function()
       backdropChoice = entry.id
       showBackdrop()
-    end)
+    end, backdropGroup)
   end
 
   -- Scrolling settings ------------------------------------------------------------------------------------
@@ -308,9 +310,8 @@ local function settingsPage(page, width, height, deps, define)
   local function fadeOptions(buttons, faded)
     local alpha = faded and controls.FADED or 1
     for _, o in pairs(buttons) do
-      for _, part in ipairs({ o.ring, o.bg, o.face, o.label }) do
-        set(part, "alpha", alpha)
-      end
+      set(o.canvas, "alpha", alpha)
+      set(o.label, "alpha", alpha)
     end
   end
 

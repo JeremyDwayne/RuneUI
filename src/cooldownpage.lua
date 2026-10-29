@@ -184,13 +184,14 @@ function cooldownpage.create(page, width, height, deps)
   local settingChoices = {}
   local function settingChoice(i, field, choices, optionW)
     local row = { field = field, buttons = {} }
+    local group = controls.optionGroup(page)
     for k, option in ipairs(choices) do
       local x = detailRight - (#choices - k + 1) * (optionW + 4) + 4
       local b = controls.option(page, option.label, x, rowY(i) + 9, optionW, 28, function()
         if saved.setGroup(selected, field, option.value) then
           changed()
         end
-      end)
+      end, group)
       b.value = option.value
       row.buttons[#row.buttons + 1] = b
     end

@@ -134,13 +134,14 @@ function buffspage.create(page, width, height, deps)
 
   local tabParts = {}
   local tabX = MARGIN
+  local tabGroup = controls.optionGroup(page)
   for _, def in ipairs(TABS) do
     tabParts[def.id] = controls.option(page, def.label, tabX, TAB_Y, def.w, TAB_H, function()
       closeMenu()
       finder.close()
       tab = def.id
       redraw()
-    end)
+    end, tabGroup)
     tabX = tabX + def.w + 6
   end
 

@@ -128,45 +128,78 @@ function controls.stepper(parent, x, y, low, high, step, save, allowed)
   }
 end
 
--- An options window choice button at x, y sized w by h: dark with a bronze edge, or once controls.showOption marks
--- it chosen, gold with dark text and a 2px white ring outside its box. onClick takes the click's x and y inside
--- the button. Returns { ring, bg, face, label }; bg is the hit area, which onClick and hover hang from.
-function controls.option(parent, label, x, y, w, h, onClick)
+-- A group of options window choice buttons, such as a row of choices, that draws every button's frame on one
+-- canvas on parent. controls.option adds a button to it; a hover or a change of choice redraws the canvas.
+function controls.optionGroup(parent)
+  local canvas = draw.new(ui.Canvas, parent)
+  draw.pos(canvas, 0, 0)
+  return { canvas = canvas, options = {}, w = 0, h = 0 }
+end
+
+-- Adds o's frame to canvas: a 2px white ring when chosen, then its edge and face.
+local function addFrame(canvas, o)
   local W = draw.WINDOW
-  local o = {
-    ring = draw.rect(parent, W.ring, x - 2, y - 2, w + 4, h + 4),
-    bg = draw.hitArea(draw.rect(parent, W.bronze, x, y, w, h)),
-    face = draw.rect(parent, W.button, x + 1, y + 1, w - 2, h - 2),
-    label = draw.windowText(parent, draw.FONTS.body, ui.AlignMode.CENTRE, x, y, w, h),
-    chosen = false,
-  }
-  draw.set(o.ring, "hidden", true)
+  if o.chosen then
+    canvas:AddRectangle(o.x - 2, o.y - 2, o.w + 4, o.h + 4, draw.opaque(W.ring))
+  end
+  canvas:AddRectangle(o.x, o.y, o.w, o.h, draw.opaque(o.chosen and W.accent or W.bronze))
+  local face = o.chosen and W.accent or o.hovered and W.buttonHover or W.button
+  canvas:AddRectangle(o.x + 1, o.y + 1, o.w - 2, o.h - 2, draw.opaque(face))
+end
+
+local function redrawFrames(group)
+  group.canvas:Clear()
+  for _, o in ipairs(group.options) do
+    addFrame(group.canvas, o)
+  end
+end
+
+-- An options window choice button at x, y sized w by h: dark with a bronze edge and lighter while hovered, or once
+-- controls.showOption marks it chosen, gold with dark text and a 2px white ring outside its box. Its frame draws
+-- on group, a controls.optionGroup, or on a group of its own. onClick takes the click's x and y inside the button.
+-- Returns { bg, label, canvas }: bg is the transparent hit area, which onClick and hover hang from, and canvas
+-- the group's.
+function controls.option(parent, label, x, y, w, h, onClick, group)
+  group = group or controls.optionGroup(parent)
+  local o = { x = x, y = y, w = w, h = h, chosen = false, hovered = false, canvas = group.canvas }
+  group.options[#group.options + 1] = o
+  group.w = math.max(group.w, x + w + 2)
+  group.h = math.max(group.h, y + h + 2)
+  draw.size(group.canvas, group.w, group.h)
+  addFrame(group.canvas, o)
+  o.bg = draw.hitArea(draw.rect(parent, draw.WINDOW.bronze, x, y, w, h))
+  draw.set(o.bg, "alpha", 0)
+  o.label = draw.windowText(parent, draw.FONTS.body, ui.AlignMode.CENTRE, x, y, w, h)
   draw.set(o.label, "content", label)
   draw.on(o.bg, "ONMOUSEOVER", function()
-    if not o.chosen then
-      draw.set(o.face, "rgb", W.buttonHover)
+    if not o.chosen and not o.hovered then
+      o.hovered = true
+      redrawFrames(group)
     end
   end)
   draw.on(o.bg, "ONMOUSELEAVE", function()
-    if not o.chosen then
-      draw.set(o.face, "rgb", W.button)
+    if o.hovered then
+      o.hovered = false
+      redrawFrames(group)
     end
   end)
   draw.on(o.bg, "ONCLICK", function(_, cx, cy)
     onClick(cx, cy)
   end)
+  o.group = group
   return o
 end
 
--- Marks a controls.option chosen or not.
+-- Marks a controls.option chosen or not, redrawing its group's frames when that changes.
 function controls.showOption(o, chosen)
   local W = draw.WINDOW
-  o.chosen = chosen
-  draw.set(o.ring, "hidden", not chosen)
-  draw.set(o.bg, "rgb", chosen and W.accent or W.bronze)
-  draw.set(o.face, "rgb", chosen and W.accent or W.button)
   draw.set(o.label, "rgb", chosen and W.accentText or W.text)
   draw.set(o.label, "isShadowed", not chosen)
+  if o.chosen ~= chosen then
+    o.chosen = chosen
+    o.hovered = false
+    redrawFrames(o.group)
+  end
 end
 
 -- The game's window close X, as PrettyUI's window draws it: its normal and hovered sprites and its size.

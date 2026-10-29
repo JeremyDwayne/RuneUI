@@ -354,4 +354,27 @@ describe("appearance page", function()
     fake.press("Match HUD", 2)
     assert.are.same({ "hud", "13" }, { saved.appearance().castTextSize, size.content })
   end)
+
+  it("redraws only the hovered or chosen option's row, and nothing on a repeated hover", function()
+    open()
+    local before = {}
+    for i, c in ipairs(fake.created) do
+      before[i] = c.clears or 0
+    end
+    local hit = optionHit("Outline")
+    fake.hook(hit, "ONMOUSEOVER")
+    local cleared = {}
+    for i, c in ipairs(fake.created) do
+      if (c.clears or 0) > (before[i] or 0) then
+        cleared[#cleared + 1] = c
+      end
+    end
+    assert.are.equal(1, #cleared)
+    fake.writes = 0
+    fake.hook(hit, "ONMOUSEOVER")
+    assert.are.equal(0, fake.writes)
+    local clears = cleared[1].clears
+    fake.hook(hit, "ONCLICK")
+    assert.is_true(cleared[1].clears > clears)
+  end)
 end)
