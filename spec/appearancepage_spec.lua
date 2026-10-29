@@ -221,6 +221,16 @@ describe("appearance page", function()
     assert.are.equal("250", field.content)
   end)
 
+  it("scrolls by the wheel over a number field and the hex field", function()
+    open()
+    local _, content = scrollParts("Font")
+    for _, field in ipairs({ fieldInRow("Text size"), hexField() }) do
+      local before = content.y
+      fake.hook(field, "ONSCROLLWHEEL", -1)
+      assert.is_true(content.y < before)
+    end
+  end)
+
   it("chooses on a radio group and shows a choice saved elsewhere", function()
     local _, saved = open()
     fake.press("Noto Sans")

@@ -309,6 +309,7 @@ local function settingsPage(page, width, height, deps, define)
     local s = controls.stepper(row.layer, x, (ROW_H - OPTION_H) // 2, low, high, step, save)
     wheel(s.buttons[1])
     wheel(s.buttons[2])
+    wheel(s.field)
     row.fields[#row.fields + 1] = { y = s.fieldY, h = s.fieldH, clip = s.clip }
     steppers[#steppers + 1] = function(appearance)
       s.show(value(appearance))
@@ -424,6 +425,7 @@ local function settingsPage(page, width, height, deps, define)
     local hexX = rowRight - HEX_W
     local hexY = lineY[2] + (OPTION_H - HEX_H) // 2
     local hex = controls.inputField(row.layer, hexX, hexY, HEX_W, HEX_H, 7)
+    wheel(hex)
     local hexClipped = false
     row.fields[#row.fields + 1] = {
       y = hexY,
