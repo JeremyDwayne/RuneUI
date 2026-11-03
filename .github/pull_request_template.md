@@ -3,7 +3,7 @@
 ## How I tested it
 
 - [ ] `busted`, `luacheck .`, `luac5.4 -p` and `stylua --check main.lua src spec` pass
-- [ ] Tried in the game with `prl runeui` (add a screenshot for anything visible)
+- [ ] Tried in the game with `prl runeui`
 
 ## Checklist
 

@@ -75,6 +75,6 @@ Upload that zip to mod.io as a new file with the same version, and never delete 
 - StyLua formats everything and luacheck catches unused and shadowed names.
 - Never carry meaning by colour alone, and keep contrast high: light on very dark. Avoid red against green, green against brown, blue against purple, and light green against yellow.
 - Comments say what code does and how it is used, not history.
-- Commits are small with an imperative subject. Say how you tested, with a game screenshot for anything visible.
+- Commits are small with an imperative subject. Say how you tested.
 
 By contributing you agree that your work is released under the MIT licence. Everyone follows the [code of conduct](CODE_OF_CONDUCT.md).
