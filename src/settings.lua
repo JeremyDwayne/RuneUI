@@ -21,6 +21,7 @@ function settings.load(store, windowHeight)
   }
   for _, part in ipairs(parts) do
     for name, fn in pairs(part) do
+      assert(s[name] == nil, "two saved parts define " .. name)
       s[name] = fn
     end
   end

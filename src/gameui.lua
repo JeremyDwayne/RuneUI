@@ -29,7 +29,9 @@ end
 -- the last two for a static, that read opaque once the client reloads or rebuilds the interface. animated lists
 -- static IDs whose alpha the client animates, which take hidden instead. Returns { hide(hidden), keep() }: hide
 -- runs each server tick and false restores the original alphas and hidden states; keep runs on every rendered
--- frame, reading only the watched components while hidden and nothing while shown.
+-- frame, reading only the watched components while hidden and nothing while shown. It reads every frame, not
+-- only the frames after a server tick as the buff bar watch does, because an interface can load or rebuild on
+-- any frame, where a buff bar slot fills only after a tick.
 local function transparency(interfaceID, lastStatic, watched, animated)
   -- Original alpha of each component while held transparent, keyed "static" or "static:category:dynamic".
   local originals = nil

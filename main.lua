@@ -83,7 +83,7 @@ local function rank(kind)
   return auraRanks[kind]
 end
 -- What the aura rows show: tracked debuffs in their sorted order, and Keep up tiles while the player has a
--- target.
+-- target. keepUp is the saved table itself, which setKeepUp changes in place.
 local auraFilters = {
   tracked = function(kind, sprite)
     return auralists.tracked(kind, saved.tracked(kind), sprite)
@@ -112,6 +112,8 @@ local LOGIC_SECONDS = 0.02
 local logicTicks = 0
 local slots = {}
 local stacks = nil
+-- The key list of a custom group not in use.
+local NO_KEYS = {}
 
 -- Shows each group's tiles for the worn weapon's style, with the queued ability's tile marked, and runs the
 -- resource bar's strip through the global cooldown. Returns whether a group's bounds changed.
@@ -128,7 +130,7 @@ local function updateGroups()
     if group ~= nil and element.configure(group) then
       moved = true
     end
-    if element.update(tracker.tiles(saved.keys(name, style) or {}, slots, stacks, queuedIcon), since) then
+    if element.update(tracker.tiles(saved.keys(name, style) or NO_KEYS, slots, stacks, queuedIcon), since) then
       moved = true
     end
   end

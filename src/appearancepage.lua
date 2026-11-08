@@ -105,10 +105,15 @@ local MATCH_W = 90
 -- A settings page on page, width by height. deps: { saved = src/settings, view = src/view, tooltip =
 -- view.tooltip, auraInfo(sprite), tracker = src/cooldowns tracker for the equipped style, refresh() redrawing the
 -- HUD }. define(b) builds the preview's elements on b.preview and the rows through b, and returns
--- drawPreview(look, appearance). Returns { open, choiceRow, checkRow, follow, cancel }: open redraws the page
--- from settings, choiceRow(parent, x, y, w, label, choices, field, optionW) builds a row of choices and
--- checkRow(parent, x, y, w, label, field) a row with a check box on another page, such as the Buffs page's
--- Display tab, follow runs every frame to move a held scrollbar thumb, and cancel ends one.
+-- drawPreview(look, appearance). b holds the scrolling rows, each a new row with a control at its right end: a
+-- heading, a settingRow with a label alone, a choiceSetting, checkSetting or stepperSetting bound to an
+-- appearance field, a stepperRow bound to value and save callbacks, a colour row and a columns row of headings;
+-- and controls added to a row: checkSettingOn for a field, checkOn and stepperOn for callbacks. choose saves a
+-- field, changed redraws after a save outside the appearance, and rowRight is the right edge controls end at.
+-- Returns { open, choiceRow, checkRow, follow, cancel }: open redraws the page from settings,
+-- choiceRow(parent, x, y, w, label, choices, field, optionW) builds a row of choices and checkRow(parent, x, y,
+-- w, label, field) a row with a check box on another page, such as the Buffs page's Display tab, follow runs
+-- every frame to move a held scrollbar thumb, and cancel ends one.
 local function settingsPage(page, width, height, deps, define)
   local saved = deps.saved
   local redraw
@@ -297,7 +302,7 @@ local function settingsPage(page, width, height, deps, define)
   end
 
   -- A settings row with a radio group at its right choosing field from choices; returns the controls.radio.
-  local function scrolledChoices(label, choices, field, optionW)
+  local function choiceSetting(label, choices, field, optionW)
     local radio = options(settingRow(label).layer, rowRight, 0, choices, field, optionW)
     wheel(radio.group)
     return radio
@@ -305,7 +310,7 @@ local function settingsPage(page, width, height, deps, define)
 
   -- A controls.stepper at x on row, from low to high in steps of step: value(appearance) gives the number shown and
   -- save(n) takes a new one. Returns its fade(faded), which dims the stepper while the setting has no effect.
-  local function stepper(row, x, low, high, step, value, save)
+  local function stepperOn(row, x, low, high, step, value, save)
     local s = controls.stepper(row.layer, x, (ROW_H - OPTION_H) // 2, low, high, step, save)
     wheel(s.buttons[1])
     wheel(s.buttons[2])
@@ -317,30 +322,30 @@ local function settingsPage(page, width, height, deps, define)
     return s.fade
   end
 
-  -- A settings row with a stepper at its right, as stepper takes, in steps of step or 1. Returns the row, whose
+  -- A settings row with a stepper at its right, as stepperOn takes, in steps of step or 1. Returns the row, whose
   -- fade(faded) dims the stepper.
-  local function numberRow(label, low, high, value, save, step)
+  local function stepperRow(label, low, high, value, save, step)
     local row = settingRow(label)
-    row.fade = stepper(row, rowRight - controls.STEPPER_W, low, high, step or 1, value, save)
+    row.fade = stepperOn(row, rowRight - controls.STEPPER_W, low, high, step or 1, value, save)
     return row
   end
 
   -- A check box centred in w at x on row, ticked while the boolean appearance field is true. Returns its
   -- fade(faded).
-  local function toggle(row, x, w, field)
+  local function checkSettingOn(row, x, w, field)
     local box = checkBox(row.layer, x, 0, w, field)
     wheel(box.check)
     return box.fade
   end
 
   -- A check box at x on row, as checkAt takes.
-  local function rowCheckAt(row, x, ticked, onToggle)
+  local function checkOn(row, x, ticked, onToggle)
     wheel(checkAt(row.layer, x, 0, ticked, onToggle).check)
   end
 
   -- A settings row with a check box at its right for the boolean appearance field. Returns its fade(faded).
   local function checkSetting(label, field)
-    return toggle(settingRow(label), rowRight - CHECK, CHECK, field)
+    return checkSettingOn(settingRow(label), rowRight - CHECK, CHECK, field)
   end
 
   -- A row of column labels, each { label, x, w } centred over its column, under the first, which sits left.
@@ -354,9 +359,9 @@ local function settingsPage(page, width, height, deps, define)
     end
   end
 
-  -- A number row for the appearance field, from low to high in steps of step or 1.
-  local function stepperRow(label, field, low, high, step)
-    return numberRow(label, low, high, function(appearance)
+  -- A stepper row for the appearance field, from low to high in steps of step or 1.
+  local function stepperSetting(label, field, low, high, step)
+    return stepperRow(label, low, high, function(appearance)
       return appearance[field]
     end, function(n)
       choose(field, n)
@@ -492,14 +497,14 @@ local function settingsPage(page, width, height, deps, define)
     preview = preview,
     rowRight = rowRight,
     heading = heading,
-    choices = scrolledChoices,
-    checkAt = rowCheckAt,
-    number = numberRow,
-    stepper = stepperRow,
-    row = settingRow,
-    stepperAt = stepper,
-    toggle = toggle,
-    check = checkSetting,
+    settingRow = settingRow,
+    choiceSetting = choiceSetting,
+    checkSetting = checkSetting,
+    stepperSetting = stepperSetting,
+    stepperRow = stepperRow,
+    checkSettingOn = checkSettingOn,
+    checkOn = checkOn,
+    stepperOn = stepperOn,
     columns = columns,
     colour = colourRow,
     choose = choose,
@@ -548,14 +553,14 @@ function appearancepage.create(page, width, height, deps)
     local elements = { tiles, aura, player, target }
 
     b.heading("Text")
-    b.choices("Font", style.FAMILIES, "font", 130)
-    b.number("Text size", savedappearance.TEXT_SIZE.min, savedappearance.TEXT_SIZE.max, function(appearance)
+    b.choiceSetting("Font", style.FAMILIES, "font", 130)
+    b.stepperRow("Text size", savedappearance.TEXT_SIZE.min, savedappearance.TEXT_SIZE.max, function(appearance)
       return style.ROLES.body + appearance.textStep
     end, function(n)
       b.choose("textStep", n - style.ROLES.body)
     end)
-    b.choices("Text edge", style.EDGES, "edge", 150)
-    b.choices("Text colour", style.TEXT_COLOURS, "textColour", 130)
+    b.choiceSetting("Text edge", style.EDGES, "edge", 150)
+    b.choiceSetting("Text colour", style.TEXT_COLOURS, "textColour", 130)
 
     b.heading("Unit frames")
     for _, frame in ipairs({ "player", "target" }) do
@@ -578,22 +583,22 @@ function appearancepage.create(page, width, height, deps)
         end
       )
     end
-    b.choices("Bar texture", TEXTURES, "texture", 120)
-    b.choices("Frame border", style.BORDERS, "border", 120)
-    b.choices("Lifepoints text", frames.LIFEPOINTS, "lifepoints", 140)
-    b.stepper("Frame width", "frameWidth", savedappearance.FRAME_WIDTH.min, savedappearance.FRAME_WIDTH.max)
-    b.stepper("Frame height", "frameHeight", savedappearance.FRAME_HEIGHT.min, savedappearance.FRAME_HEIGHT.max)
+    b.choiceSetting("Bar texture", TEXTURES, "texture", 120)
+    b.choiceSetting("Frame border", style.BORDERS, "border", 120)
+    b.choiceSetting("Lifepoints text", frames.LIFEPOINTS, "lifepoints", 140)
+    b.stepperSetting("Frame width", "frameWidth", savedappearance.FRAME_WIDTH.min, savedappearance.FRAME_WIDTH.max)
+    b.stepperSetting("Frame height", "frameHeight", savedappearance.FRAME_HEIGHT.min, savedappearance.FRAME_HEIGHT.max)
 
     b.heading("Game interfaces")
-    b.check("Hide default target panel", "hideTargetPanel")
-    b.check("Hide game cast bar", "hideCastBar")
+    b.checkSetting("Hide default target panel", "hideTargetPanel")
+    b.checkSetting("Hide game cast bar", "hideCastBar")
 
     b.heading("Out of combat")
-    b.choices("HUD out of combat", autohide.MODES, "outOfCombat", 90)
+    b.choiceSetting("HUD out of combat", autohide.MODES, "outOfCombat", 90)
     local opacity = savedappearance.HUD_OPACITY
     local fadeOpacity =
-      b.stepper("Faded opacity %", "outOfCombatOpacity", opacity.min, opacity.max, savedappearance.OPACITY_STEP)
-    local fadeWithTarget = b.check("Show while you have a target", "showWithTarget")
+      b.stepperSetting("Faded opacity %", "outOfCombatOpacity", opacity.min, opacity.max, savedappearance.OPACITY_STEP)
+    local fadeWithTarget = b.checkSetting("Show while you have a target", "showWithTarget")
 
     return function(look, appearance)
       fadeOpacity.fade(appearance.outOfCombat ~= "fade")
@@ -629,7 +634,7 @@ function appearancepage.bars(page, width, height, deps)
       { id = "threshold", label = "Threshold marker" },
       { id = "ultimate", label = "Ultimate marker" },
     }) do
-      b.number(marker.label, 0, 100, function()
+      b.stepperRow(marker.label, 0, 100, function()
         return saved.markers()[marker.id]
       end, function(n)
         if n == saved.markers()[marker.id] then
@@ -639,14 +644,15 @@ function appearancepage.bars(page, width, height, deps)
         b.changed()
       end)
     end
-    b.stepper("Bar width", "barWidth", savedappearance.BAR_WIDTH.min, savedappearance.BAR_WIDTH.max)
-    b.stepper("Bar height", "barHeight", savedappearance.BAR_HEIGHT.min, savedappearance.BAR_HEIGHT.max)
-    b.choices("Spenders", style.SPENDER_PLACES, "spenders", 150)
+    b.stepperSetting("Bar width", "barWidth", savedappearance.BAR_WIDTH.min, savedappearance.BAR_WIDTH.max)
+    b.stepperSetting("Bar height", "barHeight", savedappearance.BAR_HEIGHT.min, savedappearance.BAR_HEIGHT.max)
+    b.choiceSetting("Spenders", style.SPENDER_PLACES, "spenders", 150)
 
     b.heading("Cast bar")
-    b.choices("Width from", WIDTH_FROM, "castMatchWidth", 180)
-    local widthRow = b.stepper("Width", "castWidth", savedappearance.CAST_WIDTH.min, savedappearance.CAST_WIDTH.max)
-    b.stepper("Height", "castHeight", savedappearance.CAST_HEIGHT.min, savedappearance.CAST_HEIGHT.max)
+    b.choiceSetting("Width from", WIDTH_FROM, "castMatchWidth", 180)
+    local widthRow =
+      b.stepperSetting("Width", "castWidth", savedappearance.CAST_WIDTH.min, savedappearance.CAST_WIDTH.max)
+    b.stepperSetting("Height", "castHeight", savedappearance.CAST_HEIGHT.min, savedappearance.CAST_HEIGHT.max)
     local function presetRgb(presetID)
       if presetID == "ability" then
         return style.STYLE_COLOURS[deps.tracker.style()] or style.CAST_COLOUR
@@ -660,15 +666,15 @@ function appearancepage.bars(page, width, height, deps)
     for _, family in ipairs(style.FAMILIES) do
       fontChoices[#fontChoices + 1] = family
     end
-    b.choices("Font", fontChoices, "castFont", 118)
+    b.choiceSetting("Font", fontChoices, "castFont", 118)
     local textSize = savedappearance.TEXT_SIZE
-    local size = b.number("Text size", textSize.min, textSize.max, function(appearance)
+    local size = b.stepperRow("Text size", textSize.min, textSize.max, function(appearance)
       return appearance.castTextSize == "hud" and style.ROLES.body + appearance.textStep or appearance.castTextSize
     end, function(n)
       b.choose("castTextSize", n)
     end)
     local matchX = b.rowRight - controls.STEPPER_W - 16 - CHECK
-    b.checkAt(size, matchX, function(appearance)
+    b.checkOn(size, matchX, function(appearance)
       return appearance.castTextSize == "hud"
     end, function(ticked)
       b.choose("castTextSize", ticked and "hud" or style.ROLES.body + saved.appearance().textStep)
@@ -680,7 +686,7 @@ function appearancepage.bars(page, width, height, deps)
     )
 
     b.heading("Action bars")
-    b.check("Fade action bars", "fadeBars")
+    b.checkSetting("Fade action bars", "fadeBars")
     local right = b.rowRight
     local hoverX = right - HOVER_COL
     local opacityX = hoverX - OPACITY_COL
@@ -696,23 +702,27 @@ function appearancepage.bars(page, width, height, deps)
     local barFades = {}
     local fadeToggles = {}
     for bar, name in ipairs(ACTION_BAR_NAMES) do
-      local row = b.row(name)
+      local row = b.settingRow(name)
       local opacity = "barOpacity" .. bar
-      fadeToggles[bar] = b.toggle(row, fadeX + (FADE_COL - TOGGLE_W) // 2, TOGGLE_W, "fadeBar" .. bar)
+      fadeToggles[bar] = b.checkSettingOn(row, fadeX + (FADE_COL - TOGGLE_W) // 2, TOGGLE_W, "fadeBar" .. bar)
       local step = savedappearance.OPACITY_STEP
-      local fadeStepper = b.stepperAt(row, opacityX + (OPACITY_COL - controls.STEPPER_W) // 2, 0, 100, step, function(a)
+      local fadeStepper = b.stepperOn(row, opacityX + (OPACITY_COL - controls.STEPPER_W) // 2, 0, 100, step, function(a)
         return a[opacity]
       end, function(n)
         b.choose(opacity, n)
       end)
-      local fadeHover = b.toggle(row, hoverX + (HOVER_COL - TOGGLE_W) // 2, TOGGLE_W, "hoverBar" .. bar)
+      local fadeHover = b.checkSettingOn(row, hoverX + (HOVER_COL - TOGGLE_W) // 2, TOGGLE_W, "hoverBar" .. bar)
       barFades[bar] = function(faded)
         fadeStepper(faded)
         fadeHover(faded)
       end
     end
-    local hoverAll =
-      b.toggle(b.row("Hover shows all bars"), hoverX + (HOVER_COL - TOGGLE_W) // 2, TOGGLE_W, "hoverAllBars")
+    local hoverAll = b.checkSettingOn(
+      b.settingRow("Hover shows all bars"),
+      hoverX + (HOVER_COL - TOGGLE_W) // 2,
+      TOGGLE_W,
+      "hoverAllBars"
+    )
 
     return function(look, appearance)
       widthRow.fade(appearance.castMatchWidth)

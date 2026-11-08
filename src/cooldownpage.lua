@@ -14,8 +14,6 @@ local cooldownpage = {}
 local set = draw.set
 local rect = draw.rect
 local text = draw.windowText
-local outline = draw.outline
-local placeOutline = draw.placeOutline
 local hideAll = draw.hideAll
 local hitArea = draw.hitArea
 local on = draw.on
@@ -327,16 +325,6 @@ function cooldownpage.create(page, width, height, deps)
     draw.pos(hint, DETAIL_X, GRID_Y + rows * STEP + 8)
   end
 
-  -- Drop feedback: a swap outline or an insertion line.
-  local swapBox = outline(page, COLOURS.accent, 2)
-  local insertLine = rect(page, COLOURS.accent, 0, 0, 2, 0)
-
-  local function hideDragFeedback()
-    set(insertLine, "hidden", true)
-    hideAll(swapBox, true)
-  end
-  hideDragFeedback()
-
   -- The drop target under page position (px, py), or nil off the tile grid.
   local function targetAt(px, py)
     local gx = px - DETAIL_X
@@ -348,25 +336,17 @@ function cooldownpage.create(page, width, height, deps)
     return editor.gridDropTarget({ count = count, step = STEP, size = TILE, perRow = GRID_PER_ROW }, gx, gy)
   end
 
-  -- The target under the cursor during a drag.
+  -- The target under the cursor during a drag, and the feedback drawn at it.
   local dropTarget = nil
+  local feedback = dragdrop.feedback(page, TILE, GAP)
 
   local function showDragFeedback(px, py)
-    local target = targetAt(px, py)
-    dropTarget = target
-    local swap = target ~= nil and target.kind == "swap"
-    hideAll(swapBox, not swap)
-    set(insertLine, "hidden", target == nil or swap)
-    if target == nil then
-      return
+    dropTarget = targetAt(px, py)
+    local x, y
+    if dropTarget ~= nil then
+      x, y = slotPos(dropTarget.index)
     end
-    local x, y = slotPos(target.index)
-    if swap then
-      placeOutline(swapBox, x, y, TILE, TILE)
-    else
-      draw.pos(insertLine, x - GAP, y - 4)
-      draw.size(insertLine, 2, TILE + 8)
-    end
+    feedback.show(dropTarget, x, y)
   end
 
   -- Tile menu: one Remove row under the clicked tile.
@@ -424,7 +404,7 @@ function cooldownpage.create(page, width, height, deps)
     finish = function(t)
       t.group.set("alpha", 1)
       dropTarget = nil
-      hideDragFeedback()
+      feedback.hide()
     end,
   })
   for _, t in ipairs(editorTiles) do

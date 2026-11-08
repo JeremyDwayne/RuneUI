@@ -46,8 +46,8 @@ end
 
 -- A w by h popup at x, y on parent, hidden until opened. deps: { describe(struct) returning a description or
 -- nil, choose(row, on) tracking or untracking a src/search row }. Returns { open(view), close, isOpen, follow }:
--- open shows view, { title, empty, kind, rows, tracked() }, where empty is the field's placeholder, rows the
--- src/search rows, kind the src/search kind listed and tracked() the tab's current { [sprite] = true } set; follow
+-- open shows view, { title, empty, kind, rows, tracked(sprite) }, where empty is the field's placeholder, rows
+-- the src/search rows, kind the src/search kind listed and tracked says whether the tab shows a sprite now; follow
 -- runs every frame to move a held scrollbar thumb.
 function aurasearch.create(parent, x, y, w, h, deps)
   local layer = draw.new(ui.Layer, parent)
@@ -227,7 +227,7 @@ function aurasearch.create(parent, x, y, w, h, deps)
 
   -- Lists the chosen source's effects, keeping the scroll when keep is true, as after a choice.
   function fillEffects(keep)
-    local effects = search.rows(view.rows, view.kind, source, query, view.tracked())
+    local effects = search.rows(view.rows, view.kind, source, query, view.tracked)
     local tracked = 0
     for _, item in ipairs(effects) do
       if item.tracked then

@@ -21,6 +21,10 @@ local function names(rows)
   return out
 end
 
+local function none()
+  return false
+end
+
 describe("search.sources", function()
   it("lists All first, then the groups, then bosses by name, each with its count of one kind", function()
     assert.are.same({
@@ -57,18 +61,20 @@ end)
 
 describe("search.rows", function()
   it("lists a shared effect under its boss and under General", function()
-    assert.are.same({ "Red virus", "Stunned" }, names(search.rows(ROWS, "debuff", "Telos", "", {})))
-    assert.are.same({ "Stunned" }, names(search.rows(ROWS, "debuff", "General", "", {})))
-    assert.are.equal("Double Tap", search.rows(ROWS, "debuff", "Telos", "", {})[2].cause)
+    assert.are.same({ "Red virus", "Stunned" }, names(search.rows(ROWS, "debuff", "Telos", "", none)))
+    assert.are.same({ "Stunned" }, names(search.rows(ROWS, "debuff", "General", "", none)))
+    assert.are.equal("Double Tap", search.rows(ROWS, "debuff", "Telos", "", none)[2].cause)
   end)
 
   it("lists only rows of its kind", function()
-    assert.are.same({ "Stunned", "Vulnerability" }, names(search.rows(ROWS, "target", "All", "", {})))
-    assert.are.same({ "Soul Split" }, names(search.rows(ROWS, "buff", "All", "", {})))
+    assert.are.same({ "Stunned", "Vulnerability" }, names(search.rows(ROWS, "target", "All", "", none)))
+    assert.are.same({ "Soul Split" }, names(search.rows(ROWS, "buff", "All", "", none)))
   end)
 
   it("reads every row of a tracked sprite as tracked", function()
-    local rows = search.rows(ROWS, "debuff", "All", "", { [14235] = true })
+    local rows = search.rows(ROWS, "debuff", "All", "", function(sprite)
+      return sprite == 14235
+    end)
     local tracked = {}
     for _, r in ipairs(rows) do
       tracked[r.name] = r.tracked
@@ -85,16 +91,16 @@ describe("search.withSeen", function()
     local rows = search.withSeen(ROWS, "debuff", { 26103, 30098 }, function(sprite)
       return sprite == 30098 and "Bloated" or nil
     end)
-    assert.are.same({ "Bloated", "Stunned" }, names(search.rows(rows, "debuff", "General", "", {})))
-    assert.are.equal(30098, search.rows(rows, "debuff", "General", "bloat", {})[1].sprite)
+    assert.are.same({ "Bloated", "Stunned" }, names(search.rows(rows, "debuff", "General", "", none)))
+    assert.are.equal(30098, search.rows(rows, "debuff", "General", "bloat", none)[1].sprite)
     local buffs = search.withSeen(ROWS, "buff", { 26103 }, function() end)
-    assert.are.same({ "Unknown effect" }, names(search.rows(buffs, "buff", "General", "", {})))
+    assert.are.same({ "Unknown effect" }, names(search.rows(buffs, "buff", "General", "", none)))
   end)
 
   it("adds seen target sprites the catalog lacks to Any style, the target tab having no General", function()
     local rows = search.withSeen(ROWS, "target", { 30098 }, function()
       return "Bloated"
     end)
-    assert.are.same({ "Bloated", "Stunned" }, names(search.rows(rows, "target", "Any style", "", {})))
+    assert.are.same({ "Bloated", "Stunned" }, names(search.rows(rows, "target", "Any style", "", none)))
   end)
 end)

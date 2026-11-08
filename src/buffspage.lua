@@ -247,15 +247,7 @@ function buffspage.create(page, width, height, deps)
     marks[i] = m
   end
 
-  -- Drop feedback: a swap outline or an insertion line.
-  local swapBox = draw.outline(page, COLOURS.accent, 2)
-  local insertLine = rect(page, COLOURS.accent, 0, 0, 2, SIZE + 8)
-
-  local function hideDropFeedback()
-    draw.hideAll(swapBox, true)
-    set(insertLine, "hidden", true)
-  end
-  hideDropFeedback()
+  local feedback = dragdrop.feedback(page, SIZE, GAP)
 
   -- Each kind's full display order, from the last redraw.
   local orders = {}
@@ -522,20 +514,13 @@ function buffspage.create(page, width, height, deps)
       local slot, target, line = targetAt(px, py)
       dropSlot = slot
       dropTarget = target
-      local swap = target ~= nil and target.kind == "swap"
-      draw.hideAll(swapBox, not swap)
-      set(insertLine, "hidden", target == nil or swap)
-      if target == nil then
-        return
+      local x, y
+      if target ~= nil then
+        local column = target.index - 1 - line * cols
+        x = MARGIN + PAD + column * STEP
+        y = slot.top + PAD + line * STEP
       end
-      local column = target.index - 1 - line * cols
-      local x = MARGIN + PAD + column * STEP
-      local y = slot.top + PAD + line * STEP
-      if swap then
-        draw.placeOutline(swapBox, x, y, SIZE, SIZE)
-      else
-        draw.pos(insertLine, x - GAP, y - 4)
-      end
+      feedback.show(target, x, y)
     end,
     drop = function(t)
       if dropTarget ~= nil and t.sprite ~= nil then
@@ -545,7 +530,7 @@ function buffspage.create(page, width, height, deps)
     click = openMenu,
     finish = function(t)
       set(t.icon, "alpha", t.def.dim and DIM or 1)
-      hideDropFeedback()
+      feedback.hide()
       dropSlot = nil
       dropTarget = nil
     end,
@@ -557,17 +542,12 @@ function buffspage.create(page, width, height, deps)
   -- Search ----------------------------------------------------------------------------------------------
 
   -- Whether the current tab shows sprite: a buff in combat or upkeep, or a tracked debuff.
-  local function trackedNow()
-    local kind = tab
-    return setmetatable({}, {
-      __index = function(_, sprite)
-        if kind == "buffs" then
-          local category = saved.auras()[tostring(sprite)]
-          return category == "combat" or category == "upkeep"
-        end
-        return auralists.tracked(kind, saved.tracked(kind), sprite)
-      end,
-    })
+  local function trackedNow(sprite)
+    if tab == "buffs" then
+      local category = saved.auras()[tostring(sprite)]
+      return category == "combat" or category == "upkeep"
+    end
+    return auralists.tracked(tab, saved.tracked(tab), sprite)
   end
 
   -- Tracks or untracks a search row on the current tab.

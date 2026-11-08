@@ -77,8 +77,9 @@ local function openPicker()
   fake.press("+", 3)
 end
 
-local function logicTick()
-  fake.fire("Logic", { logicTick = 1 })
+-- A rendered frame, which moves a held drag with the cursor.
+local function frame()
+  fake.fire("Draw", {})
 end
 
 local function editorTile()
@@ -297,7 +298,7 @@ describe("options", function()
     fake.writes = 0
     pretty.calls = 0
     fake.fire("Draw", {})
-    logicTick()
+    frame()
     assert.are.same({ 0, 0 }, { fake.writes, pretty.calls })
   end)
 
@@ -319,26 +320,26 @@ describe("options", function()
       fake.writes = 0
       pretty.calls = 0
       fake.fire("Draw", {})
-      logicTick()
+      frame()
       assert.are.same({ 0, 0 }, { fake.writes, pretty.calls })
     end
   end)
 
-  it("cancels a tile drag on Esc, restoring the tile and leaving the logic tick idle", function()
+  it("cancels a tile drag on Esc, restoring the tile and leaving the frame idle", function()
     openWindow()
     local tile = editorTile()
     fake.mouse.x = 500
     fake.mouse.y = 300
     fake.hook(tile, "ONCLICK", 5, 5)
     fake.mouse.x = 540
-    logicTick()
+    frame()
     assert.are.equal(0, tile.alpha)
 
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
     assert.are.equal(1, tile.alpha)
     fake.writes = 0
     fake.mouse.x = 600
-    logicTick()
+    frame()
     assert.are.equal(0, fake.writes)
   end)
 
@@ -352,7 +353,7 @@ describe("options", function()
     fake.hook(tile, "ONCLICK", 5, 5)
     fake.mouse.x = 540
     fake.mouse.y = 310
-    logicTick()
+    frame()
     local cx = x + 45
     local cy = y + 15
     assert.is_true(tile.x <= cx - 60 and tile.x + tile.width >= cx + 60)
@@ -371,7 +372,7 @@ describe("options", function()
     fake.hook(tile, "ONCLICK", 5, 5)
     fake.mouse.x = 500 + 38 + 13
     fake.mouse.y = 300 + 13
-    logicTick()
+    frame()
     fake.hook(tile, "ONRELEASE")
     local keys = saved.keys("major", "magic")
     assert.are.same({ second, first }, { keys[1], keys[2] })
@@ -565,9 +566,9 @@ describe("options", function()
     fake.mouse.y = 300
     fake.hook(editorTile(), "ONCLICK", 5, 5)
     fake.mouse.x = 540
-    logicTick()
+    frame()
     fake.writes = 0
-    logicTick()
+    frame()
     assert.are.equal(0, fake.writes)
   end)
 
@@ -582,7 +583,7 @@ describe("options", function()
     pretty.button("Options")
     assert.is_true(shows("Font"))
     fake.writes = 0
-    logicTick()
+    frame()
     fake.fire("Draw", {})
     assert.are.equal(0, fake.writes)
   end)

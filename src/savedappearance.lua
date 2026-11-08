@@ -85,8 +85,8 @@ local function isOpacity(value)
 end
 
 local function isHudOpacity(value)
-  local range_ = savedappearance.HUD_OPACITY
-  return isOpacity(value) and value >= range_.min and value <= range_.max
+  local limits = savedappearance.HUD_OPACITY
+  return isOpacity(value) and value >= limits.min and value <= limits.max
 end
 
 -- Each appearance field's default and the check a saved value must pass.

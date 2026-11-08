@@ -643,12 +643,11 @@ function editmode.create(root, deps)
     placeAt(layout.resolve(move.positions, move.free, move.bounds))
   end
 
-  -- Moves the drag with the cursor. It runs every frame through Event.Draw so a move keeps up with the mouse,
-  -- and on Event.Logic as well in case Draw does not fire. It returns before reading the mouse unless a move is
-  -- under way, and before drawing unless the cursor moved.
+  -- Moves the drag with the cursor on every rendered frame. It returns before reading the mouse unless a move
+  -- is under way, and before drawing unless the cursor moved.
   local lastX = nil
   local lastY = nil
-  local function followCursor()
+  Event.Draw.Subscribe("runeuiEditMode", function()
     if move == nil then
       return
     end
@@ -659,9 +658,7 @@ function editmode.create(root, deps)
     lastX = mx
     lastY = my
     dragTo(mx, my)
-  end
-  Event.Draw.Subscribe("runeuiEditMode", followCursor)
-  Event.Logic.Subscribe("runeuiEditMode", followCursor)
+  end)
 
   -- Destroys every component edit mode built and drops its handlers, once. Leaving edit mode runs it.
   local destroyed = false
@@ -679,7 +676,6 @@ function editmode.create(root, deps)
       o.layer:Destroy()
     end
     Event.Draw.Unsubscribe("runeuiEditMode")
-    Event.Logic.Unsubscribe("runeuiEditMode")
     Event.KeyDown.Unsubscribe("runeuiEditModeShift")
     Event.KeyUp.Unsubscribe("runeuiEditModeShift")
   end
