@@ -93,9 +93,8 @@ function search.sources(rows, kind, query)
 end
 
 -- The rows of kind that source lists and that match query, ignoring case, sorted by name, each a copy with
--- tracked set when tracked, a { [sprite] = true } set, holds its sprite. "All" lists every source, each struct
--- once.
-function search.rows(rows, kind, source, query, tracked)
+-- tracked set to isTracked(sprite). "All" lists every source, each struct once.
+function search.rows(rows, kind, source, query, isTracked)
   query = query:lower()
   local out = {}
   local inAll = {}
@@ -108,7 +107,7 @@ function search.rows(rows, kind, source, query, tracked)
       for field, value in pairs(row) do
         copy[field] = value
       end
-      copy.tracked = tracked[row.sprite] == true
+      copy.tracked = isTracked(row.sprite) == true
       out[#out + 1] = copy
     end
   end

@@ -557,17 +557,12 @@ function buffspage.create(page, width, height, deps)
   -- Search ----------------------------------------------------------------------------------------------
 
   -- Whether the current tab shows sprite: a buff in combat or upkeep, or a tracked debuff.
-  local function trackedNow()
-    local kind = tab
-    return setmetatable({}, {
-      __index = function(_, sprite)
-        if kind == "buffs" then
-          local category = saved.auras()[tostring(sprite)]
-          return category == "combat" or category == "upkeep"
-        end
-        return auralists.tracked(kind, saved.tracked(kind), sprite)
-      end,
-    })
+  local function trackedNow(sprite)
+    if tab == "buffs" then
+      local category = saved.auras()[tostring(sprite)]
+      return category == "combat" or category == "upkeep"
+    end
+    return auralists.tracked(tab, saved.tracked(tab), sprite)
   end
 
   -- Tracks or untracks a search row on the current tab.
