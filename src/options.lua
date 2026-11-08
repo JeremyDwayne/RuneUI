@@ -376,16 +376,13 @@ function options.create(root, deps)
 
   -- Ticks ---------------------------------------------------------------------------------------------
 
-  -- Moves a drag with the cursor. It runs every frame through Event.Draw so a drag keeps up with the mouse,
-  -- and on Event.Logic as well in case Draw does not fire. Each page returns before reading the mouse unless a
+  -- Moves a drag with the cursor on every rendered frame. Each page returns before reading the mouse unless a
   -- press is held, and no page is built while the window is closed.
-  local function followCursor()
+  Event.Draw.Subscribe("runeuiOptions", function()
     for _, page in pairs(pages) do
       page.follow()
     end
-  end
-  Event.Draw.Subscribe("runeuiOptions", followCursor)
-  Event.Logic.Subscribe("runeuiOptions", followCursor)
+  end)
 
   Event.KeyDown.Subscribe("runeuiOptions", function(e)
     if e.gameKey ~= GameKey.ESCAPE then

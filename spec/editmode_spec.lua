@@ -84,8 +84,9 @@ local function shift(down)
   fake.fire(down and "KeyDown" or "KeyUp", { gameKey = GameKey.SHIFT })
 end
 
-local function logicTick()
-  fake.fire("Logic", { logicTick = 1 })
+-- A rendered frame, which moves a held drag with the cursor.
+local function frame()
+  fake.fire("Draw", {})
 end
 
 -- The overlay hit area over element.
@@ -149,7 +150,7 @@ describe("edit mode", function()
     local x = layer.x
     local tint = grab(elements.player)
     fake.mouse.x = 350
-    logicTick()
+    frame()
     fake.hook(tint, "ONRELEASE")
 
     fake.press("Reset positions")
@@ -168,14 +169,14 @@ describe("edit mode", function()
     local y = layer.y
     grab(elements.player)
     fake.mouse.x = 350
-    logicTick()
+    frame()
     assert.are.equal(x + 50, layer.x)
 
     fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
     assert.are.same({ x, y }, { layer.x, layer.y })
     fake.writes = 0
     fake.mouse.x = 400
-    logicTick()
+    frame()
     assert.are.equal(0, fake.writes)
   end)
 
@@ -190,20 +191,20 @@ describe("edit mode", function()
     shift(true)
     fake.hook(tint, "ONCLICK")
     fake.mouse.x = 400
-    logicTick()
+    frame()
     assert.are.equal(x + 50, layer.x)
   end)
 
   it("makes no client writes on an idle logic tick or while a move is held still", function()
     local elements = enterEditMode()
     fake.writes = 0
-    logicTick()
+    frame()
     assert.are.equal(0, fake.writes)
     grab(elements.player)
     fake.mouse.x = 350
-    logicTick()
+    frame()
     fake.writes = 0
-    logicTick()
+    frame()
     assert.are.equal(0, fake.writes)
   end)
 
@@ -308,7 +309,7 @@ describe("edit mode", function()
     end
     local tint = grab(elements.major)
     fake.mouse.x = 350
-    logicTick()
+    frame()
     for name, element in pairs(elements) do
       assert.are.equal(before[name] + 50, element.layer.x, name)
     end
@@ -324,7 +325,7 @@ describe("edit mode", function()
     local tint = grab(elements.player)
     fake.mouse.x = 280
     fake.mouse.y = 310
-    logicTick()
+    frame()
     fake.hook(tint, "ONRELEASE")
     assert.are.same(
       { target = "rotation", side = "left", align = "center", gap = 20, offset = 10 },
@@ -340,7 +341,7 @@ describe("edit mode", function()
       local tint = grab(elements.player)
       shift(held)
       fake.mouse.y = 296
-      logicTick()
+      frame()
       fake.hook(tint, "ONRELEASE")
       local bottom = saved.positions().player.y + elements.player.height
       assert.are.equal(held and -311 or -312, bottom)
@@ -351,7 +352,7 @@ describe("edit mode", function()
     local elements, _, window = enterEditMode()
     grab(elements.rotation)
     fake.mouse.x = 350
-    logicTick()
+    frame()
     local x = elements.rotation.layer.x
     elements.rotation.update({ { key = "A", name = "A", initials = "A", ready = true } })
     window.placeAll()
@@ -368,7 +369,7 @@ describe("edit mode", function()
     shift(true)
     fake.hook(tint, "ONCLICK")
     fake.mouse.x = 401
-    logicTick()
+    frame()
     fake.hook(tint, "ONRELEASE")
     assert.are.equal("integer", math.type(saved.positions().player.x))
   end)
@@ -380,7 +381,7 @@ describe("edit mode", function()
     fake.mouse.y = 300
     fake.hook(tint, "ONCLICK")
     fake.mouse.x = 303
-    logicTick()
+    frame()
     assert.are.equal(-110, elements.major.layer.x)
   end)
 
