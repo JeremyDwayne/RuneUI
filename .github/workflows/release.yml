@@ -1,8 +1,9 @@
 name: Release
 
 # Pushing a tag such as v0.1.0 runs the checks, then publishes a GitHub release with runeui-010.zip: the files
-# the client loads and a moderator reads, with main.lua and plugin.json at the top level, and the banner and
-# docs the README links so it reads whole from the zip. The notes list the changes since the previous tag.
+# the client loads and a moderator reads, with main.lua and plugin.json at the top level, and the docs the
+# README links. The README's banner loads from GitHub, so the zip stays small. The notes list the changes since
+# the previous tag.
 on:
   push:
     tags: ["v*"]
@@ -27,7 +28,7 @@ jobs:
         run: |
           version=$(jq -r .version plugin.json)
           zip="runeui-${version//./}.zip"
-          git archive -o "$zip" HEAD main.lua plugin.json src docs assets/hud.png README.md CONTRIBUTING.md \
+          git archive -o "$zip" HEAD main.lua plugin.json src docs README.md CONTRIBUTING.md \
             CODE_OF_CONDUCT.md LICENSE
           echo "ZIP=$zip" >> "$GITHUB_ENV"
       - name: Publish the release
