@@ -58,7 +58,7 @@ The plugin runs inside the game's frame, so its cost is the player's frame rate.
 
 ## Release
 
-The submission zip holds only what the client loads and a moderator reads, with `main.lua` and `plugin.json` at its top level. Specs and images stay in the repository.
+The submission zip holds what the client loads and a moderator reads, with `main.lua` and `plugin.json` at its top level, plus the banner and the docs the README links. Specs and the branding images stay in the repository.
 
 To release, set `version` in `plugin.json`, merge, then tag that commit on main and push the tag:
 
