@@ -260,6 +260,21 @@ local function hover(i, staticID, over)
   end
 end
 
+-- The hooks on a hover static that report the mouse over it, and off it.
+local HOVER_HOOKS = { ONMOUSEOVER = true, ONMOUSELEAVE = false }
+
+-- Subscribes fn to hook on the game component c under RuneUI's name, or unsubscribes it when fn is nil or false.
+-- A component that cannot be read is skipped.
+local function hookGame(c, hook, fn)
+  pcall(function()
+    if fn then
+      c:Subscribe(ui.Hook[hook], FADE_HOOK, fn)
+    else
+      c:Unsubscribe(ui.Hook[hook], FADE_HOOK)
+    end
+  end)
+end
+
 -- Subscribes or unsubscribes the mouse over, leave and press hooks on bar number i's hover statics. A press
 -- starts the bar's hold.
 local function hoverHooks(i, on)
@@ -268,21 +283,14 @@ local function hoverHooks(i, on)
   held[i] = nil
   for _, staticID in ipairs(bar.hoverStatics) do
     local c = component(bar.id, staticID)
-    for hook, over in pairs({ ONMOUSEOVER = true, ONMOUSELEAVE = false, ONCLICK = "press" }) do
-      pcall(function()
-        if on then
-          c:Subscribe(ui.Hook[hook], FADE_HOOK, function()
-            if over == "press" then
-              held[i] = HOLD_TICKS
-            else
-              hover(i, staticID, over)
-            end
-          end)
-        else
-          c:Unsubscribe(ui.Hook[hook], FADE_HOOK)
-        end
+    for hook, over in pairs(HOVER_HOOKS) do
+      hookGame(c, hook, on and function()
+        hover(i, staticID, over)
       end)
     end
+    hookGame(c, "ONCLICK", on and function()
+      held[i] = HOLD_TICKS
+    end)
   end
 end
 
