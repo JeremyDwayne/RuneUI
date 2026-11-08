@@ -12,6 +12,40 @@ local DRAG_START = 3
 -- Side of the transparent grab area that follows the cursor during a drag.
 local GRAB = 160
 local GHOST_OFFSET = 8
+-- The insertion line reaches this far past a tile's top and bottom.
+local LINE_REACH = 4
+
+-- Drop feedback over a grid of size px tiles gap px apart on layer: an accent outline round the tile a drop
+-- would swap with, or an accent line in the gap before the slot it would insert at. show(target, x, y) draws
+-- it for a src/editor drop target whose slot sits at x, y on layer, and hides it for a nil target; hide() hides
+-- it. Returns { show, hide }.
+function dragdrop.feedback(layer, size, gap)
+  local swapBox = draw.outline(layer, draw.WINDOW.accent, 2)
+  local line = draw.rect(layer, draw.WINDOW.accent, 0, 0, 2, size + 2 * LINE_REACH)
+  local feedback = {}
+
+  function feedback.hide()
+    draw.hideAll(swapBox, true)
+    draw.set(line, "hidden", true)
+  end
+
+  function feedback.show(target, x, y)
+    local swap = target ~= nil and target.kind == "swap"
+    draw.hideAll(swapBox, not swap)
+    draw.set(line, "hidden", target == nil or swap)
+    if target == nil then
+      return
+    end
+    if swap then
+      draw.placeOutline(swapBox, x, y, size, size)
+    else
+      draw.pos(line, x - gap, y - LINE_REACH)
+    end
+  end
+
+  feedback.hide()
+  return feedback
+end
 
 -- layer: where the icons and the ghost live; positions are in its coordinates. ghostSize: the ghost's side.
 -- handlers: press(item) runs on a press and returns whether the item holds an icon to drag; ghost(item)

@@ -1,5 +1,6 @@
 local fake = require("spec/support/fake_ui")
 local dragdrop = require("src/dragdrop")
+local draw = require("src/draw")
 
 -- A drag helper over one 30px icon at 100, 50, recording what it reports.
 local function setup()
@@ -78,6 +79,31 @@ describe("dragdrop", function()
     assert.is_nil(fake.find(function(_, d)
       return d.sprite == 13309
     end))
+  end)
+
+  it("draws an outline round a swap target, a line before an insert slot, and nothing for no target", function()
+    local layer = fake.component()
+    local feedback = dragdrop.feedback(layer, 30, 3)
+    local function shownAccent()
+      local n = 0
+      for _, c in ipairs(fake.created) do
+        if c.parent == layer and c.rgb == draw.WINDOW.accent and fake.shown(c) then
+          n = n + 1
+        end
+      end
+      return n
+    end
+    assert.are.equal(0, shownAccent())
+    feedback.show({ kind = "swap", index = 2 }, 100, 50)
+    assert.are.equal(4, shownAccent())
+    feedback.show({ kind = "insert", index = 2 }, 100, 50)
+    assert.are.equal(1, shownAccent())
+    local line = fake.find(function(c, d)
+      return c.parent == layer and d.rgb == draw.WINDOW.accent
+    end)
+    assert.are.same({ 97, 46, 2, 38 }, { line.x, line.y, line.width, line.height })
+    feedback.show(nil)
+    assert.are.equal(0, shownAccent())
   end)
 
   it("cancels without dropping and makes no writes while idle or held still", function()
