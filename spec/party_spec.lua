@@ -144,6 +144,19 @@ describe("party model", function()
   end)
 end)
 
+describe("party.rows", function()
+  it("lists each member's name, lifepoints and fill, with the leader's rank sprite", function()
+    local group = reads("Oakhelm", "Mirelle", "Brunt")
+    group.rows[2].lifepoints = "0/12000"
+    group.rows[3].lifepoints = nil
+    assert.are.same({
+      { name = "Oakhelm", leader = 25847, fill = 9400 / 12000, text = "9,400" },
+      { name = "Mirelle", fill = 0, text = "Dead" },
+      { name = "Brunt", text = "" },
+    }, party.rows(group))
+  end)
+end)
+
 describe("party.key", function()
   it("matches a name whatever its case or kind of space", function()
     assert.are.equal(party.key("Iron Oak"), party.key("iron\u{A0}oak"))

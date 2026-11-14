@@ -190,6 +190,105 @@ function adapter.groupReads()
   return { open = true, title = label(GROUP_WINDOW, GROUP_LIST, 0, interfaces.GROUP_TITLE), rows = rows }
 end
 
+-- A component's screen box as x, y, w, h, or nil while it is not shown or has no size.
+local function box(c)
+  if c == nil or read(c, "visibleGlobal") ~= true then
+    return nil
+  end
+  local at = read(c, "xyGlobal")
+  local x, y, w, h = at and read(at, "x"), at and read(at, "y"), read(c, "width"), read(c, "height")
+  if x ~= nil and y ~= nil and w ~= nil and h ~= nil and w > 0 and h > 0 then
+    return x, y, w, h
+  end
+end
+
+-- Adds the shown component c to tiles as { x, y, w, h, sprite, text, plain }.
+local function addTile(tiles, c, sprite, text, plain)
+  local x, y, w, h = box(c)
+  if x ~= nil then
+    tiles[#tiles + 1] = { x = x, y = y, w = w, h = h, sprite = sprite, text = text, plain = plain }
+  end
+end
+
+-- Whether the group window sits in the window frame of its own, found by following its base's parents into
+-- the window frames. Docked into another window it reads false.
+local function groupFramed()
+  local c = component(GROUP_WINDOW, interfaces.GROUP_BASE)
+  for _ = 1, 6 do
+    c = c and read(c, "parentStatic")
+    if c == nil then
+      return false
+    end
+    if read(c, "interfaceID") == interfaces.WINDOWS then
+      return read(c, "staticID") == interfaces.GROUP_FRAME.content
+    end
+  end
+  return false
+end
+
+local GROUP_UNSHOWN = { open = false }
+
+-- Where the game draws the group window, for src/sidebar, with rows the number of member rows groupReads
+-- found. nil while the window is unloaded or docked into another window, and { open = false } while it is
+-- closed. Else { open, x, y, w, h, top, listY, listH, tiles, rows }: the window's screen box, the top of its
+-- content, its list area, a tile for each button, tab and label the game shows and the frame's close button
+-- as { x, y, w, h, sprite, text, plain }, plain marking one drawn with no tile under it, and each member
+-- row's { x, y, w, h }. rows is nil when a row reaches outside the list area, as when the list is scrolled.
+function adapter.groupLayout(rows)
+  if not groupFramed() then
+    return nil
+  end
+  local x, y, w, h = box(component(interfaces.WINDOWS, interfaces.GROUP_FRAME.window))
+  local _, top = box(component(GROUP_WINDOW, interfaces.GROUP_BASE))
+  local _, listY, _, listH = box(component(GROUP_WINDOW, interfaces.GROUP_LIST_AREA))
+  if x == nil or top == nil or listY == nil then
+    return GROUP_UNSHOWN
+  end
+  local tiles = {}
+  for _, button in ipairs(interfaces.GROUP_ICON_BUTTONS) do
+    local icon = component(GROUP_WINDOW, button[2])
+    addTile(tiles, component(GROUP_WINDOW, button[1]), icon and read(icon, "spriteID"))
+  end
+  for _, staticID in ipairs(interfaces.GROUP_TABS) do
+    local tab = component(GROUP_WINDOW, staticID)
+    addTile(tiles, tab, tab and read(tab, "spriteID"))
+  end
+  addTile(tiles, component(GROUP_WINDOW, interfaces.GROUP_SIZE), nil, label(GROUP_WINDOW, interfaces.GROUP_SIZE), true)
+  local ready = interfaces.GROUP_READY
+  addTile(tiles, component(GROUP_WINDOW, ready.layer), nil, label(GROUP_WINDOW, ready.text))
+  -- The window frame's close button, by its sprite or as an x when it holds none.
+  local close = component(interfaces.WINDOWS, interfaces.GROUP_FRAME.close)
+  local closeSprite = close and read(close, "spriteID")
+  if closeSprite ~= nil and closeSprite >= 0 then
+    addTile(tiles, close, closeSprite, nil, true)
+  else
+    addTile(tiles, close, nil, "x", true)
+  end
+  local rowBox = interfaces.GROUP_ROW_BOX
+  local places = {}
+  for i = 1, rows do
+    local name = (i - 1) * interfaces.GROUP_ROW_STRIDE + interfaces.GROUP_ROW_NAME
+    local nameX, nameY = box(component(GROUP_WINDOW, GROUP_LIST, 0, name))
+    if nameX == nil or nameY - rowBox.dy < listY or nameY + rowBox.h - 2 * rowBox.dy > listY + listH then
+      places = nil
+      break
+    end
+    places[i] = { x = nameX - rowBox.dx, y = nameY - rowBox.dy, w = rowBox.w, h = rowBox.h }
+  end
+  return {
+    open = true,
+    x = x,
+    y = y,
+    w = w,
+    h = h,
+    top = top,
+    listY = listY,
+    listH = listH,
+    tiles = tiles,
+    rows = places,
+  }
+end
+
 local function allPlayers()
   return PlayerList.All()
 end

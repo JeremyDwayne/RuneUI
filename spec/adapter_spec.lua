@@ -422,6 +422,88 @@ describe("adapter.groupReads", function()
   end)
 end)
 
+describe("adapter.groupLayout", function()
+  -- A shown component at screen x, y sized w by h, with other fields.
+  local function at(x, y, w, h, fields)
+    local c = { visibleGlobal = true, xyGlobal = { x = x, y = y }, width = w, height = h }
+    for k, v in pairs(fields or {}) do
+      c[k] = v
+    end
+    return c
+  end
+
+  -- The group window at 100, 200 in the window frame whose content static is content: its base, list area,
+  -- set status and hidden invite buttons, selected group tab, size label, Ready button and members' name labels.
+  local function groupWindow(content, shown, names)
+    local frame = { interfaceID = 1477, staticID = content }
+    local statics = {
+      [11] = at(104, 220, 257, 231, { parentStatic = { interfaceID = 1519, staticID = 9, parentStatic = frame } }),
+      [3] = { visibleGlobal = shown },
+      [5] = at(104, 250, 257, 168),
+      [20] = at(107, 223, 24, 24),
+      [57] = { spriteID = 25853 },
+      [19] = { visibleGlobal = false, xyGlobal = { x = 134, y = 223 }, width = 24, height = 24 },
+      [51] = { spriteID = 25851 },
+      [31] = at(322, 227, 17, 17, { spriteID = 6028 }),
+      [29] = at(295, 223, 26, 24, { content = "2/50" }),
+      [6] = at(114, 453, 237, 27),
+      [44] = { content = "Ready" },
+    }
+    if not shown then
+      for _, c in pairs(statics) do
+        c.visibleGlobal = false
+      end
+    end
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function(_, interfaceID, staticID, _, dynamicID)
+          if interfaceID == 1477 then
+            local frames = { [523] = at(100, 200, 265, 290), [529] = at(340, 204, 16, 16, { spriteID = 21004 }) }
+            return shown and frames[staticID] or nil
+          end
+          if dynamicID ~= nil then
+            return staticID == 3 and names[dynamicID] or nil
+          end
+          return statics[staticID]
+        end,
+      },
+    }
+  end
+
+  it("gives the window's box, a tile per shown button, tab and label, and each row's place", function()
+    groupWindow(525, true, { [1] = at(183, 269, 178, 13), [24] = at(183, 307, 178, 13) })
+    local layout = adapter.groupLayout(2)
+    assert.are.same({ 100, 200, 265, 290, 220 }, { layout.x, layout.y, layout.w, layout.h, layout.top })
+    assert.are.same({ 250, 168 }, { layout.listY, layout.listH })
+    assert.are.same({
+      { x = 107, y = 223, w = 24, h = 24, sprite = 25853 },
+      { x = 322, y = 227, w = 17, h = 17, sprite = 6028 },
+      { x = 295, y = 223, w = 26, h = 24, text = "2/50", plain = true },
+      { x = 114, y = 453, w = 237, h = 27, text = "Ready" },
+      { x = 340, y = 204, w = 16, h = 16, sprite = 21004, plain = true },
+    }, layout.tiles)
+    assert.are.same({ { x = 109, y = 267, w = 247, h = 38 }, { x = 109, y = 305, w = 247, h = 38 } }, layout.rows)
+  end)
+
+  it("gives no row places once a row reaches outside the list area", function()
+    groupWindow(525, true, { [1] = at(183, 269, 178, 13), [24] = at(183, 400, 178, 13) })
+    assert.is_nil(adapter.groupLayout(2).rows)
+  end)
+
+  it("reads a closed window as not open, and one docked into another window or unloaded as nil", function()
+    groupWindow(525, false, {})
+    assert.are.same({ open = false }, adapter.groupLayout(0))
+    groupWindow(493, true, {})
+    assert.is_nil(adapter.groupLayout(0))
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function() end,
+      },
+    }
+    assert.is_nil(adapter.groupLayout(0))
+  end)
+end)
+
 describe("adapter.nearbyNames", function()
   it("lists the display name of every player in view, and names a player entity event's player", function()
     _G.PlayerList = {

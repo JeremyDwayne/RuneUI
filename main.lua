@@ -16,6 +16,7 @@ local options = require("src/options")
 local party = require("src/party")
 local presets = require("src/presets")
 local settings = require("src/settings")
+local sidebar = require("src/sidebar")
 local styling = require("src/style")
 local targeteffects = require("src/targeteffects")
 local view = require("src/view")
@@ -189,17 +190,31 @@ local function restyle()
   return view.setLook(elements, look)
 end
 
--- The player's own name and lifepoints as the party grid's model takes them, refilled each tick.
+-- The player's own name and lifepoints as the party grid's model takes them, refilled each tick, and the
+-- group window as last read.
 local own = {}
+local groupReads = { open = false }
+local groupSidebar
 
 -- Redraws the party grid from the game's group window and the player's own lifepoints. Returns whether its
 -- bounds changed.
 local function updateParty(playerReads)
-  partyTracker.read(adapter.groupReads())
+  groupReads = adapter.groupReads()
+  partyTracker.read(groupReads)
   own.name = playerReads.name
   own.lifepoints = playerReads.lifepoints
   own.max = frames.labelMax(playerReads.lifepointsLabel)
   return elements.party.update(partyTracker.model(own, saved.partyTiers(), saved.roles()))
+end
+
+-- Draws the sidebar over the game's group window while the setting is on, and holds the window transparent
+-- while the sidebar is folded. With the setting off it reads nothing.
+local function updateSidebar()
+  local state = saved.sidebar()
+  local rows = groupReads.open and #groupReads.rows or 0
+  local layout = state.on and adapter.groupLayout(rows) or nil
+  gameui.holdGroupWindow(layout ~= nil and state.collapsed, rows)
+  groupSidebar.update(layout, groupReads)
 end
 
 -- Redraws the player frame, target frame, party grid and resource bar from the client. Returns the target
@@ -262,6 +277,7 @@ local function refresh()
   moved = moved or framesMoved
   moved = updateCooldowns() or moved
   moved = updateAuras(target, appearance.auraBars) or moved
+  updateSidebar()
   hasTarget = not target.hidden
   showHud()
   -- Anchored elements follow an element whose shown bounds changed.
@@ -282,6 +298,8 @@ optionsWindow = options.create(top, {
   refresh = refresh,
   configured = showHud,
 })
+
+groupSidebar = sidebar.create(top, { saved = saved, blocked = optionsWindow.configuring, changed = refresh })
 
 Event.ServerLogic.Subscribe("refresh", function()
   logicTicks = 0
@@ -308,6 +326,7 @@ refresh()
 function PluginShutdown()
   gameui.restore()
   optionsWindow.shutdown()
+  groupSidebar.destroy()
   for _, element in pairs(elements) do
     element.layer:Destroy()
   end
