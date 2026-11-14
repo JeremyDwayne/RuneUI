@@ -100,6 +100,8 @@ interfaces.GROUP_ICON_BUTTONS = {
   { 26, 45 },
 }
 interfaces.GROUP_TABS = { 30, 31, 32, 33 }
+-- The three strips that hold those buttons, above and below the member list.
+interfaces.GROUP_BUTTON_STRIPS = { 0, 10, 18 }
 interfaces.GROUP_SIZE = 29
 interfaces.GROUP_READY = { layer = 6, text = 44 }
 -- The window frame in WINDOWS that holds the group window while it has a window to itself: the frame's own

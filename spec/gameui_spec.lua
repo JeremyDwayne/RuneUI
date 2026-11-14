@@ -241,7 +241,8 @@ local function loadGroupWindow()
       end,
     }
   end
-  local window = { [11] = { alpha = 1 }, [3] = holding(labels), [20] = { alpha = 0.5 } }
+  local window =
+    { [11] = { alpha = 1 }, [3] = holding(labels), [20] = { alpha = 0.5 }, [18] = { alpha = 1, hidden = false } }
   local frame = { [523] = { alpha = 1 }, [524] = holding({ fill }), [528] = { alpha = 1 }, [533] = { alpha = 1 } }
   _G.ui = {
     Interfaces = {
@@ -265,7 +266,10 @@ describe("gameui.holdGroupWindow", function()
     gameui.holdGroupWindow(true, 2)
     assert.are.same({ 0, 0, 0, 0 }, { window[11].alpha, window[20].alpha, labels[0].alpha, labels[46].alpha })
     assert.are.same({ 0, 0, 0, 1 }, { frame[523].alpha, frame[528].alpha, fill.alpha, frame[533].alpha })
+    assert.is_true(window[18].hidden)
+    assert.is_nil(window[3].hidden)
     gameui.holdGroupWindow(false)
+    assert.is_false(window[18].hidden)
     assert.are.same({ 1, 0.5, 1, 1 }, { window[11].alpha, window[20].alpha, labels[46].alpha, fill.alpha })
   end)
 

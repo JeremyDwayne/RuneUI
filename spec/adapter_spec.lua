@@ -393,14 +393,14 @@ describe("adapter.groupReads", function()
   it("reads the title and each member's row in order, stopping at the first row with no name", function()
     groupWindow(true, "Oakhelm's group", {
       { name = "Oakhelm", rank = 25847, lifepoints = "9400/15695" },
-      { name = "Mirelle", rank = 25848, lifepoints = "0/12000" },
+      { name = "Mirelle", rank = -1, lifepoints = "0/12000" },
     })
     assert.are.same({
       open = true,
       title = "Oakhelm's group",
       rows = {
         { name = "Oakhelm", rank = 25847, lifepoints = "9400/15695" },
-        { name = "Mirelle", rank = 25848, lifepoints = "0/12000" },
+        { name = "Mirelle", lifepoints = "0/12000" },
       },
     }, adapter.groupReads())
   end)

@@ -121,9 +121,11 @@ local castBar = transparency(
 
 -- The group window, held transparent while the sidebar is folded so its member rows keep updating, which
 -- hidden would stop. The client sets a member's row opaque again as their lifepoints change, so the watch is
--- the window's base and each row's lifepoints label, which holdGroupWindow keeps in step with the group.
+-- the window's base and each row's lifepoints label, which holdGroupWindow keeps in step with the group. Its
+-- button strips hold no rows and take hidden, which holds where alpha 0 on a button does not.
 local groupWatched = { { interfaces.GROUP_BASE } }
-local groupWindow = transparency(interfaces.GROUP_WINDOW, interfaces.GROUP_LAST_STATIC, groupWatched)
+local groupWindow =
+  transparency(interfaces.GROUP_WINDOW, interfaces.GROUP_LAST_STATIC, groupWatched, interfaces.GROUP_BUTTON_STRIPS)
 -- The window frame the group window sits in, whose background and border show a rebuild.
 local GROUP_FRAME = interfaces.GROUP_FRAME
 local groupFrame = transparency(

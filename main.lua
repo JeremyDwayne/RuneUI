@@ -208,11 +208,13 @@ local function updateParty(playerReads)
 end
 
 -- Draws the sidebar over the game's group window while the setting is on, and holds the window transparent
--- while the sidebar is folded. With the setting off it reads nothing.
+-- while the sidebar is folded. With the setting off, or the window closed and the sidebar unfolded, it reads
+-- nothing.
 local function updateSidebar()
   local state = saved.sidebar()
   local rows = groupReads.open and #groupReads.rows or 0
-  local layout = state.on and adapter.groupLayout(rows) or nil
+  -- A closed window is read only while folded, when the hold has to outlast it.
+  local layout = state.on and (groupReads.open or state.collapsed) and adapter.groupLayout(rows) or nil
   gameui.holdGroupWindow(layout ~= nil and state.collapsed, rows)
   groupSidebar.update(layout, groupReads)
 end

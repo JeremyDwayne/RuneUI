@@ -164,6 +164,14 @@ end
 
 local GROUP_CLOSED = { open = false }
 
+-- The sprite a sprite component shows, or nil when it is missing or shows none, which reads -1.
+local function spriteOf(c)
+  local sprite = c and read(c, "spriteID")
+  if sprite ~= nil and sprite >= 0 then
+    return sprite
+  end
+end
+
 -- The game's group window as src/party reads it: { open, title, rows }, with rows a list of
 -- { name, rank, lifepoints } in the window's order, up to MAX_GROUP_ROWS: rank is the row's rank sprite and
 -- lifepoints its "current/max" text. While the window is closed or unloaded its rows hold stale values, so
@@ -180,10 +188,9 @@ function adapter.groupReads()
     if name == nil then
       break
     end
-    local rank = component(GROUP_WINDOW, GROUP_LIST, 0, first + interfaces.GROUP_ROW_RANK)
     rows[i] = {
       name = name,
-      rank = rank and read(rank, "spriteID"),
+      rank = spriteOf(component(GROUP_WINDOW, GROUP_LIST, 0, first + interfaces.GROUP_ROW_RANK)),
       lifepoints = label(GROUP_WINDOW, GROUP_LIST, 0, first + interfaces.GROUP_ROW_LIFEPOINTS),
     }
   end
@@ -246,24 +253,19 @@ function adapter.groupLayout(rows)
   end
   local tiles = {}
   for _, button in ipairs(interfaces.GROUP_ICON_BUTTONS) do
-    local icon = component(GROUP_WINDOW, button[2])
-    addTile(tiles, component(GROUP_WINDOW, button[1]), icon and read(icon, "spriteID"))
+    addTile(tiles, component(GROUP_WINDOW, button[1]), spriteOf(component(GROUP_WINDOW, button[2])))
   end
   for _, staticID in ipairs(interfaces.GROUP_TABS) do
     local tab = component(GROUP_WINDOW, staticID)
-    addTile(tiles, tab, tab and read(tab, "spriteID"))
+    addTile(tiles, tab, spriteOf(tab))
   end
   addTile(tiles, component(GROUP_WINDOW, interfaces.GROUP_SIZE), nil, label(GROUP_WINDOW, interfaces.GROUP_SIZE), true)
   local ready = interfaces.GROUP_READY
   addTile(tiles, component(GROUP_WINDOW, ready.layer), nil, label(GROUP_WINDOW, ready.text))
   -- The window frame's close button, by its sprite or as an x when it holds none.
   local close = component(interfaces.WINDOWS, interfaces.GROUP_FRAME.close)
-  local closeSprite = close and read(close, "spriteID")
-  if closeSprite ~= nil and closeSprite >= 0 then
-    addTile(tiles, close, closeSprite, nil, true)
-  else
-    addTile(tiles, close, nil, "x", true)
-  end
+  local closeSprite = spriteOf(close)
+  addTile(tiles, close, closeSprite, closeSprite == nil and "x" or nil, true)
   local rowBox = interfaces.GROUP_ROW_BOX
   local places = {}
   for i = 1, rows do
