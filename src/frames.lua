@@ -44,6 +44,8 @@ local function withCommas(n)
   return (reversed:reverse():gsub("^,", ""))
 end
 
+frames.withCommas = withCommas
+
 -- Multiplies before dividing so 290 of 1000 reads 29%, not the 28% that 0.29 * 100 floors to.
 local function percentText(part, whole)
   return math.floor(util.clamp(part, 0, whole) * 100 / whole) .. "%"
@@ -54,6 +56,8 @@ local function labelMax(label)
   local max = label and label:match("/%s*([%d,]+)")
   return max and tonumber((max:gsub(",", "")))
 end
+
+frames.labelMax = labelMax
 
 -- 6,800 below ten thousand, 13.1K and 1.2M above, rounded down so it never overstates.
 function frames.formatAmount(n)
