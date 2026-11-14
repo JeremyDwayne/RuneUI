@@ -364,3 +364,74 @@ describe("adapter.itemName", function()
     assert.are.same({ "Elder overload salve (6)", nil }, { adapter.itemName(49039), adapter.itemName(1) })
   end)
 end)
+
+describe("adapter.groupReads", function()
+  -- Interface 1519 with its member list :3 holding the title :0 and each member's row of 23 dynamic children.
+  local function groupWindow(shown, title, members)
+    local children = { [0] = { content = title } }
+    for i, member in ipairs(members) do
+      local first = (i - 1) * 23
+      children[first + 1] = { content = member.name }
+      children[first + 15] = { spriteID = member.rank }
+      children[first + 23] = { content = member.lifepoints }
+    end
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function(_, interfaceID, staticID, _, dynamicID)
+          if interfaceID ~= 1519 or staticID ~= 3 then
+            return nil
+          end
+          if dynamicID == nil then
+            return { visibleGlobal = shown }
+          end
+          return children[dynamicID]
+        end,
+      },
+    }
+  end
+
+  it("reads the title and each member's row in order, stopping at the first row with no name", function()
+    groupWindow(true, "Oakhelm's group", {
+      { name = "Oakhelm", rank = 25847, lifepoints = "9400/15695" },
+      { name = "Mirelle", rank = 25848, lifepoints = "0/12000" },
+    })
+    assert.are.same({
+      open = true,
+      title = "Oakhelm's group",
+      rows = {
+        { name = "Oakhelm", rank = 25847, lifepoints = "9400/15695" },
+        { name = "Mirelle", rank = 25848, lifepoints = "0/12000" },
+      },
+    }, adapter.groupReads())
+  end)
+
+  it("reads an open window with no members as an empty list", function()
+    groupWindow(true, nil, {})
+    assert.are.same({ open = true, rows = {} }, adapter.groupReads())
+  end)
+
+  it("reads a closed or unloaded window as not open, leaving its stale rows unread", function()
+    groupWindow(false, "Oakhelm's group", { { name = "Oakhelm", rank = 25847, lifepoints = "9400/15695" } })
+    assert.are.same({ open = false }, adapter.groupReads())
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function() end,
+      },
+    }
+    assert.are.same({ open = false }, adapter.groupReads())
+  end)
+end)
+
+describe("adapter.nearbyNames", function()
+  it("lists the display name of every player in view, and names a player entity event's player", function()
+    _G.PlayerList = {
+      All = function()
+        return { { displayName = "Oakhelm" }, {}, { displayName = "Mirelle" } }
+      end,
+    }
+    assert.are.same({ "Oakhelm", "Mirelle" }, adapter.nearbyNames())
+    assert.are.equal("Brunt", adapter.entityName({ playerEntity = { displayName = "Brunt" } }))
+    _G.PlayerList = nil
+    assert.are.same({}, adapter.nearbyNames())
+  end)
+end)

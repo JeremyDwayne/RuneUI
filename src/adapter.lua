@@ -14,6 +14,10 @@ local MAIN_BAR = interfaces.MAIN_BAR
 local TARGET_PANEL = interfaces.TARGET_PANEL
 local ACTION_BARS = interfaces.ACTION_BARS
 local BUFF_BARS = interfaces.BUFF_BARS
+local GROUP_WINDOW = interfaces.GROUP_WINDOW
+local GROUP_LIST = interfaces.GROUP_LIST
+-- Member rows read from the group window, the most the party grid shows.
+local MAX_GROUP_ROWS = 30
 -- Empty slots in a row after which a buff bar holds no more icons.
 local EMPTY_RUN = 4
 -- Slots past the last filled one that a buff can fill at once, such as a potion's several effects.
@@ -154,6 +158,58 @@ function adapter.targetReads(effects)
     healthPercent = varValue("VarClient", "COMBATV2_TARGET_SIDE_PANEL_HEALTH"),
     debuffs = debuffs,
   }
+end
+
+-- Group -----------------------------------------------------------------------------------------------------
+
+local GROUP_CLOSED = { open = false }
+
+-- The game's group window as src/party reads it: { open, title, rows }, with rows a list of
+-- { name, rank, lifepoints } in the window's order, up to MAX_GROUP_ROWS: rank is the row's rank sprite and
+-- lifepoints its "current/max" text. While the window is closed or unloaded its rows hold stale values, so
+-- this returns { open = false } and reads none of them.
+function adapter.groupReads()
+  local list = component(GROUP_WINDOW, GROUP_LIST)
+  if list == nil or read(list, "visibleGlobal") ~= true then
+    return GROUP_CLOSED
+  end
+  local rows = {}
+  for i = 1, MAX_GROUP_ROWS do
+    local first = (i - 1) * interfaces.GROUP_ROW_STRIDE
+    local name = label(GROUP_WINDOW, GROUP_LIST, 0, first + interfaces.GROUP_ROW_NAME)
+    if name == nil then
+      break
+    end
+    local rank = component(GROUP_WINDOW, GROUP_LIST, 0, first + interfaces.GROUP_ROW_RANK)
+    rows[i] = {
+      name = name,
+      rank = rank and read(rank, "spriteID"),
+      lifepoints = label(GROUP_WINDOW, GROUP_LIST, 0, first + interfaces.GROUP_ROW_LIFEPOINTS),
+    }
+  end
+  return { open = true, title = label(GROUP_WINDOW, GROUP_LIST, 0, interfaces.GROUP_TITLE), rows = rows }
+end
+
+local function allPlayers()
+  return PlayerList.All()
+end
+
+-- The display name of every player in view, read once at load. Event.PlayerEntityAdded and
+-- PlayerEntityRemoved follow the changes.
+function adapter.nearbyNames()
+  local names = {}
+  local ok, players = pcall(allPlayers)
+  if ok and type(players) == "table" then
+    for _, player in ipairs(players) do
+      names[#names + 1] = read(player, "displayName")
+    end
+  end
+  return names
+end
+
+-- The display name of the player in an Event.PlayerEntityAdded or PlayerEntityRemoved payload, or nil.
+function adapter.entityName(e)
+  return read(e.playerEntity, "displayName")
 end
 
 -- Buff bars -------------------------------------------------------------------------------------------------

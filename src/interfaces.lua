@@ -67,6 +67,18 @@ interfaces.BUFF_BARS = {
   debuffs = { id = 291, first = 2, last = 51, lastStatic = 60 },
 }
 
+-- The group window. Its member list holds the title label, dynamic child 0, reading "<leader>'s group", then
+-- one row of GROUP_ROW_STRIDE dynamic children per member. A row's name label, rank sprite and lifepoints
+-- label, reading "current/max" without commas, sit at these dynamic ids in the first row. The window stays
+-- loaded while closed, with every component not visibleGlobal and its rows frozen.
+interfaces.GROUP_WINDOW = 1519
+interfaces.GROUP_LIST = 3
+interfaces.GROUP_TITLE = 0
+interfaces.GROUP_ROW_STRIDE = 23
+interfaces.GROUP_ROW_NAME = 1
+interfaces.GROUP_ROW_RANK = 15
+interfaces.GROUP_ROW_LIFEPOINTS = 23
+
 -- config.Inv.WORN, the worn-equipment inventory.
 interfaces.WORN_INV = 94
 

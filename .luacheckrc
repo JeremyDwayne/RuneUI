@@ -2,8 +2,8 @@ std = "lua54"
 
 -- Globals the RS3 client provides to plugins.
 read_globals = {
-  "Event", "GameKey", "Inventory", "Mouse", "NPCList", "PersistentDB", "Player", "config", "id", "log", "prettyui",
-  "ui", "var",
+  "Event", "GameKey", "Inventory", "Mouse", "NPCList", "PersistentDB", "Player", "PlayerList", "config", "id", "log",
+  "prettyui", "ui", "var",
 }
 
 -- Lifecycle hooks the client calls by name.
