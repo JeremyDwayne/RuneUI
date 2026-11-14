@@ -1,6 +1,6 @@
 -- The options window and the src/ribbon panel that opens it: a PrettyUI window with a tab per page, the
 -- src/appearancepage Appearance and Bars pages, the src/cooldownpage Cooldown manager, the src/buffspage Buffs
--- page, and a footer with Edit mode into src/editmode, Reset positions and Done.
+-- page, the src/partypage Party page, and a footer with Edit mode into src/editmode, Reset positions and Done.
 local appearancepage = require("src/appearancepage")
 local buffspage = require("src/buffspage")
 local catalog = require("src/catalog")
@@ -8,6 +8,7 @@ local controls = require("src/controls")
 local cooldownpage = require("src/cooldownpage")
 local draw = require("src/draw")
 local editmode = require("src/editmode")
+local partypage = require("src/partypage")
 local ribbon = require("src/ribbon")
 local style = require("src/style")
 
@@ -38,12 +39,14 @@ local FOOTER_GAP = 12
 local BUTTON_H = 28
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
 -- view = src/view, auraInfo(sprite) naming an aura icon, describe(struct) reading a struct's description,
--- refresh = function redrawing the HUD, configured = function run as the window or edit mode opens or closes }.
--- Returns { placeAll, redrawBuffs, configuring, shutdown }; placeAll places the HUD and edit mode's overlays from
--- the saved positions and anchors, redrawBuffs redraws the Buffs page while it is shown, and configuring says
--- whether the window or edit mode is open. Every plugin on the plugin layer shares its 4096 dynamic ids, so the
--- window builds as it opens, with the Appearance page, each other page builds on the first visit to its tab,
--- and closing destroys them all. A window whose build is refused logs and stays closed.
+-- members = function returning the group's members as src/party's tracker lists them, refresh = function
+-- redrawing the HUD, configured = function run as the window or edit mode opens or closes }.
+-- Returns { placeAll, redrawPage, configuring, shutdown }; placeAll places the HUD and edit mode's overlays from
+-- the saved positions and anchors, redrawPage redraws the Buffs or Party page while it is shown, each server
+-- tick, and configuring says whether the window or edit mode is open. Every plugin on the plugin layer shares
+-- its 4096 dynamic ids, so the window builds as it opens, with the Appearance page, each other page builds on
+-- the first visit to its tab, and closing destroys them all. A window whose build is refused logs and stays
+-- closed.
 function options.create(root, deps)
   local saved = deps.saved
   local tracker = deps.tracker
@@ -136,6 +139,14 @@ function options.create(root, deps)
       label = "Bars",
       build = function(layer)
         return appearancepage.bars(layer, PAGE_W, PAGE_H, settingsDeps())
+      end,
+      show = open,
+    },
+    {
+      id = "party",
+      label = "Party",
+      build = function(layer)
+        return partypage.create(layer, PAGE_W, PAGE_H, { saved = saved, members = deps.members, refresh = refresh })
       end,
       show = open,
     },
@@ -419,9 +430,11 @@ function options.create(root, deps)
 
   return {
     placeAll = placeAll,
-    redrawBuffs = function()
+    redrawPage = function()
       if windowOpen and currentPage == "buffs" then
         pages.buffs.redraw()
+      elseif windowOpen and currentPage == "party" then
+        pages.party.follow()
       end
     end,
     configuring = function()

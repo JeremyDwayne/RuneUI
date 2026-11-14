@@ -209,7 +209,7 @@ describe("options", function()
     for i, v in ipairs(tabs.values) do
       labels[i] = v.text
     end
-    assert.are.same({ "Appearance", "Cooldown manager", "Buffs", "Bars" }, labels)
+    assert.are.same({ "Appearance", "Cooldown manager", "Buffs", "Bars", "Party" }, labels)
     assert.are.equal(1, tabs:GetActiveIndex())
     assert.is_true(shows("Font"))
     assert.is_false(shows("New group"))
@@ -220,7 +220,7 @@ describe("options", function()
     openPicker()
     pretty.button("Done")
     pretty.button("Options")
-    for _, page in ipairs({ "Appearance", "Cooldown manager", "Buffs", "Bars" }) do
+    for _, page in ipairs({ "Appearance", "Cooldown manager", "Buffs", "Bars", "Party" }) do
       pretty.fire(pretty.find("Tabs"), page)
     end
     pretty.fire(pretty.find("Tabs"), "Cooldown manager")
@@ -575,7 +575,7 @@ describe("options", function()
   it("destroys the window and its pages on closing, and an idle tick after reopening writes nothing", function()
     local root, _, hud = optionsOnRoot()
     pretty.button("Options")
-    for _, page in ipairs({ "Cooldown manager", "Buffs", "Bars" }) do
+    for _, page in ipairs({ "Cooldown manager", "Buffs", "Bars", "Party" }) do
       pretty.fire(pretty.find("Tabs"), page)
     end
     pretty.button("Done")

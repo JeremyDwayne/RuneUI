@@ -268,7 +268,7 @@ local function refresh()
   if moved then
     optionsWindow.placeAll()
   end
-  optionsWindow.redrawBuffs()
+  optionsWindow.redrawPage()
 end
 
 optionsWindow = options.create(top, {
@@ -278,6 +278,7 @@ optionsWindow = options.create(top, {
   view = view,
   auraInfo = auraNames.info,
   describe = adapter.structInfo,
+  members = partyTracker.members,
   refresh = refresh,
   configured = showHud,
 })

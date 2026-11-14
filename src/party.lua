@@ -68,6 +68,7 @@ end
 
 -- Tracks the group between server ticks. near(name, inView) follows a player entering or leaving view, and
 -- read(reads) takes each tick's src/adapter groupReads, keeping the last roster while the window is closed.
+-- members() lists that roster.
 -- model(own, tiers, roles) returns the grid: own is { name, lifepoints, max } for the player, tiers is
 -- { [tier id] = { w, h, columns, showSelf } } and roles is as party.tag takes. The model is { hidden } with
 -- nothing to show, else { tier, raid, closed, w, h, columns, width, height, cells }, with cells a list of
@@ -99,11 +100,12 @@ function party.tracker()
     end
   end
 
-  -- The members' names in the window's order, for the Party page.
-  function t.names()
+  -- The members in the window's order as { name, leader }, leader being the leader's rank sprite, for the
+  -- Party page.
+  function t.members()
     local out = {}
     for i, row in ipairs(rows) do
-      out[i] = row.name
+      out[i] = { name = row.name, leader = party.key(row.name) == leader and row.rank or nil }
     end
     return out
   end
