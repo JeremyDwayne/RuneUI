@@ -11,6 +11,8 @@ A combat HUD for RuneScape 3. It draws your frames, bars, cooldowns and buffs in
 - A cast bar for channels such as Asphyxiate, with a mark for each hit and the same time as the game's own.
 - Cooldown groups: Major, Rotation, Utility and Defensives. Each icon shows its keybind and seconds left, and Major and Rotation change with your weapon's combat style. The ability you have queued gets a gold border with a light that runs round it once a tick.
 - Aura rows: combat buffs, upkeep buffs, debuffs on you and debuffs on your target. Each icon shows its time or stacks and gets a ring in its last seconds.
+- Party frames: a grid with one cell per group member, showing their name, lifepoints, the tag you gave them and the leader's icon. The grid resizes for a duo, a party of 3 to 5, a large group of 6 to 7 and a raid of 8 or more. A cell gets a white border under 30% lifepoints and a dashed one at 0, and dims when its member is out of view. Lifepoints come from the game's group window, so they show only while it is open.
+- A group sidebar: the game's group window drawn in RuneUI's style, with a row per member and a tile at each of the game's buttons. Every click lands on the game's own button. **Hide** folds it to its title bar while the party frames keep updating.
 
 Hover anything for its name and description. Every element can be moved, anchored to another and resized. The HUD hides while the world map is open, and can fade or hide out of combat.
 
@@ -32,13 +34,14 @@ Open the plugin ribbon, choose RuneUI and press **Options**. Under it, the **Out
 - Cooldown manager sets each group's icon size, wrapping and direction, and its abilities per combat style. Drag icons to reorder them, press **+** to add one and click one to remove it.
 - Buffs sets which row each buff shows in, which debuffs you track, and **Keep up** for buffs you never want to drop. **Find** searches every effect in the game by name or boss.
 - Bars sets the adrenaline markers, bar sizes, the cast bar's colour and font, and fades the game's action bars, with one switch over all of them.
+- Party gives each group member a tag of up to 4 characters, with **Base tank** as a one-click gold tag. A tag is that player's default in every group. A role preset, such as one per boss, holds its own tags that override the defaults while it is chosen. The page also sets each group size's cell width, height and columns, whether your own frame shows, and whether the group sidebar is drawn.
 - Edit mode lets you drag any element, anchor it to another from its **Anchor** button and snap to edges or a grid. Hold Shift to move freely.
 
 Settings save between sessions.
 
 ## What it reads
 
-RuneUI only shows what the game already tells you: your stats, cooldowns and action bars, the game's buff bars and target panel, and ability and effect names from the game's own data. The one addition is a countdown on debuffs you put on your target, timed from the length the ability or spell's own description gives. Each target keeps its countdowns while you look at another, though RuneUI cannot see a debuff renewed on a target you are not looking at. It never sends input, needs no permissions and sends nothing off your computer. Hiding a game interface makes it transparent, and turning the option off, reloading or disabling RuneUI restores it.
+RuneUI only shows what the game already tells you: your stats, cooldowns and action bars, the game's buff bars and target panel, and ability and effect names from the game's own data. For other players it reads two things: the names, lifepoints and leader that the game's group window lists for your group, and the names of the players in view, which it uses only to dim a group member who is not. Tags and presets are your own notes and stay on your computer. The one addition is a countdown on debuffs you put on your target, timed from the length the ability or spell's own description gives. Each target keeps its countdowns while you look at another, though RuneUI cannot see a debuff renewed on a target you are not looking at. It never sends input, needs no permissions and sends nothing off your computer. Hiding a game interface makes it transparent, and turning the option off, reloading or disabling RuneUI restores it. The group sidebar draws over the group window without moving it, and folding it makes the window transparent in the same way.
 
 ## Development
 
