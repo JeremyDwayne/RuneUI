@@ -1,5 +1,6 @@
 -- Hides and restores the game's own interfaces: the target panel, buff bars and cast bar held transparent
--- while RuneUI replaces them, with the action bars faded through src/actionbars. The client rebuilds parts of
+-- while RuneUI replaces them, the group window while the sidebar is folded, and the action bars faded through
+-- src/actionbars. The client rebuilds parts of
 -- each between server ticks, so onFrame reads a few watched components each rendered frame and writes them
 -- back, and nothing while no interface is held. Every change has a restore path: apply with the option off,
 -- or restore on shutdown.
@@ -25,21 +26,22 @@ local function opaque(c)
 end
 
 -- An interface RuneUI can hold transparent with alpha 0, since hiding its components stops them updating.
--- lastStatic is its highest static ID. watched lists { staticID, categoryID, dynamicID } addresses, without
--- the last two for a static, that read opaque once the client reloads or rebuilds the interface. animated lists
+-- Its statics run from firstStatic, 0 when nil, to lastStatic. watched lists { staticID, categoryID, dynamicID }
+-- addresses, without the last two for a static, that read opaque once the client reloads or rebuilds the
+-- interface. animated lists
 -- static IDs whose alpha the client animates, which take hidden instead. Returns { hide(hidden), keep() }: hide
 -- runs each server tick and false restores the original alphas and hidden states; keep runs on every rendered
 -- frame, reading only the watched components while hidden and nothing while shown. It reads every frame, not
 -- only the frames after a server tick as the buff bar watch does, because an interface can load or rebuild on
 -- any frame, where a buff bar slot fills only after a tick.
-local function transparency(interfaceID, lastStatic, watched, animated)
+local function transparency(interfaceID, lastStatic, watched, animated, firstStatic)
   -- Original alpha of each component while held transparent, keyed "static" or "static:category:dynamic".
   local originals = nil
 
   -- Calls fn(key, component) for every component, dynamic children included, since a component's alpha
   -- does not reach its children.
   local function each(fn)
-    for staticID = 0, lastStatic do
+    for staticID = firstStatic or 0, lastStatic do
       local c = component(interfaceID, staticID)
       if c ~= nil then
         fn(tostring(staticID), c)
@@ -115,6 +117,21 @@ local castBar = transparency(
   interfaces.CAST_BAR_LAST_STATIC,
   { { 0 }, { interfaces.CAST_BAR_DURATION } },
   { interfaces.CAST_BAR_GLOW }
+)
+
+-- The group window, held transparent while the sidebar is folded so its member rows keep updating, which
+-- hidden would stop. The client sets a member's row opaque again as their lifepoints change, so the watch is
+-- the window's base and each row's lifepoints label, which holdGroupWindow keeps in step with the group.
+local groupWatched = { { interfaces.GROUP_BASE } }
+local groupWindow = transparency(interfaces.GROUP_WINDOW, interfaces.GROUP_LAST_STATIC, groupWatched)
+-- The window frame the group window sits in, whose background and border show a rebuild.
+local GROUP_FRAME = interfaces.GROUP_FRAME
+local groupFrame = transparency(
+  interfaces.WINDOWS,
+  GROUP_FRAME.last,
+  { { GROUP_FRAME.background }, { GROUP_FRAME.border } },
+  nil,
+  GROUP_FRAME.window
 )
 
 -- Original alpha of each buff bar component while RuneUI hides the bars, keyed "bar:static" or
@@ -216,11 +233,29 @@ function gameui.apply(appearance)
   actionbars.fade(appearance)
 end
 
+-- Runs each server tick with whether the group window and its frame are held transparent, and the number of
+-- member rows it lists. false restores both.
+function gameui.holdGroupWindow(held, rows)
+  if held then
+    for i = 1, rows do
+      local dynamic = (i - 1) * interfaces.GROUP_ROW_STRIDE + interfaces.GROUP_ROW_LIFEPOINTS
+      groupWatched[i + 1] = groupWatched[i + 1] or { interfaces.GROUP_LIST, 0, dynamic }
+    end
+    for i = #groupWatched, rows + 2, -1 do
+      groupWatched[i] = nil
+    end
+  end
+  groupWindow.hide(held)
+  groupFrame.hide(held)
+end
+
 -- Runs on every rendered frame, putting back whatever the client rebuilt on a held interface.
 function gameui.onFrame()
   targetPanel.keep()
   keepBuffBarsHidden()
   castBar.keep()
+  groupWindow.keep()
+  groupFrame.keep()
   actionbars.keepFaded()
 end
 
@@ -229,6 +264,7 @@ function gameui.restore()
   targetPanel.hide(false)
   hideBuffBars(false)
   castBar.hide(false)
+  gameui.holdGroupWindow(false)
   actionbars.restore()
 end
 

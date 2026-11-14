@@ -222,3 +222,67 @@ describe("gameui.apply with hideBuffBars", function()
     gameui.apply({ hideBuffBars = false })
   end)
 end)
+
+-- The group window 1519 with its base :11 and its member list :3 holding the title and two rows' lifepoints
+-- labels, in the window frame 1477 from :523 to :532 with a background :524 holding a sprite.
+local function loadGroupWindow()
+  local function child(dynamicID)
+    return { alpha = 1, categoryID = 0, dynamicID = dynamicID }
+  end
+  local labels = { [0] = child(0), [23] = child(23), [46] = child(46) }
+  local fill = child(0)
+  local function holding(children)
+    return {
+      alpha = 1,
+      IterateDynamicComponents = function(_, fn)
+        for _, c in pairs(children) do
+          fn(c)
+        end
+      end,
+    }
+  end
+  local window = { [11] = { alpha = 1 }, [3] = holding(labels), [20] = { alpha = 0.5 } }
+  local frame = { [523] = { alpha = 1 }, [524] = holding({ fill }), [528] = { alpha = 1 }, [533] = { alpha = 1 } }
+  _G.ui = {
+    Interfaces = {
+      lookups = 0,
+      GetComponent = function(self, interfaceID, staticID, categoryID, dynamicID)
+        self.lookups = self.lookups + 1
+        local statics = interfaceID == 1519 and window or interfaceID == 1477 and frame or {}
+        if categoryID == nil then
+          return statics[staticID]
+        end
+        return interfaceID == 1519 and staticID == 3 and labels[dynamicID] or nil
+      end,
+    },
+  }
+  return window, frame, labels, fill
+end
+
+describe("gameui.holdGroupWindow", function()
+  it("makes the window, its rows and its frame transparent, and restores each one's alpha", function()
+    local window, frame, labels, fill = loadGroupWindow()
+    gameui.holdGroupWindow(true, 2)
+    assert.are.same({ 0, 0, 0, 0 }, { window[11].alpha, window[20].alpha, labels[0].alpha, labels[46].alpha })
+    assert.are.same({ 0, 0, 0, 1 }, { frame[523].alpha, frame[528].alpha, fill.alpha, frame[533].alpha })
+    gameui.holdGroupWindow(false)
+    assert.are.same({ 1, 0.5, 1, 1 }, { window[11].alpha, window[20].alpha, labels[46].alpha, fill.alpha })
+  end)
+
+  it("makes a row transparent again on the frame after the client shows it, for any listed member", function()
+    local window, _, labels = loadGroupWindow()
+    gameui.holdGroupWindow(true, 2)
+    labels[46].alpha = 1
+    window[20].alpha = 1
+    gameui.onFrame()
+    assert.are.same({ 0, 0 }, { labels[46].alpha, window[20].alpha })
+    gameui.restore()
+    assert.are.same({ 1, 0.5 }, { labels[46].alpha, window[20].alpha })
+  end)
+
+  it("makes no client reads on a frame while the window is not held", function()
+    loadGroupWindow()
+    gameui.onFrame()
+    assert.are.equal(0, ui.Interfaces.lookups)
+  end)
+end)

@@ -78,6 +78,34 @@ interfaces.GROUP_ROW_STRIDE = 23
 interfaces.GROUP_ROW_NAME = 1
 interfaces.GROUP_ROW_RANK = 15
 interfaces.GROUP_ROW_LIFEPOINTS = 23
+-- The group window's highest static ID, its base layer and the area its member list scrolls in. A member's row
+-- is GROUP_ROW_BOX.w by .h, with its name label dx and dy inside it.
+interfaces.GROUP_LAST_STATIC = 93
+interfaces.GROUP_BASE = 11
+interfaces.GROUP_LIST_AREA = 5
+interfaces.GROUP_ROW_BOX = { dx = 74, dy = 2, w = 247, h = 38 }
+-- The group window's buttons. Icon buttons are a 24px layer static holding an icon sprite static: set status,
+-- invite by name, loot share, leave group, invitation setting, start game, create group, want members and find
+-- content. The group and ignore list tabs are sprites of their own, plain then selected. The group size label
+-- and the Ready button's layer and text complete the set. The game shows only those that apply.
+interfaces.GROUP_ICON_BUTTONS = {
+  { 20, 57 },
+  { 19, 51 },
+  { 27, 93 },
+  { 23, 35 },
+  { 21, 28 },
+  { 22, 34 },
+  { 24, 36 },
+  { 25, 37 },
+  { 26, 45 },
+}
+interfaces.GROUP_TABS = { 30, 31, 32, 33 }
+interfaces.GROUP_SIZE = 29
+interfaces.GROUP_READY = { layer = 6, text = 44 }
+-- The window frame in WINDOWS that holds the group window while it has a window to itself: the frame's own
+-- static, the content static the group window's base sits in, its background, border and close button, and
+-- its last static.
+interfaces.GROUP_FRAME = { window = 523, background = 524, content = 525, border = 528, close = 529, last = 532 }
 
 -- config.Inv.WORN, the worn-equipment inventory.
 interfaces.WORN_INV = 94
