@@ -43,9 +43,10 @@ local function paragraphs(info)
   return out
 end
 
--- The tooltip on root. show(content, x, y, size) takes the icon's screen position and { title, left, right,
--- info, foot }: the name, a status row with left and right ends when either is given, the description split
--- into paragraphs at <br>, and a last line; hide() clears it and destroy() removes it. It draws above the HUD
+-- The tooltip on root. show(content, x, y, size, width) takes the icon's screen position, its height and, when
+-- it is not square, its width, and { title, left, right, info, foot }: the name, a status row with left and
+-- right ends when either is given, the description split into paragraphs at <br>, and a last line; hide()
+-- clears it and destroy() removes it. It draws above the HUD
 -- from its first show. hover(items, show) wires each item's edge to the tooltip.
 function tooltip.create(root)
   local layer = draw.new(ui.Layer, root)
@@ -72,7 +73,7 @@ function tooltip.create(root)
   end
   setHidden(true)
 
-  function tip.show(content, x, y, size)
+  function tip.show(content, x, y, size, width)
     set(title, "content", content.title)
     set(left, "content", content.left or "")
     set(right, "content", content.right or "")
@@ -119,7 +120,7 @@ function tooltip.create(root)
       panelX = math.max(0, math.min(x, screenWidth - TOOLTIP_WIDTH))
     end
     draw.pos(layer, panelX, top)
-    draw.placeOutline(highlight, x + 2, y + 2, size - 4, size - 4)
+    draw.placeOutline(highlight, x + 2, y + 2, (width or size) - 4, size - 4)
     setHidden(false)
     -- The client stops drawing a component moved to the front while hidden, so this waits for the first show.
     if not raised then

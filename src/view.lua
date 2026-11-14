@@ -7,6 +7,7 @@ local castbar = require("src/castbar")
 local cooldowngroup = require("src/cooldowngroup")
 local draw = require("src/draw")
 local layout = require("src/layout")
+local partyframe = require("src/partyframe")
 local resourcebar = require("src/resourcebar")
 local savedgroups = require("src/savedgroups")
 local tooltip = require("src/tooltip")
@@ -21,6 +22,7 @@ view.resourceBar = resourcebar.create
 view.castBar = castbar.create
 view.cooldownGroup = cooldowngroup.create
 view.auraRow = aurarow.create
+view.partyGrid = partyframe.create
 view.AURA_STYLES = aurarow.STYLES
 
 -- at: { x, y, anchorX, anchorY }, with anchors as fractions of the game window.

@@ -1,7 +1,7 @@
--- RuneUI: player frame, target frame, resource bar, cast bar, cooldown groups and aura rows drawn over the
--- game. Each server tick reads the client through src/adapter and redraws from the src/frames, src/cooldowns,
--- src/channel and src/auras models. The cast bar and cooldown groups also redraw on the Logic tick after
--- their vars change, and count down on every Logic tick.
+-- RuneUI: player frame, target frame, resource bar, cast bar, cooldown groups, aura rows and party grid drawn
+-- over the game. Each server tick reads the client through src/adapter and redraws from the src/frames,
+-- src/cooldowns, src/channel, src/auras and src/party models. The cast bar and cooldown groups also redraw on
+-- the Logic tick after their vars change, and count down on every Logic tick.
 local adapter = require("src/adapter")
 local auralists = require("src/auralists")
 local autohide = require("src/autohide")
@@ -13,6 +13,7 @@ local frames = require("src/frames")
 local gameui = require("src/gameui")
 local icons = require("src/icons")
 local options = require("src/options")
+local party = require("src/party")
 local presets = require("src/presets")
 local settings = require("src/settings")
 local styling = require("src/style")
@@ -35,6 +36,7 @@ local elements = {
   target = view.targetFrame(hud),
   resource = view.resourceBar(hud),
   castbar = view.castBar(hud),
+  party = view.partyGrid(hud, tooltip),
 }
 -- Every cooldown group element, built-in then custom. A custom group not in use stays hidden.
 local GROUP_NAMES = view.GROUP_NAMES
@@ -51,6 +53,17 @@ local tracker = cooldowns.tracker()
 local channelTracker = channel.tracker()
 local auraTracker = auras.tracker()
 local effectsTracker = targeteffects.tracker()
+-- The group's roster and the players in view, which the party grid dims members out of.
+local partyTracker = party.tracker()
+for _, name in ipairs(adapter.nearbyNames()) do
+  partyTracker.near(name, true)
+end
+Event.PlayerEntityAdded.Subscribe("party", function(e)
+  partyTracker.near(adapter.entityName(e), true)
+end)
+Event.PlayerEntityRemoved.Subscribe("party", function(e)
+  partyTracker.near(adapter.entityName(e), false)
+end)
 local optionsWindow
 -- Whether the world map is open, COMBATV2_PLAYER_IS_IN_COMBAT as last read, nil while unread, and whether the
 -- player has a target, which showHud draws the HUD from.
@@ -176,10 +189,24 @@ local function restyle()
   return view.setLook(elements, look)
 end
 
--- Redraws the player frame, target frame and resource bar from the client. Returns the target model and
--- whether an element's bounds changed.
+-- The player's own name and lifepoints as the party grid's model takes them, refilled each tick.
+local own = {}
+
+-- Redraws the party grid from the game's group window and the player's own lifepoints. Returns whether its
+-- bounds changed.
+local function updateParty(playerReads)
+  partyTracker.read(adapter.groupReads())
+  own.name = playerReads.name
+  own.lifepoints = playerReads.lifepoints
+  own.max = frames.labelMax(playerReads.lifepointsLabel)
+  return elements.party.update(partyTracker.model(own, saved.partyTiers(), saved.roles()))
+end
+
+-- Redraws the player frame, target frame, party grid and resource bar from the client. Returns the target
+-- model and whether an element's bounds changed.
 local function updateFrames(appearance)
-  elements.player.update(frames.player(adapter.playerReads(), appearance.lifepoints))
+  local playerReads = adapter.playerReads()
+  elements.player.update(frames.player(playerReads, appearance.lifepoints))
   local targetReads = adapter.targetReads(effectsTracker.debuffs())
   local target = frames.target(targetReads, appearance.lifepoints)
   elements.target.update(target)
@@ -190,6 +217,9 @@ local function updateFrames(appearance)
   stacks = resource.byAbility
   local moved = elements.resource.update(resource)
   if elements.player.showSpenders(resource.spenders) then
+    moved = true
+  end
+  if updateParty(playerReads) then
     moved = true
   end
   return target, moved

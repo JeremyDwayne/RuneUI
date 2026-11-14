@@ -26,6 +26,7 @@ savedlayout.DEFAULT_POSITIONS = {
   playerDebuffs = { x = -393, y = -395, anchorX = 0.5, anchorY = 1 },
   upkeepBuffs = { x = -393, y = -308, anchorX = 0.5, anchorY = 1 },
   combatBuffs = { x = -192, y = -445, anchorX = 0.5, anchorY = 1 },
+  party = { x = -842, y = -362, anchorX = 0.5, anchorY = 1 },
 }
 -- src/layout anchors matching DEFAULT_POSITIONS with full rows: everything hangs off the major group, so
 -- dragging it moves them all. Utility hangs under the cast bar, so spender rows below the adrenaline bar push it
@@ -45,6 +46,7 @@ savedlayout.DEFAULT_ANCHORS = {
   playerDebuffs = { target = "player", side = "top", align = "left", gap = 4, offset = 0 },
   upkeepBuffs = { target = "player", side = "bottom", align = "left", gap = 2, offset = 0 },
   combatBuffs = { target = "major", side = "top", align = "center", gap = 10, offset = 0 },
+  party = { target = "player", side = "left", align = "top", gap = 24, offset = 0 },
 }
 -- The default major group's top sits this fraction of the window height above its bottom, below the
 -- player's character, which the camera keeps near the middle of the window at any size.

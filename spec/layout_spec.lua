@@ -2,7 +2,7 @@ local layout = require("src/layout")
 local savedlayout = require("src/savedlayout")
 
 -- Shown bounds inside each element's layer with full first rows: 6 major, 6 rotation and 8 utility and custom
--- tiles, Defensives at 30 px, no spender rows, and 10 aura tiles.
+-- tiles, Defensives at 30 px, no spender rows, 10 aura tiles, and the party grid's row of five.
 local function fullBounds()
   local function row(size, count)
     return layout.grid(count, size, 2, count, "down", 20).bounds
@@ -23,6 +23,7 @@ local function fullBounds()
     playerDebuffs = { x = 3, y = 3, w = 278, h = 26 },
     upkeepBuffs = { x = 3, y = 3, w = 278, h = 26 },
     combatBuffs = { x = 3, y = 3, w = 378, h = 36 },
+    party = { x = 0, y = 0, w = 428, h = 40 },
   }
 end
 
@@ -145,6 +146,7 @@ describe("layout", function()
       "custom2",
       "custom3",
       "custom4",
+      "party",
       "player",
       "playerDebuffs",
       "resource",
@@ -188,7 +190,7 @@ describe("layout", function()
 
   it("offers every element outside the dragged one's chain as a snap target", function()
     local rects = fullBounds()
-    local skipped = { player = true, playerDebuffs = true, upkeepBuffs = true }
+    local skipped = { player = true, playerDebuffs = true, upkeepBuffs = true, party = true }
     local targets = layout.snapTargets(rects, savedlayout.DEFAULT_ANCHORS, "player")
     local count = 0
     for name in pairs(rects) do
