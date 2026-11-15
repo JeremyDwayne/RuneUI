@@ -359,37 +359,6 @@ groupSidebar = sidebar.create(top, {
 })
 elements.sidebar = groupSidebar
 view.holdable({ groupSidebar })
-Event.ServerLogic.Subscribe("refresh", function()
-  logicTicks = 0
-  channelTracker.onTick()
-  effectsTracker.onTick(adapter.iconStruct)
-  channelTracker.read(adapter.iconStruct)
-  -- The var sends no changes, so it is read each tick, and only while the Out of combat setting uses it.
-  inCombat = autohide.reads(saved.appearance()) and adapter.playerVar("COMBATV2_PLAYER_IS_IN_COMBAT") or nil
-  -- The game's friends, clan and chat lists send no change, so they are read every RELATION_TICKS while names
-  -- are shown, and on the first tick after they are turned on.
-  local named = saved.appearance().nameplates
-  relationTicks = named and relationTicks + 1 or RELATION_TICKS
-  if relationTicks > RELATION_TICKS then
-    relationTicks = 0
-    names.setRelations(adapter.relationNames(), adapter.chatColours())
-  end
-  inPvp = named and adapter.playerVar("WILDY_PVP_OPTED_IN") == 1
-  local learned = tracker.onTick(adapter.justUsed)
-  if learned ~= nil then
-    saved.learn(learned.key, learned.name, learned.icon)
-  end
-  local auraReads = adapter.auraReads()
-  for _, found in ipairs(auraTracker.onTick(auraReads)) do
-    saved.learnAura(found.sprite, found.category)
-  end
-  for _, read in ipairs(auraReads.debuffs) do
-    saved.seeDebuff("player", read.sprite)
-  end
-  refresh()
-end)
-refresh()
-
 -- The role picker, opened from a Set role entry under Set team in a member row's right click menu. It opens
 -- beside the member's party cell, or mid screen when they have none.
 local rolePicker = rolepicker.create(top, { saved = saved, bosses = require("src/bossroles"), refresh = refresh })
@@ -436,8 +405,41 @@ Event.KeyDown.Subscribe("runeuiRole", function(e)
   end
 end)
 
+Event.ServerLogic.Subscribe("refresh", function()
+  logicTicks = 0
+  channelTracker.onTick()
+  effectsTracker.onTick(adapter.iconStruct)
+  channelTracker.read(adapter.iconStruct)
+  -- The var sends no changes, so it is read each tick, and only while the Out of combat setting uses it.
+  inCombat = autohide.reads(saved.appearance()) and adapter.playerVar("COMBATV2_PLAYER_IS_IN_COMBAT") or nil
+  -- The game's friends, clan and chat lists send no change, so they are read every RELATION_TICKS while names
+  -- are shown, and on the first tick after they are turned on.
+  local named = saved.appearance().nameplates
+  relationTicks = named and relationTicks + 1 or RELATION_TICKS
+  if relationTicks > RELATION_TICKS then
+    relationTicks = 0
+    names.setRelations(adapter.relationNames(), adapter.chatColours())
+  end
+  inPvp = named and adapter.playerVar("WILDY_PVP_OPTED_IN") == 1
+  rolePicker.tick()
+  local learned = tracker.onTick(adapter.justUsed)
+  if learned ~= nil then
+    saved.learn(learned.key, learned.name, learned.icon)
+  end
+  local auraReads = adapter.auraReads()
+  for _, found in ipairs(auraTracker.onTick(auraReads)) do
+    saved.learnAura(found.sprite, found.category)
+  end
+  for _, read in ipairs(auraReads.debuffs) do
+    saved.seeDebuff("player", read.sprite)
+  end
+  refresh()
+end)
+refresh()
+
 function PluginShutdown()
   rolePicker.close()
+  rolePicker.tick()
   gameui.restore()
   optionsWindow.shutdown()
   names.destroy()

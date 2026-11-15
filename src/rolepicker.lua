@@ -1,7 +1,7 @@
 -- The role picker: a popup that sets one group member's tag. A field for a typed tag sits at the top, then Base
 -- tank and None, then each boss's tags as tiles under its name. It sits on the plugin layer that draws over
--- game windows, builds as it opens and is destroyed as it closes, so it holds none of that layer's ids while
--- closed.
+-- game windows, builds as it opens and is destroyed on the tick after it closes, so it holds none of that
+-- layer's ids while closed.
 local controls = require("src/controls")
 local draw = require("src/draw")
 local party = require("src/party")
@@ -50,32 +50,45 @@ function rolepicker.layout(bosses)
 end
 
 -- root is the plugin layer that draws over game windows. deps: { saved = src/settings, bosses = the list
--- rolepicker.layout takes, refresh = function redrawing the HUD }. Returns { open(name, x, y), close(), isOpen() }:
--- open shows the picker for the member called name with its corner at x, y on the screen, moved to stay on it.
--- A click on a tile saves that tag as the Party page does and closes it. A typed tag is saved as it is typed,
--- and Enter closes it, as does its X or a click anywhere else.
+-- rolepicker.layout takes, refresh = function redrawing the HUD }. Returns { open(name, x, y), close(), isOpen(),
+-- tick() }: open shows the picker for the member called name with its corner at x, y on the screen, moved to
+-- stay on it. A click on a tile saves that tag as the Party page does and closes it. A typed tag is saved as it
+-- is typed, and Enter closes it, as does its X or a click anywhere else. close hides it, since it runs inside
+-- the picker's own hooks, and tick, run each server tick, destroys what close hid.
 function rolepicker.create(root, deps)
   local saved = deps.saved
   local layout = rolepicker.layout(deps.bosses)
   local W = draw.WINDOW
-  -- The open picker's layer and the screen-wide hit area under it, or nil.
+  -- The open picker's layer and the screen-wide hit area under it, or nil, and the closed one's until a tick
+  -- destroys them.
   local shown = nil
+  local closed = nil
   local picker = {}
 
   function picker.isOpen()
     return shown ~= nil
   end
 
+  function picker.tick()
+    if closed ~= nil then
+      closed.layer:Destroy()
+      closed.catcher:Destroy()
+      closed = nil
+    end
+  end
+
   function picker.close()
     if shown ~= nil then
-      shown.layer:Destroy()
-      shown.catcher:Destroy()
-      shown = nil
+      draw.set(shown.layer, "hidden", true)
+      draw.set(shown.catcher, "hidden", true)
+      picker.tick()
+      closed, shown = shown, nil
     end
   end
 
   function picker.open(name, x, y)
     picker.close()
+    picker.tick()
     local rootW, rootH = tonumber(root.width) or 0, tonumber(root.height) or 0
     local catcher = draw.hitArea(draw.rect(root, W.border, 0, 0, rootW, rootH))
     draw.set(catcher, "alpha", 0)
