@@ -322,26 +322,6 @@ describe("gameui.placeGroupRows", function()
   end)
 end)
 
--- A game component at x, y in its parent and gx, gy on screen, w by h, adding its moves to moves.n. Its screen
--- place follows its own moves, as if its parent stayed put.
-local function boxed(x, y, w, h, gx, gy, moves)
-  return {
-    x = x,
-    y = y,
-    width = w,
-    height = h,
-    xyGlobal = { x = gx, y = gy },
-    SetPos = function(self, toX, toY)
-      moves.n = moves.n + 1
-      self.xyGlobal.x, self.xyGlobal.y = self.xyGlobal.x + toX - self.x, self.xyGlobal.y + toY - self.y
-      self.x, self.y = toX, toY
-    end,
-    SetSize = function(self, toW, toH)
-      self.width, self.height = toW, toH
-    end,
-  }
-end
-
 -- Serves frame as interface 1477's statics and window as 1519's.
 local function serve(frame, window)
   _G.ui = {
@@ -357,26 +337,66 @@ local function boxOf(c)
   return { c.x, c.y, c.width, c.height }
 end
 
-describe("gameui.spreadGroupWindow", function()
-  -- The window frame and the group window's layers, strips and two buttons, as the client lays them out. Sizing
-  -- layer 9 moves strip 10 to its bottom edge, as the client does with a part anchored there.
-  local function loadLayers(moves)
-    local frame = { [523] = boxed(0, 511, 262, 175, 0, 511, moves), [525] = boxed(4, 16, 254, 155, 4, 527, moves) }
-    local window = {
-      [11] = boxed(0, 0, 254, 155, 4, 527, moves),
-      [9] = boxed(0, 0, 254, 155, 4, 527, moves),
-      [5] = boxed(0, 0, 254, 122, 4, 527, moves),
-      [1] = boxed(0, 0, 254, 122, 4, 527, moves),
-      [10] = boxed(0, 125, 254, 30, 4, 652, moves),
-      [18] = boxed(0, 0, 254, 30, 4, 652, moves),
-      [20] = boxed(3, 3, 24, 24, 7, 655, moves),
-      [23] = boxed(161, 3, 24, 24, 165, 655, moves),
+-- A game component the client lays out in parent: pos is { x, y, xParentPc, yParentPc } and size { width,
+-- height, widthParentPc, heightParentPc }, offsets plus shares of the parent's size, 0 when left out. Its x, y,
+-- width, height and xyGlobal resolve on each read, so it follows its parent. SetPos adds to moves.n.
+local function laid(parent, pos, size, moves)
+  local c = {}
+  function c.SetPos(self, x, y, xParentPc, yParentPc, xSelfPc, ySelfPc)
+    moves.n = moves.n + 1
+    self.position = {
+      x = x,
+      y = y,
+      xParentPc = xParentPc or 0,
+      yParentPc = yParentPc or 0,
+      xSelfPc = xSelfPc or 0,
+      ySelfPc = ySelfPc or 0,
     }
-    local size = window[9].SetSize
-    window[9].SetSize = function(self, w, h)
-      size(self, w, h)
-      window[10].y, window[10].width = h - 30, w
-    end
+  end
+  function c.SetSize(self, width, height, widthParentPc, heightParentPc)
+    self.size =
+      { width = width, height = height, widthParentPc = widthParentPc or 0, heightParentPc = heightParentPc or 0 }
+  end
+  c:SetPos(pos[1], pos[2], pos[3], pos[4])
+  c:SetSize(size[1], size[2], size[3], size[4])
+  moves.n = 0
+  return setmetatable(c, {
+    __index = function(self, key)
+      local at, box = rawget(self, "position"), rawget(self, "size")
+      if box == nil then
+        return nil
+      elseif key == "width" then
+        return math.floor(box.width + box.widthParentPc * parent.width)
+      elseif key == "height" then
+        return math.floor(box.height + box.heightParentPc * parent.height)
+      elseif key == "x" then
+        return math.floor(at.x + at.xParentPc * parent.width + at.xSelfPc * self.width)
+      elseif key == "y" then
+        return math.floor(at.y + at.yParentPc * parent.height + at.ySelfPc * self.height)
+      elseif key == "xyGlobal" then
+        return { x = parent.xyGlobal.x + self.x, y = parent.xyGlobal.y + self.y }
+      end
+    end,
+  })
+end
+
+describe("gameui.spreadGroupWindow", function()
+  -- The window frame and the group window's layers, strips and two buttons on a 1710 by 1041 screen, laid out as
+  -- the client does: each layer fills its parent, strip 10 sits on the bottom edge and button 23 on the right.
+  local function loadLayers(moves)
+    local screen = { width = 1710, height = 1041, xyGlobal = { x = 0, y = 0 } }
+    local fill = { 0, 0, 1, 1 }
+    local frame, window = {}, {}
+    frame[523] = laid(screen, { 0, 511 }, { 262, 175 }, moves)
+    frame[525] = laid(frame[523], { 4, 16 }, { -8, -20, 1, 1 }, moves)
+    window[11] = laid(frame[525], { 0, 0 }, fill, moves)
+    window[9] = laid(window[11], { 0, 0 }, fill, moves)
+    window[5] = laid(window[9], { 0, 0 }, { 0, -33, 1, 1 }, moves)
+    window[1] = laid(window[5], { 0, 0 }, fill, moves)
+    window[10] = laid(window[9], { 0, -30, 0, 1 }, { 0, 30, 1, 0 }, moves)
+    window[18] = laid(window[10], { 0, 0 }, fill, moves)
+    window[20] = laid(window[18], { 3, 3 }, { 24, 24 }, moves)
+    window[23] = laid(window[18], { -93, 3, 1, 0 }, { 24, 24 }, moves)
     serve(frame, window)
     return frame, window
   end
@@ -389,17 +409,27 @@ describe("gameui.spreadGroupWindow", function()
     for _, c in ipairs({ frame[525], window[11], window[9], window[5], window[1], window[10] }) do
       assert.are.same({ 0, 0, 1838, 1169 }, boxOf(c))
     end
-    assert.are.equal(7, moves.n)
+    -- A layer that fills its parent is there once the parent is, and keeps its own layout.
+    assert.are.equal(4, moves.n)
     gameui.spreadGroupWindow(1710, 1041)
-    assert.are.equal(7, moves.n)
+    assert.are.equal(4, moves.n)
     -- The client lays the window out again.
-    frame[523].width = 262
+    frame[523]:SetSize(262, 175)
     gameui.spreadGroupWindow(1710, 1041)
     assert.are.equal(1838, frame[523].width)
     gameui.spreadGroupWindow(nil)
   end)
 
-  it("puts each layer, strip and button back where the client had it before any was sized", function()
+  it("leaves the window alone while a part's layout does not read, as it could not be put back", function()
+    local moves = { n = 0 }
+    local frame, window = loadLayers(moves)
+    window[10].size = nil
+    gameui.spreadGroupWindow(1710, 1041)
+    assert.are.equal(0, moves.n)
+    assert.are.equal(262, frame[523].width)
+  end)
+
+  it("puts each layer, strip and button back as the client laid it out, still following its parent", function()
     local moves = { n = 0 }
     local frame, window = loadLayers(moves)
     local column = {
@@ -431,6 +461,10 @@ describe("gameui.spreadGroupWindow", function()
     local restored = moves.n
     gameui.spreadGroupWindow(nil)
     assert.are.equal(restored, moves.n)
+    -- The player resizes the window.
+    frame[523]:SetSize(400, 300)
+    assert.are.same({ 0, 250, 392, 30 }, boxOf(window[10]))
+    assert.are.same({ 299, 3, 24, 24 }, boxOf(window[23]))
   end)
 end)
 

@@ -343,74 +343,104 @@ local function setScreenBox(c, x, y, w, h)
   end
 end
 
--- c's box in its parent as { x, y, w, h }.
-local function boxOf(c)
-  return { x = read(c, "x"), y = read(c, "y"), w = read(c, "width"), h = read(c, "height") }
+-- The fields of a game component's position and size: offsets, and shares of its parent's size and of its own.
+local LAYOUT_FIELDS = {
+  position = { "x", "y", "xParentPc", "yParentPc", "xSelfPc", "ySelfPc" },
+  size = { "width", "height", "widthParentPc", "heightParentPc" },
+}
+
+-- How the client lays c out, as its position's and size's fields by name, or nil when one does not read. A
+-- part laid out by a share of its parent follows the parent, which the box it resolves to does not say.
+local function layoutOf(c)
+  local layout = {}
+  for property, fields in pairs(LAYOUT_FIELDS) do
+    local value = read(c, property)
+    for _, field in ipairs(fields) do
+      local n = value ~= nil and read(value, field)
+      if type(n) ~= "number" then
+        return nil
+      end
+      layout[field] = n
+    end
+  end
+  return layout
 end
 
--- Where the client had each part before spreadGroupWindow sized the first: layers holds each GROUP_SPREAD
--- layer's { x, y, w, h } by its place in that list, and buttons each strip's and button's by static id. nil
--- while the window is not spread.
+-- Lays c out as layoutOf read it.
+local function setLayout(c, layout)
+  c:SetPos(layout.x, layout.y, layout.xParentPc, layout.yParentPc, layout.xSelfPc, layout.ySelfPc)
+  c:SetSize(layout.width, layout.height, layout.widthParentPc, layout.heightParentPc)
+end
+
+-- How the client laid out each part before spreadGroupWindow sized the first: layers holds each GROUP_SPREAD
+-- layer's layoutOf by its place in that list, and buttons each strip's and button's by static id. nil while the
+-- window is not spread.
 local groupHomes = nil
 
--- Reads where the client has every layer, strip and button, before any is moved: sizing a layer moves the parts
--- anchored inside it at once.
+-- Reads how the client lays out every loaded layer, strip and button, or nil when one does not read.
 local function readGroupHomes()
   local homes = { layers = {}, buttons = {} }
+  local function home(into, key, c)
+    into[key] = c ~= nil and layoutOf(c)
+    return c == nil or into[key] ~= nil
+  end
   for i, ids in ipairs(interfaces.GROUP_SPREAD) do
-    local c = component(ids[1], ids[2])
-    homes.layers[i] = c and boxOf(c)
+    if not home(homes.layers, i, component(ids[1], ids[2])) then
+      return nil
+    end
   end
-  local function button(staticID)
-    local c = component(interfaces.GROUP_WINDOW, staticID)
-    homes.buttons[staticID] = c and boxOf(c)
-  end
+  local buttons = { interfaces.GROUP_READY.layer }
   for _, staticID in ipairs(interfaces.GROUP_CLICK_STRIPS) do
-    button(staticID)
+    buttons[#buttons + 1] = staticID
   end
   for _, ids in ipairs(interfaces.GROUP_ICON_BUTTONS) do
-    button(ids[1])
+    buttons[#buttons + 1] = ids[1]
   end
-  button(interfaces.GROUP_READY.layer)
+  for _, staticID in ipairs(buttons) do
+    if not home(homes.buttons, staticID, component(interfaces.GROUP_WINDOW, staticID)) then
+      return nil
+    end
+  end
   return homes
 end
 
 -- Sizes every layer above the group window's click areas and button strips over a width by height screen, so
 -- a row or a button takes clicks wherever it is put. The frame reaches GROUP_SPREAD_MARGIN past each edge, which
 -- keeps its border, its title bar and the parts anchored to its right and bottom off the screen. Runs each
--- server tick and writes only a layer that is out of place. With width nil every layer, strip and button goes
--- back where the client had it, layers first, as each moves the parts anchored inside it.
+-- server tick and writes only a layer that is out of place. It sizes nothing while a part's layout does not
+-- read, as that part could not be put back. With width nil every layer, strip and button goes back to the
+-- layout the client gave it.
 function gameui.spreadGroupWindow(width, height)
-  if width == nil and groupHomes == nil then
+  groupHomes = groupHomes or width ~= nil and readGroupHomes() or nil
+  if groupHomes == nil then
     return
   end
-  groupHomes = groupHomes or readGroupHomes()
   local margin = interfaces.GROUP_SPREAD_MARGIN
   for i, ids in ipairs(interfaces.GROUP_SPREAD) do
     local c = component(ids[1], ids[2])
     local home = groupHomes.layers[i]
-    if c ~= nil and width ~= nil then
+    if c ~= nil and home and width ~= nil then
       local at = i == 1 and -margin or 0
       pcall(setBox, c, at, at, width + 2 * margin, height + 2 * margin)
     elseif c ~= nil and home then
-      pcall(setBox, c, home.x, home.y, home.w, home.h)
+      pcall(setLayout, c, home)
     end
   end
   if width == nil then
     for staticID, home in pairs(groupHomes.buttons) do
       local c = component(interfaces.GROUP_WINDOW, staticID)
       if c ~= nil and home then
-        pcall(setBox, c, home.x, home.y, home.w, home.h)
+        pcall(setLayout, c, home)
       end
     end
     groupHomes = nil
   end
 end
 
--- Puts the group window's static staticID on the screen box at.
+-- Puts the group window's static staticID on the screen box at, when its layout was read to put it back by.
 local function placeButton(staticID, at)
   local c = component(interfaces.GROUP_WINDOW, staticID)
-  if c ~= nil then
+  if c ~= nil and groupHomes.buttons[staticID] then
     pcall(setScreenBox, c, at.x, at.y, at.w, at.h)
   end
 end
