@@ -37,6 +37,7 @@ local ELEMENTS = {
   { name = "upkeepBuffs", label = "Upkeep buffs" },
   { name = "combatBuffs", label = "Combat buffs" },
   { name = "party", label = "Party" },
+  { name = "sidebar", label = "Group sidebar" },
 }
 local LABELS = {}
 for _, entry in ipairs(ELEMENTS) do

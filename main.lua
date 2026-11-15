@@ -26,7 +26,7 @@ local view = require("src/view")
 -- goes on the plugin layer above them. Both span the whole window.
 local hud = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
 local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
-local saved = settings.load(adapter.store(), tonumber(hud.height))
+local saved = settings.load(adapter.store(), tonumber(hud.height), tonumber(hud.width))
 local auraNames = icons.index(catalog.names, {
   spriteName = adapter.spriteName,
   itemName = adapter.itemName,
@@ -254,7 +254,10 @@ local function updateSidebar()
   local drawn = open and not state.collapsed and groupSidebar.canDraw()
   gameui.holdGroupWindow(held, rows, not drawn, held)
   gameui.spreadGroupWindow(held and tonumber(top.width) or nil, tonumber(top.height))
-  local column = groupSidebar.update(open, drawn and adapter.groupButtons() or nil)
+  local column, moved = groupSidebar.update(open, drawn and adapter.groupButtons() or nil)
+  if moved then
+    optionsWindow.placeAll()
+  end
   if column ~= nil then
     gameui.placeGroupButtons(column)
   end
@@ -343,7 +346,11 @@ optionsWindow = options.create(top, {
   configured = showHud,
 })
 
+-- The sidebar draws over the game's own buttons, so it sits on the plugin layer, and is one of the elements so
+-- edit mode places it.
 groupSidebar = sidebar.create(top, { saved = saved, blocked = optionsWindow.configuring, changed = refresh })
+elements.sidebar = groupSidebar
+view.holdable({ groupSidebar })
 Event.ServerLogic.Subscribe("refresh", function()
   logicTicks = 0
   channelTracker.onTick()
@@ -378,7 +385,6 @@ refresh()
 function PluginShutdown()
   gameui.restore()
   optionsWindow.shutdown()
-  groupSidebar.destroy()
   names.destroy()
   for _, element in pairs(elements) do
     element.layer:Destroy()

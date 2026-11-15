@@ -1,6 +1,6 @@
 -- The options window's Party page: the role presets down the left, the group's members with a Base tank
 -- button and a tag box each, and along the bottom how the grid fills and grows, each tier's cell size, the
--- most cells in a row or column and Show my frame, with the sidebar's switch and how far down the screen it starts.
+-- most cells in a row or column and Show my frame, with the switch for the sidebar.
 local controls = require("src/controls")
 local draw = require("src/draw")
 local party = require("src/party")
@@ -329,19 +329,10 @@ function partypage.create(page, width, height, deps)
     tierParts[tier.id] = parts
   end
 
-  -- Built after the tier steppers, which the page's specs count from the first.
-  label("Sidebar top %", width - MARGIN - 330, top + 8, 78, 24, FONTS.small, COLOURS.mutedText)
-  local sidebarTop = savedparty.SIDEBAR_TOP
-  local topStepper = controls.stepper(page, width - MARGIN - 250, top + 6, sidebarTop[1], sidebarTop[2], 5, function(n)
-    saved.setSidebar("top", n)
-    changed()
-  end)
-
   function p.open()
     showPresets()
     p.follow()
     sidebarCheck.show(saved.sidebar().on)
-    topStepper.show(saved.sidebar().top)
     local grid = saved.partyGrid()
     for i, option in ipairs(GRID_OPTIONS) do
       controls.showOption(gridOptions[i], grid[option[1]] == option[2])

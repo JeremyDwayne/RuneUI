@@ -402,15 +402,19 @@ describe("gameui.spreadGroupWindow", function()
   it("puts each layer, strip and button back where the client had it before any was sized", function()
     local moves = { n = 0 }
     local frame, window = loadLayers(moves)
-    gameui.spreadGroupWindow(1710, 1041)
-    gameui.placeGroupButtons({
+    local column = {
       bands = { { strip = 18, x = 0, y = 316, w = 64, h = 52 } },
       tiles = {
         { text = "2/50", plain = true, x = 6, y = 300, w = 52, h = 16 },
         { static = 20, x = 6, y = 316, w = 24, h = 24 },
         { static = 23, x = 34, y = 316, w = 24, h = 24 },
       },
-    })
+    }
+    -- Nothing moves until the window is spread, when each part's place has been read.
+    gameui.placeGroupButtons(column)
+    assert.are.equal(0, moves.n)
+    gameui.spreadGroupWindow(1710, 1041)
+    gameui.placeGroupButtons(column)
     local function screen(c)
       return { c.xyGlobal.x, c.xyGlobal.y, c.width, c.height }
     end

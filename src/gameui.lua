@@ -415,11 +415,14 @@ local function placeButton(staticID, at)
   end
 end
 
--- Moves the group window's button strips and buttons onto a src/sidebar column, while the window is spread:
+-- Moves the group window's button strips and buttons onto a src/sidebar column, only while the window is spread:
 -- each band's strip onto the band, and each tile's button onto the tile, so a click on the column lands on the
 -- game's own button. Runs each server tick and writes only a part that is out of place. spreadGroupWindow puts
 -- them back.
 function gameui.placeGroupButtons(column)
+  if groupHomes == nil then
+    return
+  end
   for _, band in ipairs(column.bands) do
     placeButton(band.strip, band)
   end

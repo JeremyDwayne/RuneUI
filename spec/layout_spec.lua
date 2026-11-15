@@ -24,6 +24,7 @@ local function fullBounds()
     upkeepBuffs = { x = 3, y = 3, w = 278, h = 26 },
     combatBuffs = { x = 3, y = 3, w = 378, h = 36 },
     party = { x = 0, y = 0, w = 428, h = 40 },
+    sidebar = { x = 0, y = 0, w = 64, h = 88 },
   }
 end
 
@@ -199,7 +200,8 @@ describe("layout", function()
       end
     end
     assert.are.equal(count, #targets)
-    assert.are.same({}, layout.snapTargets(rects, savedlayout.DEFAULT_ANCHORS, "major"))
+    -- Everything but the sidebar hangs off the major group.
+    assert.are.same({ rects.sidebar }, layout.snapTargets(rects, savedlayout.DEFAULT_ANCHORS, "major"))
   end)
 
   it("wraps a down group into centred rows below its first", function()

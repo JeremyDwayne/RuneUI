@@ -19,11 +19,10 @@ local function buttons()
   }
 end
 
--- A sidebar on a 1710 by 1000 root. Returns it, the root, the settings and a table whose blocked field stops a
--- build.
+-- A sidebar on a root, its layer placed at 0, 300 as src/view places an element. Returns it, the root, the
+-- settings and a table whose blocked field stops a build.
 local function create()
   local root = fake.component()
-  root.width, root.height = 1710, 1000
   local saved = settings.load(fakeStore())
   local state = { blocked = false, changes = 0 }
   local s = sidebar.create(root, {
@@ -35,6 +34,7 @@ local function create()
       state.changes = state.changes + 1
     end,
   })
+  s.layer:SetPos(0, 300)
   return s, root, saved, state
 end
 
@@ -71,7 +71,7 @@ end
 
 describe("sidebar.column", function()
   it("stacks the label, then each strip's buttons two wide and its text buttons, with a band per strip", function()
-    local column = sidebar.column(buttons(), 300)
+    local column = sidebar.column(buttons(), 0, 300)
     assert.are.same({ 0, 300, 64, 138 }, { column.x, column.y, column.w, column.h })
     assert.are.same({
       { x = 6, y = 306, w = 52, h = 16, text = "2/50", plain = true },
@@ -91,26 +91,30 @@ end)
 describe("sidebar", function()
   before_each(fake.reset)
 
-  it("draws the column on the left edge with a tab on its right, and writes nothing on a steady tick", function()
+  it("draws the column where its layer sits with a tab on its right, and writes nothing on a steady tick", function()
     local s = create()
-    local column = s.update(true, buttons())
+    local column, moved = s.update(true, buttons())
     assert.are.same({ 0, 300, 64 }, { column.x, column.y, column.w })
-    assert.are.same({ 8, 328 }, { icon(25853).x, icon(25853).y })
-    assert.are.same({ 6, 410 }, { label("Ready").x, label("Ready").y })
+    assert.is_true(moved)
+    assert.are.same({ x = 0, y = 0, w = 64, h = 138 }, s.bounds)
+    assert.are.same({ 8, 28 }, { icon(25853).x, icon(25853).y })
+    assert.are.same({ 6, 110 }, { label("Ready").x, label("Ready").y })
     assert.is_truthy(label("2/50"))
-    assert.are.same({ 64, 351 }, { arrow().x, arrow().y })
+    assert.are.same({ 64, 51 }, { arrow().x, arrow().y })
     assert.is_true(pointsLeft())
     fake.writes = 0
-    s.update(true, buttons())
+    local _, again = s.update(true, buttons())
+    assert.is_false(again)
     assert.are.equal(0, fake.writes)
   end)
 
-  it("starts the column the saved share of the way down the screen, and keeps it on the screen", function()
-    local s, _, saved = create()
-    saved.setSidebar("top", 50)
-    assert.are.equal(500, s.update(true, buttons()).y)
-    saved.setSidebar("top", 90)
-    assert.are.equal(862, s.update(true, buttons()).y)
+  it("follows its layer, giving the column in screen places", function()
+    local s = create()
+    s.layer:SetPos(900, 120)
+    local column = s.update(true, buttons())
+    assert.are.same({ 900, 120 }, { column.x, column.y })
+    assert.are.same({ 906, 146 }, { column.tiles[2].x, column.tiles[2].y })
+    assert.are.same({ 8, 28 }, { icon(25853).x, icon(25853).y })
   end)
 
   it("hides a tile whose button the game stops showing", function()
@@ -131,24 +135,27 @@ describe("sidebar", function()
     assert.is_nil(s.update(true, nil))
     assert.is_nil(label("Ready"))
     assert.is_nil(icon(25853))
-    assert.are.same({ 8, 351 }, { arrow().x, arrow().y })
+    assert.are.same({ 8, 51 }, { arrow().x, arrow().y })
     assert.is_false(pointsLeft())
+    assert.are.same({ x = 0, y = 0, w = 24, h = 138 }, s.bounds)
     pressTab()
     assert.is_false(saved.sidebar().collapsed)
     assert.is_truthy(s.update(true, buttons()))
     assert.is_truthy(label("Ready"))
   end)
 
-  it("leaves nothing on the layer while the window is not shown or the sidebar is turned off", function()
+  it("keeps only its layer while the window is not shown or the sidebar is off, when edit mode leaves it be", function()
     local s, root, saved = create()
     s.update(true, buttons())
-    assert.is_true(fake.live(root) > 0)
+    assert.is_true(fake.live(root) > 1)
+    assert.is_true(s.inUse)
     assert.is_nil(s.update(false, nil))
-    assert.are.equal(0, fake.live(root))
+    assert.are.equal(1, fake.live(root))
     s.update(true, buttons())
     saved.setSidebar("on", false)
     assert.is_nil(s.update(true, buttons()))
-    assert.are.equal(0, fake.live(root))
+    assert.are.equal(1, fake.live(root))
+    assert.is_false(s.inUse)
   end)
 
   it("does not build while the options window is open, and stays once built", function()
@@ -156,7 +163,7 @@ describe("sidebar", function()
     state.blocked = true
     assert.is_false(s.canDraw())
     s.update(true, buttons())
-    assert.are.equal(0, fake.live(root))
+    assert.are.equal(1, fake.live(root))
     state.blocked = false
     s.update(true, buttons())
     local built = fake.live(root)

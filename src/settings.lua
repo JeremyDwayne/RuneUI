@@ -10,12 +10,13 @@ local savedparty = require("src/savedparty")
 
 local settings = {}
 
--- Loads saved settings from store, dropping unknown keys and malformed values. windowHeight, the game window's
--- height in UI units, places the default HUD; specs leave it out. Returns every part's functions in one table.
-function settings.load(store, windowHeight)
+-- Loads saved settings from store, dropping unknown keys and malformed values. windowHeight and windowWidth,
+-- the game window's size in UI units, place the default HUD; specs leave them out. Returns every part's
+-- functions in one table.
+function settings.load(store, windowHeight, windowWidth)
   local s = {}
   local parts = {
-    savedlayout.load(store, windowHeight),
+    savedlayout.load(store, windowHeight, windowWidth),
     savedgroups.load(store),
     savedappearance.load(store),
     savedauras.load(store),

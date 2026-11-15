@@ -14,9 +14,6 @@ savedparty.MAX_TAG = 4
 savedparty.MAX_PRESET_NAME = 20
 -- The range of each tier number a player can set.
 savedparty.TIER_RANGES = { w = { 40, 200 }, h = { 16, 80 }, columns = { 1, 10 }, rows = { 1, 10 } }
--- How far down the screen the sidebar starts, in percent of the screen's height: the least, the most and the
--- default.
-savedparty.SIDEBAR_TOP = { 0, 90, 30 }
 -- The values each grid setting takes, its default first.
 savedparty.GRID_CHOICES = { fill = { "rows", "columns" }, growX = { "right", "left" }, growY = { "down", "up" } }
 
@@ -83,13 +80,7 @@ function savedparty.load(store)
     local value = type(saved.grid) == "table" and saved.grid[field]
     grid[field] = util.indexOf(choices, value) and value or choices[1]
   end
-  local top = saved.sidebarTop
-  local range = savedparty.SIDEBAR_TOP
-  local sidebar = {
-    on = saved.sidebar ~= false,
-    collapsed = saved.collapsed == true,
-    top = type(top) == "number" and top >= range[1] and top <= range[2] and util.whole(top) or range[3],
-  }
+  local sidebar = { on = saved.sidebar ~= false, collapsed = saved.collapsed == true }
   -- Each slot's { name, tags }, or nil for a free slot.
   local presets = {}
   for slot = 1, savedparty.MAX_ROLE_PRESETS do
@@ -113,7 +104,6 @@ function savedparty.load(store)
       active = active,
       sidebar = sidebar.on,
       collapsed = sidebar.collapsed,
-      sidebarTop = sidebar.top,
     })
   end
 
@@ -203,8 +193,8 @@ function savedparty.load(store)
     saveParty()
   end
 
-  -- { on, collapsed, top }: whether the party grid and the sidebar stand in for the game's group window,
-  -- whether the sidebar is folded, and how far down the screen it starts, in percent.
+  -- { on, collapsed }: whether the party grid and the sidebar stand in for the game's group window, and
+  -- whether the sidebar is folded.
   function s.sidebar()
     return sidebar
   end
