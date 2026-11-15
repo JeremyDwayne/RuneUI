@@ -37,6 +37,7 @@ describe("savedappearance", function()
       hideCastBar = false,
       hideBuffBars = true,
       auraBars = true,
+      nameplates = false,
       font = "museo",
       textStep = 0,
       edge = "shadow",

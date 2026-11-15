@@ -449,6 +449,11 @@ function draw.pressAt(c, x)
   scale = g ~= nil and mx ~= nil and g.x + x > 0 and mx / (g.x + x) or 1
 end
 
+-- How many of Mouse's pixels make one UI unit, as last measured.
+function draw.pointerScale()
+  return scale
+end
+
 function draw.cursor()
   local mx = Mouse.GetX()
   local my = Mouse.GetY()

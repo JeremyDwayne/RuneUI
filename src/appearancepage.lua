@@ -593,6 +593,9 @@ function appearancepage.create(page, width, height, deps)
     b.checkSetting("Hide default target panel", "hideTargetPanel")
     b.checkSetting("Hide game cast bar", "hideCastBar")
 
+    b.heading("Players")
+    b.checkSetting("Names over players' heads", "nameplates")
+
     b.heading("Out of combat")
     b.choiceSetting("HUD out of combat", autohide.MODES, "outOfCombat", 90)
     local opacity = savedappearance.HUD_OPACITY

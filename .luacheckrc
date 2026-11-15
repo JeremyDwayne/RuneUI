@@ -2,7 +2,8 @@ std = "lua54"
 
 -- Globals the RS3 client provides to plugins.
 read_globals = {
-  "Event", "GameKey", "Inventory", "Mouse", "NPCList", "PersistentDB", "Player", "PlayerList", "config", "id", "log",
+  "Event", "GameKey", "Inventory", "Mouse", "NPCList", "PersistentDB", "Player", "PlayerList", "ScreenConvert",
+  "Vector3", "config", "id", "log",
   "prettyui", "ui", "var",
 }
 

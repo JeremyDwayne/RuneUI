@@ -302,22 +302,87 @@ local function allPlayers()
   return PlayerList.All()
 end
 
--- The display name of every player in view, read once at load. Event.PlayerEntityAdded and
--- PlayerEntityRemoved follow the changes.
-function adapter.nearbyNames()
-  local names = {}
-  local ok, players = pcall(allPlayers)
-  if ok and type(players) == "table" then
-    for _, player in ipairs(players) do
-      names[#names + 1] = read(player, "displayName")
-    end
-  end
-  return names
+-- { entity, name, uid } for a PlayerEntity. name or uid is nil when it does not read.
+local function playerOf(entity)
+  return { entity = entity, name = read(entity, "displayName"), uid = read(entity, "uid") }
 end
 
--- The display name of the player in an Event.PlayerEntityAdded or PlayerEntityRemoved payload, or nil.
-function adapter.entityName(e)
-  return read(e.playerEntity, "displayName")
+-- Every player in view as { entity, name, uid }, read once at load. Event.PlayerEntityAdded and
+-- PlayerEntityRemoved follow the changes.
+function adapter.nearbyPlayers()
+  local players = {}
+  local ok, entities = pcall(allPlayers)
+  if ok and type(entities) == "table" then
+    for i, entity in ipairs(entities) do
+      players[i] = playerOf(entity)
+    end
+  end
+  return players
+end
+
+-- The player in an Event.PlayerEntityAdded or PlayerEntityRemoved payload, as { entity, name, uid }.
+function adapter.entityPlayer(e)
+  return playerOf(e.playerEntity)
+end
+
+-- Nameplates ------------------------------------------------------------------------------------------------
+
+-- How far over a player's position their name sits, in the world's fine units, 512 to a tile.
+local HEAD_LIFT = 1024
+local headLift = nil
+
+local function newLift()
+  return Vector3.new(0, HEAD_LIFT, 0)
+end
+
+local function headOnScreen(entity, lift)
+  local at = ScreenConvert.Vector3ToScreen(entity.position + lift)
+  return at.x, at.y
+end
+
+-- Where the point over a PlayerEntity's head falls on screen, or nil once the entity is gone or the point
+-- cannot be placed. Runs for every player in view on every rendered frame while names are shown.
+function adapter.headPosition(entity)
+  if headLift == nil then
+    local made, lift = pcall(newLift)
+    if not made then
+      return nil
+    end
+    headLift = lift
+  end
+  local ok, x, y = pcall(headOnScreen, entity, headLift)
+  if ok then
+    return x, y
+  end
+end
+
+-- Adds the text of each of c's dynamic children to names, without its colour and icon tags.
+local function addNames(c, names)
+  c:IterateDynamicComponents(function(child)
+    local text = read(child, "content")
+    if type(text) == "string" then
+      text = text:gsub("<[^>]*>", "")
+      if text ~= "" then
+        names[#names + 1] = text
+      end
+    end
+    return false
+  end)
+end
+
+-- The names the game's own lists hold, as { friend, friendsChat, clan, guest }, each a list. A list the client
+-- has not loaded reads empty.
+function adapter.relationNames()
+  local out = {}
+  for _, list in ipairs(interfaces.RELATION_LISTS) do
+    local names = {}
+    local c = component(list.id, list.static)
+    if c ~= nil then
+      pcall(addNames, c, names)
+    end
+    out[list.kind] = names
+  end
+  return out
 end
 
 -- Buff bars -------------------------------------------------------------------------------------------------

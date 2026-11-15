@@ -514,16 +514,83 @@ describe("adapter.groupLayout", function()
   end)
 end)
 
-describe("adapter.nearbyNames", function()
-  it("lists the display name of every player in view, and names a player entity event's player", function()
+describe("adapter.nearbyPlayers", function()
+  it("lists every player in view with its name and uid, and gives a player entity event's player", function()
+    local oakhelm, unnamed = { displayName = "Oakhelm", uid = 7 }, { uid = 8 }
     _G.PlayerList = {
       All = function()
-        return { { displayName = "Oakhelm" }, {}, { displayName = "Mirelle" } }
+        return { oakhelm, unnamed }
       end,
     }
-    assert.are.same({ "Oakhelm", "Mirelle" }, adapter.nearbyNames())
-    assert.are.equal("Brunt", adapter.entityName({ playerEntity = { displayName = "Brunt" } }))
+    assert.are.same(
+      { { entity = oakhelm, name = "Oakhelm", uid = 7 }, { entity = unnamed, uid = 8 } },
+      adapter.nearbyPlayers()
+    )
+    local brunt = { displayName = "Brunt", uid = 9 }
+    assert.are.same({ entity = brunt, name = "Brunt", uid = 9 }, adapter.entityPlayer({ playerEntity = brunt }))
     _G.PlayerList = nil
-    assert.are.same({}, adapter.nearbyNames())
+    assert.are.same({}, adapter.nearbyPlayers())
+  end)
+end)
+
+describe("adapter.headPosition", function()
+  it("gives the screen point 1024 units over a player, and nil for one that cannot be placed", function()
+    _G.Vector3 = {
+      new = function(x, y, z)
+        return { x = x, y = y, z = z }
+      end,
+    }
+    _G.ScreenConvert = {
+      Vector3ToScreen = function(at)
+        return at.onScreen and { x = at.x, y = at.y } or nil
+      end,
+    }
+    -- A position whose sum with the lift is the point given to the client.
+    local function standing(x, y, onScreen)
+      return setmetatable({}, {
+        __add = function(_, lift)
+          return { x = x, y = y + lift.y, onScreen = onScreen }
+        end,
+      })
+    end
+    assert.are.same({ 640, 1324 }, { adapter.headPosition({ position = standing(640, 300, true) }) })
+    assert.is_nil(adapter.headPosition({ position = standing(640, 300, false) }))
+    assert.is_nil(adapter.headPosition({}))
+  end)
+end)
+
+describe("adapter.relationNames", function()
+  it("reads each game list's names without their tags, and an unloaded list as empty", function()
+    local function list(...)
+      local children = {}
+      for i, content in ipairs({ ... }) do
+        children[i] = { content = content }
+      end
+      return {
+        IterateDynamicComponents = function(_, fn)
+          for _, child in ipairs(children) do
+            fn(child)
+          end
+        end,
+      }
+    end
+    local lists = {
+      ["550:7"] = list("Oakhelm", "<img=3><col=ffffff>Iron Oak", ""),
+      ["1110:83"] = list("Brunt"),
+      ["1110:38"] = list("Ysolde"),
+    }
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function(_, interfaceID, staticID)
+          return lists[interfaceID .. ":" .. staticID]
+        end,
+      },
+    }
+    assert.are.same({
+      friend = { "Oakhelm", "Iron Oak" },
+      friendsChat = {},
+      clan = { "Brunt" },
+      guest = { "Ysolde" },
+    }, adapter.relationNames())
   end)
 end)

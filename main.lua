@@ -12,6 +12,7 @@ local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
 local gameui = require("src/gameui")
 local icons = require("src/icons")
+local nameplates = require("src/nameplates")
 local options = require("src/options")
 local party = require("src/party")
 local presets = require("src/presets")
@@ -31,6 +32,8 @@ local auraNames = icons.index(catalog.names, {
   itemName = adapter.itemName,
   describe = adapter.structInfo,
 })
+-- Built first, so the names draw under the rest of the HUD.
+local names = nameplates.create(hud, { position = adapter.headPosition })
 local tooltip = view.tooltip(hud)
 local elements = {
   player = view.playerFrame(hud),
@@ -54,17 +57,26 @@ local tracker = cooldowns.tracker()
 local channelTracker = channel.tracker()
 local auraTracker = auras.tracker()
 local effectsTracker = targeteffects.tracker()
--- The group's roster and the players in view, which the party grid dims members out of.
+-- The group's roster and the players in view, which the party grid dims members out of and the nameplates
+-- name.
 local partyTracker = party.tracker()
-for _, name in ipairs(adapter.nearbyNames()) do
-  partyTracker.near(name, true)
+local function playerEntered(player)
+  partyTracker.near(player.name, true)
+  names.add(player)
+end
+for _, player in ipairs(adapter.nearbyPlayers()) do
+  playerEntered(player)
 end
 Event.PlayerEntityAdded.Subscribe("party", function(e)
-  partyTracker.near(adapter.entityName(e), true)
+  playerEntered(adapter.entityPlayer(e))
 end)
 Event.PlayerEntityRemoved.Subscribe("party", function(e)
-  partyTracker.near(adapter.entityName(e), false)
+  local player = adapter.entityPlayer(e)
+  -- A player who has left may no longer give a name, so the one they entered with is used.
+  partyTracker.near(names.remove(player.uid) or player.name, false)
 end)
+-- Each rendered frame moves every shown name to its player's head, and reads nothing while names are off.
+Event.Draw.Subscribe("nameplates", names.frame)
 local optionsWindow
 -- Whether the world map is open, COMBATV2_PLAYER_IS_IN_COMBAT as last read, nil while unread, and whether the
 -- player has a target, which showHud draws the HUD from.
@@ -78,6 +90,7 @@ local function showHud()
   local hidden, alpha = autohide.state(saved.appearance(), inCombat, hasTarget, optionsWindow.configuring())
   view.hold(mapOpen or hidden)
   view.fade(alpha)
+  names.setShown(saved.appearance().nameplates and not mapOpen)
 end
 tracker.seed(presets.INFO)
 tracker.seed(saved.known())
@@ -194,6 +207,9 @@ end
 -- group window as last read.
 local own = {}
 local groupReads = { open = false }
+-- Server ticks between reads of the game's friends, clan and chat lists, 30 s, and the ticks since the last.
+local RELATION_TICKS = 50
+local relationTicks = RELATION_TICKS
 local groupSidebar
 
 -- Redraws the party grid from the game's group window and the player's own lifepoints. Returns whether its
@@ -202,6 +218,7 @@ local function updateParty(playerReads)
   groupReads = adapter.groupReads()
   partyTracker.read(groupReads)
   own.name = playerReads.name
+  names.setSelf(own.name)
   own.lifepoints = playerReads.lifepoints
   own.max = frames.labelMax(playerReads.lifepointsLabel)
   return elements.party.update(partyTracker.model(own, saved.partyTiers(), saved.roles(), saved.partyGrid()))
@@ -326,6 +343,13 @@ Event.ServerLogic.Subscribe("refresh", function()
   channelTracker.read(adapter.iconStruct)
   -- The var sends no changes, so it is read each tick, and only while the Out of combat setting uses it.
   inCombat = autohide.reads(saved.appearance()) and adapter.playerVar("COMBATV2_PLAYER_IS_IN_COMBAT") or nil
+  -- The game's friends, clan and chat lists send no change, so they are read every RELATION_TICKS while names
+  -- are shown, and on the first tick after they are turned on.
+  relationTicks = saved.appearance().nameplates and relationTicks + 1 or RELATION_TICKS
+  if relationTicks > RELATION_TICKS then
+    relationTicks = 0
+    names.setRelations(adapter.relationNames())
+  end
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then
     saved.learn(learned.key, learned.name, learned.icon)
@@ -345,6 +369,7 @@ function PluginShutdown()
   gameui.restore()
   optionsWindow.shutdown()
   groupSidebar.destroy()
+  names.destroy()
   for _, element in pairs(elements) do
     element.layer:Destroy()
   end
