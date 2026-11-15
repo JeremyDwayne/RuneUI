@@ -105,7 +105,7 @@ function sidebar.create(root, deps)
   local saved = deps.saved
   local layer = draw.new(ui.Layer, root)
   size(layer, COLUMN_W + TAB_W, BAR_H)
-  local bounds = { x = 0, y = 0, w = COLUMN_W, h = BAR_H }
+  local bounds = { x = 0, y = 0, w = COLUMN_W + TAB_W, h = BAR_H }
   local s = { layer = layer, bounds = bounds, inUse = saved.sidebar().on }
   -- The built panel's parts, nil while there is none.
   local p = nil
@@ -218,13 +218,14 @@ function sidebar.create(root, deps)
     local left, top = hudparts.screenPos(layer, 0, 0)
     local folded = state.collapsed or buttons == nil
     local column = not folded and sidebar.column(buttons, left, top) or nil
-    local w, h = folded and BAR_W + TAB_W or column.w, column and column.h or bounds.h
+    local face = folded and BAR_W or column.w
+    local w, h = face + TAB_W, column and column.h or bounds.h
     local moved = bounds.w ~= w or bounds.h ~= h
     bounds.w, bounds.h = w, h
     size(layer, COLUMN_W + TAB_W, h)
     size(p.layer, COLUMN_W + TAB_W, h)
-    fit(p.face, 0, 0, folded and BAR_W or column.w, h)
-    p.tab.group.place(folded and BAR_W or column.w, (h - TAB_H) // 2)
+    fit(p.face, 0, 0, face, h)
+    p.tab.group.place(face, (h - TAB_H) // 2)
     pointArrow(folded)
     local tiles = column and column.tiles or NO_TILES
     for i, model in ipairs(tiles) do

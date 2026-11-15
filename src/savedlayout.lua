@@ -28,7 +28,7 @@ savedlayout.DEFAULT_POSITIONS = {
   combatBuffs = { x = -192, y = -445, anchorX = 0.5, anchorY = 1 },
   party = { x = -842, y = -362, anchorX = 0.5, anchorY = 1 },
   -- The group sidebar, on the left edge of a 1710 by 1041 window and SIDEBAR_TOP of the way down it.
-  sidebar = { x = -855, y = -729, anchorX = 0.5, anchorY = 1 },
+  sidebar = { x = -855, y = -728, anchorX = 0.5, anchorY = 1 },
 }
 -- src/layout anchors matching DEFAULT_POSITIONS with full rows: everything hangs off the major group, so
 -- dragging it moves them all. Utility hangs under the cast bar, so spender rows below the adrenaline bar push it
