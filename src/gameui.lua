@@ -119,13 +119,40 @@ local castBar = transparency(
   { interfaces.CAST_BAR_GLOW }
 )
 
--- The group window, held transparent while the sidebar is folded so its member rows keep updating, which
--- hidden would stop. The client sets a member's row opaque again as their lifepoints change, so the watch is
--- the window's base and each row's lifepoints label, which holdGroupWindow keeps in step with the group. Its
--- button strips hold no rows and take hidden, which holds where alpha 0 on a button does not.
+-- The group window, held transparent while the sidebar is folded or the party grid stands in for its list, so
+-- its member rows keep updating, which hidden would stop. The client sets a member's row opaque again as their
+-- lifepoints change, so the watch is the window's base and each row's lifepoints label, which holdGroupWindow
+-- keeps in step with the group.
 local groupWatched = { { interfaces.GROUP_BASE } }
-local groupWindow =
-  transparency(interfaces.GROUP_WINDOW, interfaces.GROUP_LAST_STATIC, groupWatched, interfaces.GROUP_BUTTON_STRIPS)
+local groupWindow = transparency(interfaces.GROUP_WINDOW, interfaces.GROUP_LAST_STATIC, groupWatched)
+-- Whether each of the window's button strips was hidden before the fold hid it, by static id, nil while unfolded.
+local stripsWere = nil
+
+-- Hides the group window's button strips, which hold no rows, while folded, since alpha 0 does not hold on a
+-- button and a hidden strip takes no clicks. Unfolded, each goes back as it was.
+local function foldStrips(folded)
+  if folded then
+    stripsWere = stripsWere or {}
+    for _, staticID in ipairs(interfaces.GROUP_BUTTON_STRIPS) do
+      local c = component(interfaces.GROUP_WINDOW, staticID)
+      local hidden = c ~= nil and read(c, "hidden") == true
+      if c ~= nil and stripsWere[staticID] == nil then
+        stripsWere[staticID] = hidden
+      end
+      if c ~= nil and not hidden then
+        write(c, "hidden", true)
+      end
+    end
+  elseif stripsWere ~= nil then
+    for staticID, was in pairs(stripsWere) do
+      local c = component(interfaces.GROUP_WINDOW, staticID)
+      if c ~= nil then
+        write(c, "hidden", was)
+      end
+    end
+    stripsWere = nil
+  end
+end
 -- The window frame the group window sits in, whose background and border show a rebuild.
 local GROUP_FRAME = interfaces.GROUP_FRAME
 local groupFrame = transparency(
@@ -235,9 +262,9 @@ function gameui.apply(appearance)
   actionbars.fade(appearance)
 end
 
--- Runs each server tick with whether the group window and its frame are held transparent, and the number of
--- member rows it lists. false restores both.
-function gameui.holdGroupWindow(held, rows)
+-- Runs each server tick with whether the group window and its frame are held transparent, the number of
+-- member rows it lists, and whether its button strips are hidden too. false restores everything.
+function gameui.holdGroupWindow(held, rows, folded)
   if held then
     for i = 1, rows do
       local dynamic = (i - 1) * interfaces.GROUP_ROW_STRIDE + interfaces.GROUP_ROW_LIFEPOINTS
@@ -249,6 +276,7 @@ function gameui.holdGroupWindow(held, rows)
   end
   groupWindow.hide(held)
   groupFrame.hide(held)
+  foldStrips(held and folded == true)
 end
 
 -- Where the client had each member row's click area that placeGroupRows moved, as { x, y, w, h } by row, false

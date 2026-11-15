@@ -480,7 +480,6 @@ describe("adapter.groupLayout", function()
       { x = 322, y = 227, w = 17, h = 17, sprite = 6028 },
       { x = 295, y = 223, w = 26, h = 24, text = "2/50", plain = true },
       { x = 114, y = 453, w = 237, h = 27, text = "Ready" },
-      { x = 340, y = 204, w = 16, h = 16, sprite = 21004, plain = true },
     }, layout.tiles)
     assert.are.same({ { x = 109, y = 267, w = 247, h = 38 }, { x = 109, y = 305, w = 247, h = 38 } }, layout.rows)
   end)

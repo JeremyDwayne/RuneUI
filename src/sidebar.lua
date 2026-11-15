@@ -2,9 +2,9 @@
 -- member and a tile at each button the game shows. Every part but the Hide button keeps a plain component's
 -- defaults, so a click lands on the game's own button or row under it. Its header covers the window's own title
 -- strip. Folded, only the header shows, over the window src/gameui holds transparent, and a hit area keeps
--- clicks off the unseen window. While the party grid stands in for the folded window, the header sits just
--- above the window's list and there is no hit area, so clicks reach the member rows' click areas under the
--- grid's cells.
+-- clicks off the unseen window. While the party grid stands in for the window's list, the panel leaves the list
+-- to the grid, and folded, the header sits just above the list with no hit area, so clicks reach the member
+-- rows' click areas under the grid's cells.
 local sidebar = {}
 
 local controls = require("src/controls")
@@ -62,6 +62,9 @@ function sidebar.create(root, deps)
     parts.block = draw.hitArea(rect(layer, COLOURS.panel, 0, 0, 0, 0))
     set(parts.block, "alpha", 0)
     parts.title = draw.text(layer, FONTS.body, ui.AlignMode.TOPLEFT, 0, 0, 0, 0)
+    -- Marks the window's own close button, which sits under the header's right end and takes the click.
+    parts.close = draw.text(layer, FONTS.body, ui.AlignMode.CENTRE, 0, 0, CLOSE_SPACE, 0)
+    set(parts.close, "content", "x")
     parts.fold = controls.button(layer, "Hide", 0, 0, FOLD_W, FOLD_H, "plain", function()
       saved.setSidebar("collapsed", not saved.sidebar().collapsed)
       deps.changed()
@@ -182,7 +185,7 @@ function sidebar.create(root, deps)
     local header = math.max(layout.top - layout.y, MIN_HEADER)
     local top = folded and standIn and layout.listY - header or layout.y
     local bottom = layout.y + layout.h
-    local places = not folded and layout.rows or nil
+    local places = not folded and not standIn and layout.rows or nil
     fit(p.top, layout.x, top, layout.w, folded and header or layout.listY - top)
     set(p.list, "hidden", places == nil)
     fit(p.list, layout.x, layout.listY, layout.w, layout.listH)
@@ -192,6 +195,8 @@ function sidebar.create(root, deps)
     fit(p.block, layout.x, top + header, layout.w, bottom - top - header)
     fit(p.title, layout.x + PAD, top, layout.w - PAD - FOLD_W - CLOSE_SPACE - 4, header)
     set(p.title, "content", reads.title or "Group")
+    set(p.close, "hidden", folded)
+    fit(p.close, layout.x + layout.w - CLOSE_SPACE, top, CLOSE_SPACE, header)
     p.fold.group.place(layout.x + layout.w - FOLD_W - CLOSE_SPACE, top + (header - FOLD_H) // 2)
     set(p.fold.label, "content", folded and "Show" or "Hide")
 

@@ -109,7 +109,7 @@ interfaces.GROUP_READY = { layer = 6, text = 44 }
 -- The window frame in WINDOWS that holds the group window while it has a window to itself: the frame's own
 -- static, the content static the group window's base sits in, its background, border and close button, and
 -- its last static.
-interfaces.GROUP_FRAME = { window = 523, background = 524, content = 525, border = 528, close = 529, last = 532 }
+interfaces.GROUP_FRAME = { window = 523, background = 524, content = 525, border = 528, last = 532 }
 
 -- config.Inv.WORN, the worn-equipment inventory.
 -- The game lists whose dynamic children hold player names, by the relation each gives a nameplate: the friends

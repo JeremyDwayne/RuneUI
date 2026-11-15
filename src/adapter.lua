@@ -238,8 +238,8 @@ local GROUP_UNSHOWN = { open = false }
 -- Where the game draws the group window, for src/sidebar, with rows the number of member rows groupReads
 -- found. nil while the window is unloaded or docked into another window, and { open = false } while it is
 -- closed. Else { open, x, y, w, h, top, listX, listY, listW, listH, tiles, rows }: the window's screen box, the
--- top of its content, its list area's box, a tile for each button, tab and label the game shows and the frame's
--- close button as { x, y, w, h, sprite, text, plain }, plain marking one drawn with no tile under it, and each
+-- top of its content, its list area's box, a tile for each button, tab and label the game shows as
+-- { x, y, w, h, sprite, text, plain }, plain marking one drawn with no tile under it, and each
 -- member row's { x, y, w, h }. rows is nil when a row reaches outside the list area, as when the list is
 -- scrolled.
 function adapter.groupLayout(rows)
@@ -263,10 +263,6 @@ function adapter.groupLayout(rows)
   addTile(tiles, component(GROUP_WINDOW, interfaces.GROUP_SIZE), nil, label(GROUP_WINDOW, interfaces.GROUP_SIZE), true)
   local ready = interfaces.GROUP_READY
   addTile(tiles, component(GROUP_WINDOW, ready.layer), nil, label(GROUP_WINDOW, ready.text))
-  -- The window frame's close button, by its sprite or as an x when it holds none.
-  local close = component(interfaces.WINDOWS, interfaces.GROUP_FRAME.close)
-  local closeSprite = spriteOf(close)
-  addTile(tiles, close, closeSprite, closeSprite == nil and "x" or nil, true)
   local rowBox = interfaces.GROUP_ROW_BOX
   local places = {}
   for i = 1, rows do

@@ -240,44 +240,44 @@ local function updateParty(playerReads)
   return elements.party.update(partyTracker.model(own, saved.partyTiers(), saved.roles(), saved.partyGrid()))
 end
 
--- Where the party grid sits while it stands in for the group window, and whether it does.
+-- Where the party grid sits while it stands in for the group window's list, and whether it does.
 local partyPin = { x = 0, y = 0, anchorX = 0, anchorY = 0 }
 local partyPinned = false
 
--- Puts the party grid in the group window's list area, the corner it grows from on the list's same corner, or
--- back at its own place with layout nil.
-local function pinParty(layout)
+-- Puts the party grid in the group window's list area, the corner it grows from on the list's same corner.
+-- With layout nil the grid stays where it was last pinned while keep is true, as when the window closes, and
+-- goes back to its own place otherwise.
+local function pinParty(layout, keep)
   if layout ~= nil then
     local bounds, grid = elements.party.bounds, saved.partyGrid()
     local x = grid.growX == "left" and layout.listX + layout.listW - bounds.w or layout.listX
     local y = grid.growY == "up" and layout.listY + layout.listH - bounds.h or layout.listY
     partyPin.x, partyPin.y = math.floor(x - bounds.x + 0.5), math.floor(y - bounds.y + 0.5)
+    partyPinned = true
+  end
+  if partyPinned and (layout ~= nil or keep) then
     view.place(elements.party.layer, partyPin)
   elseif partyPinned then
+    partyPinned = false
     optionsWindow.placeAll()
   end
-  partyPinned = layout ~= nil
 end
 
 -- Draws the sidebar over the game's group window while the setting is on, and holds the window transparent
--- while the sidebar is folded. With Click and cast on party cells on, the party grid stands in for the folded
--- window: it sits in the window's list area with each member row's click area under that member's cell, since
--- a click area takes clicks only inside the window. With the sidebar off, or the window closed and the sidebar
--- unfolded, it reads nothing.
+-- while the sidebar is folded. With Click and cast on party cells on, the party grid stands in for the window's
+-- list while the window is open: the window is held transparent, the grid sits in its list area and each member
+-- row's click area sits under that member's cell, since a click area takes clicks only inside the window. With
+-- the sidebar off, or the window closed and the sidebar unfolded, it reads nothing.
 local function updateSidebar()
   local state = saved.sidebar()
   local rows = groupReads.open and #groupReads.rows or 0
   -- A closed window is read only while folded, when the hold has to outlast it.
   local layout = state.on and (groupReads.open or state.collapsed) and adapter.groupLayout(rows) or nil
-  local standIn = layout ~= nil
-    and layout.open
-    and groupReads.open
-    and state.collapsed
-    and saved.partyClicks()
-    and not hudHeld
-  gameui.holdGroupWindow(layout ~= nil and state.collapsed, rows)
+  local clicks = state.on and saved.partyClicks()
+  local standIn = clicks and layout ~= nil and layout.open and groupReads.open and not hudHeld
+  gameui.holdGroupWindow(layout ~= nil and (state.collapsed or standIn), rows, state.collapsed)
   groupSidebar.update(layout, groupReads, standIn)
-  pinParty(standIn and layout or nil)
+  pinParty(standIn and layout or nil, clicks)
   gameui.placeGroupRows(standIn and elements.party.rowBoxes() or nil, standIn and rows or 0)
 end
 
