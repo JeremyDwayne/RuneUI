@@ -255,7 +255,9 @@ local function updateSidebar()
   gameui.holdGroupWindow(held, rows, not drawn, held)
   gameui.spreadGroupWindow(held and tonumber(top.width) or nil, tonumber(top.height))
   local column = groupSidebar.update(open, drawn and adapter.groupButtons() or nil)
-  gameui.placeGroupButtons(column, held)
+  if column ~= nil then
+    gameui.placeGroupButtons(column)
+  end
   gameui.placeGroupRows(open and elements.party.rowBoxes() or nil, rows)
 end
 

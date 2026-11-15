@@ -260,16 +260,14 @@ local function addButton(buttons, staticID, sprite, text)
   end
 end
 
--- The buttons, tabs and labels the group window shows, for src/sidebar's column, in the game's order. A button
--- or tab is { static, sprite, text, strip }: its static id, its icon or its text, and the click-stopping strip
--- that holds it, nil for none. The group size is { text, plain = true }, a label with no button under it.
+-- The buttons and labels the group window shows, for src/sidebar's column, in the game's order. A button is
+-- { static, sprite, text, strip }: its static id, its icon or its text, and the click-stopping strip that
+-- holds it, nil for none. The group size is { text, plain = true }, a label with no button under it. The tabs
+-- that swap the member list for the banned list are left out, as the party grid shows members only.
 function adapter.groupButtons()
   local buttons = {}
   for _, button in ipairs(interfaces.GROUP_ICON_BUTTONS) do
     addButton(buttons, button[1], spriteOf(component(GROUP_WINDOW, button[2])))
-  end
-  for _, staticID in ipairs(interfaces.GROUP_TABS) do
-    addButton(buttons, staticID, spriteOf(component(GROUP_WINDOW, staticID)))
   end
   if box(component(GROUP_WINDOW, interfaces.GROUP_SIZE)) ~= nil then
     buttons[#buttons + 1] = { text = label(GROUP_WINDOW, interfaces.GROUP_SIZE), plain = true }

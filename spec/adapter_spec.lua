@@ -461,11 +461,10 @@ local function groupWindow(content, shown)
 end
 
 describe("adapter.groupButtons", function()
-  it("lists each shown button, tab and label with the strip that holds it", function()
+  it("lists each shown button and label with the strip that holds it, and no list tab", function()
     groupWindow(525, true)
     assert.are.same({
       { static = 20, sprite = 25853, strip = 18 },
-      { static = 31, sprite = 6028 },
       { text = "2/50", plain = true },
       { static = 6, text = "Ready", strip = 0 },
     }, adapter.groupButtons())

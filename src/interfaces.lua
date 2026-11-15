@@ -86,8 +86,8 @@ interfaces.GROUP_LIST_AREA = 5
 interfaces.GROUP_CLICK_AREA = 1
 -- The group window's buttons. Icon buttons are a 24px layer static holding an icon sprite static: set status,
 -- invite by name, loot share, leave group, invitation setting, start game, create group, want members and find
--- content. The group and ignore list tabs are sprites of their own, plain then selected. The group size label
--- and the Ready button's layer and text complete the set. The game shows only those that apply.
+-- content. The group size label and the Ready button's layer and text complete the set. The game shows only
+-- those that apply. The group and banned list tabs, statics 30 to 33, sit at the right end of strip 10.
 interfaces.GROUP_ICON_BUTTONS = {
   { 20, 57 },
   { 19, 51 },
@@ -99,7 +99,6 @@ interfaces.GROUP_ICON_BUTTONS = {
   { 25, 37 },
   { 26, 45 },
 }
-interfaces.GROUP_TABS = { 30, 31, 32, 33 }
 -- The three strips that hold those buttons, above and below the member list.
 interfaces.GROUP_BUTTON_STRIPS = { 0, 10, 18 }
 -- The two of them that stop a click, each around its own buttons. Strip 10 only holds strip 18.
@@ -112,6 +111,8 @@ interfaces.GROUP_READY = { layer = 6, text = 44 }
 interfaces.GROUP_FRAME = { window = 523, background = 524, content = 525, border = 528, last = 532 }
 -- The layers above the member rows' click areas and the button strips, from the window frame down. A click
 -- area or a button takes clicks only inside every layer above it.
+-- How far past each edge of the screen the window frame is sized.
+interfaces.GROUP_SPREAD_MARGIN = 64
 interfaces.GROUP_SPREAD = {
   { interfaces.WINDOWS, interfaces.GROUP_FRAME.window },
   { interfaces.WINDOWS, interfaces.GROUP_FRAME.content },
