@@ -250,9 +250,11 @@ local function updateSidebar()
   local held = state.on and not hudHeld and adapter.groupFramed()
   local open = held and groupReads.open
   local rows = open and #groupReads.rows or 0
-  gameui.holdGroupWindow(held, rows, state.collapsed, held)
+  -- The window's button strips are hidden unless the sidebar draws its tiles over them.
+  local drawn = open and not state.collapsed and groupSidebar.canDraw()
+  gameui.holdGroupWindow(held, rows, not drawn, held)
   gameui.spreadGroupWindow(held and tonumber(top.width) or nil, tonumber(top.height))
-  local column = groupSidebar.update(open, open and not state.collapsed and adapter.groupButtons() or nil)
+  local column = groupSidebar.update(open, drawn and adapter.groupButtons() or nil)
   gameui.placeGroupButtons(column, held)
   gameui.placeGroupRows(open and elements.party.rowBoxes() or nil, rows)
 end

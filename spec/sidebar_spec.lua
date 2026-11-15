@@ -154,12 +154,14 @@ describe("sidebar", function()
   it("does not build while the options window is open, and stays once built", function()
     local s, root, _, state = create()
     state.blocked = true
+    assert.is_false(s.canDraw())
     s.update(true, buttons())
     assert.are.equal(0, fake.live(root))
     state.blocked = false
     s.update(true, buttons())
     local built = fake.live(root)
     state.blocked = true
+    assert.is_true(s.canDraw())
     s.update(true, buttons())
     assert.are.equal(built, fake.live(root))
   end)

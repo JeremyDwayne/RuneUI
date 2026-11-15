@@ -92,7 +92,7 @@ end
 
 -- root is the plugin layer that draws over game windows. deps: { saved = src/settings, blocked = function
 -- saying whether the options window or edit mode is open, changed = function redrawing after the tab }.
--- Returns { update(shown, buttons), destroy() }. update runs each server tick with whether the group window
+-- Returns { update(shown, buttons), canDraw(), destroy() }. update runs each server tick with whether the group window
 -- stands open behind the HUD and src/adapter's groupButtons, nil while folded. It builds the panel once shown
 -- with the sidebar on, never while blocked so it cannot stack over the options window, and destroys it once
 -- not. It returns the column it drew, for src/gameui to put the game's buttons under, or nil while it drew
@@ -187,6 +187,12 @@ function sidebar.create(root, deps)
       p.layer:Destroy()
       p = nil
     end
+  end
+
+  -- Whether update would draw: the panel is built, or nothing blocks building it. While it would not, the
+  -- game's buttons have no tiles over them.
+  function s.canDraw()
+    return p ~= nil or not deps.blocked()
   end
 
   function s.update(shown, buttons)
