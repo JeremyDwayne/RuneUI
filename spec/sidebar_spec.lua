@@ -93,6 +93,17 @@ describe("sidebar", function()
     assert.is_nil(label("Ready"))
   end)
 
+  it("keeps its header on the window's own title strip, inside the screen at its top edge", function()
+    local s = create()
+    local docked = layout()
+    docked.y, docked.top = 0, 18
+    s.update(docked, READS)
+    local title = label("Oakhelm's group")
+    assert.are.same({ 0, 18 }, { title.y, title.height })
+    assert.are.same({ 2, 14 }, { label("Hide").y, label("Hide").height })
+    assert.is_truthy(s.layout())
+  end)
+
   it("leaves the list to the game when the rows have no places", function()
     local s = create()
     local scrolled = layout()

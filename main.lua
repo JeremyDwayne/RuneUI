@@ -302,6 +302,14 @@ optionsWindow = options.create(top, {
 })
 
 groupSidebar = sidebar.create(top, { saved = saved, blocked = optionsWindow.configuring, changed = refresh })
+-- The player drags and resizes the group window between server ticks, so while the sidebar is drawn each frame
+-- reads the window's box, and redraws the sidebar on a frame it changed.
+Event.Draw.Subscribe("sidebar", function()
+  local drawn = groupSidebar.layout()
+  if drawn ~= nil and adapter.groupMoved(drawn) then
+    updateSidebar()
+  end
+end)
 
 Event.ServerLogic.Subscribe("refresh", function()
   logicTicks = 0

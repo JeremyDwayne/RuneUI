@@ -1,7 +1,8 @@
 -- The group sidebar: a flat panel drawn over the game's group window, with the group's title, a row per
 -- member and a tile at each button the game shows. Every part but the Hide button keeps a plain component's
--- defaults, so a click lands on the game's own button or row under it. Folded, only its header shows, over
--- the window src/gameui holds transparent, and a hit area keeps clicks off the unseen window.
+-- defaults, so a click lands on the game's own button or row under it. Its header covers the window's own title
+-- strip. Folded, only the header shows, over the window src/gameui holds transparent, and a hit area keeps
+-- clicks off the unseen window.
 local sidebar = {}
 
 local controls = require("src/controls")
@@ -16,9 +17,11 @@ local rect = draw.rect
 local FONTS = draw.FONTS
 local COLOURS = draw.COLOURS
 
-local HEADER_H = 22
--- The Hide button's width, and the space kept right of it for the window's close button.
+-- The least height of the header, for a window whose title strip reads shorter.
+local MIN_HEADER = 16
+-- The Hide button's size, and the space kept right of it for the window's close button.
 local FOLD_W = 46
+local FOLD_H = 14
 local CLOSE_SPACE = 26
 local PAD = 8
 local VALUE_W = 60
@@ -34,15 +37,17 @@ end
 
 -- root is the plugin layer that draws over game windows. deps: { saved = src/settings, blocked = function
 -- saying whether the options window or edit mode is open, changed = function redrawing after the fold button }.
--- Returns { update(layout, reads), destroy() }. update runs each server tick with src/adapter's groupLayout and
--- groupReads: it builds the panel once the window is open and the sidebar is on, never while blocked so it cannot
--- stack over the options window, follows the window's place, and destroys the panel when the window closes or
--- the sidebar is turned off. A tick where nothing changed writes nothing.
+-- Returns { update(layout, reads), layout(), destroy() }. update runs each server tick, and on a frame the window
+-- moved, with src/adapter's groupLayout and groupReads: it builds the panel once the window is open and the
+-- sidebar is on, never while blocked so it cannot stack over the options window, follows the window's place, and
+-- destroys the panel when the window closes or the sidebar is turned off. A tick where nothing changed writes
+-- nothing. layout() is the layout the panel last drew, nil with no panel.
 function sidebar.create(root, deps)
   local saved = deps.saved
   local s = {}
   -- The built panel's parts, nil while there is none.
   local p = nil
+  local drawn = nil
 
   local function build()
     local layer = draw.new(ui.Layer, root)
@@ -53,8 +58,8 @@ function sidebar.create(root, deps)
     parts.bottom = rect(layer, COLOURS.panel, 0, 0, 0, 0)
     parts.block = draw.hitArea(rect(layer, COLOURS.panel, 0, 0, 0, 0))
     set(parts.block, "alpha", 0)
-    parts.title = draw.text(layer, FONTS.body, ui.AlignMode.TOPLEFT, 0, 0, 0, HEADER_H)
-    parts.fold = controls.button(layer, "Hide", 0, 0, FOLD_W, HEADER_H - 4, "plain", function()
+    parts.title = draw.text(layer, FONTS.body, ui.AlignMode.TOPLEFT, 0, 0, 0, 0)
+    parts.fold = controls.button(layer, "Hide", 0, 0, FOLD_W, FOLD_H, "plain", function()
       saved.setSidebar("collapsed", not saved.sidebar().collapsed)
       deps.changed()
     end)
@@ -155,6 +160,11 @@ function sidebar.create(root, deps)
       p.layer:Destroy()
       p = nil
     end
+    drawn = nil
+  end
+
+  function s.layout()
+    return drawn
   end
 
   function s.update(layout, reads)
@@ -164,21 +174,22 @@ function sidebar.create(root, deps)
       return
     end
     p = p or build()
+    drawn = layout
     local folded = state.collapsed
-    -- The header sits over the window's top edge, above its content and never over its buttons.
-    local top = math.min(layout.y, layout.top - HEADER_H)
-    local bottom = layout.y + layout.h
+    local top = layout.y
+    local header = math.max(layout.top - top, MIN_HEADER)
+    local bottom = top + layout.h
     local places = not folded and layout.rows or nil
-    fit(p.top, layout.x, top, layout.w, folded and HEADER_H or layout.listY - top)
+    fit(p.top, layout.x, top, layout.w, folded and header or layout.listY - top)
     set(p.list, "hidden", places == nil)
     fit(p.list, layout.x, layout.listY, layout.w, layout.listH)
     set(p.bottom, "hidden", folded)
     fit(p.bottom, layout.x, layout.listY + layout.listH, layout.w, bottom - layout.listY - layout.listH)
     set(p.block, "hidden", not folded)
-    fit(p.block, layout.x, top + HEADER_H, layout.w, bottom - top - HEADER_H)
-    fit(p.title, layout.x + PAD, top, layout.w - PAD - FOLD_W - CLOSE_SPACE - 4, HEADER_H)
+    fit(p.block, layout.x, top + header, layout.w, layout.h - header)
+    fit(p.title, layout.x + PAD, top, layout.w - PAD - FOLD_W - CLOSE_SPACE - 4, header)
     set(p.title, "content", reads.title or "Group")
-    p.fold.group.place(layout.x + layout.w - FOLD_W - CLOSE_SPACE, top + 2)
+    p.fold.group.place(layout.x + layout.w - FOLD_W - CLOSE_SPACE, top + (header - FOLD_H) // 2)
     set(p.fold.label, "content", folded and "Show" or "Hide")
 
     local tiles = folded and NO_ROWS or layout.tiles

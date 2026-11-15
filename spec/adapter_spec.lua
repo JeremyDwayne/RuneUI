@@ -485,6 +485,16 @@ describe("adapter.groupLayout", function()
     assert.are.same({ { x = 109, y = 267, w = 247, h = 38 }, { x = 109, y = 305, w = 247, h = 38 } }, layout.rows)
   end)
 
+  it("says whether the window's frame has left a layout's box", function()
+    groupWindow(525, true, {})
+    local layout = adapter.groupLayout(0)
+    assert.is_false(adapter.groupMoved(layout))
+    layout.w = 300
+    assert.is_true(adapter.groupMoved(layout))
+    groupWindow(525, false, {})
+    assert.is_false(adapter.groupMoved(layout))
+  end)
+
   it("gives no row places once a row reaches outside the list area", function()
     groupWindow(525, true, { [1] = at(183, 269, 178, 13), [24] = at(183, 400, 178, 13) })
     assert.is_nil(adapter.groupLayout(2).rows)

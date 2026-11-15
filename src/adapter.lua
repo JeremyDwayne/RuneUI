@@ -291,6 +291,13 @@ function adapter.groupLayout(rows)
   }
 end
 
+-- Whether the group window's frame has left the box a groupLayout holds. The player drags and resizes the
+-- window between server ticks, so this runs on each frame the sidebar is drawn.
+function adapter.groupMoved(layout)
+  local x, y, w, h = box(component(interfaces.WINDOWS, interfaces.GROUP_FRAME.window))
+  return x ~= nil and (x ~= layout.x or y ~= layout.y or w ~= layout.w or h ~= layout.h)
+end
+
 local function allPlayers()
   return PlayerList.All()
 end
