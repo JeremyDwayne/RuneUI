@@ -12,13 +12,18 @@ party.TIERS = {
   { id = "large", label = "Large", upTo = 7 },
   { id = "raid", label = "Raid" },
 }
--- Each tier's cell width and height, cells per row, and whether the player's own cell shows.
+-- Each tier's cell width and height, the most cells in a row and in a column, and whether the player's own
+-- cell shows.
 party.TIER_DEFAULTS = {
-  duo = { w = 112, h = 46, columns = 2, showSelf = false },
-  party = { w = 84, h = 40, columns = 5, showSelf = false },
-  large = { w = 80, h = 38, columns = 4, showSelf = false },
-  raid = { w = 66, h = 22, columns = 5, showSelf = true },
+  duo = { w = 112, h = 46, columns = 2, rows = 2, showSelf = false },
+  party = { w = 84, h = 40, columns = 5, rows = 5, showSelf = false },
+  large = { w = 80, h = 38, columns = 4, rows = 4, showSelf = false },
+  raid = { w = 66, h = 22, columns = 5, rows = 5, showSelf = true },
 }
+-- How the grid fills and grows: fill "rows" lays cells along a row of up to a tier's columns before starting
+-- the next, and "columns" down a column of up to its rows. growX is "right" or "left" and growY "down" or "up":
+-- the grid starts at the opposite corner, which stays put as the group grows.
+party.GRID_DEFAULTS = { fill = "rows", growX = "right", growY = "down" }
 -- The most cells the grid shows, and the space between two.
 party.MAX_CELLS = 30
 party.GAP = 2
@@ -45,7 +50,7 @@ end
 function party.withSelf(tiers)
   local out = {}
   for id, tier in pairs(tiers) do
-    out[id] = { w = tier.w, h = tier.h, columns = tier.columns, showSelf = true }
+    out[id] = { w = tier.w, h = tier.h, columns = tier.columns, rows = tier.rows, showSelf = true }
   end
   return out
 end
@@ -93,12 +98,14 @@ end
 -- Tracks the group between server ticks. near(name, inView) follows a player entering or leaving view, and
 -- read(reads) takes each tick's src/adapter groupReads, keeping the last roster while the window is closed.
 -- members() lists that roster.
--- model(own, tiers, roles) returns the grid: own is { name, lifepoints, max } for the player, tiers is
--- { [tier id] = { w, h, columns, showSelf } } and roles is as party.tag takes. The model is { hidden } with
--- nothing to show, else { tier, raid, closed, w, h, columns, width, height, cells }, with cells a list of
--- { name, x, y, tag, role, leader, fill, text, state, far, lifepoints }: fill is nil for a member whose
--- lifepoints are unknown, text is nil in a Raid cell, state is "low", "dead" or nil, leader is the rank sprite
--- of the group's leader, and role and lifepoints are the hover's lines.
+-- model(own, tiers, roles, grid) returns the grid: own is { name, lifepoints, max } for the player, tiers is
+-- { [tier id] = { w, h, columns, rows, showSelf } }, roles is as party.tag takes and grid is as GRID_DEFAULTS,
+-- which it is when nil. The model is { hidden } with nothing to show, else { tier, raid, closed, w, h, boxW,
+-- boxH, x, y, width, height, cells }: boxW by boxH fits the largest grid any tier can reach, x, y, width and
+-- height are the shown grid's box inside it, and cells is a list of { name, x, y, tag, role, leader, fill, text,
+-- state, far, lifepoints }: fill is nil for a member whose lifepoints are unknown, text is nil in a Raid cell,
+-- state is "low", "dead" or nil, leader is the rank sprite of the group's leader, and role and lifepoints are
+-- the hover's lines. No member is left out: a full row or column starts the next.
 function party.tracker()
   local t = {}
   local rows = {}
@@ -162,7 +169,18 @@ function party.tracker()
     return c, isSelf
   end
 
-  function t.model(own, tiers, roles)
+  -- The width and height of count cells of tier filled as grid says, and the cells in a line.
+  local function extent(tier, count, grid)
+    local byRows = grid.fill == "rows"
+    local perLine = byRows and tier.columns or tier.rows
+    local along = math.min(perLine, count)
+    local lines = (count - 1) // perLine + 1
+    local across, down = byRows and along or lines, byRows and lines or along
+    return across * (tier.w + party.GAP) - party.GAP, down * (tier.h + party.GAP) - party.GAP, perLine
+  end
+
+  function t.model(own, tiers, roles, grid)
+    grid = grid or party.GRID_DEFAULTS
     local id = party.tier(#rows)
     local tier = tiers[id]
     local raid = id == "raid"
@@ -176,12 +194,21 @@ function party.tracker()
     if #cells == 0 then
       return { hidden = true }
     end
-    local columns = math.min(tier.columns, #cells)
-    for i, c in ipairs(cells) do
-      c.x = (i - 1) % columns * (tier.w + party.GAP)
-      c.y = (i - 1) // columns * (tier.h + party.GAP)
+    local boxW, boxH = 0, 0
+    for _, each in ipairs(party.TIERS) do
+      local w, h = extent(tiers[each.id], each.upTo or party.MAX_CELLS, grid)
+      boxW, boxH = math.max(boxW, w), math.max(boxH, h)
     end
-    local lines = (#cells - 1) // columns + 1
+    local width, height, perLine = extent(tier, #cells, grid)
+    local byRows = grid.fill == "rows"
+    local left, up = grid.growX == "left", grid.growY == "up"
+    for i, c in ipairs(cells) do
+      local along, line = (i - 1) % perLine, (i - 1) // perLine
+      local x = (byRows and along or line) * (tier.w + party.GAP)
+      local y = (byRows and line or along) * (tier.h + party.GAP)
+      c.x = left and boxW - x - tier.w or x
+      c.y = up and boxH - y - tier.h or y
+    end
     return {
       hidden = false,
       tier = id,
@@ -189,9 +216,12 @@ function party.tracker()
       closed = not open,
       w = tier.w,
       h = tier.h,
-      columns = columns,
-      width = columns * (tier.w + party.GAP) - party.GAP,
-      height = lines * (tier.h + party.GAP) - party.GAP,
+      boxW = boxW,
+      boxH = boxH,
+      x = left and boxW - width or 0,
+      y = up and boxH - height or 0,
+      width = width,
+      height = height,
       cells = cells,
     }
   end

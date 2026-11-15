@@ -76,6 +76,18 @@ describe("partyframe", function()
     assert.are.same({ 338, 46 }, { element.bounds.w, element.bounds.h })
   end)
 
+  it("keeps its bottom right corner in place as a grid growing up and left gains members", function()
+    local element, tracker = grid()
+    local grow = { fill = "rows", growX = "left", growY = "up" }
+    local function corner(group)
+      tracker.read(reads(group))
+      element.update(tracker.model(ME, TIERS, ROLES, grow))
+      local b = element.bounds
+      return { b.x + b.w, b.y + b.h }
+    end
+    assert.are.same(corner({ "Oakhelm", "Mirelle" }), corner({ "A", "B", "C", "D", "E", "F", "G", "Mirelle" }))
+  end)
+
   it("shows name, number, tag and leader icon, a dashed edge on a dead cell and a dimmed far cell", function()
     local element, tracker = grid()
     draws(element, tracker, reads(PARTY, { Brunt = 0 }))

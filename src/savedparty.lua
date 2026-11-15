@@ -1,7 +1,7 @@
 -- Saved party choices: each name's default tag, the role presets and which is active, each tier's cell size,
--- columns and Show my frame, and the sidebar's state. Pure: reads and writes go through a store with get(key)
--- and set(key, table), so specs use a fake. Tags are keyed by src/party's key of a name, and nothing here
--- leaves the store.
+-- cells per row and column and Show my frame, how the grid fills and grows, and the sidebar's state. Pure:
+-- reads and writes go through a store with get(key) and set(key, table), so specs use a fake. Tags are keyed by
+-- src/party's key of a name, and nothing here leaves the store.
 local party = require("src/party")
 local util = require("src/util")
 
@@ -13,7 +13,9 @@ savedparty.MAX_ROLE_PRESETS = 8
 savedparty.MAX_TAG = 4
 savedparty.MAX_PRESET_NAME = 20
 -- The range of each tier number a player can set.
-savedparty.TIER_RANGES = { w = { 40, 200 }, h = { 16, 80 }, columns = { 1, 10 } }
+savedparty.TIER_RANGES = { w = { 40, 200 }, h = { 16, 80 }, columns = { 1, 10 }, rows = { 1, 10 } }
+-- The values each grid setting takes, its default first.
+savedparty.GRID_CHOICES = { fill = { "rows", "columns" }, growX = { "right", "left" }, growY = { "down", "up" } }
 
 local function presetKey(slot)
   return "partyPreset" .. slot
@@ -46,7 +48,8 @@ end
 
 -- A saved tier over its defaults, keeping each number in range and whole.
 local function readTier(saved, default)
-  local tier = { w = default.w, h = default.h, columns = default.columns, showSelf = default.showSelf }
+  local tier =
+    { w = default.w, h = default.h, columns = default.columns, rows = default.rows, showSelf = default.showSelf }
   if type(saved) ~= "table" then
     return tier
   end
@@ -72,6 +75,11 @@ function savedparty.load(store)
   for id, default in pairs(party.TIER_DEFAULTS) do
     tiers[id] = readTier(type(saved.tiers) == "table" and saved.tiers[id], default)
   end
+  local grid = {}
+  for field, choices in pairs(savedparty.GRID_CHOICES) do
+    local value = type(saved.grid) == "table" and saved.grid[field]
+    grid[field] = util.indexOf(choices, value) and value or choices[1]
+  end
   local sidebar = { on = saved.sidebar ~= false, collapsed = saved.collapsed == true }
   -- Each slot's { name, tags }, or nil for a free slot.
   local presets = {}
@@ -90,7 +98,10 @@ function savedparty.load(store)
   local roles = { defaults = readTags(store.get("partyRoles")), preset = active and presets[active].tags }
 
   local function saveParty()
-    store.set("party", { tiers = tiers, active = active, sidebar = sidebar.on, collapsed = sidebar.collapsed })
+    store.set(
+      "party",
+      { tiers = tiers, grid = grid, active = active, sidebar = sidebar.on, collapsed = sidebar.collapsed }
+    )
   end
 
   local s = {}
@@ -157,14 +168,25 @@ function savedparty.load(store)
     saveParty()
   end
 
-  -- { [tier id] = { w, h, columns, showSelf } } for every src/party tier.
+  -- { [tier id] = { w, h, columns, rows, showSelf } } for every src/party tier.
   function s.partyTiers()
     return tiers
   end
 
-  -- Sets a tier's w, h, columns or showSelf. The caller keeps numbers inside TIER_RANGES.
+  -- Sets a tier's w, h, columns, rows or showSelf. The caller keeps numbers inside TIER_RANGES.
   function s.setPartyTier(id, field, value)
     tiers[id][field] = value
+    saveParty()
+  end
+
+  -- { fill, growX, growY } as src/party's GRID_DEFAULTS.
+  function s.partyGrid()
+    return grid
+  end
+
+  -- Sets fill, growX or growY to one of its GRID_CHOICES.
+  function s.setPartyGrid(field, value)
+    grid[field] = value
     saveParty()
   end
 

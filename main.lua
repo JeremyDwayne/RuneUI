@@ -204,7 +204,7 @@ local function updateParty(playerReads)
   own.name = playerReads.name
   own.lifepoints = playerReads.lifepoints
   own.max = frames.labelMax(playerReads.lifepointsLabel)
-  return elements.party.update(partyTracker.model(own, saved.partyTiers(), saved.roles()))
+  return elements.party.update(partyTracker.model(own, saved.partyTiers(), saved.roles(), saved.partyGrid()))
 end
 
 -- Draws the sidebar over the game's group window while the setting is on, and holds the window transparent

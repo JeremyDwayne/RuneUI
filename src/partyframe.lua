@@ -28,6 +28,7 @@ local LEADER = 12
 -- The opacity of a cell whose member is out of view.
 local FAR_ALPHA = 0.45
 -- The "Group window closed" line under the grid.
+local NOTE_W = 160
 local NOTE_H = 14
 local NO_CELLS = {}
 
@@ -113,11 +114,12 @@ end
 -- The grid on root, hidden until a model shows it. tooltip is a src/tooltip. Returns { layer, bounds,
 -- update(model), setLook(look) }: update draws a src/party model, building each cell the first time the group
 -- reaches it and hiding the cells past the group's size, and returns whether the bounds changed. bounds is the
--- grid's box, kept from the last group shown so edit mode can place the grid with no group, and a Party row of
--- five until there is one.
+-- shown grid's box inside the layer, which is sized to the largest grid so the corner the grid grows from stays
+-- put. It is kept from the last group shown so edit mode can place the grid with no group, and is a Party row
+-- of five until there is one.
 function partyframe.create(root, tooltip)
   local layer = draw.new(ui.Layer, root)
-  local note = draw.text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, 160, NOTE_H)
+  local note = draw.text(layer, FONTS.small, ui.AlignMode.TOPLEFT, 0, 0, NOTE_W, NOTE_H)
   set(note, "content", "Group window closed")
   set(note, "hidden", true)
   set(layer, "hidden", true)
@@ -227,14 +229,13 @@ function partyframe.create(root, tooltip)
       draw.hideAll(cells[i].all, true)
     end
     set(note, "hidden", not model.closed)
-    pos(note, 0, model.height + 2)
-    size(layer, math.max(model.width, 160), model.height + 2 + NOTE_H)
+    pos(note, model.x, model.y + model.height + 2)
+    size(layer, math.max(model.boxW, model.x + NOTE_W), model.boxH + 2 + NOTE_H)
     if hover.index ~= nil then
       showTooltip(hover.index)
     end
-    local moved = bounds.w ~= model.width or bounds.h ~= model.height
-    bounds.w = model.width
-    bounds.h = model.height
+    local moved = bounds.x ~= model.x or bounds.y ~= model.y or bounds.w ~= model.width or bounds.h ~= model.height
+    bounds.x, bounds.y, bounds.w, bounds.h = model.x, model.y, model.width, model.height
     return moved
   end
 
