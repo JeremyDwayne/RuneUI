@@ -1,6 +1,6 @@
 -- The options window's Party page: the role presets down the left, the group's members with a Base tank
 -- button and a tag box each, and along the bottom how the grid fills and grows, each tier's cell size, the
--- most cells in a row or column and Show my frame, with the switches for clicks on cells and the sidebar.
+-- most cells in a row or column and Show my frame, with the switch for the sidebar.
 local controls = require("src/controls")
 local draw = require("src/draw")
 local party = require("src/party")
@@ -301,11 +301,6 @@ function partypage.create(page, width, height, deps)
     changed()
   end)
   label("Group sidebar", width - MARGIN - 92, top + 8, 92, 24)
-  local clicksCheck = controls.check(page, width - MARGIN - 340, top + 12, 16, function(ticked)
-    saved.setPartyClicks(ticked)
-    changed()
-  end)
-  label("Click and cast on party cells", width - MARGIN - 316, top + 8, 192, 24)
 
   local blockW = (width - 2 * MARGIN - (#party.TIERS - 1) * MARGIN) // #party.TIERS
   local tierParts = {}
@@ -338,7 +333,6 @@ function partypage.create(page, width, height, deps)
     showPresets()
     p.follow()
     sidebarCheck.show(saved.sidebar().on)
-    clicksCheck.show(saved.partyClicks())
     local grid = saved.partyGrid()
     for i, option in ipairs(GRID_OPTIONS) do
       controls.showOption(gridOptions[i], grid[option[1]] == option[2])

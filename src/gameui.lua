@@ -1,9 +1,8 @@
 -- Hides and restores the game's own interfaces: the target panel, buff bars and cast bar held transparent
--- while RuneUI replaces them, the group window while the sidebar is folded, and the action bars faded through
--- src/actionbars. The client rebuilds parts of
--- each between server ticks, so onFrame reads a few watched components each rendered frame and writes them
--- back, and nothing while no interface is held. Every change has a restore path: apply with the option off,
--- or restore on shutdown.
+-- while RuneUI replaces them, the group window while the party grid and the sidebar stand in for it, and the
+-- action bars faded through src/actionbars. The client rebuilds parts of each between server ticks, so onFrame
+-- reads a few watched components each rendered frame and writes them back, and nothing while no interface is
+-- held. Every change has a restore path: apply with the option off, or restore on shutdown.
 local actionbars = require("src/actionbars")
 local interfaces = require("src/interfaces")
 
@@ -119,8 +118,8 @@ local castBar = transparency(
   { interfaces.CAST_BAR_GLOW }
 )
 
--- The group window, held transparent while the sidebar is folded or the party grid stands in for its list, so
--- its member rows keep updating, which hidden would stop. The client sets a member's row opaque again as their
+-- The group window, held transparent while the party grid and the sidebar stand in for it, so its member rows
+-- keep updating, which hidden would stop. The client sets a member's row opaque again as their
 -- lifepoints change, so the watch is the window's base and each row's lifepoints label, which holdGroupWindow
 -- keeps in step with the group.
 local groupWatched = { { interfaces.GROUP_BASE } }

@@ -431,14 +431,12 @@ local function at(x, y, w, h, fields)
   return c
 end
 
--- The group window at 100, 200 in the window frame whose content static is content: its base, list area,
--- set status and hidden invite buttons, selected group tab, size label, Ready button and members' name labels.
-local function groupWindow(content, shown, names)
+-- The group window in the window frame whose content static is content: its base, set status and hidden invite
+-- buttons, selected group tab, size label and Ready button, each shown or not.
+local function groupWindow(content, shown)
   local frame = { interfaceID = 1477, staticID = content }
   local statics = {
     [11] = at(104, 220, 257, 231, { parentStatic = { interfaceID = 1519, staticID = 9, parentStatic = frame } }),
-    [3] = { visibleGlobal = shown },
-    [5] = at(104, 250, 257, 168),
     [20] = at(107, 223, 24, 24, { parent = { interfaceID = 1519, staticID = 18 } }),
     [57] = { spriteID = 25853 },
     [19] = { visibleGlobal = false, xyGlobal = { x = 134, y = 223 }, width = 24, height = 24 },
@@ -455,15 +453,8 @@ local function groupWindow(content, shown, names)
   end
   _G.ui = {
     Interfaces = {
-      GetComponent = function(_, interfaceID, staticID, _, dynamicID)
-        if interfaceID == 1477 then
-          local frames = { [523] = at(100, 200, 265, 290), [529] = at(340, 204, 16, 16, { spriteID = 21004 }) }
-          return shown and frames[staticID] or nil
-        end
-        if dynamicID ~= nil then
-          return staticID == 3 and names[dynamicID] or nil
-        end
-        return statics[staticID]
+      GetComponent = function(_, interfaceID, staticID)
+        return interfaceID == 1519 and statics[staticID] or nil
       end,
     },
   }
@@ -471,66 +462,22 @@ end
 
 describe("adapter.groupButtons", function()
   it("lists each shown button, tab and label with the strip that holds it", function()
-    groupWindow(525, true, {})
+    groupWindow(525, true)
     assert.are.same({
       { static = 20, sprite = 25853, strip = 18 },
       { static = 31, sprite = 6028 },
       { text = "2/50", plain = true },
       { static = 6, text = "Ready", strip = 0 },
     }, adapter.groupButtons())
-    groupWindow(525, false, {})
+    groupWindow(525, false)
     assert.are.same({}, adapter.groupButtons())
   end)
 
   it("says whether the window sits in a window frame of its own", function()
-    groupWindow(525, true, {})
+    groupWindow(525, true)
     assert.is_true(adapter.groupFramed())
-    groupWindow(493, true, {})
+    groupWindow(493, true)
     assert.is_false(adapter.groupFramed())
-  end)
-end)
-
-describe("adapter.groupLayout", function()
-  it("gives the window's box, a tile per shown button, tab and label, and each row's place", function()
-    groupWindow(525, true, { [1] = at(183, 269, 178, 13), [24] = at(183, 307, 178, 13) })
-    local layout = adapter.groupLayout(2)
-    assert.are.same({ 100, 200, 265, 290, 220 }, { layout.x, layout.y, layout.w, layout.h, layout.top })
-    assert.are.same({ 104, 250, 257, 168 }, { layout.listX, layout.listY, layout.listW, layout.listH })
-    assert.are.same({
-      { x = 107, y = 223, w = 24, h = 24, sprite = 25853 },
-      { x = 322, y = 227, w = 17, h = 17, sprite = 6028 },
-      { x = 295, y = 223, w = 26, h = 24, text = "2/50", plain = true },
-      { x = 114, y = 453, w = 237, h = 27, text = "Ready" },
-    }, layout.tiles)
-    assert.are.same({ { x = 109, y = 267, w = 247, h = 38 }, { x = 109, y = 305, w = 247, h = 38 } }, layout.rows)
-  end)
-
-  it("says whether the window's frame has left a layout's box", function()
-    groupWindow(525, true, {})
-    local layout = adapter.groupLayout(0)
-    assert.is_false(adapter.groupMoved(layout))
-    layout.w = 300
-    assert.is_true(adapter.groupMoved(layout))
-    groupWindow(525, false, {})
-    assert.is_false(adapter.groupMoved(layout))
-  end)
-
-  it("gives no row places once a row reaches outside the list area", function()
-    groupWindow(525, true, { [1] = at(183, 269, 178, 13), [24] = at(183, 400, 178, 13) })
-    assert.is_nil(adapter.groupLayout(2).rows)
-  end)
-
-  it("reads a closed window as not open, and one docked into another window or unloaded as nil", function()
-    groupWindow(525, false, {})
-    assert.are.same({ open = false }, adapter.groupLayout(0))
-    groupWindow(493, true, {})
-    assert.is_nil(adapter.groupLayout(0))
-    _G.ui = {
-      Interfaces = {
-        GetComponent = function() end,
-      },
-    }
-    assert.is_nil(adapter.groupLayout(0))
   end)
 end)
 

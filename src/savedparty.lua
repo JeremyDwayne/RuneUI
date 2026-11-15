@@ -81,7 +81,6 @@ function savedparty.load(store)
     grid[field] = util.indexOf(choices, value) and value or choices[1]
   end
   local sidebar = { on = saved.sidebar ~= false, collapsed = saved.collapsed == true }
-  local clicks = saved.clicks == true
   -- Each slot's { name, tags }, or nil for a free slot.
   local presets = {}
   for slot = 1, savedparty.MAX_ROLE_PRESETS do
@@ -105,7 +104,6 @@ function savedparty.load(store)
       active = active,
       sidebar = sidebar.on,
       collapsed = sidebar.collapsed,
-      clicks = clicks,
     })
   end
 
@@ -195,17 +193,8 @@ function savedparty.load(store)
     saveParty()
   end
 
-  -- Whether the game's member row click areas sit on the party cells. Off until turned on.
-  function s.partyClicks()
-    return clicks
-  end
-
-  function s.setPartyClicks(on)
-    clicks = on
-    saveParty()
-  end
-
-  -- { on, collapsed }: whether the sidebar draws over the game's group window, and whether it is folded.
+  -- { on, collapsed }: whether the party grid and the sidebar stand in for the game's group window, and
+  -- whether the sidebar is folded.
   function s.sidebar()
     return sidebar
   end

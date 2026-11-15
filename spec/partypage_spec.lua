@@ -83,8 +83,6 @@ describe("partypage", function()
     assert.is_true(saved.partyTiers().duo.showSelf)
     fake.press("Group sidebar")
     assert.is_false(saved.sidebar().on)
-    fake.press("Click and cast on party cells")
-    assert.is_true(saved.partyClicks())
   end)
 
   it("saves how the grid fills and grows, and steps the limit of the fill in use", function()

@@ -209,14 +209,6 @@ local function box(c)
   end
 end
 
--- Adds the shown component c to tiles as { x, y, w, h, sprite, text, plain }.
-local function addTile(tiles, c, sprite, text, plain)
-  local x, y, w, h = box(c)
-  if x ~= nil then
-    tiles[#tiles + 1] = { x = x, y = y, w = w, h = h, sprite = sprite, text = text, plain = plain }
-  end
-end
-
 -- Whether the group window sits in the window frame of its own, found by following its base's parents into
 -- the window frames. Docked into another window it reads false.
 function adapter.groupFramed()
@@ -285,70 +277,6 @@ function adapter.groupButtons()
   local ready = interfaces.GROUP_READY
   addButton(buttons, ready.layer, nil, label(GROUP_WINDOW, ready.text))
   return buttons
-end
-
-local GROUP_UNSHOWN = { open = false }
-
--- Where the game draws the group window, for src/sidebar, with rows the number of member rows groupReads
--- found. nil while the window is unloaded or docked into another window, and { open = false } while it is
--- closed. Else { open, x, y, w, h, top, listX, listY, listW, listH, tiles, rows }: the window's screen box, the
--- top of its content, its list area's box, a tile for each button, tab and label the game shows as
--- { x, y, w, h, sprite, text, plain }, plain marking one drawn with no tile under it, and each
--- member row's { x, y, w, h }. rows is nil when a row reaches outside the list area, as when the list is
--- scrolled.
-function adapter.groupLayout(rows)
-  if not adapter.groupFramed() then
-    return nil
-  end
-  local x, y, w, h = box(component(interfaces.WINDOWS, interfaces.GROUP_FRAME.window))
-  local _, top = box(component(GROUP_WINDOW, interfaces.GROUP_BASE))
-  local listX, listY, listW, listH = box(component(GROUP_WINDOW, interfaces.GROUP_LIST_AREA))
-  if x == nil or top == nil or listY == nil then
-    return GROUP_UNSHOWN
-  end
-  local tiles = {}
-  for _, button in ipairs(interfaces.GROUP_ICON_BUTTONS) do
-    addTile(tiles, component(GROUP_WINDOW, button[1]), spriteOf(component(GROUP_WINDOW, button[2])))
-  end
-  for _, staticID in ipairs(interfaces.GROUP_TABS) do
-    local tab = component(GROUP_WINDOW, staticID)
-    addTile(tiles, tab, spriteOf(tab))
-  end
-  addTile(tiles, component(GROUP_WINDOW, interfaces.GROUP_SIZE), nil, label(GROUP_WINDOW, interfaces.GROUP_SIZE), true)
-  local ready = interfaces.GROUP_READY
-  addTile(tiles, component(GROUP_WINDOW, ready.layer), nil, label(GROUP_WINDOW, ready.text))
-  local rowBox = interfaces.GROUP_ROW_BOX
-  local places = {}
-  for i = 1, rows do
-    local name = (i - 1) * interfaces.GROUP_ROW_STRIDE + interfaces.GROUP_ROW_NAME
-    local nameX, nameY = box(component(GROUP_WINDOW, GROUP_LIST, 0, name))
-    if nameX == nil or nameY - rowBox.dy < listY or nameY + rowBox.h - 2 * rowBox.dy > listY + listH then
-      places = nil
-      break
-    end
-    places[i] = { x = nameX - rowBox.dx, y = nameY - rowBox.dy, w = rowBox.w, h = rowBox.h }
-  end
-  return {
-    open = true,
-    x = x,
-    y = y,
-    w = w,
-    h = h,
-    top = top,
-    listX = listX,
-    listY = listY,
-    listW = listW,
-    listH = listH,
-    tiles = tiles,
-    rows = places,
-  }
-end
-
--- Whether the group window's frame has left the box a groupLayout holds. The player drags and resizes the
--- window between server ticks, so this runs on each frame the sidebar is drawn.
-function adapter.groupMoved(layout)
-  local x, y, w, h = box(component(interfaces.WINDOWS, interfaces.GROUP_FRAME.window))
-  return x ~= nil and (x ~= layout.x or y ~= layout.y or w ~= layout.w or h ~= layout.h)
 end
 
 local function allPlayers()

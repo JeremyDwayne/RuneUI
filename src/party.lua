@@ -77,24 +77,6 @@ local function leaderOf(title)
   return name and party.key(name)
 end
 
--- The sidebar's member rows from a src/adapter groupReads of the open window, in its order: each
--- { name, leader, fill, text }, with leader the leader's rank sprite, fill nil and text empty when the row's
--- lifepoints do not read, and text "Dead" at 0.
-function party.rows(reads)
-  local leader = leaderOf(reads.title)
-  local out = {}
-  for i, row in ipairs(reads.rows) do
-    local current, max = parse(row.lifepoints)
-    out[i] = {
-      name = row.name,
-      leader = party.key(row.name) == leader and row.rank or nil,
-      fill = current and util.clamp(current / max, 0, 1),
-      text = current == nil and "" or current == 0 and "Dead" or frames.formatAmount(current),
-    }
-  end
-  return out
-end
-
 -- Tracks the group between server ticks. near(name, inView) follows a player entering or leaving view, and
 -- read(reads) takes each tick's src/adapter groupReads, keeping the last roster while the window is closed.
 -- members() lists that roster.
