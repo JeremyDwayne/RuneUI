@@ -322,6 +322,113 @@ describe("gameui.placeGroupRows", function()
   end)
 end)
 
+-- A game component at x, y in its parent and gx, gy on screen, w by h, adding its moves to moves.n. Its screen
+-- place follows its own moves, as if its parent stayed put.
+local function boxed(x, y, w, h, gx, gy, moves)
+  return {
+    x = x,
+    y = y,
+    width = w,
+    height = h,
+    xyGlobal = { x = gx, y = gy },
+    SetPos = function(self, toX, toY)
+      moves.n = moves.n + 1
+      self.xyGlobal.x, self.xyGlobal.y = self.xyGlobal.x + toX - self.x, self.xyGlobal.y + toY - self.y
+      self.x, self.y = toX, toY
+    end,
+    SetSize = function(self, toW, toH)
+      self.width, self.height = toW, toH
+    end,
+  }
+end
+
+-- Serves frame as interface 1477's statics and window as 1519's.
+local function serve(frame, window)
+  _G.ui = {
+    Interfaces = {
+      GetComponent = function(_, interfaceID, staticID)
+        return (interfaceID == 1477 and frame or interfaceID == 1519 and window or {})[staticID]
+      end,
+    },
+  }
+end
+
+local function boxOf(c)
+  return { c.x, c.y, c.width, c.height }
+end
+
+describe("gameui.spreadGroupWindow", function()
+  it(
+    "sizes each layer above the rows and buttons over the screen, writes nothing once there, and puts each back",
+    function()
+      local moves = { n = 0 }
+      local frame = { [523] = boxed(0, 511, 262, 175, 0, 511, moves), [525] = boxed(4, 16, 254, 155, 4, 527, moves) }
+      local window = {
+        [11] = boxed(0, 0, 254, 155, 4, 527, moves),
+        [9] = boxed(0, 0, 254, 155, 4, 527, moves),
+        [5] = boxed(0, 0, 254, 122, 4, 527, moves),
+        [1] = boxed(0, 0, 254, 122, 4, 527, moves),
+        [10] = boxed(0, 125, 254, 30, 4, 652, moves),
+      }
+      serve(frame, window)
+      gameui.spreadGroupWindow(1710, 1041)
+      for _, c in ipairs({ frame[523], frame[525], window[11], window[9], window[5], window[1], window[10] }) do
+        assert.are.same({ 0, 0, 1710, 1041 }, boxOf(c))
+      end
+      assert.are.equal(7, moves.n)
+      gameui.spreadGroupWindow(1710, 1041)
+      assert.are.equal(7, moves.n)
+      -- The client lays the window out again.
+      frame[523].width = 262
+      gameui.spreadGroupWindow(1710, 1041)
+      assert.are.equal(1710, frame[523].width)
+      gameui.spreadGroupWindow(nil)
+      assert.are.same({ 0, 511, 262, 175 }, boxOf(frame[523]))
+      assert.are.same({ 0, 125, 254, 30 }, boxOf(window[10]))
+      local restored = moves.n
+      gameui.spreadGroupWindow(nil)
+      assert.are.equal(restored, moves.n)
+    end
+  )
+end)
+
+describe("gameui.placeGroupButtons", function()
+  it("puts each strip on its band and each button on its tile, keeps them while told to, and puts each back", function()
+    local moves = { n = 0 }
+    local window = {
+      [18] = boxed(0, 0, 254, 30, 4, 652, moves),
+      [20] = boxed(3, 3, 24, 24, 7, 655, moves),
+      [23] = boxed(31, 3, 24, 24, 35, 655, moves),
+    }
+    serve({}, window)
+    local column = {
+      bands = { { strip = 18, x = 0, y = 316, w = 64, h = 52 } },
+      tiles = {
+        { text = "2/50", plain = true, x = 6, y = 300, w = 52, h = 16 },
+        { static = 20, x = 6, y = 316, w = 24, h = 24 },
+        { static = 23, x = 34, y = 316, w = 24, h = 24 },
+      },
+    }
+    local function screen(c)
+      return { c.xyGlobal.x, c.xyGlobal.y, c.width, c.height }
+    end
+    gameui.placeGroupButtons(column)
+    assert.are.same({ 0, 316, 64, 52 }, screen(window[18]))
+    assert.are.same({ 6, 316, 24, 24 }, screen(window[20]))
+    assert.are.same({ 34, 316, 24, 24 }, screen(window[23]))
+    assert.are.equal(3, moves.n)
+    gameui.placeGroupButtons(column)
+    gameui.placeGroupButtons(nil, true)
+    assert.are.equal(3, moves.n)
+    gameui.placeGroupButtons(nil)
+    assert.are.same({ 0, 0, 254, 30 }, boxOf(window[18]))
+    assert.are.same({ 3, 3, 24, 24 }, boxOf(window[20]))
+    assert.are.same({ 31, 3, 24, 24 }, boxOf(window[23]))
+    gameui.placeGroupButtons(nil)
+    assert.are.equal(6, moves.n)
+  end)
+end)
+
 describe("gameui.holdGroupWindow", function()
   it("makes the window, its rows and its frame transparent, and restores each one's alpha", function()
     local window, frame, labels, fill = loadGroupWindow()
@@ -363,6 +470,8 @@ describe("gameui.holdGroupWindow", function()
       })
     end
     counted(frame[523], false)
+    -- The strip that holds strip 18 is sized over the screen, so it has to go on passing clicks.
+    window[10] = counted({}, true)
     window[0] = counted({}, true)
     counted(window[18], false)
     areas[0].clickthrough, areas[1].clickthrough = nil, nil
@@ -377,6 +486,7 @@ describe("gameui.holdGroupWindow", function()
       areas[1].clickthrough,
     })
     assert.are.equal(4, writes())
+    assert.are.same({ true, 0 }, { window[10].clickthrough, window[10].writes })
     gameui.holdGroupWindow(true, 2, false, true)
     assert.are.equal(4, writes())
     -- The client puts the frame back, as on a rebuild.

@@ -283,8 +283,8 @@ local function passPart(pass, key, c, want)
 end
 
 -- Lets clicks pass the transparent group window to the world. The window's frame is all that stops them, so it
--- alone turns clickthrough on. Each member row's click area and each button strip turns it off, so a click on
--- a party cell or a button stops there. Runs each server tick, as the client makes click areas as the group
+-- alone turns clickthrough on. Each member row's click area and each strip around buttons turns it off, so a
+-- click on a party cell or a button stops there. Runs each server tick, as the client makes click areas as the group
 -- grows, and writes only a part that is out of place. false puts every part back.
 local function passGroupClicks(pass, rows)
   if not pass and passed == nil then
@@ -295,7 +295,7 @@ local function passGroupClicks(pass, rows)
     passedRows = math.max(passedRows, rows)
   end
   passPart(pass, "frame", component(interfaces.WINDOWS, GROUP_FRAME.window), true)
-  for _, staticID in ipairs(interfaces.GROUP_BUTTON_STRIPS) do
+  for _, staticID in ipairs(interfaces.GROUP_CLICK_STRIPS) do
     passPart(pass, staticID, component(interfaces.GROUP_WINDOW, staticID), false)
   end
   for row = 1, passedRows do
@@ -325,11 +325,6 @@ function gameui.holdGroupWindow(held, rows, folded, pass)
   passGroupClicks(held and pass == true, rows)
 end
 
--- Where the client had each member row's click area that placeGroupRows moved, as { x, y, w, h } by row, false
--- for a row left alone, and the highest row moved.
-local rowHomes = {}
-local rowsMoved = 0
-
 -- Puts game component c at x, y in its parent, sized w by h, unless it is there already.
 local function setBox(c, x, y, w, h)
   if read(c, "x") ~= x or read(c, "y") ~= y or read(c, "width") ~= w or read(c, "height") ~= h then
@@ -337,6 +332,94 @@ local function setBox(c, x, y, w, h)
     c:SetSize(w, h)
   end
 end
+
+-- Puts game component c at x, y on screen, sized w by h, unless it is there already. A component whose parent
+-- moved this tick may land a tick late, as its screen place is read.
+local function setScreenBox(c, x, y, w, h)
+  local at = read(c, "xyGlobal")
+  local gx, gy = at and read(at, "x"), at and read(at, "y")
+  if gx ~= nil and gy ~= nil and (gx ~= x or gy ~= y or read(c, "width") ~= w or read(c, "height") ~= h) then
+    c:SetPos(math.floor(read(c, "x") + x - gx + 0.5), math.floor(read(c, "y") + y - gy + 0.5))
+    c:SetSize(w, h)
+  end
+end
+
+-- c's box in its parent as { x, y, w, h }.
+local function boxOf(c)
+  return { x = read(c, "x"), y = read(c, "y"), w = read(c, "width"), h = read(c, "height") }
+end
+
+-- Where the client had each layer spreadGroupWindow sized, as { x, y, w, h } by its place in GROUP_SPREAD. nil
+-- while the window is not spread.
+local spreadHomes = nil
+
+-- Sizes every layer above the group window's click areas and button strips over a width by height screen, so
+-- a row or a button takes clicks wherever it is put. Runs each server tick and writes only a layer that is out
+-- of place. With width nil each layer goes back where the client had it.
+function gameui.spreadGroupWindow(width, height)
+  if width == nil and spreadHomes == nil then
+    return
+  end
+  spreadHomes = spreadHomes or {}
+  for i, ids in ipairs(interfaces.GROUP_SPREAD) do
+    local c = component(ids[1], ids[2])
+    local home = spreadHomes[i]
+    if c ~= nil and width ~= nil then
+      spreadHomes[i] = home or boxOf(c)
+      pcall(setBox, c, 0, 0, width, height)
+    elseif c ~= nil and home then
+      pcall(setBox, c, home.x, home.y, home.w, home.h)
+    end
+  end
+  if width == nil then
+    spreadHomes = nil
+  end
+end
+
+-- Where the client had each strip and button placeGroupButtons moved, as { x, y, w, h } by static id. nil
+-- while none is moved.
+local buttonHomes = nil
+
+-- Puts the group window's static staticID on the screen box at, remembering where the client had it.
+local function placeButton(staticID, at)
+  local c = component(interfaces.GROUP_WINDOW, staticID)
+  if c ~= nil then
+    buttonHomes[staticID] = buttonHomes[staticID] or boxOf(c)
+    pcall(setScreenBox, c, at.x, at.y, at.w, at.h)
+  end
+end
+
+-- Moves the group window's button strips and buttons onto a src/sidebar column: each band's strip onto the
+-- band, and each tile's button onto the tile, so a click on the column lands on the game's own button. Runs
+-- each server tick and writes only a part that is out of place. With column nil the parts stay where they are
+-- while keep is true, as while the column is folded and its strips are hidden, and go back where the client had
+-- them otherwise.
+function gameui.placeGroupButtons(column, keep)
+  if column ~= nil then
+    buttonHomes = buttonHomes or {}
+    for _, band in ipairs(column.bands) do
+      placeButton(band.strip, band)
+    end
+    for _, tile in ipairs(column.tiles) do
+      if tile.static ~= nil then
+        placeButton(tile.static, tile)
+      end
+    end
+  elseif buttonHomes ~= nil and not keep then
+    for staticID, home in pairs(buttonHomes) do
+      local c = component(interfaces.GROUP_WINDOW, staticID)
+      if c ~= nil then
+        pcall(setBox, c, home.x, home.y, home.w, home.h)
+      end
+    end
+    buttonHomes = nil
+  end
+end
+
+-- Where the client had each member row's click area that placeGroupRows moved, as { x, y, w, h } by row, false
+-- for a row left alone, and the highest row moved.
+local rowHomes = {}
+local rowsMoved = 0
 
 -- Moves the click area of each of the group window's first rows member rows onto boxes[row], a { x, y, w, h }
 -- screen box, so a click, right click or hover there lands on the game's own row. A row with no box, and every
@@ -386,6 +469,8 @@ function gameui.restore()
   castBar.hide(false)
   gameui.holdGroupWindow(false)
   gameui.placeGroupRows(nil)
+  gameui.placeGroupButtons(nil)
+  gameui.spreadGroupWindow(nil)
   actionbars.restore()
 end
 
