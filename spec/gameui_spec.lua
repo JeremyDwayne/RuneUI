@@ -409,30 +409,33 @@ describe("gameui.spreadGroupWindow", function()
     return frame, window
   end
 
-  it("sizes each layer above the rows and buttons round the cells and the column, and follows them", function()
+  it("sizes each layer above the rows round the cells, taking in the column while it is hovered", function()
     local moves = { n = 0 }
     local frame, window = loadLayers(moves)
     local boxes = { { x = 300, y = 500, w = 84, h = 40 }, false, { x = 386, y = 500, w = 84, h = 40 } }
     local column = { x = 0, y = 316, w = 64, h = 120 }
-    gameui.spreadGroupWindow(boxes, 3, column)
+    gameui.spreadGroupWindow(boxes, 3, column, true)
     assert.are.same({ -24, 292, 518, 272 }, boxOf(frame[523]))
     for _, c in ipairs({ frame[525], window[11], window[9], window[5], window[1] }) do
       assert.are.same({ 0, 0, 518, 272 }, boxOf(c))
     end
     -- A layer that fills its parent is there once the parent is, and keeps its own layout.
     assert.are.equal(3, moves.n)
-    gameui.spreadGroupWindow(boxes, 3, column)
+    gameui.spreadGroupWindow(boxes, 3, column, true)
     assert.are.equal(3, moves.n)
     -- The client lays the window out again.
     frame[523]:SetSize(262, 175)
-    gameui.spreadGroupWindow(boxes, 3, column)
+    gameui.spreadGroupWindow(boxes, 3, column, true)
     assert.are.equal(518, frame[523].width)
-    -- A cell moves, then the column goes.
+    -- A cell moves, then the cursor leaves the column.
     boxes[1].x = 600
-    gameui.spreadGroupWindow(boxes, 3, column)
+    gameui.spreadGroupWindow(boxes, 3, column, true)
     assert.are.same({ -24, 292, 732, 272 }, boxOf(frame[523]))
-    gameui.spreadGroupWindow(boxes, 3, nil)
+    gameui.spreadGroupWindow(boxes, 3, column, false)
     assert.are.same({ 362, 476, 346, 88 }, boxOf(frame[523]))
+    -- With no cell to go round it stays round the column.
+    gameui.spreadGroupWindow({ false }, 1, column, false)
+    assert.are.same({ -24, 292, 112, 168 }, boxOf(frame[523]))
     gameui.spreadGroupWindow(nil)
     assert.are.same({ 0, 511, 262, 175 }, boxOf(frame[523]))
   end)

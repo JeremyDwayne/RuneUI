@@ -243,10 +243,10 @@ end
 
 -- Stands the party grid and the sidebar in for the game's group window, while the setting is on and the window
 -- sits in a window frame of its own. The window is held transparent and passing clicks, with the layers above
--- its rows and buttons sized round the party cells and the sidebar, so each member row's click area sits under
--- that member's cell and each button under the sidebar's tile for it, wherever those are, and the window
--- covers no more of the screen than they span. The hold outlasts a closed window, so the window is never seen
--- on opening. With the setting off or the HUD hidden, everything goes back.
+-- its rows sized round the party cells, so each member row's click area sits under that member's cell and the
+-- window covers no more of the screen than the cells span. Each button sits under the sidebar's tile for it,
+-- and the layers take the sidebar in only while the cursor is on it. The hold outlasts a closed window, so the
+-- window is never seen on opening. With the setting off or the HUD hidden, everything goes back.
 local function updateSidebar()
   local state = saved.sidebar()
   local held = state.on and not hudHeld and adapter.groupFramed()
@@ -260,7 +260,7 @@ local function updateSidebar()
     optionsWindow.placeAll()
   end
   local boxes = open and elements.party.rowBoxes() or nil
-  gameui.spreadGroupWindow(boxes, rows, column)
+  gameui.spreadGroupWindow(boxes, rows, column, groupSidebar.hovered)
   if column ~= nil then
     gameui.placeGroupButtons(column)
   end

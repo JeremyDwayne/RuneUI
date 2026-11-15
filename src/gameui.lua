@@ -414,14 +414,15 @@ local function readGroupHomes()
   return homes
 end
 
--- The box round the first rows of boxes, each a { x, y, w, h } or false, and column, either of which may be
--- nil, as x, y, w, h, or nil when there is nothing to go round.
-local function around(boxes, rows, column)
+-- The box round the first rows of boxes, each a { x, y, w, h } or false, as x, y, w, h. It takes column in
+-- too when wide is true or there is no box. boxes and column may each be nil. nil when there is nothing to go
+-- round.
+local function around(boxes, rows, column, wide)
   local x1, y1, x2, y2
-  for row = 0, boxes and rows or 0 do
-    local box = column
-    if row > 0 then
-      box = boxes[row]
+  for row = boxes and rows or 0, 0, -1 do
+    local box = boxes and boxes[row]
+    if row == 0 then
+      box = (wide or x1 == nil) and column
     end
     if box then
       x1, y1 = math.min(x1 or box.x, box.x), math.min(y1 or box.y, box.y)
@@ -433,15 +434,16 @@ local function around(boxes, rows, column)
   end
 end
 
--- Sizes every layer above the group window's click areas and button strips round the party cells and the
--- sidebar, so each row and button takes clicks where it is put and the window covers no more of the screen
--- than that. boxes is each member row's cell as a { x, y, w, h } screen box or false, for the first rows rows,
--- and column the sidebar's. The frame reaches GROUP_SPREAD_MARGIN past them. Runs each server tick and writes
--- only a layer that is out of place. It sizes nothing while a part's layout does not read, as that part could
--- not be put back. With neither cells nor a column every layer, strip and button goes back to the layout the
--- client gave it.
-function gameui.spreadGroupWindow(boxes, rows, column)
-  local x, y, width, height = around(boxes, rows, column)
+-- Sizes every layer above the group window's click areas and button strips round the party cells, so each row
+-- takes clicks where it is put and the window covers no more of the screen than that. boxes is each member
+-- row's cell as a { x, y, w, h } screen box or false, for the first rows rows. column is the sidebar's box, which
+-- the layers take in only while hovered is true, when its buttons are wanted, or while there is no cell. The
+-- frame reaches GROUP_SPREAD_MARGIN past them. Runs each server tick, and as the hover changes, and writes only
+-- a layer that is out of place. It sizes nothing while a part's layout does not read, as that part could not be
+-- put back. With neither cells nor a column every layer, strip and button goes back to the layout the client
+-- gave it.
+function gameui.spreadGroupWindow(boxes, rows, column, hovered)
+  local x, y, width, height = around(boxes, rows, column, hovered)
   groupHomes = groupHomes or width ~= nil and readGroupHomes() or nil
   if groupHomes == nil then
     return

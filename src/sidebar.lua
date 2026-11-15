@@ -1,7 +1,8 @@
 -- The group sidebar: the game's group window buttons as a two wide column, a HUD element that sits on the
 -- screen's left edge until edit mode moves it. It draws a panel and a tile over each button, and src/gameui
 -- moves the game's own buttons under the tiles. Every part but the tab keeps a plain component's defaults, so a
--- click lands on the game's button. The tab on its right edge folds it to a thin bar and back.
+-- click lands on the game's button. The tab on its right edge folds it to a thin bar and back. A clear cover
+-- over the game's buttons says when the cursor is on them, which is when src/gameui needs them to take clicks.
 local sidebar = {}
 
 local controls = require("src/controls")
@@ -96,7 +97,8 @@ end
 -- root is the plugin layer that draws over game windows. deps: { saved = src/settings, blocked = function
 -- saying whether the options window or edit mode is open, changed = function redrawing after the tab,
 -- openRoles = function run by the Roles button }.
--- Returns a src/view element, { layer, bounds, inUse, setLook, update(shown, buttons), canDraw(), destroy() }.
+-- Returns a src/view element, { layer, bounds, inUse, hovered, setLook, update(shown, buttons), canDraw(),
+-- destroy() }. hovered is whether the cursor is on the game's buttons, and changed runs as it changes.
 -- The layer holds nothing but its panel, so it stays for src/view and edit mode to place. update runs each
 -- server tick with whether the group window stands open behind the HUD and src/adapter's groupButtons, nil
 -- while folded. It builds the panel once shown with the sidebar on, never while blocked so it cannot stack over
@@ -108,13 +110,29 @@ function sidebar.create(root, deps)
   local layer = draw.new(ui.Layer, root)
   size(layer, COLUMN_W + TAB_W, BAR_H)
   local bounds = { x = 0, y = 0, w = COLUMN_W + TAB_W, h = BAR_H }
-  local s = { layer = layer, bounds = bounds, inUse = saved.sidebar().on }
+  local s = { layer = layer, bounds = bounds, inUse = saved.sidebar().on, hovered = false }
   -- The built panel's parts, nil while there is none.
   local p = nil
+
+  local function hover(on)
+    if s.hovered ~= on then
+      s.hovered = on
+      deps.changed()
+    end
+  end
 
   local function build()
     local panel = draw.new(ui.Layer, layer)
     local parts = { layer = panel, tiles = {} }
+    -- The cover sits beside the panel, so it stays over the tiles the panel builds later.
+    parts.cover = rect(layer, COLOURS.panel, 0, 0, 0, 0)
+    set(parts.cover, "alpha", 0)
+    draw.on(parts.cover, "ONMOUSEOVER", function()
+      hover(true)
+    end)
+    draw.on(parts.cover, "ONMOUSELEAVE", function()
+      hover(false)
+    end)
     parts.face = rect(panel, COLOURS.panel, 0, 0, 0, 0)
     parts.tab = controls.button(panel, "", 0, 0, TAB_W, TAB_H, "plain", function()
       saved.setSidebar("collapsed", not saved.sidebar().collapsed)
@@ -197,9 +215,11 @@ function sidebar.create(root, deps)
   -- Destroys the panel, leaving the layer for src/view to place.
   function s.destroy()
     if p ~= nil then
+      p.cover:Destroy()
       p.layer:Destroy()
       p = nil
     end
+    s.hovered = false
   end
 
   -- The panel takes no look.
@@ -234,8 +254,12 @@ function sidebar.create(root, deps)
     p.tab.group.place(face, (h - TAB_H) // 2)
     pointArrow(folded)
     p.roles.group.set("hidden", folded)
+    set(p.cover, "hidden", folded)
     if column then
       p.roles.group.place(column.roles.x - left, column.roles.y - top)
+      fit(p.cover, 0, 0, column.w, column.roles.y - top)
+    else
+      s.hovered = false
     end
     local tiles = column and column.tiles or NO_TILES
     for i, model in ipairs(tiles) do
