@@ -14,6 +14,9 @@ local function create()
         return entity.at[1], entity.at[2]
       end
     end,
+    valid = function(entity)
+      return not entity.gone
+    end,
   })
   n.setShown(true)
   return n, root
@@ -63,9 +66,26 @@ describe("nameplates", function()
     n.frame()
     assert.are.equal(nameplates.COLOURS.friend, label("Oakhelm").rgb)
     assert.are.equal(nameplates.COLOURS.clan, label("Brunt").rgb)
+    n.setRelations({ clan = { "Brunt" } }, { clan = 0x40e0d0 })
+    n.frame()
+    assert.are.equal(0x40e0d0, label("Brunt").rgb)
     n.setRelations({})
     n.frame()
     assert.are.equal(label("Tamsin").rgb, label("Brunt").rgb)
+  end)
+
+  it("follows a player the client adds again, and drops the players whose entity has gone", function()
+    local n = create()
+    n.add(player("Oakhelm", 1, 100, 100))
+    local brunt = player("Brunt", 2, 200, 100)
+    n.add(brunt)
+    n.add(player("Oakhelm", 1, 500, 300))
+    n.frame()
+    assert.are.equal(420, label("Oakhelm").x)
+    brunt.entity.gone = true
+    assert.are.same({ "Brunt" }, n.prune())
+    assert.is_nil(label("Brunt"))
+    assert.are.same({}, n.prune())
   end)
 
   it("hides a player's name as they leave, returns it, and reuses the label for the next player", function()

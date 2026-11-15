@@ -33,7 +33,7 @@ local auraNames = icons.index(catalog.names, {
   describe = adapter.structInfo,
 })
 -- Built first, so the names draw under the rest of the HUD.
-local names = nameplates.create(hud, { position = adapter.headPosition })
+local names = nameplates.create(hud, { position = adapter.headPosition, valid = adapter.entityValid })
 local tooltip = view.tooltip(hud)
 local elements = {
   player = view.playerFrame(hud),
@@ -72,8 +72,20 @@ Event.PlayerEntityAdded.Subscribe("party", function(e)
 end)
 Event.PlayerEntityRemoved.Subscribe("party", function(e)
   local player = adapter.entityPlayer(e)
-  -- A player who has left may no longer give a name, so the one they entered with is used.
-  partyTracker.near(names.remove(player.uid) or player.name, false)
+  -- A player who has left may no longer give a name, so the one they entered with is used. One who gives no
+  -- uid either is found as an entity that has gone.
+  local name = names.remove(player.uid)
+  if name ~= nil then
+    partyTracker.near(name, false)
+    return
+  end
+  local gone = names.prune()
+  for _, left in ipairs(gone) do
+    partyTracker.near(left, false)
+  end
+  if #gone == 0 then
+    partyTracker.near(player.name, false)
+  end
 end)
 -- Each rendered frame moves every shown name to its player's head, and reads nothing while names are off.
 Event.Draw.Subscribe("nameplates", names.frame)
@@ -83,14 +95,18 @@ local optionsWindow
 local mapOpen = false
 local inCombat = nil
 local hasTarget = false
+-- Whether the HUD is hidden, and whether the player has opted into Wilderness PvP, where names stay off.
+local hudHeld = false
+local inPvp = false
 
 -- Hides the HUD while the world map is open, and fades or hides it out of combat as src/autohide says. Writes
 -- nothing while neither changes.
 local function showHud()
   local hidden, alpha = autohide.state(saved.appearance(), inCombat, hasTarget, optionsWindow.configuring())
-  view.hold(mapOpen or hidden)
+  hudHeld = mapOpen or hidden
+  view.hold(hudHeld)
   view.fade(alpha)
-  names.setShown(saved.appearance().nameplates and not mapOpen)
+  names.setShown(saved.appearance().nameplates and not mapOpen and not inPvp)
 end
 tracker.seed(presets.INFO)
 tracker.seed(saved.known())
@@ -236,10 +252,10 @@ local function updateSidebar()
   groupSidebar.update(layout, groupReads)
 end
 
--- With the Party page's switch on and the group window open, puts each member row's click area in the game's
--- group window on that member's party cell, and back otherwise.
+-- With the Party page's switch on, the group window open and the HUD showing, puts each member row's click area
+-- in the game's group window on that member's party cell, and back otherwise.
 local function updatePartyClicks()
-  local on = saved.partyClicks() and groupReads.open
+  local on = saved.partyClicks() and groupReads.open and not hudHeld
   gameui.placeGroupRows(on and elements.party.rowBoxes() or nil, on and #groupReads.rows or 0)
 end
 
@@ -345,11 +361,13 @@ Event.ServerLogic.Subscribe("refresh", function()
   inCombat = autohide.reads(saved.appearance()) and adapter.playerVar("COMBATV2_PLAYER_IS_IN_COMBAT") or nil
   -- The game's friends, clan and chat lists send no change, so they are read every RELATION_TICKS while names
   -- are shown, and on the first tick after they are turned on.
-  relationTicks = saved.appearance().nameplates and relationTicks + 1 or RELATION_TICKS
+  local named = saved.appearance().nameplates
+  relationTicks = named and relationTicks + 1 or RELATION_TICKS
   if relationTicks > RELATION_TICKS then
     relationTicks = 0
-    names.setRelations(adapter.relationNames())
+    names.setRelations(adapter.relationNames(), adapter.chatColours())
   end
+  inPvp = named and adapter.playerVar("WILDY_PVP_OPTED_IN") == 1
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then
     saved.learn(learned.key, learned.name, learned.icon)

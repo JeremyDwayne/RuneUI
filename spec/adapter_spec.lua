@@ -559,6 +559,26 @@ describe("adapter.headPosition", function()
   end)
 end)
 
+describe("adapter.chatColours", function()
+  it("reads each chat's colour from its setting's place in the game's chat colours, or nil", function()
+    _G.var = {
+      VarPlayer = { OPTION_CLANCHATCOLOUR = { value = 4 }, OPTION_FRIENDCHATCOLOUR = { value = 9 } },
+    }
+    _G.config = {
+      Enum = {
+        PUBLIC_COLOURS_CHAT = {
+          GetOutputValue = function(_, key)
+            return ({ [4] = "<col=40e0d0>", [9] = "no colour" })[key]
+          end,
+        },
+      },
+    }
+    assert.are.same({ clan = 0x40e0d0 }, adapter.chatColours())
+    assert.is_true(adapter.entityValid({ isValid = true }))
+    assert.is_false(adapter.entityValid({}))
+  end)
+end)
+
 describe("adapter.relationNames", function()
   it("reads each game list's names without their tags, and an unloaded list as empty", function()
     local function list(...)

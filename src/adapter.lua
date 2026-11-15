@@ -356,6 +356,31 @@ function adapter.headPosition(entity)
   end
 end
 
+-- Whether a PlayerEntity is still in the world.
+function adapter.entityValid(entity)
+  return read(entity, "isValid") == true
+end
+
+local function enumValue(name, key)
+  return config.Enum[name]:GetOutputValue(key)
+end
+
+-- The setting that holds each chat's colour as a place in the game's list of chat colours.
+local CHAT_COLOUR_VARS =
+  { clan = "OPTION_CLANCHATCOLOUR", friendsChat = "OPTION_FRIENDCHATCOLOUR", guest = "OPTION_GUESTCHATCOLOUR" }
+
+-- The colour the player gave their clan chat, friends chat and guest clan chat in the game's settings, as
+-- { clan, friendsChat, guest }, each an rgb number or nil when it does not read.
+function adapter.chatColours()
+  local out = {}
+  for kind, name in pairs(CHAT_COLOUR_VARS) do
+    local ok, text = pcall(enumValue, "PUBLIC_COLOURS_CHAT", adapter.playerVar(name))
+    local hex = ok and type(text) == "string" and text:match("%x%x%x%x%x%x")
+    out[kind] = hex and tonumber(hex, 16) or nil
+  end
+  return out
+end
+
 -- Adds the text of each of c's dynamic children to names, without its colour and icon tags.
 local function addNames(c, names)
   c:IterateDynamicComponents(function(child)
