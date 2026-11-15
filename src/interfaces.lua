@@ -132,7 +132,6 @@ interfaces.GROUP_SPREAD = {
   { interfaces.GROUP_WINDOW, interfaces.GROUP_CLICK_AREA },
 }
 
--- config.Inv.WORN, the worn-equipment inventory.
 -- The game lists whose dynamic children hold player names, by the relation each gives a nameplate: the friends
 -- list, the friends chat's members, and the clan chat's members and its guests.
 interfaces.RELATION_LISTS = {
@@ -142,6 +141,7 @@ interfaces.RELATION_LISTS = {
   { kind = "guest", id = 1110, static = 38 },
 }
 
+-- config.Inv.WORN, the worn-equipment inventory.
 interfaces.WORN_INV = 94
 
 local function index(obj, field)
