@@ -336,6 +336,10 @@ local function refresh()
   optionsWindow.redrawPage()
 end
 
+-- The role picker, opened from a Set role entry under Set team in a member row's right click menu. It opens
+-- beside the member's party cell, or mid screen when they have none. Esc closes it before anything under it.
+local rolePicker = rolepicker.create(top, { saved = saved, bosses = require("src/bossroles"), refresh = refresh })
+
 optionsWindow = options.create(top, {
   saved = saved,
   tracker = tracker,
@@ -346,6 +350,11 @@ optionsWindow = options.create(top, {
   members = partyTracker.members,
   refresh = refresh,
   configured = showHud,
+  escape = function()
+    local open = rolePicker.isOpen()
+    rolePicker.close()
+    return open
+  end,
 })
 
 -- The sidebar draws over the game's own buttons, so it sits on the plugin layer, and is one of the elements so
@@ -360,9 +369,6 @@ groupSidebar = sidebar.create(top, {
 })
 elements.sidebar = groupSidebar
 view.holdable({ groupSidebar }, true)
--- The role picker, opened from a Set role entry under Set team in a member row's right click menu. It opens
--- beside the member's party cell, or mid screen when they have none.
-local rolePicker = rolepicker.create(top, { saved = saved, bosses = require("src/bossroles"), refresh = refresh })
 -- Each member's entry text, by name, kept so the menu's rebuilds allocate nothing.
 local roleLabels = {}
 local NO_ROWS = {}
@@ -401,12 +407,6 @@ Event.MiniMenuEntryAdded.Subscribe("runeuiRole", function(e)
     roleLabels[member.name] = label
   end
   adapter.addMenuEntry(e, label, pickRole, member.name)
-end)
-
-Event.KeyDown.Subscribe("runeuiRole", function(e)
-  if rolePicker.isOpen() and e.gameKey == GameKey.ESCAPE then
-    rolePicker.close()
-  end
 end)
 
 Event.ServerLogic.Subscribe("refresh", function()

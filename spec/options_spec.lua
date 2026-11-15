@@ -132,6 +132,30 @@ describe("options", function()
     assert.are.same({ true, false, true, false }, seen)
   end)
 
+  it("leaves Esc to a popup above the window, then closes the window on the next", function()
+    local root = fake.component()
+    local popup = true
+    local window = options.create(root, {
+      saved = settings.load(fakeStore()),
+      tracker = cooldowns.tracker(),
+      elements = { player = view.playerFrame(root) },
+      view = view,
+      refresh = function() end,
+      configured = function() end,
+      escape = function()
+        local open = popup
+        popup = false
+        return open
+      end,
+    })
+    fake.fire("ContentLayerReady", { component = fake.component() })
+    pretty.button("Options")
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.is_true(window.configuring())
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.is_false(window.configuring())
+  end)
+
   it("switches out of combat fading and action bar fading from the ribbon, saving and redrawing", function()
     local root = fake.component()
     local saved = settings.load(fakeStore())

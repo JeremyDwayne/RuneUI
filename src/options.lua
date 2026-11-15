@@ -40,7 +40,8 @@ local BUTTON_H = 28
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
 -- view = src/view, auraInfo(sprite) naming an aura icon, describe(struct) reading a struct's description,
 -- members = function returning the group's members as src/party's tracker lists them, refresh = function
--- redrawing the HUD, configured = function run as the window or edit mode opens or closes }.
+-- redrawing the HUD, configured = function run as the window or edit mode opens or closes, escape = optional
+-- function run first on Esc, returning true when a popup above the window took the key }.
 -- Returns { placeAll, open, redrawPage, configuring, shutdown }; placeAll places the HUD and edit mode's overlays
 -- from the saved positions and anchors, open(pageID) opens the window on that page, redrawPage redraws the Buffs
 -- or Party page while it is shown, each server tick, and configuring says whether the window or edit mode is
@@ -403,7 +404,7 @@ function options.create(root, deps)
   end)
 
   Event.KeyDown.Subscribe("runeuiOptions", function(e)
-    if e.gameKey ~= GameKey.ESCAPE then
+    if e.gameKey ~= GameKey.ESCAPE or (deps.escape ~= nil and deps.escape()) then
       return
     end
     if confirm ~= nil then
