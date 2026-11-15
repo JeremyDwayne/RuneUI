@@ -365,18 +365,21 @@ view.holdable({ groupSidebar }, true)
 local rolePicker = rolepicker.create(top, { saved = saved, bosses = require("src/bossroles"), refresh = refresh })
 -- Each member's entry text, by name, kept so the menu's rebuilds allocate nothing.
 local roleLabels = {}
+local NO_ROWS = {}
 
-local function pickRole(row)
-  local member = groupReads.rows[row]
-  if member == nil then
-    return
+-- Opens the picker for the member called name, found by name as the group can change while the menu is open.
+local function pickRole(name)
+  local boxes = groupReads.open and elements.party.rowBoxes() or nil
+  local box = nil
+  for row, member in ipairs(boxes and groupReads.rows or NO_ROWS) do
+    if member.name == name then
+      box = boxes[row]
+    end
   end
-  local boxes = elements.party.rowBoxes()
-  local box = boxes and boxes[row]
   if box then
-    rolePicker.open(member.name, box.x + box.w + 4, box.y)
+    rolePicker.open(name, box.x + box.w + 4, box.y)
   else
-    rolePicker.open(member.name, (tonumber(top.width) or 0) // 2, (tonumber(top.height) or 0) // 3)
+    rolePicker.open(name, (tonumber(top.width) or 0) // 2, (tonumber(top.height) or 0) // 3)
   end
 end
 
@@ -397,7 +400,7 @@ Event.MiniMenuEntryAdded.Subscribe("runeuiRole", function(e)
     label = "Set role " .. member.name
     roleLabels[member.name] = label
   end
-  adapter.addMenuEntry(e, label, pickRole, row)
+  adapter.addMenuEntry(e, label, pickRole, member.name)
 end)
 
 Event.KeyDown.Subscribe("runeuiRole", function(e)
