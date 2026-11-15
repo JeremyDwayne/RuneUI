@@ -10,7 +10,7 @@ local savedparty = {}
 -- The store has no delete, so presets live in this many slots, each saved under its own key. An emptied slot
 -- is free.
 savedparty.MAX_ROLE_PRESETS = 8
-savedparty.MAX_TAG = 4
+savedparty.MAX_TAG = 10
 savedparty.MAX_PRESET_NAME = 20
 -- The range of each tier number a player can set.
 savedparty.TIER_RANGES = { w = { 40, 200 }, h = { 16, 80 }, columns = { 1, 10 }, rows = { 1, 10 } }

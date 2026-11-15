@@ -1,6 +1,6 @@
 -- Short tags for the roles of group bosses, as the list src/rolepicker lays out: each boss's name and its
--- tags, none longer than savedparty.MAX_TAG. A role with no short name in use is shortened to fit. Base tank
--- is the picker's own tile, so no list repeats it.
+-- tags, each short enough for a picker tile. A role with no short name in use is shortened to fit. Base tank is
+-- the picker's own tile, so no list repeats it.
 return {
   -- Voker, the east and west players who go in, come out or charge alone, the south charger and the first
   -- and second north chargers.

@@ -26,7 +26,7 @@ local LIST_ROW = 30
 -- Member rows, this many to a page of the list.
 local ROWS = 10
 local ROW_H = 32
-local FIELD_W = 58
+local FIELD_W = 96
 local BASE_TANK_W = 96
 -- The frame sizes along the bottom: a block per tier of three stepper rows and a check box. The third stepper
 -- sets the tier's columns while the grid fills rows and its rows while it fills columns.

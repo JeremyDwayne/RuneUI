@@ -32,6 +32,12 @@ local NOTE_W = 160
 local NOTE_H = 14
 local NO_CELLS = {}
 
+-- The part of a tag a w wide cell shows: as many characters as fit in half its width, and never fewer than two.
+-- The hover gives the whole tag.
+local function shownTag(tag, w, raid)
+  return tag:sub(1, math.max(2, (w // 2 - (raid and 2 or 6)) // 7))
+end
+
 -- The width of a tag's box: the mock's at up to two characters, wider for more.
 local function tagWidth(tag, raid)
   if raid then
@@ -149,7 +155,8 @@ function partyframe.create(root, tooltip)
   -- Draws cell model c of model on parts p. Every write skips an unchanged value.
   local function show(p, c, model)
     local w, h, raid = model.w, model.h, model.raid
-    local tagW = c.tag and tagWidth(c.tag, raid) or 0
+    local tag = c.tag and shownTag(c.tag, w, raid)
+    local tagW = tag and tagWidth(tag, raid) or 0
     local leader = c.leader ~= nil
     if
       p.x ~= c.x
@@ -194,13 +201,13 @@ function partyframe.create(root, tooltip)
     if c.text ~= nil then
       set(p.number, "content", c.text)
     end
-    draw.hideAll(p.tag, c.tag == nil)
-    if c.tag ~= nil then
+    draw.hideAll(p.tag, tag == nil)
+    if tag ~= nil then
       local gold = c.tag == party.BASE_TANK
       set(p.tagEdge, "rgb", gold and GOLD or COLOURS.text)
       set(p.tagFace, "rgb", gold and GOLD or COLOURS.border)
       set(p.tagText, "rgb", gold and style.DARK_TEXT or COLOURS.text)
-      set(p.tagText, "content", c.tag)
+      set(p.tagText, "content", tag)
     end
     set(p.leader, "hidden", not leader)
     if leader then

@@ -4,7 +4,6 @@ local samples = require("spec/support/samples")
 local draw = require("src/draw")
 local party = require("src/party")
 local rolepicker = require("src/rolepicker")
-local savedparty = require("src/savedparty")
 local settings = require("src/settings")
 
 local label = samples.label
@@ -55,10 +54,10 @@ describe("rolepicker.layout", function()
 end)
 
 describe("bossroles", function()
-  it("holds only tags a member can be given", function()
+  it("holds only tags short enough for a picker tile", function()
     for _, boss in ipairs(require("src/bossroles")) do
       for _, tag in ipairs(boss.tags) do
-        assert.is_true(#tag >= 1 and #tag <= savedparty.MAX_TAG, boss.name .. " " .. tag)
+        assert.is_true(#tag >= 1 and #tag <= 4, boss.name .. " " .. tag)
         assert.is_nil(tag:find("%s"))
       end
     end
