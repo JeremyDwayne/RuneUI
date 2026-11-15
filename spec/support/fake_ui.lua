@@ -186,7 +186,7 @@ function fake.hook(c, name, x, y)
 end
 
 -- The last shown ONCLICK component under shown text t, as the client passes a click through a label to the hit
--- area below it, or failing that the shown Check on t's row.
+-- area below it, or failing that the shown Check nearest t on its row.
 local function under_(text)
   local t = dataOf[text]
   local hit = nil
@@ -211,12 +211,18 @@ local function under_(text)
       fake.hook(hit, "ONCLICK")
     end
   end
+  local check = nil
   for _, c in ipairs(fake.created) do
     local d = dataOf[c]
-    if d.parent == t.parent and d.check and fake.shown(c) and t.y + (t.height or 0) > d.y and t.y < d.y + d.height then
-      return function()
-        fake.tick(c)
-      end
+    local onRow = d.parent == t.parent and d.check and fake.shown(c) and t.y + (t.height or 0) > d.y
+    local nearer = check == nil or math.abs(d.x - t.x) < math.abs(dataOf[check].x - t.x)
+    if onRow and t.y < d.y + d.height and nearer then
+      check = c
+    end
+  end
+  if check ~= nil then
+    return function()
+      fake.tick(check)
     end
   end
 end

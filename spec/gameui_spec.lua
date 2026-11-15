@@ -260,6 +260,63 @@ local function loadGroupWindow()
   return window, frame, labels, fill
 end
 
+describe("gameui.placeGroupRows", function()
+  -- The group window's click area layer at 104, 250 with two rows' click areas, counting SetPos calls.
+  local function loadRows()
+    local moves = 0
+    local function area(y)
+      return {
+        x = 5,
+        y = y,
+        width = 247,
+        height = 38,
+        SetPos = function(self, x, to)
+          moves = moves + 1
+          self.x, self.y = x, to
+        end,
+        SetSize = function(self, w, h)
+          self.width, self.height = w, h
+        end,
+      }
+    end
+    local rows = { [0] = area(17), [1] = area(55) }
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function(_, interfaceID, staticID, categoryID, dynamicID)
+          if interfaceID ~= 1519 or staticID ~= 1 then
+            return nil
+          end
+          if categoryID == nil then
+            return { xyGlobal = { x = 104, y = 250 } }
+          end
+          return rows[dynamicID]
+        end,
+      },
+    }
+    return rows, function()
+      return moves
+    end
+  end
+
+  it("puts each row's click area on its box, writes nothing once there, and puts it back", function()
+    local rows, moves = loadRows()
+    local boxes = { { x = 300, y = 500, w = 84, h = 40 }, false }
+    gameui.placeGroupRows(boxes, 2)
+    assert.are.same({ 196, 250, 84, 40 }, { rows[0].x, rows[0].y, rows[0].width, rows[0].height })
+    assert.are.same({ 5, 55 }, { rows[1].x, rows[1].y })
+    gameui.placeGroupRows(boxes, 2)
+    assert.are.equal(1, moves())
+    -- The client puts the row back, as on a rebuild.
+    rows[0].x = 5
+    gameui.placeGroupRows(boxes, 2)
+    assert.are.equal(196, rows[0].x)
+    gameui.placeGroupRows(nil, 0)
+    assert.are.same({ 5, 17, 247, 38 }, { rows[0].x, rows[0].y, rows[0].width, rows[0].height })
+    gameui.placeGroupRows(nil, 0)
+    assert.are.equal(3, moves())
+  end)
+end)
+
 describe("gameui.holdGroupWindow", function()
   it("makes the window, its rows and its frame transparent, and restores each one's alpha", function()
     local window, frame, labels, fill = loadGroupWindow()

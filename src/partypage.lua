@@ -273,6 +273,11 @@ function partypage.create(page, width, height, deps)
     changed()
   end)
   label("Draw the group window as a sidebar", width - MARGIN - 226, top + 8, 226, 24)
+  local clicksCheck = controls.check(page, width - MARGIN - 500, top + 12, 16, function(ticked)
+    saved.setPartyClicks(ticked)
+    changed()
+  end)
+  label("Click and cast on party cells", width - MARGIN - 476, top + 8, 216, 24)
 
   local blockW = (width - 2 * MARGIN - (#party.TIERS - 1) * MARGIN) // #party.TIERS
   local tierParts = {}
@@ -302,6 +307,7 @@ function partypage.create(page, width, height, deps)
     showPresets()
     p.follow()
     sidebarCheck.show(saved.sidebar().on)
+    clicksCheck.show(saved.partyClicks())
     for id, tier in pairs(saved.partyTiers()) do
       for field, stepper in pairs(tierParts[id].steppers) do
         stepper.show(tier[field])

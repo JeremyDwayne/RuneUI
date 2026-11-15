@@ -81,6 +81,7 @@ function savedparty.load(store)
     grid[field] = util.indexOf(choices, value) and value or choices[1]
   end
   local sidebar = { on = saved.sidebar ~= false, collapsed = saved.collapsed == true }
+  local clicks = saved.clicks == true
   -- Each slot's { name, tags }, or nil for a free slot.
   local presets = {}
   for slot = 1, savedparty.MAX_ROLE_PRESETS do
@@ -98,10 +99,14 @@ function savedparty.load(store)
   local roles = { defaults = readTags(store.get("partyRoles")), preset = active and presets[active].tags }
 
   local function saveParty()
-    store.set(
-      "party",
-      { tiers = tiers, grid = grid, active = active, sidebar = sidebar.on, collapsed = sidebar.collapsed }
-    )
+    store.set("party", {
+      tiers = tiers,
+      grid = grid,
+      active = active,
+      sidebar = sidebar.on,
+      collapsed = sidebar.collapsed,
+      clicks = clicks,
+    })
   end
 
   local s = {}
@@ -187,6 +192,16 @@ function savedparty.load(store)
   -- Sets fill, growX or growY to one of its GRID_CHOICES.
   function s.setPartyGrid(field, value)
     grid[field] = value
+    saveParty()
+  end
+
+  -- Whether the game's member row click areas sit on the party cells. Off until turned on.
+  function s.partyClicks()
+    return clicks
+  end
+
+  function s.setPartyClicks(on)
+    clicks = on
     saveParty()
   end
 

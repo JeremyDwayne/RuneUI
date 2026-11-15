@@ -76,6 +76,18 @@ describe("partyframe", function()
     assert.are.same({ 338, 46 }, { element.bounds.w, element.bounds.h })
   end)
 
+  it("gives each cell's screen box by its member's row, with no box for a row that shows no cell", function()
+    local element, tracker = grid()
+    assert.is_nil(element.rowBoxes())
+    element.layer:SetPos(300, 500)
+    tracker.read(reads({ "Oakhelm", "Mirelle", "Brunt" }))
+    element.update(tracker.model(ME, party.TIER_DEFAULTS, ROLES))
+    assert.are.same(
+      { { x = 300, y = 500, w = 84, h = 40 }, false, { x = 386, y = 500, w = 84, h = 40 } },
+      element.rowBoxes()
+    )
+  end)
+
   it("keeps its bottom right corner in place as a grid growing up and left gains members", function()
     local element, tracker = grid()
     local grow = { fill = "rows", growX = "left", growY = "up" }

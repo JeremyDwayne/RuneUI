@@ -251,6 +251,50 @@ function gameui.holdGroupWindow(held, rows)
   groupFrame.hide(held)
 end
 
+-- Where the client had each member row's click area that placeGroupRows moved, as { x, y, w, h } by row, false
+-- for a row left alone, and the highest row moved.
+local rowHomes = {}
+local rowsMoved = 0
+
+-- Puts game component c at x, y in its parent, sized w by h, unless it is there already.
+local function setBox(c, x, y, w, h)
+  if read(c, "x") ~= x or read(c, "y") ~= y or read(c, "width") ~= w or read(c, "height") ~= h then
+    c:SetPos(x, y)
+    c:SetSize(w, h)
+  end
+end
+
+-- Moves the click area of each of the group window's first rows member rows onto boxes[row], a { x, y, w, h }
+-- screen box, so a click, right click or hover there lands on the game's own row. A row with no box, and every
+-- row when boxes is nil, goes back where the client had it. Runs each server tick: it reads nothing while no
+-- row is moved or wanted, and writes only a click area that is out of place.
+function gameui.placeGroupRows(boxes, rows)
+  if boxes == nil and rowsMoved == 0 then
+    return
+  end
+  local area = component(interfaces.GROUP_WINDOW, interfaces.GROUP_CLICK_AREA)
+  local at = area and read(area, "xyGlobal")
+  local left, top = at and read(at, "x"), at and read(at, "y")
+  local last = math.max(boxes and rows or 0, rowsMoved)
+  rowsMoved = 0
+  for row = 1, last do
+    local c = component(interfaces.GROUP_WINDOW, interfaces.GROUP_CLICK_AREA, 0, row - 1)
+    local box = left ~= nil and top ~= nil and boxes and boxes[row] or nil
+    local home = rowHomes[row]
+    if c ~= nil and box then
+      rowHomes[row] = home or { x = read(c, "x"), y = read(c, "y"), w = read(c, "width"), h = read(c, "height") }
+      rowsMoved = row
+      pcall(setBox, c, math.floor(box.x - left + 0.5), math.floor(box.y - top + 0.5), box.w, box.h)
+    elseif c ~= nil and home then
+      rowHomes[row] = false
+      pcall(setBox, c, home.x, home.y, home.w, home.h)
+    elseif home then
+      -- The row is unloaded: keep its home for a later tick.
+      rowsMoved = row
+    end
+  end
+end
+
 -- Runs on every rendered frame, putting back whatever the client rebuilt on a held interface.
 function gameui.onFrame()
   targetPanel.keep()
@@ -267,6 +311,7 @@ function gameui.restore()
   hideBuffBars(false)
   castBar.hide(false)
   gameui.holdGroupWindow(false)
+  gameui.placeGroupRows(nil)
   actionbars.restore()
 end
 

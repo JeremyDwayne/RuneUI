@@ -112,8 +112,9 @@ local function fit(p, x, y, w, h, raid, tagW, leader)
 end
 
 -- The grid on root, hidden until a model shows it. tooltip is a src/tooltip. Returns { layer, bounds,
--- update(model), setLook(look) }: update draws a src/party model, building each cell the first time the group
--- reaches it and hiding the cells past the group's size, and returns whether the bounds changed. bounds is the
+-- update(model), rowBoxes(), setLook(look) }: update draws a src/party model, building each cell the first time
+-- the group reaches it and hiding the cells past the group's size, and returns whether the bounds changed. bounds
+-- is the
 -- shown grid's box inside the layer, which is sized to the largest grid so the corner the grid grows from stays
 -- put. It is kept from the last group shown so edit mode can place the grid with no group, and is a Party row
 -- of five until there is one.
@@ -237,6 +238,29 @@ function partyframe.create(root, tooltip)
     local moved = bounds.x ~= model.x or bounds.y ~= model.y or bounds.w ~= model.width or bounds.h ~= model.height
     bounds.x, bounds.y, bounds.w, bounds.h = model.x, model.y, model.width, model.height
     return moved
+  end
+
+  -- Each shown cell's screen box as { x, y, w, h } by its member's row in the group window, false for a row
+  -- with no cell, or nil while the grid shows none. The list and its boxes are reused between calls.
+  local rowBoxes, boxPool = {}, {}
+  function grid.rowBoxes()
+    if current == NO_CELLS then
+      return nil
+    end
+    local left, top = hudparts.screenPos(layer, 0, 0)
+    for row = 1, #rowBoxes do
+      rowBoxes[row] = false
+    end
+    for i, c in ipairs(current) do
+      local box = boxPool[i] or {}
+      boxPool[i] = box
+      box.x, box.y, box.w, box.h = left + c.x, top + c.y, cells[i].w, cells[i].h
+      for row = #rowBoxes + 1, c.row - 1 do
+        rowBoxes[row] = false
+      end
+      rowBoxes[c.row] = box
+    end
+    return rowBoxes
   end
 
   -- Takes a src/style look for the cells' fonts, text and fill colour. The bounds never change with it.

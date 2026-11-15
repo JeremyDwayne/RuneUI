@@ -102,10 +102,11 @@ end
 -- { [tier id] = { w, h, columns, rows, showSelf } }, roles is as party.tag takes and grid is as GRID_DEFAULTS,
 -- which it is when nil. The model is { hidden } with nothing to show, else { tier, raid, closed, w, h, boxW,
 -- boxH, x, y, width, height, cells }: boxW by boxH fits the largest grid any tier can reach, x, y, width and
--- height are the shown grid's box inside it, and cells is a list of { name, x, y, tag, role, leader, fill, text,
--- state, far, lifepoints }: fill is nil for a member whose lifepoints are unknown, text is nil in a Raid cell,
--- state is "low", "dead" or nil, leader is the rank sprite of the group's leader, and role and lifepoints are
--- the hover's lines. No member is left out: a full row or column starts the next.
+-- height are the shown grid's box inside it, and cells is a list of { name, row, x, y, tag, role, leader, fill,
+-- text, state, far, lifepoints }: row is the member's place in the group window's list, fill is nil for a
+-- member whose lifepoints are unknown, text is nil in a Raid cell, state is "low", "dead" or nil, leader is the
+-- rank sprite of the group's leader, and role and lifepoints are the hover's lines. No member is left out: a
+-- full row or column starts the next.
 function party.tracker()
   local t = {}
   local rows = {}
@@ -185,9 +186,10 @@ function party.tracker()
     local tier = tiers[id]
     local raid = id == "raid"
     local cells = {}
-    for _, row in ipairs(rows) do
+    for index, row in ipairs(rows) do
       local c, isSelf = cell(row, own, roles, raid)
       if (tier.showSelf or not isSelf) and #cells < party.MAX_CELLS then
+        c.row = index
         cells[#cells + 1] = c
       end
     end

@@ -219,6 +219,13 @@ local function updateSidebar()
   groupSidebar.update(layout, groupReads)
 end
 
+-- With the Party page's switch on and the group window open, puts each member row's click area in the game's
+-- group window on that member's party cell, and back otherwise.
+local function updatePartyClicks()
+  local on = saved.partyClicks() and groupReads.open
+  gameui.placeGroupRows(on and elements.party.rowBoxes() or nil, on and #groupReads.rows or 0)
+end
+
 -- Redraws the player frame, target frame, party grid and resource bar from the client. Returns the target
 -- model and whether an element's bounds changed.
 local function updateFrames(appearance)
@@ -286,6 +293,7 @@ local function refresh()
   if moved then
     optionsWindow.placeAll()
   end
+  updatePartyClicks()
   optionsWindow.redrawPage()
 end
 

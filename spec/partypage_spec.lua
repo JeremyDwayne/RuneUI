@@ -83,6 +83,8 @@ describe("partypage", function()
     assert.is_true(saved.partyTiers().duo.showSelf)
     fake.press("Draw the group window as a sidebar")
     assert.is_false(saved.sidebar().on)
+    fake.press("Click and cast on party cells")
+    assert.is_true(saved.partyClicks())
   end)
 
   it("pages a group of more than ten and says when there is no group", function()
