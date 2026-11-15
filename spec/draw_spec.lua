@@ -162,6 +162,32 @@ describe("draw", function()
     assert.is_false(empty.hidden)
   end)
 
+  it(
+    "keeps a steady layer shown through a hold and at full through a fade, hiding it only when all are held",
+    function()
+      fake.reset()
+      local layer = fake.component(fake.component())
+      draw.holdable(layer, true)
+      draw.set(layer, "hidden", false)
+      local rect = draw.rect(layer, 0, 0, 0, 10, 10)
+      local full = rect.alpha
+      draw.set(rect, "alpha", 0.5)
+      draw.hold(true)
+      draw.fade(0.3)
+      assert.is_false(layer.hidden)
+      assert.are.equal(0.5, rect.alpha)
+      local late = draw.rect(layer, 0, 0, 0, 10, 10)
+      assert.are.equal(full, late.alpha)
+      draw.set(late, "alpha", 0.8)
+      assert.are.equal(0.8, late.alpha)
+      draw.hold(true, true)
+      assert.is_true(layer.hidden)
+      draw.hold(false)
+      draw.fade(1)
+      assert.is_false(layer.hidden)
+    end
+  )
+
   it("writes nothing while the hold is unchanged", function()
     local c = fakeComponent()
     draw.holdable(c)

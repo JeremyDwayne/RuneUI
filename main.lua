@@ -52,8 +52,9 @@ for name, style in pairs(view.AURA_STYLES) do
   elements[name] = view.auraRow(hud, style, tooltip, auraNames.info)
 end
 -- The world map draws under the HUD's layer, so the HUD hides while it is open. Out of combat, the Appearance
--- page's setting fades or hides it.
+-- page's setting fades or hides it, but for the party grid and the group sidebar.
 view.holdable(elements)
+view.holdable({ elements.party }, true)
 local tracker = cooldowns.tracker()
 local channelTracker = channel.tracker()
 local auraTracker = auras.tracker()
@@ -96,16 +97,14 @@ local optionsWindow
 local mapOpen = false
 local inCombat = nil
 local hasTarget = false
--- Whether the HUD is hidden, and whether the player has opted into Wilderness PvP, where names stay off.
-local hudHeld = false
+-- Whether the player has opted into Wilderness PvP, where names stay off.
 local inPvp = false
 
--- Hides the HUD while the world map is open, and fades or hides it out of combat as src/autohide says. Writes
--- nothing while neither changes.
+-- Hides the HUD while the world map is open, and fades or hides it out of combat as src/autohide says, but for
+-- the party grid and the group sidebar, which only the world map hides. Writes nothing while neither changes.
 local function showHud()
   local hidden, alpha = autohide.state(saved.appearance(), inCombat, hasTarget, optionsWindow.configuring())
-  hudHeld = mapOpen or hidden
-  view.hold(hudHeld)
+  view.hold(mapOpen or hidden, mapOpen)
   view.fade(alpha)
   names.setShown(saved.appearance().nameplates and not mapOpen and not inPvp)
 end
@@ -246,10 +245,10 @@ end
 -- its rows sized round the party cells, so each member row's click area sits under that member's cell and the
 -- window covers no more of the screen than the cells span. Each button sits under the sidebar's tile for it,
 -- and the layers take the sidebar in only while the cursor is on it. The hold outlasts a closed window, so the
--- window is never seen on opening. With the setting off or the HUD hidden, everything goes back.
+-- window is never seen on opening. With the setting off or the world map open, everything goes back.
 local function updateSidebar()
   local state = saved.sidebar()
-  local held = state.on and not hudHeld and adapter.groupFramed()
+  local held = state.on and not mapOpen and adapter.groupFramed()
   local open = held and groupReads.open
   local rows = open and #groupReads.rows or 0
   -- The window's button strips are hidden unless the sidebar draws its tiles over them.
@@ -360,7 +359,7 @@ groupSidebar = sidebar.create(top, {
   end,
 })
 elements.sidebar = groupSidebar
-view.holdable({ groupSidebar })
+view.holdable({ groupSidebar }, true)
 -- The role picker, opened from a Set role entry under Set team in a member row's right click menu. It opens
 -- beside the member's party cell, or mid screen when they have none.
 local rolePicker = rolepicker.create(top, { saved = saved, bosses = require("src/bossroles"), refresh = refresh })

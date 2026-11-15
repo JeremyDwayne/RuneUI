@@ -95,8 +95,11 @@ local function assign(obj, field, value)
 end
 
 -- Layers draw.hold covers, each with the hidden state its element last set, and whether they are held hidden.
+-- A steady layer is held only when every layer is, and never fades.
 local holdable = setmetatable({}, { __mode = "k" })
+local steady = setmetatable({}, { __mode = "k" })
 local holding = false
+local holdingAll = false
 -- Each component built through draw.new and its parent, so draw.fade finds the components under a holdable
 -- layer. Each component's root, the holdable layer it sits under or false, is cached until the next
 -- draw.holdable.
@@ -106,7 +109,7 @@ local roots = setmetatable({}, { __mode = "k" })
 local alphas = setmetatable({}, { __mode = "k" })
 local fading = 1
 
--- The holdable layer obj sits under, or false.
+-- The holdable layer obj sits under, or false when it sits under none or under a steady one.
 local function rootOf(obj)
   local root = roots[obj]
   if root == nil then
@@ -114,7 +117,7 @@ local function rootOf(obj)
     local c = obj
     while c ~= nil do
       if holdable[c] ~= nil then
-        root = c
+        root = not steady[c] and c
         break
       end
       c = parents[c]
@@ -158,7 +161,11 @@ function draw.set(obj, field, value)
   local raw = value
   if field == "hidden" and holdable[obj] ~= nil then
     holdable[obj] = value
-    value = value or holding
+    if steady[obj] then
+      value = value or holdingAll
+    else
+      value = value or holding
+    end
   elseif field == "alpha" then
     alphas[obj] = value
     if fading ~= 1 and rootOf(obj) then
@@ -228,21 +235,28 @@ function draw.refused()
 end
 
 -- Lets draw.hold hide layer, an element's root layer, whose hidden state the element sets through draw.set,
--- and draw.fade fade every component built on it through draw.new.
-function draw.holdable(layer)
+-- and draw.fade fade every component built on it through draw.new. A layer given as steady never fades and is
+-- hidden only when draw.hold holds every layer.
+function draw.holdable(layer, isSteady)
   holdable[layer] = writtenFor(layer).hidden == true
+  steady[layer] = isSteady or nil
   roots = setmetatable({}, { __mode = "k" })
 end
 
--- Hides every draw.holdable layer while held is true, and gives each back its own hidden state once false.
--- Writes nothing when held is unchanged.
-function draw.hold(held)
-  if held == holding then
+-- Hides every draw.holdable layer but the steady ones while held is true, and those too while all is true, and
+-- gives each back its own hidden state once false. Writes nothing when neither changed.
+function draw.hold(held, all)
+  all = all == true
+  if held == holding and all == holdingAll then
     return
   end
-  holding = held
+  holding, holdingAll = held, all
   for layer, hidden in pairs(holdable) do
-    write(layer, "hidden", hidden or held)
+    if steady[layer] then
+      write(layer, "hidden", hidden or all)
+    else
+      write(layer, "hidden", hidden or held)
+    end
   end
 end
 

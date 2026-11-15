@@ -15,7 +15,7 @@ A combat HUD for RuneScape 3. It draws your frames, bars, cooldowns and buffs in
 - A group sidebar: the game's group window buttons as a narrow column, in RuneUI's style. It starts on the left edge of the screen and edit mode moves it. Every click lands on the game's own button. The arrow tab on its edge folds it to a thin bar and back. Its **Roles** button opens the options on the Party page.
 - Names over players' heads, off until you turn them on in Appearance. A friend, someone in your clan chat or friends chat, and a guest in your clan chat each get the colour you gave that chat in the game's settings, with private chat's colour for a friend, or yellow, orange, blue and pink when RuneUI cannot read it. Names stay off while you are opted into Wilderness PvP.
 
-Hover anything for its name and description. Every element can be moved, anchored to another and resized. The HUD hides while the world map is open, and can fade or hide out of combat.
+Hover anything for its name and description. Every element can be moved, anchored to another and resized. The HUD hides while the world map is open, and can fade or hide out of combat. The party frames and the group sidebar stay at full out of combat.
 
 ## Install
 
