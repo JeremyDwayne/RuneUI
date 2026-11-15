@@ -25,7 +25,9 @@ local function layout()
     w = 265,
     h = 290,
     top = 220,
+    listX = 104,
     listY = 250,
+    listW = 257,
     listH = 168,
     tiles = {
       { x = 107, y = 223, w = 24, h = 24, sprite = 25853 },
@@ -102,6 +104,18 @@ describe("sidebar", function()
     assert.are.same({ 0, 18 }, { title.y, title.height })
     assert.are.same({ 2, 14 }, { label("Hide").y, label("Hide").height })
     assert.is_truthy(s.layout())
+  end)
+
+  it("puts its header just over the list with no hit area while the party grid stands in for it", function()
+    local s, _, saved = create()
+    saved.setSidebar("collapsed", true)
+    s.update(layout(), READS, true)
+    assert.are.equal(230, label("Oakhelm's group").y)
+    assert.is_nil(fake.find(function(_, d)
+      return d.enabled == true and d.clickthrough == false and d.alpha == 0
+    end))
+    s.update(layout(), READS, false)
+    assert.are.equal(200, label("Oakhelm's group").y)
   end)
 
   it("leaves the list to the game when the rows have no places", function()

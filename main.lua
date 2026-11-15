@@ -240,23 +240,45 @@ local function updateParty(playerReads)
   return elements.party.update(partyTracker.model(own, saved.partyTiers(), saved.roles(), saved.partyGrid()))
 end
 
+-- Where the party grid sits while it stands in for the group window, and whether it does.
+local partyPin = { x = 0, y = 0, anchorX = 0, anchorY = 0 }
+local partyPinned = false
+
+-- Puts the party grid in the group window's list area, the corner it grows from on the list's same corner, or
+-- back at its own place with layout nil.
+local function pinParty(layout)
+  if layout ~= nil then
+    local bounds, grid = elements.party.bounds, saved.partyGrid()
+    local x = grid.growX == "left" and layout.listX + layout.listW - bounds.w or layout.listX
+    local y = grid.growY == "up" and layout.listY + layout.listH - bounds.h or layout.listY
+    partyPin.x, partyPin.y = math.floor(x - bounds.x + 0.5), math.floor(y - bounds.y + 0.5)
+    view.place(elements.party.layer, partyPin)
+  elseif partyPinned then
+    optionsWindow.placeAll()
+  end
+  partyPinned = layout ~= nil
+end
+
 -- Draws the sidebar over the game's group window while the setting is on, and holds the window transparent
--- while the sidebar is folded. With the setting off, or the window closed and the sidebar unfolded, it reads
--- nothing.
+-- while the sidebar is folded. With Click and cast on party cells on, the party grid stands in for the folded
+-- window: it sits in the window's list area with each member row's click area under that member's cell, since
+-- a click area takes clicks only inside the window. With the sidebar off, or the window closed and the sidebar
+-- unfolded, it reads nothing.
 local function updateSidebar()
   local state = saved.sidebar()
   local rows = groupReads.open and #groupReads.rows or 0
   -- A closed window is read only while folded, when the hold has to outlast it.
   local layout = state.on and (groupReads.open or state.collapsed) and adapter.groupLayout(rows) or nil
+  local standIn = layout ~= nil
+    and layout.open
+    and groupReads.open
+    and state.collapsed
+    and saved.partyClicks()
+    and not hudHeld
   gameui.holdGroupWindow(layout ~= nil and state.collapsed, rows)
-  groupSidebar.update(layout, groupReads)
-end
-
--- With the Party page's switch on, the group window open and the HUD showing, puts each member row's click area
--- in the game's group window on that member's party cell, and back otherwise.
-local function updatePartyClicks()
-  local on = saved.partyClicks() and groupReads.open and not hudHeld
-  gameui.placeGroupRows(on and elements.party.rowBoxes() or nil, on and #groupReads.rows or 0)
+  groupSidebar.update(layout, groupReads, standIn)
+  pinParty(standIn and layout or nil)
+  gameui.placeGroupRows(standIn and elements.party.rowBoxes() or nil, standIn and rows or 0)
 end
 
 -- Redraws the player frame, target frame, party grid and resource bar from the client. Returns the target
@@ -319,14 +341,13 @@ local function refresh()
   moved = moved or framesMoved
   moved = updateCooldowns() or moved
   moved = updateAuras(target, appearance.auraBars) or moved
-  updateSidebar()
   hasTarget = not target.hidden
   showHud()
   -- Anchored elements follow an element whose shown bounds changed.
   if moved then
     optionsWindow.placeAll()
   end
-  updatePartyClicks()
+  updateSidebar()
   optionsWindow.redrawPage()
 end
 

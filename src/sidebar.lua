@@ -2,7 +2,9 @@
 -- member and a tile at each button the game shows. Every part but the Hide button keeps a plain component's
 -- defaults, so a click lands on the game's own button or row under it. Its header covers the window's own title
 -- strip. Folded, only the header shows, over the window src/gameui holds transparent, and a hit area keeps
--- clicks off the unseen window.
+-- clicks off the unseen window. While the party grid stands in for the folded window, the header sits just
+-- above the window's list and there is no hit area, so clicks reach the member rows' click areas under the
+-- grid's cells.
 local sidebar = {}
 
 local controls = require("src/controls")
@@ -37,8 +39,9 @@ end
 
 -- root is the plugin layer that draws over game windows. deps: { saved = src/settings, blocked = function
 -- saying whether the options window or edit mode is open, changed = function redrawing after the fold button }.
--- Returns { update(layout, reads), layout(), destroy() }. update runs each server tick, and on a frame the window
--- moved, with src/adapter's groupLayout and groupReads: it builds the panel once the window is open and the
+-- Returns { update(layout, reads, standIn), layout(), destroy() }. update runs each server tick, and on a frame
+-- the window moved, with src/adapter's groupLayout and groupReads and whether the party grid stands in for the
+-- folded window: it builds the panel once the window is open and the
 -- sidebar is on, never while blocked so it cannot stack over the options window, follows the window's place, and
 -- destroys the panel when the window closes or the sidebar is turned off. A tick where nothing changed writes
 -- nothing. layout() is the layout the panel last drew, nil with no panel.
@@ -167,7 +170,7 @@ function sidebar.create(root, deps)
     return drawn
   end
 
-  function s.update(layout, reads)
+  function s.update(layout, reads, standIn)
     local state = saved.sidebar()
     if not state.on or layout == nil or not layout.open or (p == nil and deps.blocked()) then
       s.destroy()
@@ -176,17 +179,17 @@ function sidebar.create(root, deps)
     p = p or build()
     drawn = layout
     local folded = state.collapsed
-    local top = layout.y
-    local header = math.max(layout.top - top, MIN_HEADER)
-    local bottom = top + layout.h
+    local header = math.max(layout.top - layout.y, MIN_HEADER)
+    local top = folded and standIn and layout.listY - header or layout.y
+    local bottom = layout.y + layout.h
     local places = not folded and layout.rows or nil
     fit(p.top, layout.x, top, layout.w, folded and header or layout.listY - top)
     set(p.list, "hidden", places == nil)
     fit(p.list, layout.x, layout.listY, layout.w, layout.listH)
     set(p.bottom, "hidden", folded)
     fit(p.bottom, layout.x, layout.listY + layout.listH, layout.w, bottom - layout.listY - layout.listH)
-    set(p.block, "hidden", not folded)
-    fit(p.block, layout.x, top + header, layout.w, layout.h - header)
+    set(p.block, "hidden", not folded or standIn == true)
+    fit(p.block, layout.x, top + header, layout.w, bottom - top - header)
     fit(p.title, layout.x + PAD, top, layout.w - PAD - FOLD_W - CLOSE_SPACE - 4, header)
     set(p.title, "content", reads.title or "Group")
     p.fold.group.place(layout.x + layout.w - FOLD_W - CLOSE_SPACE, top + (header - FOLD_H) // 2)

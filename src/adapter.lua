@@ -237,17 +237,18 @@ local GROUP_UNSHOWN = { open = false }
 
 -- Where the game draws the group window, for src/sidebar, with rows the number of member rows groupReads
 -- found. nil while the window is unloaded or docked into another window, and { open = false } while it is
--- closed. Else { open, x, y, w, h, top, listY, listH, tiles, rows }: the window's screen box, the top of its
--- content, its list area, a tile for each button, tab and label the game shows and the frame's close button
--- as { x, y, w, h, sprite, text, plain }, plain marking one drawn with no tile under it, and each member
--- row's { x, y, w, h }. rows is nil when a row reaches outside the list area, as when the list is scrolled.
+-- closed. Else { open, x, y, w, h, top, listX, listY, listW, listH, tiles, rows }: the window's screen box, the
+-- top of its content, its list area's box, a tile for each button, tab and label the game shows and the frame's
+-- close button as { x, y, w, h, sprite, text, plain }, plain marking one drawn with no tile under it, and each
+-- member row's { x, y, w, h }. rows is nil when a row reaches outside the list area, as when the list is
+-- scrolled.
 function adapter.groupLayout(rows)
   if not groupFramed() then
     return nil
   end
   local x, y, w, h = box(component(interfaces.WINDOWS, interfaces.GROUP_FRAME.window))
   local _, top = box(component(GROUP_WINDOW, interfaces.GROUP_BASE))
-  local _, listY, _, listH = box(component(GROUP_WINDOW, interfaces.GROUP_LIST_AREA))
+  local listX, listY, listW, listH = box(component(GROUP_WINDOW, interfaces.GROUP_LIST_AREA))
   if x == nil or top == nil or listY == nil then
     return GROUP_UNSHOWN
   end
@@ -284,7 +285,9 @@ function adapter.groupLayout(rows)
     w = w,
     h = h,
     top = top,
+    listX = listX,
     listY = listY,
+    listW = listW,
     listH = listH,
     tiles = tiles,
     rows = places,
@@ -327,30 +330,17 @@ end
 
 -- Nameplates ------------------------------------------------------------------------------------------------
 
--- How far over a player's position their name sits, in the world's fine units, 512 to a tile.
-local HEAD_LIFT = 1024
-local headLift = nil
-
-local function newLift()
-  return Vector3.new(0, HEAD_LIFT, 0)
-end
-
-local function headOnScreen(entity, lift)
-  local at = ScreenConvert.Vector3ToScreen(entity.position + lift)
+local function headOnScreen(entity)
+  local bounds = entity.aabb
+  local centre = bounds.centre
+  local at = ScreenConvert.Vector3ToScreen(Vector3.new(centre.x, bounds.maxY, centre.z))
   return at.x, at.y
 end
 
--- Where the point over a PlayerEntity's head falls on screen, or nil once the entity is gone or the point
+-- Where the top of a PlayerEntity's bounding box falls on screen, or nil once the entity is gone or the point
 -- cannot be placed. Runs for every player in view on every rendered frame while names are shown.
 function adapter.headPosition(entity)
-  if headLift == nil then
-    local made, lift = pcall(newLift)
-    if not made then
-      return nil
-    end
-    headLift = lift
-  end
-  local ok, x, y = pcall(headOnScreen, entity, headLift)
+  local ok, x, y = pcall(headOnScreen, entity)
   if ok then
     return x, y
   end
@@ -365,18 +355,23 @@ local function enumValue(name, key)
   return config.Enum[name]:GetOutputValue(key)
 end
 
--- The setting that holds each chat's colour as a place in the game's list of chat colours.
-local CHAT_COLOUR_VARS =
-  { clan = "OPTION_CLANCHATCOLOUR", friendsChat = "OPTION_FRIENDCHATCOLOUR", guest = "OPTION_GUESTCHATCOLOUR" }
+-- The setting that holds each chat's colour as a place in that chat's list of colours, and the game's list.
+local CHAT_COLOURS = {
+  friend = { "OPTION_PM", "PM_COLOURS" },
+  clan = { "OPTION_CLANCHATCOLOUR", "CLAN_COLOURS" },
+  friendsChat = { "OPTION_FRIENDCHATCOLOUR", "FRIEND_COLOURS" },
+  guest = { "OPTION_GUESTCHATCOLOUR", "GUEST_COLOURS" },
+}
 
--- The colour the player gave their clan chat, friends chat and guest clan chat in the game's settings, as
--- { clan, friendsChat, guest }, each an rgb number or nil when it does not read.
+-- The colour the player gave private chat, their clan chat, friends chat and guest clan chat in the game's
+-- settings, as { friend, clan, friendsChat, guest }, each an rgb number or nil when it does not read.
 function adapter.chatColours()
   local out = {}
-  for kind, name in pairs(CHAT_COLOUR_VARS) do
-    local ok, text = pcall(enumValue, "PUBLIC_COLOURS_CHAT", adapter.playerVar(name))
-    local hex = ok and type(text) == "string" and text:match("%x%x%x%x%x%x")
-    out[kind] = hex and tonumber(hex, 16) or nil
+  for kind, setting in pairs(CHAT_COLOURS) do
+    local ok, rgb = pcall(enumValue, setting[2], adapter.playerVar(setting[1]))
+    if ok and math.type(rgb) == "integer" and rgb >= 0 and rgb <= 0xffffff then
+      out[kind] = rgb
+    end
   end
   return out
 end

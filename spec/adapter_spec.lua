@@ -474,7 +474,7 @@ describe("adapter.groupLayout", function()
     groupWindow(525, true, { [1] = at(183, 269, 178, 13), [24] = at(183, 307, 178, 13) })
     local layout = adapter.groupLayout(2)
     assert.are.same({ 100, 200, 265, 290, 220 }, { layout.x, layout.y, layout.w, layout.h, layout.top })
-    assert.are.same({ 250, 168 }, { layout.listY, layout.listH })
+    assert.are.same({ 104, 250, 257, 168 }, { layout.listX, layout.listY, layout.listW, layout.listH })
     assert.are.same({
       { x = 107, y = 223, w = 24, h = 24, sprite = 25853 },
       { x = 322, y = 227, w = 17, h = 17, sprite = 6028 },
@@ -534,7 +534,7 @@ describe("adapter.nearbyPlayers", function()
 end)
 
 describe("adapter.headPosition", function()
-  it("gives the screen point 1024 units over a player, and nil for one that cannot be placed", function()
+  it("gives the screen point of the top of a player's box, and nil for one that cannot be placed", function()
     _G.Vector3 = {
       new = function(x, y, z)
         return { x = x, y = y, z = z }
@@ -542,38 +542,43 @@ describe("adapter.headPosition", function()
     }
     _G.ScreenConvert = {
       Vector3ToScreen = function(at)
-        return at.onScreen and { x = at.x, y = at.y } or nil
+        return at.z == 7 and { x = at.x, y = at.y } or nil
       end,
     }
-    -- A position whose sum with the lift is the point given to the client.
-    local function standing(x, y, onScreen)
-      return setmetatable({}, {
-        __add = function(_, lift)
-          return { x = x, y = y + lift.y, onScreen = onScreen }
-        end,
-      })
+    local function standing(z)
+      return { aabb = { centre = { x = 640, z = z }, maxY = 300 } }
     end
-    assert.are.same({ 640, 1324 }, { adapter.headPosition({ position = standing(640, 300, true) }) })
-    assert.is_nil(adapter.headPosition({ position = standing(640, 300, false) }))
+    assert.are.same({ 640, 300 }, { adapter.headPosition(standing(7)) })
+    assert.is_nil(adapter.headPosition(standing(8)))
     assert.is_nil(adapter.headPosition({}))
   end)
 end)
 
 describe("adapter.chatColours", function()
-  it("reads each chat's colour from its setting's place in the game's chat colours, or nil", function()
+  it("reads each chat's colour from its setting's place in that chat's colours, or nil", function()
     _G.var = {
-      VarPlayer = { OPTION_CLANCHATCOLOUR = { value = 4 }, OPTION_FRIENDCHATCOLOUR = { value = 9 } },
-    }
-    _G.config = {
-      Enum = {
-        PUBLIC_COLOURS_CHAT = {
-          GetOutputValue = function(_, key)
-            return ({ [4] = "<col=40e0d0>", [9] = "no colour" })[key]
-          end,
-        },
+      VarPlayer = {
+        OPTION_PM = { value = 2 },
+        OPTION_CLANCHATCOLOUR = { value = 4 },
+        OPTION_FRIENDCHATCOLOUR = { value = 9 },
       },
     }
-    assert.are.same({ clan = 0x40e0d0 }, adapter.chatColours())
+    local function colours(list)
+      return {
+        GetOutputValue = function(_, key)
+          return list[key]
+        end,
+      }
+    end
+    _G.config = {
+      Enum = {
+        PM_COLOURS = colours({ [2] = 0x00ff00 }),
+        CLAN_COLOURS = colours({ [4] = 0x40e0d0 }),
+        FRIEND_COLOURS = colours({ [9] = -1 }),
+        GUEST_COLOURS = colours({}),
+      },
+    }
+    assert.are.same({ friend = 0x00ff00, clan = 0x40e0d0 }, adapter.chatColours())
     assert.is_true(adapter.entityValid({ isValid = true }))
     assert.is_false(adapter.entityValid({}))
   end)

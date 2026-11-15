@@ -104,7 +104,7 @@ describe("nameplates", function()
     assert.are.equal(built, fake.live(root))
   end)
 
-  it("reads no positions while hidden, and takes positions in the pointer's pixels", function()
+  it("reads no positions while hidden", function()
     local n = create()
     local reads = 0
     local entity = setmetatable({}, {
@@ -120,14 +120,7 @@ describe("nameplates", function()
     n.frame()
     assert.are.equal(0, reads)
     n.setShown(true)
-    -- A hover 200 units in with the mouse at 400 pixels: two pixels to a unit.
-    fake.mouse.x = 400
-    local sheet = fake.find(function(_, d)
-      return d.hooks.ONMOUSEOVER ~= nil
-    end)
-    sheet.xyGlobal = { x = 0, y = 0 }
-    fake.hook(sheet, "ONMOUSEOVER", 200, 0)
     n.frame()
-    assert.are.same({ 320, 286 }, { label("Oakhelm").x, label("Oakhelm").y })
+    assert.are.same({ 720, 586 }, { label("Oakhelm").x, label("Oakhelm").y })
   end)
 end)

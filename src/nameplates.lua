@@ -16,8 +16,6 @@ nameplates.COLOURS = { friend = 0xffe14d, clan = 0xff8a1f, friendsChat = 0x5cc8f
 nameplates.MAX = 500
 local W = 160
 local H = 14
--- A hover this far from the screen's left edge measures the pointer's scale to a pixel in a hundred.
-local MEASURE_FROM = 100
 
 -- The names on root, hidden until setShown(true). deps: { position = src/adapter's headPosition, valid =
 -- src/adapter's entityValid }. Returns { add(player), remove(uid), prune(), setRelations(names, colours),
@@ -32,14 +30,6 @@ function nameplates.create(root, deps)
   local width, height = tonumber(root.width) or 4096, tonumber(root.height) or 4096
   draw.size(layer, width, height)
   set(layer, "hidden", true)
-  -- A transparent sheet whose hover tells how many of the positions' pixels make one UI unit.
-  local sheet = draw.rect(layer, 0x000000, 0, 0, width, height)
-  set(sheet, "alpha", 0)
-  draw.on(sheet, "ONMOUSEOVER", function(_, x)
-    if x >= MEASURE_FROM then
-      draw.pressAt(sheet, x)
-    end
-  end)
 
   local n = {}
   local plates = {}
@@ -124,14 +114,13 @@ function nameplates.create(root, deps)
     if not shown then
       return
     end
-    local scale = draw.pointerScale()
     for _, plate in ipairs(plates) do
       local x, y
       if plate.key ~= selfKey then
         x, y = deps.position(plate.entity)
       end
       if x ~= nil then
-        x, y = math.floor(x / scale + 0.5), math.floor(y / scale + 0.5)
+        x, y = math.floor(x + 0.5), math.floor(y + 0.5)
       end
       local visible = x ~= nil and x >= 0 and x <= width and y >= 0 and y <= height
       local label = plate.label
