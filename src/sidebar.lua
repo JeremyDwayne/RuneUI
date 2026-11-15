@@ -29,8 +29,6 @@ local TAB_W = 16
 local TAB_H = 36
 -- The tab's arrow in columns, each two pixels taller than the last from its point.
 local ARROW = 5
--- How far down the screen the column starts, as a part of the screen's height.
-local TOP = 0.3
 local NO_TILES = {}
 
 -- Puts c at x, y sized w by h.
@@ -98,7 +96,8 @@ end
 -- stands open behind the HUD and src/adapter's groupButtons, nil while folded. It builds the panel once shown
 -- with the sidebar on, never while blocked so it cannot stack over the options window, and destroys it once
 -- not. It returns the column it drew, for src/gameui to put the game's buttons under, or nil while it drew
--- none. A tick where nothing changed writes nothing.
+-- none. The column starts the saved share of the way down the screen, moved up where it would run off the
+-- bottom. A tick where nothing changed writes nothing.
 function sidebar.create(root, deps)
   local saved = deps.saved
   local s = {}
@@ -197,12 +196,17 @@ function sidebar.create(root, deps)
       return nil
     end
     p = p or build()
-    local top = math.floor((tonumber(root.height) or 1000) * TOP)
+    local height = tonumber(root.height) or 1000
+    local top = height * state.top // 100
     local folded = state.collapsed or buttons == nil
     local column = not folded and sidebar.column(buttons, top) or nil
+    if column ~= nil and top + column.h > height then
+      column = sidebar.column(buttons, math.max(0, height - column.h))
+    end
     if column ~= nil then
       barH = column.h
     end
+    top = column and column.y or math.max(0, math.min(top, height - barH))
     fit(p.face, 0, top, folded and BAR_W or column.w, barH)
     p.tab.group.place(folded and BAR_W or column.w, top + (barH - TAB_H) // 2)
     pointArrow(folded)

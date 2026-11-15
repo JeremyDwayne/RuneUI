@@ -83,6 +83,9 @@ describe("partypage", function()
     assert.is_true(saved.partyTiers().duo.showSelf)
     fake.press("Group sidebar")
     assert.is_false(saved.sidebar().on)
+    -- The last stepper is how far down the screen the sidebar starts.
+    fake.press("+", 13)
+    assert.are.equal(35, saved.sidebar().top)
   end)
 
   it("saves how the grid fills and grows, and steps the limit of the fill in use", function()
