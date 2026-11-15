@@ -123,6 +123,7 @@ function sidebar.create(root, deps)
     parts.roles = controls.button(panel, "Roles", 0, 0, INNER, TEXT_H, "plain", function()
       deps.openRoles()
     end)
+    set(parts.roles.label, "font", FONTS.small)
     parts.arrow = parts.tab.group.add(draw.new(ui.Canvas, panel), 0, 0)
     size(parts.arrow, TAB_W, TAB_H)
     return parts
