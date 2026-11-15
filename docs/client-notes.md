@@ -12,7 +12,7 @@ The client API is thinly documented. These facts came from probing it in the gam
 - Plain components start with `enabled = false` and `clickthrough = true`. Hover still fires on them. Each clickable thing has one hit area with both flipped, drawn under its label.
 - A hit area stops a click from reaching hit areas under it, on other layers too, so a click on a popup row never also clicks the page behind it.
 - `ui.Text` reports no wrapped height or line count. A label's wrapped height is estimated from its character count, as the tooltip does: `NOTOSANS_BOLD_10` lines sit 14 px apart, and 224 px holds 37 to 41 characters of prose.
-- `ui.Text` draws `<br>` as a line break, `<br><br>` as a blank line, and `<col=ff8a1f>` text in that colour.
+- `ui.Text` draws `<br>` as a line break, `<br><br>` as a blank line, and `<col=ff8a1f>` text in that colour. A label whose text is `<` draws nothing, while `>` draws.
 - Alpha 0 is not hidden. Treat a transparent component as still taking clicks.
 - `ui.Text` draws nothing until `font` is set. A `ui.InputField` draws no text without a `stylesheetID`: `id.StyleSheet.INPUT_DEFAULT` draws a plain field and `INPUT_SEARCHBOX_24PX` a search box. No call gives a field focus, so it takes keys only once clicked. Its `ONCONTENTCHANGED` fires on each keystroke, and again on Enter, Esc and focus loss, possibly after its popup has closed.
 - A required dependency given by its mod.io id, `"prettyui": 6398181`, resolves against plugins installed from the plugin hub into `plugins/6398181`, not against `dev_plugins`. Without the hub install the client refuses to load the plugin with "Missing dependency 6398181".

@@ -38,6 +38,11 @@ local function call(method)
     if method == "Clear" then
       data.clears = (data.clears or 0) + 1
       data.texts = nil
+      data.rects = nil
+    end
+    if method == "AddRectangle" then
+      data.rects = data.rects or {}
+      data.rects[#data.rects + 1] = { x = a, y = b }
     end
     if method == "AddText" then
       data.texts = data.texts or {}

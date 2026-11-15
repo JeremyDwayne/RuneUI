@@ -28,6 +28,8 @@ local FOLD_H = 14
 local BAR_W = 8
 local TAB_W = 16
 local TAB_H = 36
+-- The tab's arrow in columns, each two pixels taller than the last from its point.
+local ARROW = 5
 local CLOSE_SPACE = 26
 local PAD = 8
 local VALUE_W = 60
@@ -74,8 +76,25 @@ function sidebar.create(root, deps)
       deps.changed()
     end
     parts.fold = controls.button(layer, "Hide", 0, 0, FOLD_W, FOLD_H, "plain", toggle)
-    parts.tab = controls.button(layer, "<", 0, 0, TAB_W, TAB_H, "plain", toggle)
+    parts.tab = controls.button(layer, "", 0, 0, TAB_W, TAB_H, "plain", toggle)
+    parts.arrow = parts.tab.group.add(draw.new(ui.Canvas, layer), 0, 0)
+    size(parts.arrow, TAB_W, TAB_H)
     return parts
+  end
+
+  -- Draws the tab's arrow, pointing left to fold the block and right to unfold it. A label cannot, as one
+  -- reading "<" draws nothing.
+  local function pointArrow(folded)
+    if p.arrowFolded == folded then
+      return
+    end
+    p.arrowFolded = folded
+    p.arrow:Clear()
+    local rgba = draw.opaque(COLOURS.text)
+    for i = 0, ARROW - 1 do
+      local x = folded and (TAB_W + ARROW) // 2 - 1 - i or (TAB_W - ARROW) // 2 + i
+      p.arrow:AddRectangle(x, TAB_H // 2 - i, 1, 2 * i + 1, rgba)
+    end
   end
 
   -- Tile i, built the first time the game shows that many buttons: a flat face, with an icon or a label added
@@ -205,7 +224,7 @@ function sidebar.create(root, deps)
       set(p.top, "hidden", not folded)
       fit(p.top, layout.x, blockY, BAR_W, bottom - blockY)
       p.tab.group.place(layout.x + (folded and BAR_W or layout.w), blockY + (bottom - blockY - TAB_H) // 2)
-      set(p.tab.label, "content", folded and ">" or "<")
+      pointArrow(folded)
     else
       local top = layout.y
       local header = math.max(layout.top - top, MIN_HEADER)

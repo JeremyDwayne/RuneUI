@@ -62,6 +62,30 @@ local function icon(sprite)
   end)
 end
 
+-- The shown tab's arrow canvas, or nil.
+local function arrow()
+  return fake.find(function(_, d)
+    return d.rects ~= nil
+  end)
+end
+
+-- Whether the tab's arrow narrows to a point on its left.
+local function pointsLeft()
+  local rects = arrow().rects
+  return rects[1].x < rects[#rects].x
+end
+
+-- Clicks the tab under its arrow.
+local function pressTab()
+  local a = arrow()
+  fake.hook(
+    fake.find(function(_, d)
+      return d.hooks.ONCLICK ~= nil and d.x == a.x and d.y == a.y
+    end),
+    "ONCLICK"
+  )
+end
+
 describe("sidebar", function()
   before_each(fake.reset)
 
@@ -107,15 +131,19 @@ describe("sidebar", function()
     assert.is_truthy(s.layout())
   end)
 
-  it("is the buttons under the list with a tab on their edge while the party grid stands in for the list", function()
+  it("is the buttons under the list with an arrow tab on their edge while the party grid stands in", function()
     local s, _, saved = create()
     s.update(layout(), READS, true)
     assert.is_nil(label("Oakhelm's group"))
     assert.is_nil(label("Hide"))
     assert.is_nil(label("Oakhelm"))
     assert.is_truthy(label("Ready"))
-    assert.are.same({ 365, 436 }, { label("<").x, label("<").y })
-    fake.press("<")
+    assert.are.same({ 365, 436 }, { arrow().x, arrow().y })
+    assert.is_true(pointsLeft())
+    fake.writes = 0
+    s.update(layout(), READS, true)
+    assert.are.equal(0, fake.writes)
+    pressTab()
     assert.is_true(saved.sidebar().collapsed)
   end)
 
@@ -124,15 +152,16 @@ describe("sidebar", function()
     saved.setSidebar("collapsed", true)
     s.update(layout(), READS, true)
     assert.is_nil(label("Ready"))
-    assert.are.same({ 108, 436 }, { label(">").x, label(">").y })
+    assert.are.same({ 108, 436 }, { arrow().x, arrow().y })
+    assert.is_false(pointsLeft())
     assert.is_nil(fake.find(function(_, d)
       return d.enabled == true and d.clickthrough == false and d.alpha == 0
     end))
-    fake.press(">")
+    pressTab()
     assert.is_false(saved.sidebar().collapsed)
     s.update(layout(), READS, false)
     assert.is_truthy(label("Oakhelm's group"))
-    assert.is_nil(label("<"))
+    assert.is_nil(arrow())
   end)
 
   it("leaves the list to the game when the rows have no places", function()
