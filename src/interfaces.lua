@@ -108,16 +108,19 @@ interfaces.GROUP_CLICK_STRIPS = { 0, 18 }
 -- The icon buttons' strip, and the strip that holds it and takes clicks only inside its own box. The client
 -- stops showing the icon strip when it is narrower than its row of buttons: at width it stays shown.
 interfaces.GROUP_ICON_STRIP = { strip = 18, holder = 10, width = 254 }
--- The tabs that swap the member list for the banned list, which the client places inside strip 10.
-interfaces.GROUP_TABS = { 30, 31, 32, 33 }
+-- The list's scrollbar on its right edge, and the tabs that swap the member list for the banned list, which the
+-- client places inside strip 10.
+interfaces.GROUP_HIDDEN = { 7, 30, 31, 32, 33 }
 interfaces.GROUP_SIZE = 29
 interfaces.GROUP_READY = { layer = 6, text = 44 }
 -- The window frame in WINDOWS that holds the group window while it has a window to itself: the frame's own
 -- static, the content static the group window's base sits in, its background, border and close button, and
 -- its last static.
 interfaces.GROUP_FRAME = { window = 523, background = 524, content = 525, border = 528, last = 532 }
--- How far past each edge of the screen the window frame is sized.
-interfaces.GROUP_SPREAD_MARGIN = 64
+-- The frame's parts beside its content: its background, edit block, scrollbar, border, close button and tabs.
+interfaces.GROUP_FRAME_CHROME = { 524, 526, 527, 528, 529, 530, 531, 532 }
+-- How far past the party cells and the sidebar the window frame is sized.
+interfaces.GROUP_SPREAD_MARGIN = 24
 -- The layers above the member rows' click areas and the button strips, from the window frame down. A click
 -- area or a button takes clicks only inside every layer above it.
 interfaces.GROUP_SPREAD = {

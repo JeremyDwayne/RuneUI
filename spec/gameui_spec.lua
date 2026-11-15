@@ -409,30 +409,39 @@ describe("gameui.spreadGroupWindow", function()
     return frame, window
   end
 
-  it("sizes each layer above the rows and buttons past the screen's edges, and writes nothing once there", function()
+  it("sizes each layer above the rows and buttons round the cells and the column, and follows them", function()
     local moves = { n = 0 }
     local frame, window = loadLayers(moves)
-    gameui.spreadGroupWindow(1710, 1041)
-    assert.are.same({ -64, -64, 1838, 1169 }, boxOf(frame[523]))
+    local boxes = { { x = 300, y = 500, w = 84, h = 40 }, false, { x = 386, y = 500, w = 84, h = 40 } }
+    local column = { x = 0, y = 316, w = 64, h = 120 }
+    gameui.spreadGroupWindow(boxes, 3, column)
+    assert.are.same({ -24, 292, 518, 272 }, boxOf(frame[523]))
     for _, c in ipairs({ frame[525], window[11], window[9], window[5], window[1] }) do
-      assert.are.same({ 0, 0, 1838, 1169 }, boxOf(c))
+      assert.are.same({ 0, 0, 518, 272 }, boxOf(c))
     end
     -- A layer that fills its parent is there once the parent is, and keeps its own layout.
     assert.are.equal(3, moves.n)
-    gameui.spreadGroupWindow(1710, 1041)
+    gameui.spreadGroupWindow(boxes, 3, column)
     assert.are.equal(3, moves.n)
     -- The client lays the window out again.
     frame[523]:SetSize(262, 175)
-    gameui.spreadGroupWindow(1710, 1041)
-    assert.are.equal(1838, frame[523].width)
+    gameui.spreadGroupWindow(boxes, 3, column)
+    assert.are.equal(518, frame[523].width)
+    -- A cell moves, then the column goes.
+    boxes[1].x = 600
+    gameui.spreadGroupWindow(boxes, 3, column)
+    assert.are.same({ -24, 292, 732, 272 }, boxOf(frame[523]))
+    gameui.spreadGroupWindow(boxes, 3, nil)
+    assert.are.same({ 362, 476, 346, 88 }, boxOf(frame[523]))
     gameui.spreadGroupWindow(nil)
+    assert.are.same({ 0, 511, 262, 175 }, boxOf(frame[523]))
   end)
 
   it("leaves the window alone while a part's layout does not read, as it could not be put back", function()
     local moves = { n = 0 }
     local frame, window = loadLayers(moves)
     window[10].size = nil
-    gameui.spreadGroupWindow(1710, 1041)
+    gameui.spreadGroupWindow(nil, 0, { x = 0, y = 0, w = 64, h = 64 })
     assert.are.equal(0, moves.n)
     assert.are.equal(262, frame[523].width)
   end)
@@ -441,6 +450,10 @@ describe("gameui.spreadGroupWindow", function()
     local moves = { n = 0 }
     local frame, window = loadLayers(moves)
     local column = {
+      x = 0,
+      y = 300,
+      w = 64,
+      h = 68,
       bands = { { strip = 18, x = 0, y = 316, w = 64, h = 52 } },
       tiles = {
         { text = "2/50", plain = true, x = 6, y = 300, w = 52, h = 16 },
@@ -451,7 +464,7 @@ describe("gameui.spreadGroupWindow", function()
     -- Nothing moves until the window is spread, when each part's place has been read.
     gameui.placeGroupButtons(column)
     assert.are.equal(0, moves.n)
-    gameui.spreadGroupWindow(1710, 1041)
+    gameui.spreadGroupWindow(nil, 0, column)
     gameui.placeGroupButtons(column)
     local function screen(c)
       return { c.xyGlobal.x, c.xyGlobal.y, c.width, c.height }
@@ -478,13 +491,17 @@ describe("gameui.spreadGroupWindow", function()
     local moves = { n = 0 }
     local _, window = loadLayers(moves)
     local column = {
+      x = 300,
+      y = 316,
+      w = 64,
+      h = 52,
       bands = { { strip = 18, x = 300, y = 316, w = 64, h = 52 } },
       tiles = {
         { static = 20, x = 306, y = 316, w = 24, h = 24 },
         { static = 23, x = 334, y = 316, w = 24, h = 24 },
       },
     }
-    gameui.spreadGroupWindow(1710, 1041)
+    gameui.spreadGroupWindow(nil, 0, column)
     gameui.placeGroupButtons(column)
     assert.are.same(
       { 300, 316, 64, 52 },
@@ -509,8 +526,12 @@ describe("gameui.holdGroupWindow", function()
     local window, frame, labels, fill = loadGroupWindow()
     gameui.holdGroupWindow(true, 2, false)
     assert.is_false(window[18].hidden)
-    -- The list tabs, which the client places inside strip 10 wherever that is, are hidden throughout.
+    -- The list tabs, which the client places inside strip 10 wherever that is, are hidden throughout, and so
+    -- are the frame's border and the parts beside its content.
     assert.is_true(window[30].hidden)
+    assert.is_true(frame[528].hidden)
+    assert.is_nil(frame[523].hidden)
+    assert.is_nil(frame[533].hidden)
     gameui.holdGroupWindow(true, 2, true)
     assert.are.same({ 0, 0, 0, 0 }, { window[11].alpha, window[20].alpha, labels[0].alpha, labels[46].alpha })
     assert.are.same({ 0, 0, 0, 1 }, { frame[523].alpha, frame[528].alpha, fill.alpha, frame[533].alpha })
@@ -519,6 +540,7 @@ describe("gameui.holdGroupWindow", function()
     gameui.holdGroupWindow(false)
     assert.is_false(window[18].hidden)
     assert.is_false(window[30].hidden)
+    assert.is_false(frame[528].hidden)
     assert.are.same({ 1, 0.5, 1, 1 }, { window[11].alpha, window[20].alpha, labels[46].alpha, fill.alpha })
   end)
 

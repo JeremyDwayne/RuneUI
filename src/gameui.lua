@@ -124,18 +124,19 @@ local castBar = transparency(
 -- keeps in step with the group.
 local groupWatched = { { interfaces.GROUP_BASE } }
 local groupWindow = transparency(interfaces.GROUP_WINDOW, interfaces.GROUP_LAST_STATIC, groupWatched)
--- Whether each of the window's button strips was hidden before the fold hid it, and each list tab before the
--- hold hid it, by static id. nil while they are as the client has them.
+-- Whether each of the window's button strips was hidden before the fold hid it, and each of its other parts and
+-- of its frame's before the hold hid it, by static id. nil while they are as the client has them.
 local stripsWere = nil
-local tabsWere = nil
+local partsWere = nil
+local chromeWere = nil
 
--- Hides the group window's statics while on, and puts each back as it was once off. were is what an earlier
--- call returned, nil for none. Returns each one's hidden before the first call, by static id, or nil once off.
-local function hideStatics(statics, were, on)
+-- Hides statics of interfaceID while on, and puts each back as it was once off. were is what an earlier call
+-- returned, nil for none. Returns each one's hidden before the first call, by static id, or nil once off.
+local function hideStatics(interfaceID, statics, were, on)
   if on then
     were = were or {}
     for _, staticID in ipairs(statics) do
-      local c = component(interfaces.GROUP_WINDOW, staticID)
+      local c = component(interfaceID, staticID)
       local hidden = c ~= nil and read(c, "hidden") == true
       if c ~= nil and were[staticID] == nil then
         were[staticID] = hidden
@@ -147,7 +148,7 @@ local function hideStatics(statics, were, on)
     return were
   end
   for staticID, was in pairs(were or {}) do
-    local c = component(interfaces.GROUP_WINDOW, staticID)
+    local c = component(interfaceID, staticID)
     if c ~= nil then
       write(c, "hidden", was)
     end
@@ -309,7 +310,8 @@ end
 
 -- Runs each server tick with whether the group window and its frame are held transparent, the number of
 -- member rows it lists, whether its button strips are hidden too, and whether clicks pass it to the world. Its
--- list tabs are hidden throughout. false restores everything.
+-- list tabs and scrollbar and its frame's parts beside the content are hidden throughout. false restores
+-- everything.
 function gameui.holdGroupWindow(held, rows, folded, pass)
   if held then
     for i = 1, rows do
@@ -323,9 +325,12 @@ function gameui.holdGroupWindow(held, rows, folded, pass)
   groupWindow.hide(held)
   groupFrame.hide(held)
   -- A hidden strip takes no clicks, and alpha 0 does not hold on a button. The list tabs would sit over the
-  -- icon buttons wherever strip 10 is put.
-  stripsWere = hideStatics(interfaces.GROUP_BUTTON_STRIPS, stripsWere, held and folded == true)
-  tabsWere = hideStatics(interfaces.GROUP_TABS, tabsWere, held)
+  -- icon buttons wherever strip 10 is put, and the scrollbar and the frame's border, close button and edit block
+  -- over the edge of whatever the frame is sized round.
+  local window = interfaces.GROUP_WINDOW
+  stripsWere = hideStatics(window, interfaces.GROUP_BUTTON_STRIPS, stripsWere, held and folded == true)
+  partsWere = hideStatics(window, interfaces.GROUP_HIDDEN, partsWere, held)
+  chromeWere = hideStatics(interfaces.WINDOWS, interfaces.GROUP_FRAME_CHROME, chromeWere, held)
   passGroupClicks(held and pass == true, rows)
 end
 
@@ -409,13 +414,34 @@ local function readGroupHomes()
   return homes
 end
 
--- Sizes every layer above the group window's click areas and button strips over a width by height screen, so
--- a row or a button takes clicks wherever it is put. The frame reaches GROUP_SPREAD_MARGIN past each edge, which
--- keeps its border, its title bar and the parts anchored to its right and bottom off the screen. Runs each
--- server tick and writes only a layer that is out of place. It sizes nothing while a part's layout does not
--- read, as that part could not be put back. With width nil every layer, strip and button goes back to the
--- layout the client gave it.
-function gameui.spreadGroupWindow(width, height)
+-- The box round the first rows of boxes, each a { x, y, w, h } or false, and column, either of which may be
+-- nil, as x, y, w, h, or nil when there is nothing to go round.
+local function around(boxes, rows, column)
+  local x1, y1, x2, y2
+  for row = 0, boxes and rows or 0 do
+    local box = column
+    if row > 0 then
+      box = boxes[row]
+    end
+    if box then
+      x1, y1 = math.min(x1 or box.x, box.x), math.min(y1 or box.y, box.y)
+      x2, y2 = math.max(x2 or box.x, box.x + box.w), math.max(y2 or box.y, box.y + box.h)
+    end
+  end
+  if x1 ~= nil then
+    return x1, y1, x2 - x1, y2 - y1
+  end
+end
+
+-- Sizes every layer above the group window's click areas and button strips round the party cells and the
+-- sidebar, so each row and button takes clicks where it is put and the window covers no more of the screen
+-- than that. boxes is each member row's cell as a { x, y, w, h } screen box or false, for the first rows rows,
+-- and column the sidebar's. The frame reaches GROUP_SPREAD_MARGIN past them. Runs each server tick and writes
+-- only a layer that is out of place. It sizes nothing while a part's layout does not read, as that part could
+-- not be put back. With neither cells nor a column every layer, strip and button goes back to the layout the
+-- client gave it.
+function gameui.spreadGroupWindow(boxes, rows, column)
+  local x, y, width, height = around(boxes, rows, column)
   groupHomes = groupHomes or width ~= nil and readGroupHomes() or nil
   if groupHomes == nil then
     return
@@ -425,8 +451,8 @@ function gameui.spreadGroupWindow(width, height)
     local c = component(ids[1], ids[2])
     local home = groupHomes.layers[i]
     if c ~= nil and home and width ~= nil then
-      local at = i == 1 and -margin or 0
-      pcall(setBox, c, at, at, width + 2 * margin, height + 2 * margin)
+      local frame = i == 1
+      pcall(setBox, c, frame and x - margin or 0, frame and y - margin or 0, width + 2 * margin, height + 2 * margin)
     elseif c ~= nil and home then
       pcall(setLayout, c, home)
     end
