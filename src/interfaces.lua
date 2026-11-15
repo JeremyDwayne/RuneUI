@@ -103,16 +103,21 @@ interfaces.GROUP_ICON_BUTTONS = {
 interfaces.GROUP_BUTTON_STRIPS = { 0, 10, 18 }
 -- The two of them that stop a click, each around its own buttons. Strip 10 only holds strip 18.
 interfaces.GROUP_CLICK_STRIPS = { 0, 18 }
+-- The icon buttons' strip, and the strip that holds it and takes clicks only inside its own box. The client
+-- stops showing the icon strip when it is narrower than its row of buttons: at width it stays shown.
+interfaces.GROUP_ICON_STRIP = { strip = 18, holder = 10, width = 254 }
+-- The tabs that swap the member list for the banned list, which the client places inside strip 10.
+interfaces.GROUP_TABS = { 30, 31, 32, 33 }
 interfaces.GROUP_SIZE = 29
 interfaces.GROUP_READY = { layer = 6, text = 44 }
 -- The window frame in WINDOWS that holds the group window while it has a window to itself: the frame's own
 -- static, the content static the group window's base sits in, its background, border and close button, and
 -- its last static.
 interfaces.GROUP_FRAME = { window = 523, background = 524, content = 525, border = 528, last = 532 }
--- The layers above the member rows' click areas and the button strips, from the window frame down. A click
--- area or a button takes clicks only inside every layer above it.
 -- How far past each edge of the screen the window frame is sized.
 interfaces.GROUP_SPREAD_MARGIN = 64
+-- The layers above the member rows' click areas and the button strips, from the window frame down. A click
+-- area or a button takes clicks only inside every layer above it.
 interfaces.GROUP_SPREAD = {
   { interfaces.WINDOWS, interfaces.GROUP_FRAME.window },
   { interfaces.WINDOWS, interfaces.GROUP_FRAME.content },
@@ -120,7 +125,6 @@ interfaces.GROUP_SPREAD = {
   { interfaces.GROUP_WINDOW, 9 },
   { interfaces.GROUP_WINDOW, interfaces.GROUP_LIST_AREA },
   { interfaces.GROUP_WINDOW, interfaces.GROUP_CLICK_AREA },
-  { interfaces.GROUP_WINDOW, 10 },
 }
 
 -- config.Inv.WORN, the worn-equipment inventory.

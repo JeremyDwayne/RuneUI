@@ -124,33 +124,35 @@ local castBar = transparency(
 -- keeps in step with the group.
 local groupWatched = { { interfaces.GROUP_BASE } }
 local groupWindow = transparency(interfaces.GROUP_WINDOW, interfaces.GROUP_LAST_STATIC, groupWatched)
--- Whether each of the window's button strips was hidden before the fold hid it, by static id, nil while unfolded.
+-- Whether each of the window's button strips was hidden before the fold hid it, and each list tab before the
+-- hold hid it, by static id. nil while they are as the client has them.
 local stripsWere = nil
+local tabsWere = nil
 
--- Hides the group window's button strips, which hold no rows, while folded, since alpha 0 does not hold on a
--- button and a hidden strip takes no clicks. Unfolded, each goes back as it was.
-local function foldStrips(folded)
-  if folded then
-    stripsWere = stripsWere or {}
-    for _, staticID in ipairs(interfaces.GROUP_BUTTON_STRIPS) do
+-- Hides the group window's statics while on, and puts each back as it was once off. were is what an earlier
+-- call returned, nil for none. Returns each one's hidden before the first call, by static id, or nil once off.
+local function hideStatics(statics, were, on)
+  if on then
+    were = were or {}
+    for _, staticID in ipairs(statics) do
       local c = component(interfaces.GROUP_WINDOW, staticID)
       local hidden = c ~= nil and read(c, "hidden") == true
-      if c ~= nil and stripsWere[staticID] == nil then
-        stripsWere[staticID] = hidden
+      if c ~= nil and were[staticID] == nil then
+        were[staticID] = hidden
       end
       if c ~= nil and not hidden then
         write(c, "hidden", true)
       end
     end
-  elseif stripsWere ~= nil then
-    for staticID, was in pairs(stripsWere) do
-      local c = component(interfaces.GROUP_WINDOW, staticID)
-      if c ~= nil then
-        write(c, "hidden", was)
-      end
-    end
-    stripsWere = nil
+    return were
   end
+  for staticID, was in pairs(were or {}) do
+    local c = component(interfaces.GROUP_WINDOW, staticID)
+    if c ~= nil then
+      write(c, "hidden", was)
+    end
+  end
+  return nil
 end
 -- The window frame the group window sits in, whose background and border show a rebuild.
 local GROUP_FRAME = interfaces.GROUP_FRAME
@@ -306,8 +308,8 @@ local function passGroupClicks(pass, rows)
 end
 
 -- Runs each server tick with whether the group window and its frame are held transparent, the number of
--- member rows it lists, whether its button strips are hidden too, and whether clicks pass it to the world.
--- false restores everything.
+-- member rows it lists, whether its button strips are hidden too, and whether clicks pass it to the world. Its
+-- list tabs are hidden throughout. false restores everything.
 function gameui.holdGroupWindow(held, rows, folded, pass)
   if held then
     for i = 1, rows do
@@ -320,7 +322,10 @@ function gameui.holdGroupWindow(held, rows, folded, pass)
   end
   groupWindow.hide(held)
   groupFrame.hide(held)
-  foldStrips(held and folded == true)
+  -- A hidden strip takes no clicks, and alpha 0 does not hold on a button. The list tabs would sit over the
+  -- icon buttons wherever strip 10 is put.
+  stripsWere = hideStatics(interfaces.GROUP_BUTTON_STRIPS, stripsWere, held and folded == true)
+  tabsWere = hideStatics(interfaces.GROUP_TABS, tabsWere, held)
   passGroupClicks(held and pass == true, rows)
 end
 
@@ -389,7 +394,7 @@ local function readGroupHomes()
       return nil
     end
   end
-  local buttons = { interfaces.GROUP_READY.layer }
+  local buttons = { interfaces.GROUP_READY.layer, interfaces.GROUP_ICON_STRIP.holder }
   for _, staticID in ipairs(interfaces.GROUP_CLICK_STRIPS) do
     buttons[#buttons + 1] = staticID
   end
@@ -447,14 +452,24 @@ end
 
 -- Moves the group window's button strips and buttons onto a src/sidebar column, only while the window is spread:
 -- each band's strip onto the band, and each tile's button onto the tile, so a click on the column lands on the
--- game's own button. Runs each server tick and writes only a part that is out of place. spreadGroupWindow puts
--- them back.
+-- game's own button. The icon strip keeps the width the client shows it at, with its right end on the band and
+-- the rest cut off by the strip that holds it, so the row the client puts the buttons back in lies outside the
+-- column. Runs each server tick and writes only a part that is out of place. spreadGroupWindow puts them back.
 function gameui.placeGroupButtons(column)
   if groupHomes == nil then
     return
   end
+  local icons = interfaces.GROUP_ICON_STRIP
   for _, band in ipairs(column.bands) do
-    placeButton(band.strip, band)
+    if band.strip == icons.strip then
+      placeButton(icons.holder, band)
+      local c = component(interfaces.GROUP_WINDOW, icons.strip)
+      if c ~= nil and groupHomes.buttons[icons.strip] then
+        pcall(setBox, c, band.w - icons.width, 0, icons.width, band.h)
+      end
+    else
+      placeButton(band.strip, band)
+    end
   end
   for _, tile in ipairs(column.tiles) do
     if tile.static ~= nil then

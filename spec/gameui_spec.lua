@@ -243,8 +243,13 @@ local function loadGroupWindow()
       end,
     }
   end
-  local window =
-    { [11] = { alpha = 1 }, [3] = holding(labels), [20] = { alpha = 0.5 }, [18] = { alpha = 1, hidden = false } }
+  local window = {
+    [11] = { alpha = 1 },
+    [3] = holding(labels),
+    [20] = { alpha = 0.5 },
+    [18] = { alpha = 1, hidden = false },
+    [30] = { alpha = 1, hidden = false },
+  }
   local frame = { [523] = { alpha = 1 }, [524] = holding({ fill }), [528] = { alpha = 1 }, [533] = { alpha = 1 } }
   _G.ui = {
     Interfaces = {
@@ -337,9 +342,10 @@ local function boxOf(c)
   return { c.x, c.y, c.width, c.height }
 end
 
--- A game component the client lays out in parent: pos is { x, y, xParentPc, yParentPc } and size { width,
--- height, widthParentPc, heightParentPc }, offsets plus shares of the parent's size, 0 when left out. Its x, y,
--- width, height and xyGlobal resolve on each read, so it follows its parent. SetPos adds to moves.n.
+-- A game component the client lays out in parent: pos is { x, y, xParentPc, yParentPc, xSelfPc, ySelfPc } and
+-- size { width, height, widthParentPc, heightParentPc }, offsets plus shares of the parent's size, less shares
+-- of its own, 0 when left out. Its x, y, width, height and xyGlobal resolve on each read, so it follows its
+-- parent. SetPos adds to moves.n.
 local function laid(parent, pos, size, moves)
   local c = {}
   function c.SetPos(self, x, y, xParentPc, yParentPc, xSelfPc, ySelfPc)
@@ -357,7 +363,7 @@ local function laid(parent, pos, size, moves)
     self.size =
       { width = width, height = height, widthParentPc = widthParentPc or 0, heightParentPc = heightParentPc or 0 }
   end
-  c:SetPos(pos[1], pos[2], pos[3], pos[4])
+  c:SetPos(pos[1], pos[2], pos[3], pos[4], pos[5], pos[6])
   c:SetSize(size[1], size[2], size[3], size[4])
   moves.n = 0
   return setmetatable(c, {
@@ -370,9 +376,9 @@ local function laid(parent, pos, size, moves)
       elseif key == "height" then
         return math.floor(box.height + box.heightParentPc * parent.height)
       elseif key == "x" then
-        return math.floor(at.x + at.xParentPc * parent.width + at.xSelfPc * self.width)
+        return math.floor(at.x + at.xParentPc * parent.width - at.xSelfPc * self.width)
       elseif key == "y" then
-        return math.floor(at.y + at.yParentPc * parent.height + at.ySelfPc * self.height)
+        return math.floor(at.y + at.yParentPc * parent.height - at.ySelfPc * self.height)
       elseif key == "xyGlobal" then
         return { x = parent.xyGlobal.x + self.x, y = parent.xyGlobal.y + self.y }
       end
@@ -381,8 +387,9 @@ local function laid(parent, pos, size, moves)
 end
 
 describe("gameui.spreadGroupWindow", function()
-  -- The window frame and the group window's layers, strips and two buttons on a 1710 by 1041 screen, laid out as
-  -- the client does: each layer fills its parent, strip 10 sits on the bottom edge and button 23 on the right.
+  -- The window frame and the group window's layers, strips, two buttons and a list tab on a 1710 by 1041 screen,
+  -- laid out as the client does: each layer fills its parent, strip 10 sits on the bottom edge and the buttons
+  -- along the bottom of strip 18.
   local function loadLayers(moves)
     local screen = { width = 1710, height = 1041, xyGlobal = { x = 0, y = 0 } }
     local fill = { 0, 0, 1, 1 }
@@ -393,10 +400,11 @@ describe("gameui.spreadGroupWindow", function()
     window[9] = laid(window[11], { 0, 0 }, fill, moves)
     window[5] = laid(window[9], { 0, 0 }, { 0, -33, 1, 1 }, moves)
     window[1] = laid(window[5], { 0, 0 }, fill, moves)
-    window[10] = laid(window[9], { 0, -30, 0, 1 }, { 0, 30, 1, 0 }, moves)
+    window[10] = laid(window[9], { 0, 0, 0, 1, 0, 1 }, { 0, 30, 1, 0 }, moves)
     window[18] = laid(window[10], { 0, 0 }, fill, moves)
-    window[20] = laid(window[18], { 3, 3 }, { 24, 24 }, moves)
-    window[23] = laid(window[18], { -93, 3, 1, 0 }, { 24, 24 }, moves)
+    window[20] = laid(window[18], { 3, -3, 0, 1, 0, 1 }, { 24, 24 }, moves)
+    window[23] = laid(window[18], { 161, -3, 0, 1, 0, 1 }, { 24, 24 }, moves)
+    window[30] = laid(window[10], { 215, 7 }, { 17, 17 }, moves)
     serve(frame, window)
     return frame, window
   end
@@ -406,13 +414,13 @@ describe("gameui.spreadGroupWindow", function()
     local frame, window = loadLayers(moves)
     gameui.spreadGroupWindow(1710, 1041)
     assert.are.same({ -64, -64, 1838, 1169 }, boxOf(frame[523]))
-    for _, c in ipairs({ frame[525], window[11], window[9], window[5], window[1], window[10] }) do
+    for _, c in ipairs({ frame[525], window[11], window[9], window[5], window[1] }) do
       assert.are.same({ 0, 0, 1838, 1169 }, boxOf(c))
     end
     -- A layer that fills its parent is there once the parent is, and keeps its own layout.
-    assert.are.equal(4, moves.n)
+    assert.are.equal(3, moves.n)
     gameui.spreadGroupWindow(1710, 1041)
-    assert.are.equal(4, moves.n)
+    assert.are.equal(3, moves.n)
     -- The client lays the window out again.
     frame[523]:SetSize(262, 175)
     gameui.spreadGroupWindow(1710, 1041)
@@ -448,7 +456,6 @@ describe("gameui.spreadGroupWindow", function()
     local function screen(c)
       return { c.xyGlobal.x, c.xyGlobal.y, c.width, c.height }
     end
-    assert.are.same({ 0, 316, 64, 52 }, screen(window[18]))
     assert.are.same({ 6, 316, 24, 24 }, screen(window[20]))
     assert.are.same({ 34, 316, 24, 24 }, screen(window[23]))
     gameui.spreadGroupWindow(nil)
@@ -464,7 +471,36 @@ describe("gameui.spreadGroupWindow", function()
     -- The player resizes the window.
     frame[523]:SetSize(400, 300)
     assert.are.same({ 0, 250, 392, 30 }, boxOf(window[10]))
-    assert.are.same({ 299, 3, 24, 24 }, boxOf(window[23]))
+    assert.are.same({ 0, 0, 392, 30 }, boxOf(window[18]))
+  end)
+
+  it("keeps the icon strip at the game's width with only the band inside strip 10, leaving its row outside", function()
+    local moves = { n = 0 }
+    local _, window = loadLayers(moves)
+    local column = {
+      bands = { { strip = 18, x = 300, y = 316, w = 64, h = 52 } },
+      tiles = {
+        { static = 20, x = 306, y = 316, w = 24, h = 24 },
+        { static = 23, x = 334, y = 316, w = 24, h = 24 },
+      },
+    }
+    gameui.spreadGroupWindow(1710, 1041)
+    gameui.placeGroupButtons(column)
+    assert.are.same(
+      { 300, 316, 64, 52 },
+      { window[10].xyGlobal.x, window[10].xyGlobal.y, window[10].width, window[10].height }
+    )
+    assert.are.same({ -190, 0, 254, 52 }, boxOf(window[18]))
+    assert.are.same({ 306, 316 }, { window[20].xyGlobal.x, window[20].xyGlobal.y })
+    -- The client puts its buttons back in its own row along the strip's bottom.
+    window[20]:SetPos(3, -3, 0, 1, 0, 1)
+    window[23]:SetPos(161, -3, 0, 1, 0, 1)
+    for _, button in ipairs({ window[20], window[23] }) do
+      assert.is_true(button.xyGlobal.x + button.width <= window[10].xyGlobal.x)
+    end
+    gameui.placeGroupButtons(column)
+    assert.are.same({ 334, 316 }, { window[23].xyGlobal.x, window[23].xyGlobal.y })
+    gameui.spreadGroupWindow(nil)
   end)
 end)
 
@@ -473,6 +509,8 @@ describe("gameui.holdGroupWindow", function()
     local window, frame, labels, fill = loadGroupWindow()
     gameui.holdGroupWindow(true, 2, false)
     assert.is_false(window[18].hidden)
+    -- The list tabs, which the client places inside strip 10 wherever that is, are hidden throughout.
+    assert.is_true(window[30].hidden)
     gameui.holdGroupWindow(true, 2, true)
     assert.are.same({ 0, 0, 0, 0 }, { window[11].alpha, window[20].alpha, labels[0].alpha, labels[46].alpha })
     assert.are.same({ 0, 0, 0, 1 }, { frame[523].alpha, frame[528].alpha, fill.alpha, frame[533].alpha })
@@ -480,6 +518,7 @@ describe("gameui.holdGroupWindow", function()
     assert.is_nil(window[3].hidden)
     gameui.holdGroupWindow(false)
     assert.is_false(window[18].hidden)
+    assert.is_false(window[30].hidden)
     assert.are.same({ 1, 0.5, 1, 1 }, { window[11].alpha, window[20].alpha, labels[46].alpha, fill.alpha })
   end)
 
