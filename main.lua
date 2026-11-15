@@ -240,6 +240,8 @@ local function updateParty(playerReads)
   return elements.party.update(partyTracker.model(own, saved.partyTiers(), saved.roles(), saved.partyGrid()))
 end
 
+-- The space kept between the party grid and the controls block under the group window's list.
+local PIN_GAP = 6
 -- Where the party grid sits while it stands in for the group window's list, and whether it does.
 local partyPin = { x = 0, y = 0, anchorX = 0, anchorY = 0 }
 local partyPinned = false
@@ -251,7 +253,7 @@ local function pinParty(layout, keep)
   if layout ~= nil then
     local bounds, grid = elements.party.bounds, saved.partyGrid()
     local x = grid.growX == "left" and layout.listX + layout.listW - bounds.w or layout.listX
-    local y = grid.growY == "up" and layout.listY + layout.listH - bounds.h or layout.listY
+    local y = grid.growY == "up" and layout.listY + layout.listH - PIN_GAP - bounds.h or layout.listY
     partyPin.x, partyPin.y = math.floor(x - bounds.x + 0.5), math.floor(y - bounds.y + 0.5)
     partyPinned = true
   end

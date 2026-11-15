@@ -2,9 +2,9 @@
 -- member and a tile at each button the game shows. Every part but the Hide button keeps a plain component's
 -- defaults, so a click lands on the game's own button or row under it. Its header covers the window's own title
 -- strip. Folded, only the header shows, over the window src/gameui holds transparent, and a hit area keeps
--- clicks off the unseen window. While the party grid stands in for the window's list, the panel leaves the list
--- to the grid, and folded, the header sits just above the list with no hit area, so clicks reach the member
--- rows' click areas under the grid's cells.
+-- clicks off the unseen window. While the party grid stands in for the window's list, there is no header and
+-- no hit area: the panel is the block of the game's buttons under the list, with a tab on its right edge that
+-- folds it to a thin bar and back, so clicks reach the member rows' click areas under the grid's cells.
 local sidebar = {}
 
 local controls = require("src/controls")
@@ -24,6 +24,10 @@ local MIN_HEADER = 16
 -- The Hide button's size, and the space kept right of it for the window's close button.
 local FOLD_W = 46
 local FOLD_H = 14
+-- The folded controls block's bar, and the tab that folds and unfolds the block.
+local BAR_W = 8
+local TAB_W = 16
+local TAB_H = 36
 local CLOSE_SPACE = 26
 local PAD = 8
 local VALUE_W = 60
@@ -65,10 +69,12 @@ function sidebar.create(root, deps)
     -- Marks the window's own close button, which sits under the header's right end and takes the click.
     parts.close = draw.text(layer, FONTS.body, ui.AlignMode.CENTRE, 0, 0, CLOSE_SPACE, 0)
     set(parts.close, "content", "x")
-    parts.fold = controls.button(layer, "Hide", 0, 0, FOLD_W, FOLD_H, "plain", function()
+    local function toggle()
       saved.setSidebar("collapsed", not saved.sidebar().collapsed)
       deps.changed()
-    end)
+    end
+    parts.fold = controls.button(layer, "Hide", 0, 0, FOLD_W, FOLD_H, "plain", toggle)
+    parts.tab = controls.button(layer, "<", 0, 0, TAB_W, TAB_H, "plain", toggle)
     return parts
   end
 
@@ -182,23 +188,36 @@ function sidebar.create(root, deps)
     p = p or build()
     drawn = layout
     local folded = state.collapsed
-    local header = math.max(layout.top - layout.y, MIN_HEADER)
-    local top = folded and standIn and layout.listY - header or layout.y
     local bottom = layout.y + layout.h
+    local blockY = layout.listY + layout.listH
     local places = not folded and not standIn and layout.rows or nil
-    fit(p.top, layout.x, top, layout.w, folded and header or layout.listY - top)
     set(p.list, "hidden", places == nil)
     fit(p.list, layout.x, layout.listY, layout.w, layout.listH)
     set(p.bottom, "hidden", folded)
-    fit(p.bottom, layout.x, layout.listY + layout.listH, layout.w, bottom - layout.listY - layout.listH)
+    fit(p.bottom, layout.x, blockY, layout.w, bottom - blockY)
+    p.fold.group.set("hidden", standIn == true)
+    p.tab.group.set("hidden", not standIn)
+    set(p.title, "hidden", standIn == true)
+    set(p.close, "hidden", folded or standIn == true)
     set(p.block, "hidden", not folded or standIn == true)
-    fit(p.block, layout.x, top + header, layout.w, bottom - top - header)
-    fit(p.title, layout.x + PAD, top, layout.w - PAD - FOLD_W - CLOSE_SPACE - 4, header)
-    set(p.title, "content", reads.title or "Group")
-    set(p.close, "hidden", folded)
-    fit(p.close, layout.x + layout.w - CLOSE_SPACE, top, CLOSE_SPACE, header)
-    p.fold.group.place(layout.x + layout.w - FOLD_W - CLOSE_SPACE, top + (header - FOLD_H) // 2)
-    set(p.fold.label, "content", folded and "Show" or "Hide")
+    if standIn then
+      -- The block under the list with the tab on its right edge, or folded, a bar at its left end with the tab.
+      set(p.top, "hidden", not folded)
+      fit(p.top, layout.x, blockY, BAR_W, bottom - blockY)
+      p.tab.group.place(layout.x + (folded and BAR_W or layout.w), blockY + (bottom - blockY - TAB_H) // 2)
+      set(p.tab.label, "content", folded and ">" or "<")
+    else
+      local top = layout.y
+      local header = math.max(layout.top - top, MIN_HEADER)
+      set(p.top, "hidden", false)
+      fit(p.top, layout.x, top, layout.w, folded and header or layout.listY - top)
+      fit(p.block, layout.x, top + header, layout.w, bottom - top - header)
+      fit(p.title, layout.x + PAD, top, layout.w - PAD - FOLD_W - CLOSE_SPACE - 4, header)
+      set(p.title, "content", reads.title or "Group")
+      fit(p.close, layout.x + layout.w - CLOSE_SPACE, top, CLOSE_SPACE, header)
+      p.fold.group.place(layout.x + layout.w - FOLD_W - CLOSE_SPACE, top + (header - FOLD_H) // 2)
+      set(p.fold.label, "content", folded and "Show" or "Hide")
+    end
 
     local tiles = folded and NO_ROWS or layout.tiles
     for i, model in ipairs(tiles) do
