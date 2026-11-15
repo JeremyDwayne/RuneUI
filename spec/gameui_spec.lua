@@ -332,6 +332,32 @@ describe("gameui.holdGroupWindow", function()
     assert.are.same({ 1, 0.5, 1, 1 }, { window[11].alpha, window[20].alpha, labels[46].alpha, fill.alpha })
   end)
 
+  it("lets clicks pass every part of the window but the rows' click areas, and puts each back", function()
+    local window, frame = loadGroupWindow()
+    local area = { clickthrough = false }
+    window[1] = {
+      clickthrough = false,
+      IterateDynamicComponents = function(_, fn)
+        fn(area)
+      end,
+    }
+    window[11].clickthrough = false
+    window[20].clickthrough = true
+    frame[524].clickthrough = false
+    area.categoryID, area.dynamicID = 0, 0
+    gameui.holdGroupWindow(true, 2, true, true)
+    assert.are.same(
+      { true, true, true, false },
+      { window[1].clickthrough, window[11].clickthrough, frame[524].clickthrough, area.clickthrough }
+    )
+    gameui.holdGroupWindow(true, 2, true, false)
+    assert.are.same(
+      { false, false, true, false },
+      { window[1].clickthrough, window[11].clickthrough, window[20].clickthrough, frame[524].clickthrough }
+    )
+    gameui.holdGroupWindow(false)
+  end)
+
   it("makes a row transparent again on the frame after the client shows it, for any listed member", function()
     local window, _, labels = loadGroupWindow()
     gameui.holdGroupWindow(true, 2)

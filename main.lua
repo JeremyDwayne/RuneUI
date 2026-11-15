@@ -275,7 +275,13 @@ local function updateSidebar()
   local layout = state.on and (groupReads.open or state.collapsed) and adapter.groupLayout(rows) or nil
   local clicks = state.on and saved.partyClicks()
   local standIn = clicks and layout ~= nil and layout.open and groupReads.open and not hudHeld
-  gameui.holdGroupWindow(layout ~= nil and (state.collapsed or standIn), rows, state.collapsed)
+  -- Hidden with the grid standing in, the window lets clicks through to the world around the cells.
+  gameui.holdGroupWindow(
+    layout ~= nil and (state.collapsed or standIn),
+    rows,
+    state.collapsed,
+    standIn and state.collapsed
+  )
   groupSidebar.update(layout, groupReads, standIn)
   pinParty(standIn and layout or nil, clicks)
   gameui.placeGroupRows(standIn and elements.party.rowBoxes() or nil, standIn and rows or 0)

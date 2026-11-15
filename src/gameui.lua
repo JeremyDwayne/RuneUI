@@ -262,9 +262,64 @@ function gameui.apply(appearance)
   actionbars.fade(appearance)
 end
 
+-- The components of the group window and its frame whose clickthrough the fold turned on, as true by
+-- "interface:key", and the member rows it was done for. nil while clicks do not pass the window.
+local passing = nil
+local passingRows = nil
+
+-- Calls fn(interfaceID, key, c) for every component of the group window and its frame, dynamic children
+-- included.
+local function eachGroupComponent(fn)
+  local function visit(key, c, _, _, interfaceID)
+    fn(interfaceID, key, c)
+  end
+  local ranges = {
+    { interfaces.GROUP_WINDOW, 0, interfaces.GROUP_LAST_STATIC },
+    { interfaces.WINDOWS, GROUP_FRAME.window, GROUP_FRAME.last },
+  }
+  for _, range in ipairs(ranges) do
+    for staticID = range[2], range[3] do
+      local c = component(range[1], staticID)
+      if c ~= nil then
+        visit(tostring(staticID), c, nil, nil, range[1])
+        interfaces.eachChild(c, staticID, visit, range[1])
+      end
+    end
+  end
+end
+
+-- Lets clicks pass the transparent group window to the world, all but the member rows' click areas, which are
+-- the children of GROUP_CLICK_AREA. The window is walked once as this turns on and again when the group's size
+-- changes, not each tick. false puts every component back.
+local function passGroupClicks(pass, rows)
+  if pass then
+    if passing ~= nil and passingRows == rows then
+      return
+    end
+    passing = passing or {}
+    passingRows = rows
+    local clickAreas = "^" .. interfaces.GROUP_CLICK_AREA .. ":"
+    eachGroupComponent(function(interfaceID, key, c)
+      local area = interfaceID == interfaces.GROUP_WINDOW and key:find(clickAreas) ~= nil
+      if not area and read(c, "clickthrough") == false then
+        passing[interfaceID .. ":" .. key] = true
+        write(c, "clickthrough", true)
+      end
+    end)
+  elseif passing ~= nil then
+    eachGroupComponent(function(interfaceID, key, c)
+      if passing[interfaceID .. ":" .. key] then
+        write(c, "clickthrough", false)
+      end
+    end)
+    passing = nil
+  end
+end
+
 -- Runs each server tick with whether the group window and its frame are held transparent, the number of
--- member rows it lists, and whether its button strips are hidden too. false restores everything.
-function gameui.holdGroupWindow(held, rows, folded)
+-- member rows it lists, whether its button strips are hidden too, and whether clicks pass it to the world.
+-- false restores everything.
+function gameui.holdGroupWindow(held, rows, folded, pass)
   if held then
     for i = 1, rows do
       local dynamic = (i - 1) * interfaces.GROUP_ROW_STRIDE + interfaces.GROUP_ROW_LIFEPOINTS
@@ -277,6 +332,7 @@ function gameui.holdGroupWindow(held, rows, folded)
   groupWindow.hide(held)
   groupFrame.hide(held)
   foldStrips(held and folded == true)
+  passGroupClicks(held and pass == true, rows)
 end
 
 -- Where the client had each member row's click area that placeGroupRows moved, as { x, y, w, h } by row, false
