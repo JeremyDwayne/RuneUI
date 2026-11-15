@@ -618,6 +618,25 @@ describe("gameui.holdGroupWindow", function()
     assert.are.same({ 1, 0.5 }, { labels[46].alpha, window[20].alpha })
   end)
 
+  it("writes only the parts the client showed again, leaving one already transparent alone", function()
+    local window, _, labels = loadGroupWindow()
+    gameui.holdGroupWindow(true, 2)
+    local base, writes = window[11], 0
+    window[11] = setmetatable({}, {
+      __index = base,
+      __newindex = function(_, field, value)
+        writes = writes + 1
+        base[field] = value
+      end,
+    })
+    labels[46].alpha = 1
+    gameui.onFrame()
+    assert.are.equal(0, labels[46].alpha)
+    assert.are.equal(0, writes)
+    gameui.restore()
+    assert.are.same({ 1, 1 }, { base.alpha, labels[46].alpha })
+  end)
+
   it("makes no client reads on a frame while the window is not held", function()
     loadGroupWindow()
     gameui.onFrame()

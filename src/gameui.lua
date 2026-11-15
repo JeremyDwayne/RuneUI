@@ -49,16 +49,21 @@ local function transparency(interfaceID, lastStatic, watched, animated, firstSta
     end
   end
 
+  -- Transparent writes only a component that does not read alpha 0, since the client shows a few again at a
+  -- time and the rest would take a write each for nothing.
   local function setAlpha(transparent)
     each(function(key, c)
-      if transparent and originals[key] == nil then
-        originals[key] = read(c, "alpha") or 1
-      end
-      local alpha = 0
       if not transparent then
-        alpha = originals[key] or 1
+        write(c, "alpha", originals[key] or 1)
+        return
       end
-      write(c, "alpha", alpha)
+      local alpha = read(c, "alpha")
+      if originals[key] == nil then
+        originals[key] = alpha or 1
+      end
+      if alpha ~= 0 then
+        write(c, "alpha", 0)
+      end
     end)
     for _, staticID in ipairs(animated or {}) do
       local c = component(interfaceID, staticID)
