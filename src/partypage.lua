@@ -1,6 +1,6 @@
 -- The options window's Party page: the role presets down the left, the group's members with a Base tank
--- button and a tag box each, and along the bottom each tier's cell size, columns and Show my frame, with the
--- sidebar's switch.
+-- button and a tag box each, and along the bottom how the grid fills and grows, each tier's cell size, the
+-- most cells in a row or column and Show my frame, with the switches for clicks on cells and the sidebar.
 local controls = require("src/controls")
 local draw = require("src/draw")
 local party = require("src/party")
@@ -28,10 +28,23 @@ local ROWS = 10
 local ROW_H = 32
 local FIELD_W = 58
 local BASE_TANK_W = 96
--- The frame sizes along the bottom: a block per tier of three stepper rows and a check box.
+-- The frame sizes along the bottom: a block per tier of three stepper rows and a check box. The third stepper
+-- sets the tier's columns while the grid fills rows and its rows while it fills columns.
 local BAND_H = 176
 local STEP_ROW = 32
-local TIER_FIELDS = { { "w", "Width" }, { "h", "Height" }, { "columns", "Columns" } }
+local TIER_FIELDS = { { "w", "Width" }, { "h", "Height" }, { "line", "" } }
+local LINE_FIELD = { rows = "columns", columns = "rows" }
+local LINE_LABEL = { rows = "Max per row", columns = "Max per col" }
+-- The grid's choices on the section's first line, each { field, value, label, width }, with the gap before one
+-- that starts a group and the label that sits in it.
+local GRID_OPTIONS = {
+  { "fill", "rows", "Rows", 50 },
+  { "fill", "columns", "Columns", 68 },
+  { "growY", "down", "Down", 50, gap = 52, lead = "Grow" },
+  { "growY", "up", "Up", 34 },
+  { "growX", "right", "Right", 50, gap = 8 },
+  { "growX", "left", "Left", 42 },
+}
 local GOLD = draw.COLOURS.adrenaline
 local NO_MEMBERS = {}
 
@@ -267,17 +280,32 @@ function partypage.create(page, width, height, deps)
   -- Frame sizes --------------------------------------------------------------------------------------
 
   rect(page, COLOURS.line, 0, top, width, 1)
-  label("Frame sizes", MARGIN, top + 8, 200, 24, nil, COLOURS.accent)
-  local sidebarCheck = controls.check(page, width - MARGIN - 250, top + 12, 16, function(ticked)
+  label("Frame sizes", MARGIN, top + 8, 96, 24, nil, COLOURS.accent)
+  label("Fill", MARGIN + 100, top + 8, 30, 24, FONTS.small, COLOURS.mutedText)
+  local gridOptions = {}
+  local optionX = MARGIN + 130
+  local optionFrames = controls.optionGroup(page)
+  for i, option in ipairs(GRID_OPTIONS) do
+    if option.lead ~= nil then
+      label(option.lead, optionX + 14, top + 8, 36, 24, FONTS.small, COLOURS.mutedText)
+    end
+    optionX = optionX + (option.gap or 0)
+    gridOptions[i] = controls.option(page, option[3], optionX, top + 9, option[4], 22, function()
+      saved.setPartyGrid(option[1], option[2])
+      changed()
+    end, optionFrames)
+    optionX = optionX + option[4] + 2
+  end
+  local sidebarCheck = controls.check(page, width - MARGIN - 116, top + 12, 16, function(ticked)
     saved.setSidebar("on", ticked)
     changed()
   end)
-  label("Draw the group window as a sidebar", width - MARGIN - 226, top + 8, 226, 24)
-  local clicksCheck = controls.check(page, width - MARGIN - 500, top + 12, 16, function(ticked)
+  label("Group sidebar", width - MARGIN - 92, top + 8, 92, 24)
+  local clicksCheck = controls.check(page, width - MARGIN - 340, top + 12, 16, function(ticked)
     saved.setPartyClicks(ticked)
     changed()
   end)
-  label("Click and cast on party cells", width - MARGIN - 476, top + 8, 216, 24)
+  label("Click and cast on party cells", width - MARGIN - 316, top + 8, 192, 24)
 
   local blockW = (width - 2 * MARGIN - (#party.TIERS - 1) * MARGIN) // #party.TIERS
   local tierParts = {}
@@ -287,10 +315,13 @@ function partypage.create(page, width, height, deps)
     local parts = { steppers = {} }
     for row, field in ipairs(TIER_FIELDS) do
       local y = top + 56 + (row - 1) * STEP_ROW
-      label(field[2], x, y, 70, 28, FONTS.small, COLOURS.mutedText)
-      local limits = savedparty.TIER_RANGES[field[1]]
+      local name = label(field[2], x, y, 70, 28, FONTS.small, COLOURS.mutedText)
+      if field[1] == "line" then
+        parts.lineLabel = name
+      end
+      local limits = savedparty.TIER_RANGES[field[1] == "line" and "columns" or field[1]]
       parts.steppers[field[1]] = controls.stepper(page, x + 70, y, limits[1], limits[2], 1, function(n)
-        saved.setPartyTier(tier.id, field[1], n)
+        saved.setPartyTier(tier.id, field[1] == "line" and LINE_FIELD[saved.partyGrid().fill] or field[1], n)
         changed()
       end)
     end
@@ -308,10 +339,15 @@ function partypage.create(page, width, height, deps)
     p.follow()
     sidebarCheck.show(saved.sidebar().on)
     clicksCheck.show(saved.partyClicks())
+    local grid = saved.partyGrid()
+    for i, option in ipairs(GRID_OPTIONS) do
+      controls.showOption(gridOptions[i], grid[option[1]] == option[2])
+    end
     for id, tier in pairs(saved.partyTiers()) do
       for field, stepper in pairs(tierParts[id].steppers) do
-        stepper.show(tier[field])
+        stepper.show(tier[field == "line" and LINE_FIELD[grid.fill] or field])
       end
+      set(tierParts[id].lineLabel, "content", LINE_LABEL[grid.fill])
       tierParts[id].showSelf.show(tier.showSelf)
     end
   end
