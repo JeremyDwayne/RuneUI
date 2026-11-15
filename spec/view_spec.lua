@@ -91,6 +91,26 @@ describe("view", function()
     assert.are.equal(rotation.layer.y + rotation.bounds.y, barBottom)
   end)
 
+  it("keeps the adrenaline bar still when arranged again between a group above it and one as near below", function()
+    local bar = view.resourceBar(fake.component())
+    bar.update({ hidden = false, fill = 0.6, text = "60%", markers = {}, spenders = {} })
+    local rotation, utility = group(36), group(36)
+    rotation.update(readyTiles(5))
+    utility.update(readyTiles(5))
+    local elements = { resource = bar, rotation = rotation, utility = utility }
+    local function at(x, y)
+      return { x = x, y = y, anchorX = 0.5, anchorY = 1 }
+    end
+    local positions = { rotation = at(-100, -400), utility = at(-100, -340) }
+    local anchors = { resource = { target = "rotation", side = "bottom", align = "center", gap = 0, offset = 0 } }
+    view.arrange(elements, positions, anchors)
+    local y = bar.layer.y
+    fake.writes = 0
+    view.arrange(elements, positions, anchors)
+    assert.are.equal(y, bar.layer.y)
+    assert.are.equal(0, fake.writes)
+  end)
+
   it("moves anchored frames on the tick the rotation group gains a tile, and makes no writes when steady", function()
     local elements = hud()
     local saved = settings.load({ get = function() end, set = function() end })
