@@ -24,9 +24,12 @@ end
 local function create()
   local root = fake.component()
   local saved = settings.load(fakeStore())
-  local state = { blocked = false, changes = 0 }
+  local state = { blocked = false, changes = 0, roles = 0 }
   local s = sidebar.create(root, {
     saved = saved,
+    openRoles = function()
+      state.roles = state.roles + 1
+    end,
     blocked = function()
       return state.blocked
     end,
@@ -70,22 +73,26 @@ local function pressTab()
 end
 
 describe("sidebar.column", function()
-  it("stacks the label, then each strip's buttons two wide and its text buttons, with a band per strip", function()
-    local column = sidebar.column(buttons(), 0, 300)
-    assert.are.same({ 0, 300, 64, 138 }, { column.x, column.y, column.w, column.h })
-    assert.are.same({
-      { x = 6, y = 306, w = 52, h = 16, text = "2/50", plain = true },
-      { x = 6, y = 326, w = 24, h = 24, sprite = 25853, static = 20 },
-      { x = 34, y = 326, w = 24, h = 24, sprite = 25851, static = 19 },
-      { x = 6, y = 354, w = 24, h = 24, sprite = 25860, static = 27 },
-      { x = 6, y = 382, w = 24, h = 24, sprite = 6028, static = 31 },
-      { x = 6, y = 410, w = 52, h = 22, text = "Ready", static = 6 },
-    }, column.tiles)
-    assert.are.same({
-      { strip = 18, x = 0, y = 326, w = 64, h = 56 },
-      { strip = 0, x = 0, y = 410, w = 64, h = 26 },
-    }, column.bands)
-  end)
+  it(
+    "stacks the label, each strip's buttons two wide and its text buttons with a band per strip, then Roles",
+    function()
+      local column = sidebar.column(buttons(), 0, 300)
+      assert.are.same({ 0, 300, 64, 164 }, { column.x, column.y, column.w, column.h })
+      assert.are.same({ x = 6, y = 436, w = 52, h = 22 }, column.roles)
+      assert.are.same({
+        { x = 6, y = 306, w = 52, h = 16, text = "2/50", plain = true },
+        { x = 6, y = 326, w = 24, h = 24, sprite = 25853, static = 20 },
+        { x = 34, y = 326, w = 24, h = 24, sprite = 25851, static = 19 },
+        { x = 6, y = 354, w = 24, h = 24, sprite = 25860, static = 27 },
+        { x = 6, y = 382, w = 24, h = 24, sprite = 6028, static = 31 },
+        { x = 6, y = 410, w = 52, h = 22, text = "Ready", static = 6 },
+      }, column.tiles)
+      assert.are.same({
+        { strip = 18, x = 0, y = 326, w = 64, h = 56 },
+        { strip = 0, x = 0, y = 410, w = 64, h = 26 },
+      }, column.bands)
+    end
+  )
 end)
 
 describe("sidebar", function()
@@ -96,11 +103,11 @@ describe("sidebar", function()
     local column, moved = s.update(true, buttons())
     assert.are.same({ 0, 300, 64 }, { column.x, column.y, column.w })
     assert.is_true(moved)
-    assert.are.same({ x = 0, y = 0, w = 80, h = 138 }, s.bounds)
+    assert.are.same({ x = 0, y = 0, w = 80, h = 164 }, s.bounds)
     assert.are.same({ 8, 28 }, { icon(25853).x, icon(25853).y })
     assert.are.same({ 6, 110 }, { label("Ready").x, label("Ready").y })
     assert.is_truthy(label("2/50"))
-    assert.are.same({ 64, 51 }, { arrow().x, arrow().y })
+    assert.are.same({ 64, 64 }, { arrow().x, arrow().y })
     assert.is_true(pointsLeft())
     fake.writes = 0
     local _, again = s.update(true, buttons())
@@ -135,13 +142,24 @@ describe("sidebar", function()
     assert.is_nil(s.update(true, nil))
     assert.is_nil(label("Ready"))
     assert.is_nil(icon(25853))
-    assert.are.same({ 8, 51 }, { arrow().x, arrow().y })
+    assert.are.same({ 8, 64 }, { arrow().x, arrow().y })
     assert.is_false(pointsLeft())
-    assert.are.same({ x = 0, y = 0, w = 24, h = 138 }, s.bounds)
+    assert.are.same({ x = 0, y = 0, w = 24, h = 164 }, s.bounds)
     pressTab()
     assert.is_false(saved.sidebar().collapsed)
     assert.is_truthy(s.update(true, buttons()))
     assert.is_truthy(label("Ready"))
+  end)
+
+  it("opens the Party page from its Roles button under the game's buttons, and hides it while folded", function()
+    local s, _, _, state = create()
+    s.update(true, buttons())
+    assert.are.same({ 6, 136 }, { label("Roles").x, label("Roles").y })
+    fake.press("Roles")
+    assert.are.equal(1, state.roles)
+    pressTab()
+    s.update(true, nil)
+    assert.is_nil(label("Roles"))
   end)
 
   it("keeps only its layer while the window is not shown or the sidebar is off, when edit mode leaves it be", function()

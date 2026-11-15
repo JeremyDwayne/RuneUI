@@ -348,7 +348,14 @@ optionsWindow = options.create(top, {
 
 -- The sidebar draws over the game's own buttons, so it sits on the plugin layer, and is one of the elements so
 -- edit mode places it.
-groupSidebar = sidebar.create(top, { saved = saved, blocked = optionsWindow.configuring, changed = refresh })
+groupSidebar = sidebar.create(top, {
+  saved = saved,
+  blocked = optionsWindow.configuring,
+  changed = refresh,
+  openRoles = function()
+    optionsWindow.open("party")
+  end,
+})
 elements.sidebar = groupSidebar
 view.holdable({ groupSidebar })
 Event.ServerLogic.Subscribe("refresh", function()

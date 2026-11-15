@@ -41,12 +41,12 @@ local BUTTON_H = 28
 -- view = src/view, auraInfo(sprite) naming an aura icon, describe(struct) reading a struct's description,
 -- members = function returning the group's members as src/party's tracker lists them, refresh = function
 -- redrawing the HUD, configured = function run as the window or edit mode opens or closes }.
--- Returns { placeAll, redrawPage, configuring, shutdown }; placeAll places the HUD and edit mode's overlays from
--- the saved positions and anchors, redrawPage redraws the Buffs or Party page while it is shown, each server
--- tick, and configuring says whether the window or edit mode is open. Every plugin on the plugin layer shares
--- its 4096 dynamic ids, so the window builds as it opens, with the Appearance page, each other page builds on
--- the first visit to its tab, and closing destroys them all. A window whose build is refused logs and stays
--- closed.
+-- Returns { placeAll, open, redrawPage, configuring, shutdown }; placeAll places the HUD and edit mode's overlays
+-- from the saved positions and anchors, open(pageID) opens the window on that page, redrawPage redraws the Buffs
+-- or Party page while it is shown, each server tick, and configuring says whether the window or edit mode is
+-- open. Every plugin on the plugin layer shares its 4096 dynamic ids, so the window builds as it opens, with the
+-- Appearance page, each other page builds on the first visit to its tab, and closing destroys them all. A window
+-- whose build is refused logs and stays closed.
 function options.create(root, deps)
   local saved = deps.saved
   local tracker = deps.tracker
@@ -362,7 +362,8 @@ function options.create(root, deps)
     buildPage("appearance")
   end
 
-  function openWindow()
+  -- Opens the window on the page whose id is pageID, or on Appearance.
+  function openWindow(pageID)
     if window ~= nil then
       window:Show()
     else
@@ -379,10 +380,16 @@ function options.create(root, deps)
     end
     windowOpen = true
     configured()
-    if pageTabs:GetActiveIndex() ~= 1 then
-      pageTabs:SetActive(1, false)
+    local index = 1
+    for i, page in ipairs(PAGE_LIST) do
+      if page.id == pageID then
+        index = i
+      end
     end
-    showPage("appearance")
+    if pageTabs:GetActiveIndex() ~= index then
+      pageTabs:SetActive(index, false)
+    end
+    showPage(PAGE_LIST[index].id)
   end
 
   -- Ticks ---------------------------------------------------------------------------------------------
@@ -430,6 +437,7 @@ function options.create(root, deps)
 
   return {
     placeAll = placeAll,
+    open = openWindow,
     redrawPage = function()
       if windowOpen and currentPage == "buffs" then
         pages.buffs.redraw()

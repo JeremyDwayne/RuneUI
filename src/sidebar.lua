@@ -39,7 +39,7 @@ local function fit(c, x, y, w, h)
 end
 
 -- Lays src/adapter's groupButtons out as a column whose corner is at left, top on the screen. Returns
--- { x, y, w, h, tiles, bands }.
+-- { x, y, w, h, tiles, bands, roles }: roles is the box of RuneUI's own Roles button, under the game's.
 -- tiles holds each button's { x, y, w, h, sprite, text, plain, static }: the labels first, then each strip's
 -- buttons in the order the strips come, icons two to a row above that strip's text buttons. bands holds a
 -- { strip, x, y, w, h } per click-stopping strip, around its buttons and never over another strip's.
@@ -89,11 +89,13 @@ function sidebar.column(buttons, left, top)
       bands[#bands + 1] = { strip = key, x = left, y = bandTop, w = COLUMN_W, h = y - bandTop }
     end
   end
-  return { x = left, y = top, w = COLUMN_W, h = y - GAP + PAD - top, tiles = tiles, bands = bands }
+  local roles = { x = left + PAD, y = y, w = INNER, h = TEXT_H }
+  return { x = left, y = top, w = COLUMN_W, h = y + TEXT_H + PAD - top, tiles = tiles, bands = bands, roles = roles }
 end
 
 -- root is the plugin layer that draws over game windows. deps: { saved = src/settings, blocked = function
--- saying whether the options window or edit mode is open, changed = function redrawing after the tab }.
+-- saying whether the options window or edit mode is open, changed = function redrawing after the tab,
+-- openRoles = function run by the Roles button }.
 -- Returns a src/view element, { layer, bounds, inUse, setLook, update(shown, buttons), canDraw(), destroy() }.
 -- The layer holds nothing but its panel, so it stays for src/view and edit mode to place. update runs each
 -- server tick with whether the group window stands open behind the HUD and src/adapter's groupButtons, nil
@@ -117,6 +119,9 @@ function sidebar.create(root, deps)
     parts.tab = controls.button(panel, "", 0, 0, TAB_W, TAB_H, "plain", function()
       saved.setSidebar("collapsed", not saved.sidebar().collapsed)
       deps.changed()
+    end)
+    parts.roles = controls.button(panel, "Roles", 0, 0, INNER, TEXT_H, "plain", function()
+      deps.openRoles()
     end)
     parts.arrow = parts.tab.group.add(draw.new(ui.Canvas, panel), 0, 0)
     size(parts.arrow, TAB_W, TAB_H)
@@ -227,6 +232,10 @@ function sidebar.create(root, deps)
     fit(p.face, 0, 0, face, h)
     p.tab.group.place(face, (h - TAB_H) // 2)
     pointArrow(folded)
+    p.roles.group.set("hidden", folded)
+    if column then
+      p.roles.group.place(column.roles.x - left, column.roles.y - top)
+    end
     local tiles = column and column.tiles or NO_TILES
     for i, model in ipairs(tiles) do
       showTile(tile(i), model, left, top)
