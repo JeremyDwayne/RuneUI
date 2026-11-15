@@ -585,3 +585,32 @@ describe("adapter.relationNames", function()
     }, adapter.relationNames())
   end)
 end)
+
+describe("adapter.groupRowEntry", function()
+  -- A menu entry payload for op on the part with these ids.
+  local function entry(interfaceID, staticID, dynamicID, op)
+    local c = { interfaceID = interfaceID, staticID = staticID, dynamicID = dynamicID }
+    return { entry = { componentData = { opIndex = op, component = c } } }
+  end
+
+  it("gives the member row a Set team entry sits on, and nil for any other entry", function()
+    assert.are.equal(2, adapter.groupRowEntry(entry(1519, 1, 1, 7)))
+    assert.is_nil(adapter.groupRowEntry(entry(1519, 1, 1, 3)))
+    assert.is_nil(adapter.groupRowEntry(entry(1519, 18, 0, 7)))
+    assert.is_nil(adapter.groupRowEntry({ entry = {} }))
+    assert.is_nil(adapter.groupRowEntry({}))
+  end)
+
+  it("adds a menu entry that runs its action with its argument", function()
+    local added
+    local menu = {
+      Add = function(_, label, action, arg)
+        added = { label, action, arg }
+      end,
+    }
+    local action = function() end
+    adapter.addMenuEntry({ miniMenu = menu }, "Set role Oakhelm", action, 2)
+    assert.are.same({ "Set role Oakhelm", action, 2 }, added)
+    adapter.addMenuEntry({}, "Set role Oakhelm", action, 2)
+  end)
+end)

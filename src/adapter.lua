@@ -277,6 +277,33 @@ function adapter.groupButtons()
   return buttons
 end
 
+-- The member row whose Set team entry an Event.MiniMenuEntryAdded payload carries, or nil for any other entry.
+function adapter.groupRowEntry(e)
+  local data = read(read(e, "entry"), "componentData")
+  if data == nil or read(data, "opIndex") ~= interfaces.GROUP_ROW_TEAM_OP then
+    return nil
+  end
+  local c = read(data, "component")
+  if read(c, "interfaceID") ~= GROUP_WINDOW or read(c, "staticID") ~= interfaces.GROUP_CLICK_AREA then
+    return nil
+  end
+  local dynamic = read(c, "dynamicID")
+  return dynamic and dynamic + 1
+end
+
+local function addEntry(menu, text, action, arg)
+  menu:Add(text, action, arg)
+end
+
+-- Adds an entry reading text to the right click menu, under the entry an Event.MiniMenuEntryAdded payload
+-- carries. Picking it runs action(arg).
+function adapter.addMenuEntry(e, text, action, arg)
+  local menu = read(e, "miniMenu")
+  if menu ~= nil then
+    pcall(addEntry, menu, text, action, arg)
+  end
+end
+
 local function allPlayers()
   return PlayerList.All()
 end

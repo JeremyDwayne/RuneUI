@@ -17,6 +17,7 @@ local options = require("src/options")
 local party = require("src/party")
 local presets = require("src/presets")
 local settings = require("src/settings")
+local rolepicker = require("src/rolepicker")
 local sidebar = require("src/sidebar")
 local styling = require("src/style")
 local targeteffects = require("src/targeteffects")
@@ -389,7 +390,54 @@ Event.ServerLogic.Subscribe("refresh", function()
 end)
 refresh()
 
+-- The role picker, opened from a Set role entry under Set team in a member row's right click menu. It opens
+-- beside the member's party cell, or mid screen when they have none.
+local rolePicker = rolepicker.create(top, { saved = saved, bosses = require("src/bossroles"), refresh = refresh })
+-- Each member's entry text, by name, kept so the menu's rebuilds allocate nothing.
+local roleLabels = {}
+
+local function pickRole(row)
+  local member = groupReads.rows[row]
+  if member == nil then
+    return
+  end
+  local boxes = elements.party.rowBoxes()
+  local box = boxes and boxes[row]
+  if box then
+    rolePicker.open(member.name, box.x + box.w + 4, box.y)
+  else
+    rolePicker.open(member.name, (tonumber(top.width) or 0) // 2, (tonumber(top.height) or 0) // 3)
+  end
+end
+
+-- The client builds the right click menu again on every rendered frame the mouse rests on something, so this
+-- runs for each entry each frame. It makes no client call while the group window is closed, and two reads for
+-- an entry that is not on an interface.
+Event.MiniMenuEntryAdded.Subscribe("runeuiRole", function(e)
+  if not groupReads.open then
+    return
+  end
+  local row = adapter.groupRowEntry(e)
+  local member = row and groupReads.rows[row]
+  if member == nil then
+    return
+  end
+  local label = roleLabels[member.name]
+  if label == nil then
+    label = "Set role " .. member.name
+    roleLabels[member.name] = label
+  end
+  adapter.addMenuEntry(e, label, pickRole, row)
+end)
+
+Event.KeyDown.Subscribe("runeuiRole", function(e)
+  if rolePicker.isOpen() and e.gameKey == GameKey.ESCAPE then
+    rolePicker.close()
+  end
+end)
+
 function PluginShutdown()
+  rolePicker.close()
   gameui.restore()
   optionsWindow.shutdown()
   names.destroy()

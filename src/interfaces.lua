@@ -84,6 +84,8 @@ interfaces.GROUP_BASE = 11
 interfaces.GROUP_LIST_AREA = 5
 -- The layer whose dynamic children are the member rows' click areas, the first row's being child 0.
 interfaces.GROUP_CLICK_AREA = 1
+-- The op of a member row's Set team entry, which every row's right click menu holds.
+interfaces.GROUP_ROW_TEAM_OP = 7
 -- The group window's buttons. Icon buttons are a 24px layer static holding an icon sprite static: set status,
 -- invite by name, loot share, leave group, invitation setting, start game, create group, want members and find
 -- content. The group size label and the Ready button's layer and text complete the set. The game shows only
