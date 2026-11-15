@@ -231,6 +231,8 @@ local function loadGroupWindow()
   end
   local labels = { [0] = child(0), [23] = child(23), [46] = child(46) }
   local fill = child(0)
+  -- Each member row's click area, as the client has it.
+  local areas = { [0] = { clickthrough = true }, [1] = { clickthrough = true } }
   local function holding(children)
     return {
       alpha = 1,
@@ -253,11 +255,14 @@ local function loadGroupWindow()
         if categoryID == nil then
           return statics[staticID]
         end
+        if interfaceID == 1519 and staticID == 1 then
+          return areas[dynamicID]
+        end
         return interfaceID == 1519 and staticID == 3 and labels[dynamicID] or nil
       end,
     },
   }
-  return window, frame, labels, fill
+  return window, frame, labels, fill, areas
 end
 
 describe("gameui.placeGroupRows", function()
@@ -332,29 +337,60 @@ describe("gameui.holdGroupWindow", function()
     assert.are.same({ 1, 0.5, 1, 1 }, { window[11].alpha, window[20].alpha, labels[46].alpha, fill.alpha })
   end)
 
-  it("lets clicks pass every part of the window but the rows' click areas, and puts each back", function()
-    local window, frame = loadGroupWindow()
-    local area = { clickthrough = false }
-    window[1] = {
-      clickthrough = false,
-      IterateDynamicComponents = function(_, fn)
-        fn(area)
-      end,
-    }
-    window[11].clickthrough = false
-    window[20].clickthrough = true
-    frame[524].clickthrough = false
-    area.categoryID, area.dynamicID = 0, 0
-    gameui.holdGroupWindow(true, 2, true, true)
-    assert.are.same(
-      { true, true, true, false },
-      { window[1].clickthrough, window[11].clickthrough, frame[524].clickthrough, area.clickthrough }
-    )
-    gameui.holdGroupWindow(true, 2, true, false)
-    assert.are.same(
-      { false, false, true, false },
-      { window[1].clickthrough, window[11].clickthrough, window[20].clickthrough, frame[524].clickthrough }
-    )
+  it("lets clicks pass the window's frame but not its rows or button strips, and puts each back", function()
+    local window, frame, _, _, areas = loadGroupWindow()
+    local function writes()
+      local n = 0
+      for _, c in ipairs({ frame[523], window[0], window[18], areas[0], areas[1] }) do
+        n = n + c.writes
+      end
+      return n
+    end
+    -- Counts each clickthrough write on a component the client has at value.
+    local function counted(c, value)
+      local state = { clickthrough = value }
+      c.writes = 0
+      return setmetatable(c, {
+        __index = state,
+        __newindex = function(self, key, to)
+          if key == "clickthrough" then
+            rawset(self, "writes", self.writes + 1)
+            state.clickthrough = to
+          else
+            rawset(self, key, to)
+          end
+        end,
+      })
+    end
+    counted(frame[523], false)
+    window[0] = counted({}, true)
+    counted(window[18], false)
+    areas[0].clickthrough, areas[1].clickthrough = nil, nil
+    counted(areas[0], true)
+    counted(areas[1], true)
+    gameui.holdGroupWindow(true, 2, false, true)
+    assert.are.same({ true, false, false, false, false }, {
+      frame[523].clickthrough,
+      window[0].clickthrough,
+      window[18].clickthrough,
+      areas[0].clickthrough,
+      areas[1].clickthrough,
+    })
+    assert.are.equal(4, writes())
+    gameui.holdGroupWindow(true, 2, false, true)
+    assert.are.equal(4, writes())
+    -- The client puts the frame back, as on a rebuild.
+    frame[523].clickthrough = false
+    gameui.holdGroupWindow(true, 2, false, true)
+    assert.is_true(frame[523].clickthrough)
+    gameui.holdGroupWindow(true, 2, false, false)
+    assert.are.same({ false, true, false, true, true }, {
+      frame[523].clickthrough,
+      window[0].clickthrough,
+      window[18].clickthrough,
+      areas[0].clickthrough,
+      areas[1].clickthrough,
+    })
     gameui.holdGroupWindow(false)
   end)
 

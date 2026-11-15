@@ -262,57 +262,47 @@ function gameui.apply(appearance)
   actionbars.fade(appearance)
 end
 
--- The components of the group window and its frame whose clickthrough the fold turned on, as true by
--- "interface:key", and the member rows it was done for. nil while clicks do not pass the window.
-local passing = nil
-local passingRows = nil
+-- The parts whose clickthrough the click pass wrote, as true by key: "frame", a strip's static id, or minus a
+-- member row. nil while clicks do not pass the window. passedRows is the most rows it has covered.
+local passed = nil
+local passedRows = 0
 
--- Calls fn(interfaceID, key, c) for every component of the group window and its frame, dynamic children
--- included.
-local function eachGroupComponent(fn)
-  local function visit(key, c, _, _, interfaceID)
-    fn(interfaceID, key, c)
+-- Holds c's clickthrough at want while passing, and puts back the one it wrote once not.
+local function passPart(pass, key, c, want)
+  if c == nil then
+    return
   end
-  local ranges = {
-    { interfaces.GROUP_WINDOW, 0, interfaces.GROUP_LAST_STATIC },
-    { interfaces.WINDOWS, GROUP_FRAME.window, GROUP_FRAME.last },
-  }
-  for _, range in ipairs(ranges) do
-    for staticID = range[2], range[3] do
-      local c = component(range[1], staticID)
-      if c ~= nil then
-        visit(tostring(staticID), c, nil, nil, range[1])
-        interfaces.eachChild(c, staticID, visit, range[1])
-      end
+  if pass then
+    if read(c, "clickthrough") == not want then
+      passed[key] = true
+      write(c, "clickthrough", want)
     end
+  elseif passed[key] then
+    write(c, "clickthrough", not want)
   end
 end
 
--- Lets clicks pass the transparent group window to the world, all but the member rows' click areas, which are
--- the children of GROUP_CLICK_AREA. The window is walked once as this turns on and again when the group's size
--- changes, not each tick. false puts every component back.
+-- Lets clicks pass the transparent group window to the world. The window's frame is all that stops them, so it
+-- alone turns clickthrough on. Each member row's click area and each button strip turns it off, so a click on
+-- a party cell or a button stops there. Runs each server tick, as the client makes click areas as the group
+-- grows, and writes only a part that is out of place. false puts every part back.
 local function passGroupClicks(pass, rows)
+  if not pass and passed == nil then
+    return
+  end
+  passed = passed or {}
   if pass then
-    if passing ~= nil and passingRows == rows then
-      return
-    end
-    passing = passing or {}
-    passingRows = rows
-    local clickAreas = "^" .. interfaces.GROUP_CLICK_AREA .. ":"
-    eachGroupComponent(function(interfaceID, key, c)
-      local area = interfaceID == interfaces.GROUP_WINDOW and key:find(clickAreas) ~= nil
-      if not area and read(c, "clickthrough") == false then
-        passing[interfaceID .. ":" .. key] = true
-        write(c, "clickthrough", true)
-      end
-    end)
-  elseif passing ~= nil then
-    eachGroupComponent(function(interfaceID, key, c)
-      if passing[interfaceID .. ":" .. key] then
-        write(c, "clickthrough", false)
-      end
-    end)
-    passing = nil
+    passedRows = math.max(passedRows, rows)
+  end
+  passPart(pass, "frame", component(interfaces.WINDOWS, GROUP_FRAME.window), true)
+  for _, staticID in ipairs(interfaces.GROUP_BUTTON_STRIPS) do
+    passPart(pass, staticID, component(interfaces.GROUP_WINDOW, staticID), false)
+  end
+  for row = 1, passedRows do
+    passPart(pass, -row, component(interfaces.GROUP_WINDOW, interfaces.GROUP_CLICK_AREA, 0, row - 1), false)
+  end
+  if not pass then
+    passed, passedRows = nil, 0
   end
 end
 
