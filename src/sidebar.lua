@@ -1,16 +1,11 @@
--- The group sidebar: a flat panel drawn over the game's group window, with the group's title, a row per
--- member and a tile at each button the game shows. Every part but the Hide button keeps a plain component's
--- defaults, so a click lands on the game's own button or row under it. Its header covers the window's own title
--- strip. Folded, only the header shows, over the window src/gameui holds transparent, and a hit area keeps
--- clicks off the unseen window. While the party grid stands in for the window's list, there is no header and
--- no hit area: the panel is the block of the game's buttons under the list, with a tab on its right edge that
--- folds it to a thin bar and back, so clicks reach the member rows' click areas under the grid's cells.
+-- The group sidebar: the game's group window buttons as a two wide column on the screen's left edge. It draws
+-- a panel and a tile over each button, and src/gameui moves the game's own buttons under the tiles. Every part
+-- but the tab keeps a plain component's defaults, so a click lands on the game's button. The tab on its right
+-- edge folds it to a thin bar and back.
 local sidebar = {}
 
 local controls = require("src/controls")
 local draw = require("src/draw")
-local party = require("src/party")
-local style = require("src/style")
 
 local set = draw.set
 local pos = draw.pos
@@ -19,23 +14,24 @@ local rect = draw.rect
 local FONTS = draw.FONTS
 local COLOURS = draw.COLOURS
 
--- The least height of the header, for a window whose title strip reads shorter.
-local MIN_HEADER = 16
--- The Hide button's size, and the space kept right of it for the window's close button.
-local FOLD_W = 46
-local FOLD_H = 14
--- The folded controls block's bar, and the tab that folds and unfolds the block.
+-- The column's edge padding, an icon button's size and the gap between tiles.
+local PAD = 6
+local SLOT = 24
+local GAP = 4
+local INNER = 2 * SLOT + GAP
+local COLUMN_W = INNER + 2 * PAD
+local LABEL_H = 16
+local TEXT_H = 22
+-- The folded column's bar and its height before a column has been drawn, and the tab that folds and unfolds.
 local BAR_W = 8
+local BAR_H = 88
 local TAB_W = 16
 local TAB_H = 36
 -- The tab's arrow in columns, each two pixels taller than the last from its point.
 local ARROW = 5
-local CLOSE_SPACE = 26
-local PAD = 8
-local VALUE_W = 60
-local LEADER = 12
-local BAR_H = 8
-local NO_ROWS = {}
+-- How far down the screen the column starts, as a part of the screen's height.
+local TOP = 0.3
+local NO_TILES = {}
 
 -- Puts c at x, y sized w by h.
 local function fit(c, x, y, w, h)
@@ -43,46 +39,88 @@ local function fit(c, x, y, w, h)
   size(c, w, h)
 end
 
+-- Lays src/adapter's groupButtons out as a column whose top is at y top. Returns { x, y, w, h, tiles, bands }.
+-- tiles holds each button's { x, y, w, h, sprite, text, plain, static }: the labels first, then each strip's
+-- buttons in the order the strips come, icons two to a row above that strip's text buttons. bands holds a
+-- { strip, x, y, w, h } per click-stopping strip, around its buttons and never over another strip's.
+function sidebar.column(buttons, top)
+  local tiles, bands = {}, {}
+  local y = top + PAD
+  for _, b in ipairs(buttons) do
+    if b.plain then
+      tiles[#tiles + 1] = { x = PAD, y = y, w = INNER, h = LABEL_H, text = b.text, plain = true }
+      y = y + LABEL_H + GAP
+    end
+  end
+  -- Each strip's buttons, by the strip or false for none, and the strips in the order they first come.
+  local groups, order = {}, {}
+  for _, b in ipairs(buttons) do
+    if not b.plain then
+      local key = b.strip or false
+      if groups[key] == nil then
+        groups[key] = {}
+        order[#order + 1] = key
+      end
+      table.insert(groups[key], b)
+    end
+  end
+  for _, key in ipairs(order) do
+    local bandTop, side = y, 0
+    for _, b in ipairs(groups[key]) do
+      if b.text == nil then
+        tiles[#tiles + 1] =
+          { x = PAD + side * (SLOT + GAP), y = y, w = SLOT, h = SLOT, sprite = b.sprite, static = b.static }
+        side = 1 - side
+        if side == 0 then
+          y = y + SLOT + GAP
+        end
+      end
+    end
+    if side == 1 then
+      y = y + SLOT + GAP
+    end
+    for _, b in ipairs(groups[key]) do
+      if b.text ~= nil then
+        tiles[#tiles + 1] = { x = PAD, y = y, w = INNER, h = TEXT_H, text = b.text, static = b.static }
+        y = y + TEXT_H + GAP
+      end
+    end
+    if key then
+      bands[#bands + 1] = { strip = key, x = 0, y = bandTop, w = COLUMN_W, h = y - bandTop }
+    end
+  end
+  return { x = 0, y = top, w = COLUMN_W, h = y - GAP + PAD - top, tiles = tiles, bands = bands }
+end
+
 -- root is the plugin layer that draws over game windows. deps: { saved = src/settings, blocked = function
--- saying whether the options window or edit mode is open, changed = function redrawing after the fold button }.
--- Returns { update(layout, reads, standIn), layout(), destroy() }. update runs each server tick, and on a frame
--- the window moved, with src/adapter's groupLayout and groupReads and whether the party grid stands in for the
--- folded window: it builds the panel once the window is open and the
--- sidebar is on, never while blocked so it cannot stack over the options window, follows the window's place, and
--- destroys the panel when the window closes or the sidebar is turned off. A tick where nothing changed writes
--- nothing. layout() is the layout the panel last drew, nil with no panel.
+-- saying whether the options window or edit mode is open, changed = function redrawing after the tab }.
+-- Returns { update(shown, buttons), destroy() }. update runs each server tick with whether the group window
+-- stands open behind the HUD and src/adapter's groupButtons, nil while folded. It builds the panel once shown
+-- with the sidebar on, never while blocked so it cannot stack over the options window, and destroys it once
+-- not. It returns the column it drew, for src/gameui to put the game's buttons under, or nil while it drew
+-- none. A tick where nothing changed writes nothing.
 function sidebar.create(root, deps)
   local saved = deps.saved
   local s = {}
-  -- The built panel's parts, nil while there is none.
+  -- The built panel's parts, nil while there is none, and the height the folded bar takes.
   local p = nil
-  local drawn = nil
+  local barH = BAR_H
 
   local function build()
     local layer = draw.new(ui.Layer, root)
     size(layer, tonumber(root.width) or 4096, tonumber(root.height) or 4096)
-    local parts = { layer = layer, tiles = {}, rows = {} }
-    parts.top = rect(layer, COLOURS.panel, 0, 0, 0, 0)
-    parts.list = rect(layer, COLOURS.panel, 0, 0, 0, 0)
-    parts.bottom = rect(layer, COLOURS.panel, 0, 0, 0, 0)
-    parts.block = draw.hitArea(rect(layer, COLOURS.panel, 0, 0, 0, 0))
-    set(parts.block, "alpha", 0)
-    parts.title = draw.text(layer, FONTS.body, ui.AlignMode.TOPLEFT, 0, 0, 0, 0)
-    -- Marks the window's own close button, which sits under the header's right end and takes the click.
-    parts.close = draw.text(layer, FONTS.body, ui.AlignMode.CENTRE, 0, 0, CLOSE_SPACE, 0)
-    set(parts.close, "content", "x")
-    local function toggle()
+    local parts = { layer = layer, tiles = {} }
+    parts.face = rect(layer, COLOURS.panel, 0, 0, 0, 0)
+    parts.tab = controls.button(layer, "", 0, 0, TAB_W, TAB_H, "plain", function()
       saved.setSidebar("collapsed", not saved.sidebar().collapsed)
       deps.changed()
-    end
-    parts.fold = controls.button(layer, "Hide", 0, 0, FOLD_W, FOLD_H, "plain", toggle)
-    parts.tab = controls.button(layer, "", 0, 0, TAB_W, TAB_H, "plain", toggle)
+    end)
     parts.arrow = parts.tab.group.add(draw.new(ui.Canvas, layer), 0, 0)
     size(parts.arrow, TAB_W, TAB_H)
     return parts
   end
 
-  -- Draws the tab's arrow, pointing left to fold the block and right to unfold it. A label cannot, as one
+  -- Draws the tab's arrow, pointing left to fold the column and right to unfold it. A label cannot, as one
   -- reading "<" draws nothing.
   local function pointArrow(folded)
     if p.arrowFolded == folded then
@@ -145,114 +183,37 @@ function sidebar.create(root, deps)
     end
   end
 
-  -- Row i, built the first time the list shows that many members: name, leader icon, lifepoints and a bar.
-  local function row(i)
-    local r = p.rows[i]
-    if r == nil then
-      local layer = p.layer
-      r = {
-        name = draw.text(layer, FONTS.body, ui.AlignMode.TOPLEFT, 0, 0, 0, 0),
-        leader = draw.new(ui.Sprite, layer),
-        value = draw.text(layer, FONTS.small, ui.AlignMode.BOTTOMRIGHT, 0, 0, 0, 0),
-        track = rect(layer, COLOURS.healthTrack, 0, 0, 0, 0),
-        fill = rect(layer, style.FRAME_COLOURS.player, 0, 0, 0, 0),
-      }
-      size(r.leader, LEADER, LEADER)
-      r.all = { r.name, r.leader, r.value, r.track, r.fill }
-      p.rows[i] = r
-    end
-    return r
-  end
-
-  local function showRow(r, box, model)
-    local inner = box.w - 2 * PAD
-    set(r.name, "hidden", false)
-    fit(r.name, box.x + PAD, box.y + 3, inner - VALUE_W - LEADER - 8, 16)
-    set(r.name, "content", model.name)
-    set(r.leader, "hidden", model.leader == nil)
-    pos(r.leader, box.x + box.w - PAD - VALUE_W - LEADER - 4, box.y + 5)
-    if model.leader ~= nil then
-      draw.icon(r.leader, model.leader)
-    end
-    set(r.value, "hidden", false)
-    fit(r.value, box.x + box.w - PAD - VALUE_W, box.y + 3, VALUE_W, 16)
-    set(r.value, "content", model.text)
-    set(r.track, "hidden", false)
-    fit(r.track, box.x + PAD, box.y + 23, inner, BAR_H)
-    local filled = model.fill and math.floor(inner * model.fill + 0.5) or 0
-    set(r.fill, "hidden", filled == 0)
-    if filled > 0 then
-      fit(r.fill, box.x + PAD, box.y + 23, filled, BAR_H)
-    end
-  end
-
   function s.destroy()
     if p ~= nil then
       p.layer:Destroy()
       p = nil
     end
-    drawn = nil
   end
 
-  function s.layout()
-    return drawn
-  end
-
-  function s.update(layout, reads, standIn)
+  function s.update(shown, buttons)
     local state = saved.sidebar()
-    if not state.on or layout == nil or not layout.open or (p == nil and deps.blocked()) then
+    if not state.on or not shown or (p == nil and deps.blocked()) then
       s.destroy()
-      return
+      return nil
     end
     p = p or build()
-    drawn = layout
-    local folded = state.collapsed
-    local bottom = layout.y + layout.h
-    local blockY = layout.listY + layout.listH
-    local places = not folded and not standIn and layout.rows or nil
-    set(p.list, "hidden", places == nil)
-    fit(p.list, layout.x, layout.listY, layout.w, layout.listH)
-    set(p.bottom, "hidden", folded)
-    fit(p.bottom, layout.x, blockY, layout.w, bottom - blockY)
-    p.fold.group.set("hidden", standIn == true)
-    p.tab.group.set("hidden", not standIn)
-    set(p.title, "hidden", standIn == true)
-    set(p.close, "hidden", folded or standIn == true)
-    set(p.block, "hidden", not folded or standIn == true)
-    if standIn then
-      -- The block under the list with the tab on its right edge, or folded, a bar at its left end with the tab.
-      set(p.top, "hidden", not folded)
-      fit(p.top, layout.x, blockY, BAR_W, bottom - blockY)
-      p.tab.group.place(layout.x + (folded and BAR_W or layout.w), blockY + (bottom - blockY - TAB_H) // 2)
-      pointArrow(folded)
-    else
-      local top = layout.y
-      local header = math.max(layout.top - top, MIN_HEADER)
-      set(p.top, "hidden", false)
-      fit(p.top, layout.x, top, layout.w, folded and header or layout.listY - top)
-      fit(p.block, layout.x, top + header, layout.w, bottom - top - header)
-      fit(p.title, layout.x + PAD, top, layout.w - PAD - FOLD_W - CLOSE_SPACE - 4, header)
-      set(p.title, "content", reads.title or "Group")
-      fit(p.close, layout.x + layout.w - CLOSE_SPACE, top, CLOSE_SPACE, header)
-      p.fold.group.place(layout.x + layout.w - FOLD_W - CLOSE_SPACE, top + (header - FOLD_H) // 2)
-      set(p.fold.label, "content", folded and "Show" or "Hide")
+    local top = math.floor((tonumber(root.height) or 1000) * TOP)
+    local folded = state.collapsed or buttons == nil
+    local column = not folded and sidebar.column(buttons, top) or nil
+    if column ~= nil then
+      barH = column.h
     end
-
-    local tiles = folded and NO_ROWS or layout.tiles
+    fit(p.face, 0, top, folded and BAR_W or column.w, barH)
+    p.tab.group.place(folded and BAR_W or column.w, top + (barH - TAB_H) // 2)
+    pointArrow(folded)
+    local tiles = column and column.tiles or NO_TILES
     for i, model in ipairs(tiles) do
       showTile(tile(i), model)
     end
     for i = #tiles + 1, #p.tiles do
       hideTile(p.tiles[i])
     end
-    local models = places and party.rows(reads) or NO_ROWS
-    local count = places and math.min(#places, #models) or 0
-    for i = 1, count do
-      showRow(row(i), places[i], models[i])
-    end
-    for i = count + 1, #p.rows do
-      draw.hideAll(p.rows[i].all, true)
-    end
+    return column
   end
 
   return s

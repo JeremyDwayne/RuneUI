@@ -240,48 +240,21 @@ local function updateParty(playerReads)
   return elements.party.update(partyTracker.model(own, saved.partyTiers(), saved.roles(), saved.partyGrid()))
 end
 
--- The space kept between the party grid and the controls block under the group window's list.
-local PIN_GAP = 6
--- Where the party grid sits while it stands in for the group window's list, and whether it does.
-local partyPin = { x = 0, y = 0, anchorX = 0, anchorY = 0 }
-local partyPinned = false
-
--- Puts the party grid in the group window's list area, the corner it grows from on the list's same corner.
--- With layout nil the grid stays where it was last pinned while keep is true, as when the window closes, and
--- goes back to its own place otherwise.
-local function pinParty(layout, keep)
-  if layout ~= nil then
-    local bounds, grid = elements.party.bounds, saved.partyGrid()
-    local x = grid.growX == "left" and layout.listX + layout.listW - bounds.w or layout.listX
-    local y = grid.growY == "up" and layout.listY + layout.listH - PIN_GAP - bounds.h or layout.listY
-    partyPin.x, partyPin.y = math.floor(x - bounds.x + 0.5), math.floor(y - bounds.y + 0.5)
-    partyPinned = true
-  end
-  if partyPinned and (layout ~= nil or keep) then
-    view.place(elements.party.layer, partyPin)
-  elseif partyPinned then
-    partyPinned = false
-    optionsWindow.placeAll()
-  end
-end
-
--- Draws the sidebar over the game's group window while the setting is on, and holds the window transparent
--- while the sidebar is folded. With Click and cast on party cells on, the party grid stands in for the window's
--- list while the window is open: the window is held transparent, the grid sits in its list area and each member
--- row's click area sits under that member's cell, since a click area takes clicks only inside the window. With
--- the sidebar off, or the window closed and the sidebar unfolded, it reads nothing.
+-- Stands the party grid and the sidebar in for the game's group window, while the setting is on and the window
+-- sits in a window frame of its own. The window is held transparent and passing clicks, with the layers above
+-- its rows and buttons sized over the screen, so each member row's click area sits under that member's cell and
+-- each button under the sidebar's tile for it, wherever those are. The hold outlasts a closed window, so the
+-- window is never seen on opening. With the setting off or the HUD hidden, everything goes back.
 local function updateSidebar()
   local state = saved.sidebar()
-  local rows = groupReads.open and #groupReads.rows or 0
-  -- A closed window is read only while folded, when the hold has to outlast it.
-  local layout = state.on and (groupReads.open or state.collapsed) and adapter.groupLayout(rows) or nil
-  local clicks = state.on and saved.partyClicks()
-  local standIn = clicks and layout ~= nil and layout.open and groupReads.open and not hudHeld
-  -- With the grid standing in, the window lets clicks through to the world around the cells and the buttons.
-  gameui.holdGroupWindow(layout ~= nil and (state.collapsed or standIn), rows, state.collapsed, standIn)
-  groupSidebar.update(layout, groupReads, standIn)
-  pinParty(standIn and layout or nil, clicks)
-  gameui.placeGroupRows(standIn and elements.party.rowBoxes() or nil, standIn and rows or 0)
+  local held = state.on and not hudHeld and adapter.groupFramed()
+  local open = held and groupReads.open
+  local rows = open and #groupReads.rows or 0
+  gameui.holdGroupWindow(held, rows, state.collapsed, held)
+  gameui.spreadGroupWindow(held and tonumber(top.width) or nil, tonumber(top.height))
+  local column = groupSidebar.update(open, open and not state.collapsed and adapter.groupButtons() or nil)
+  gameui.placeGroupButtons(column, held)
+  gameui.placeGroupRows(open and elements.party.rowBoxes() or nil, rows)
 end
 
 -- Redraws the player frame, target frame, party grid and resource bar from the client. Returns the target
@@ -367,15 +340,6 @@ optionsWindow = options.create(top, {
 })
 
 groupSidebar = sidebar.create(top, { saved = saved, blocked = optionsWindow.configuring, changed = refresh })
--- The player drags and resizes the group window between server ticks, so while the sidebar is drawn each frame
--- reads the window's box, and redraws the sidebar on a frame it changed.
-Event.Draw.Subscribe("sidebar", function()
-  local drawn = groupSidebar.layout()
-  if drawn ~= nil and adapter.groupMoved(drawn) then
-    updateSidebar()
-  end
-end)
-
 Event.ServerLogic.Subscribe("refresh", function()
   logicTicks = 0
   channelTracker.onTick()

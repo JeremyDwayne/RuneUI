@@ -219,7 +219,7 @@ end
 
 -- Whether the group window sits in the window frame of its own, found by following its base's parents into
 -- the window frames. Docked into another window it reads false.
-local function groupFramed()
+function adapter.groupFramed()
   local c = component(GROUP_WINDOW, interfaces.GROUP_BASE)
   for _ = 1, 6 do
     c = c and read(c, "parentStatic")
@@ -233,6 +233,60 @@ local function groupFramed()
   return false
 end
 
+-- The strip that holds each group window button, by the button's static id, false for one in neither strip. A
+-- button never changes strips, so each is found once.
+local buttonStrips = {}
+
+-- The click-stopping strip above the group window's static staticID, c, or nil for none.
+local function stripOf(staticID, c)
+  local strip = buttonStrips[staticID]
+  if strip == nil then
+    local parent = read(c, "parent")
+    if parent == nil then
+      return nil
+    end
+    strip = false
+    for _ = 1, 3 do
+      local above = parent and read(parent, "interfaceID") == GROUP_WINDOW and read(parent, "staticID")
+      for _, candidate in ipairs(interfaces.GROUP_CLICK_STRIPS) do
+        if above == candidate then
+          strip = candidate
+        end
+      end
+      parent = parent and read(parent, "parent")
+    end
+    buttonStrips[staticID] = strip
+  end
+  return strip or nil
+end
+
+-- Adds the group window's static staticID to buttons when the game shows it.
+local function addButton(buttons, staticID, sprite, text)
+  local c = component(GROUP_WINDOW, staticID)
+  if box(c) ~= nil then
+    buttons[#buttons + 1] = { static = staticID, sprite = sprite, text = text, strip = stripOf(staticID, c) }
+  end
+end
+
+-- The buttons, tabs and labels the group window shows, for src/sidebar's column, in the game's order. A button
+-- or tab is { static, sprite, text, strip }: its static id, its icon or its text, and the click-stopping strip
+-- that holds it, nil for none. The group size is { text, plain = true }, a label with no button under it.
+function adapter.groupButtons()
+  local buttons = {}
+  for _, button in ipairs(interfaces.GROUP_ICON_BUTTONS) do
+    addButton(buttons, button[1], spriteOf(component(GROUP_WINDOW, button[2])))
+  end
+  for _, staticID in ipairs(interfaces.GROUP_TABS) do
+    addButton(buttons, staticID, spriteOf(component(GROUP_WINDOW, staticID)))
+  end
+  if box(component(GROUP_WINDOW, interfaces.GROUP_SIZE)) ~= nil then
+    buttons[#buttons + 1] = { text = label(GROUP_WINDOW, interfaces.GROUP_SIZE), plain = true }
+  end
+  local ready = interfaces.GROUP_READY
+  addButton(buttons, ready.layer, nil, label(GROUP_WINDOW, ready.text))
+  return buttons
+end
+
 local GROUP_UNSHOWN = { open = false }
 
 -- Where the game draws the group window, for src/sidebar, with rows the number of member rows groupReads
@@ -243,7 +297,7 @@ local GROUP_UNSHOWN = { open = false }
 -- member row's { x, y, w, h }. rows is nil when a row reaches outside the list area, as when the list is
 -- scrolled.
 function adapter.groupLayout(rows)
-  if not groupFramed() then
+  if not adapter.groupFramed() then
     return nil
   end
   local x, y, w, h = box(component(interfaces.WINDOWS, interfaces.GROUP_FRAME.window))
