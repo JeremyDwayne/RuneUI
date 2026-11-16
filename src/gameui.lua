@@ -1,8 +1,8 @@
 -- Hides and restores the game's own interfaces: the target panel, buff bars and cast bar held transparent
--- while RuneUI replaces them, with the action bars faded through src/actionbars. The client rebuilds parts of
--- each between server ticks, so onFrame reads a few watched components each rendered frame and writes them
--- back, and nothing while no interface is held. Every change has a restore path: apply with the option off,
--- or restore on shutdown.
+-- while RuneUI replaces them, the group window while the party grid and the sidebar stand in for it, and the
+-- action bars faded through src/actionbars. The client rebuilds parts of each between server ticks, so onFrame
+-- reads a few watched components each rendered frame and writes them back, and nothing while no interface is
+-- held. Every change has a restore path: apply with the option off, or restore on shutdown.
 local actionbars = require("src/actionbars")
 local interfaces = require("src/interfaces")
 
@@ -25,21 +25,22 @@ local function opaque(c)
 end
 
 -- An interface RuneUI can hold transparent with alpha 0, since hiding its components stops them updating.
--- lastStatic is its highest static ID. watched lists { staticID, categoryID, dynamicID } addresses, without
--- the last two for a static, that read opaque once the client reloads or rebuilds the interface. animated lists
+-- Its statics run from firstStatic, 0 when nil, to lastStatic. watched lists { staticID, categoryID, dynamicID }
+-- addresses, without the last two for a static, that read opaque once the client reloads or rebuilds the
+-- interface. animated lists
 -- static IDs whose alpha the client animates, which take hidden instead. Returns { hide(hidden), keep() }: hide
 -- runs each server tick and false restores the original alphas and hidden states; keep runs on every rendered
 -- frame, reading only the watched components while hidden and nothing while shown. It reads every frame, not
 -- only the frames after a server tick as the buff bar watch does, because an interface can load or rebuild on
 -- any frame, where a buff bar slot fills only after a tick.
-local function transparency(interfaceID, lastStatic, watched, animated)
+local function transparency(interfaceID, lastStatic, watched, animated, firstStatic)
   -- Original alpha of each component while held transparent, keyed "static" or "static:category:dynamic".
   local originals = nil
 
   -- Calls fn(key, component) for every component, dynamic children included, since a component's alpha
   -- does not reach its children.
   local function each(fn)
-    for staticID = 0, lastStatic do
+    for staticID = firstStatic or 0, lastStatic do
       local c = component(interfaceID, staticID)
       if c ~= nil then
         fn(tostring(staticID), c)
@@ -48,16 +49,21 @@ local function transparency(interfaceID, lastStatic, watched, animated)
     end
   end
 
+  -- Transparent writes only a component that does not read alpha 0, since the client shows a few again at a
+  -- time and the rest would take a write each for nothing.
   local function setAlpha(transparent)
     each(function(key, c)
-      if transparent and originals[key] == nil then
-        originals[key] = read(c, "alpha") or 1
-      end
-      local alpha = 0
       if not transparent then
-        alpha = originals[key] or 1
+        write(c, "alpha", originals[key] or 1)
+        return
       end
-      write(c, "alpha", alpha)
+      local alpha = read(c, "alpha")
+      if originals[key] == nil then
+        originals[key] = alpha or 1
+      end
+      if alpha ~= 0 then
+        write(c, "alpha", 0)
+      end
     end)
     for _, staticID in ipairs(animated or {}) do
       local c = component(interfaceID, staticID)
@@ -115,6 +121,53 @@ local castBar = transparency(
   interfaces.CAST_BAR_LAST_STATIC,
   { { 0 }, { interfaces.CAST_BAR_DURATION } },
   { interfaces.CAST_BAR_GLOW }
+)
+
+-- The group window, held transparent while the party grid and the sidebar stand in for it, so its member rows
+-- keep updating, which hidden would stop. The client sets a member's row opaque again as their
+-- lifepoints change, so the watch is the window's base and each row's lifepoints label, which holdGroupWindow
+-- keeps in step with the group.
+local groupWatched = { { interfaces.GROUP_BASE } }
+local groupWindow = transparency(interfaces.GROUP_WINDOW, interfaces.GROUP_LAST_STATIC, groupWatched)
+-- Whether each of the window's button strips was hidden before the fold hid it, and each of its other parts and
+-- of its frame's before the hold hid it, by static id. nil while they are as the client has them.
+local stripsWere = nil
+local partsWere = nil
+local chromeWere = nil
+
+-- Hides statics of interfaceID while on, and puts each back as it was once off. were is what an earlier call
+-- returned, nil for none. Returns each one's hidden before the first call, by static id, or nil once off.
+local function hideStatics(interfaceID, statics, were, on)
+  if on then
+    were = were or {}
+    for _, staticID in ipairs(statics) do
+      local c = component(interfaceID, staticID)
+      local hidden = c ~= nil and read(c, "hidden") == true
+      if c ~= nil and were[staticID] == nil then
+        were[staticID] = hidden
+      end
+      if c ~= nil and not hidden then
+        write(c, "hidden", true)
+      end
+    end
+    return were
+  end
+  for staticID, was in pairs(were or {}) do
+    local c = component(interfaceID, staticID)
+    if c ~= nil then
+      write(c, "hidden", was)
+    end
+  end
+  return nil
+end
+-- The window frame the group window sits in, whose background and border show a rebuild.
+local GROUP_FRAME = interfaces.GROUP_FRAME
+local groupFrame = transparency(
+  interfaces.WINDOWS,
+  GROUP_FRAME.last,
+  { { GROUP_FRAME.background }, { GROUP_FRAME.border } },
+  nil,
+  GROUP_FRAME.window
 )
 
 -- Original alpha of each buff bar component while RuneUI hides the bars, keyed "bar:static" or
@@ -216,11 +269,291 @@ function gameui.apply(appearance)
   actionbars.fade(appearance)
 end
 
+-- The parts whose clickthrough the click pass wrote, as true by key: "frame", a strip's static id, or minus a
+-- member row. nil while clicks do not pass the window. passedRows is the most rows it has covered.
+local passed = nil
+local passedRows = 0
+
+-- Holds c's clickthrough at want while passing, and puts back the one it wrote once not.
+local function passPart(pass, key, c, want)
+  if c == nil then
+    return
+  end
+  if pass then
+    if read(c, "clickthrough") == not want then
+      passed[key] = true
+      write(c, "clickthrough", want)
+    end
+  elseif passed[key] then
+    write(c, "clickthrough", not want)
+  end
+end
+
+-- Lets clicks pass the transparent group window to the world. The window's frame is all that stops them, so it
+-- alone turns clickthrough on. Each member row's click area and each strip around buttons turns it off, so a
+-- click on a party cell or a button stops there. Runs each server tick, as the client makes click areas as the group
+-- grows, and writes only a part that is out of place. false puts every part back.
+local function passGroupClicks(pass, rows)
+  if not pass and passed == nil then
+    return
+  end
+  passed = passed or {}
+  if pass then
+    passedRows = math.max(passedRows, rows)
+  end
+  passPart(pass, "frame", component(interfaces.WINDOWS, GROUP_FRAME.window), true)
+  for _, staticID in ipairs(interfaces.GROUP_CLICK_STRIPS) do
+    passPart(pass, staticID, component(interfaces.GROUP_WINDOW, staticID), false)
+  end
+  for row = 1, passedRows do
+    passPart(pass, -row, component(interfaces.GROUP_WINDOW, interfaces.GROUP_CLICK_AREA, 0, row - 1), false)
+  end
+  if not pass then
+    passed, passedRows = nil, 0
+  end
+end
+
+-- Runs each server tick with whether the group window and its frame are held transparent, the number of
+-- member rows it lists, whether its button strips are hidden too, and whether clicks pass it to the world. Its
+-- list tabs and scrollbar and its frame's parts beside the content are hidden throughout. false restores
+-- everything.
+function gameui.holdGroupWindow(held, rows, folded, pass)
+  if held then
+    for i = 1, rows do
+      local dynamic = (i - 1) * interfaces.GROUP_ROW_STRIDE + interfaces.GROUP_ROW_LIFEPOINTS
+      groupWatched[i + 1] = groupWatched[i + 1] or { interfaces.GROUP_LIST, 0, dynamic }
+    end
+    for i = #groupWatched, rows + 2, -1 do
+      groupWatched[i] = nil
+    end
+  end
+  groupWindow.hide(held)
+  groupFrame.hide(held)
+  -- A hidden strip takes no clicks, and alpha 0 does not hold on a button. The list tabs would sit over the
+  -- icon buttons wherever strip 10 is put, and the scrollbar and the frame's border, close button and edit block
+  -- over the edge of whatever the frame is sized round.
+  local window = interfaces.GROUP_WINDOW
+  stripsWere = hideStatics(window, interfaces.GROUP_BUTTON_STRIPS, stripsWere, held and folded == true)
+  partsWere = hideStatics(window, interfaces.GROUP_HIDDEN, partsWere, held)
+  chromeWere = hideStatics(interfaces.WINDOWS, interfaces.GROUP_FRAME_CHROME, chromeWere, held)
+  passGroupClicks(held and pass == true, rows)
+end
+
+-- Puts game component c at x, y in its parent, sized w by h, unless it is there already.
+local function setBox(c, x, y, w, h)
+  if read(c, "x") ~= x or read(c, "y") ~= y or read(c, "width") ~= w or read(c, "height") ~= h then
+    c:SetPos(x, y)
+    c:SetSize(w, h)
+  end
+end
+
+-- Puts game component c at x, y on screen, sized w by h, unless it is there already. A component whose parent
+-- moved this tick may land a tick late, as its screen place is read.
+local function setScreenBox(c, x, y, w, h)
+  local at = read(c, "xyGlobal")
+  local gx, gy = at and read(at, "x"), at and read(at, "y")
+  if gx ~= nil and gy ~= nil and (gx ~= x or gy ~= y or read(c, "width") ~= w or read(c, "height") ~= h) then
+    c:SetPos(math.floor(read(c, "x") + x - gx + 0.5), math.floor(read(c, "y") + y - gy + 0.5))
+    c:SetSize(w, h)
+  end
+end
+
+-- The fields of a game component's position and size: offsets, and shares of its parent's size and of its own.
+local LAYOUT_FIELDS = {
+  position = { "x", "y", "xParentPc", "yParentPc", "xSelfPc", "ySelfPc" },
+  size = { "width", "height", "widthParentPc", "heightParentPc" },
+}
+
+-- How the client lays c out, as its position's and size's fields by name, or nil when one does not read. A
+-- part laid out by a share of its parent follows the parent, which the box it resolves to does not say.
+local function layoutOf(c)
+  local layout = {}
+  for property, fields in pairs(LAYOUT_FIELDS) do
+    local value = read(c, property)
+    for _, field in ipairs(fields) do
+      local n = value ~= nil and read(value, field)
+      if type(n) ~= "number" then
+        return nil
+      end
+      layout[field] = n
+    end
+  end
+  return layout
+end
+
+-- Lays c out as layoutOf read it.
+local function setLayout(c, layout)
+  c:SetPos(layout.x, layout.y, layout.xParentPc, layout.yParentPc, layout.xSelfPc, layout.ySelfPc)
+  c:SetSize(layout.width, layout.height, layout.widthParentPc, layout.heightParentPc)
+end
+
+-- How the client laid out each part before spreadGroupWindow sized the first: layers holds each GROUP_SPREAD
+-- layer's layoutOf by its place in that list, and buttons each strip's and button's by static id. nil while the
+-- window is not spread.
+local groupHomes = nil
+
+-- Reads how the client lays out every loaded layer, strip and button, or nil when one does not read.
+local function readGroupHomes()
+  local homes = { layers = {}, buttons = {} }
+  local function home(into, key, c)
+    into[key] = c ~= nil and layoutOf(c)
+    return c == nil or into[key] ~= nil
+  end
+  for i, ids in ipairs(interfaces.GROUP_SPREAD) do
+    if not home(homes.layers, i, component(ids[1], ids[2])) then
+      return nil
+    end
+  end
+  local buttons = { interfaces.GROUP_READY.layer, interfaces.GROUP_ICON_STRIP.holder }
+  for _, staticID in ipairs(interfaces.GROUP_CLICK_STRIPS) do
+    buttons[#buttons + 1] = staticID
+  end
+  for _, ids in ipairs(interfaces.GROUP_ICON_BUTTONS) do
+    buttons[#buttons + 1] = ids[1]
+  end
+  for _, staticID in ipairs(buttons) do
+    if not home(homes.buttons, staticID, component(interfaces.GROUP_WINDOW, staticID)) then
+      return nil
+    end
+  end
+  return homes
+end
+
+-- The box round the first rows of boxes, each a { x, y, w, h } or false, as x, y, w, h. It takes column in
+-- too when wide is true or there is no box. boxes and column may each be nil. nil when there is nothing to go
+-- round.
+local function around(boxes, rows, column, wide)
+  local x1, y1, x2, y2
+  for row = boxes and rows or 0, 0, -1 do
+    local box = boxes and boxes[row]
+    if row == 0 then
+      box = (wide or x1 == nil) and column
+    end
+    if box then
+      x1, y1 = math.min(x1 or box.x, box.x), math.min(y1 or box.y, box.y)
+      x2, y2 = math.max(x2 or box.x, box.x + box.w), math.max(y2 or box.y, box.y + box.h)
+    end
+  end
+  if x1 ~= nil then
+    return x1, y1, x2 - x1, y2 - y1
+  end
+end
+
+-- Sizes every layer above the group window's click areas and button strips round the party cells, so each row
+-- takes clicks where it is put and the window covers no more of the screen than that. boxes is each member
+-- row's cell as a { x, y, w, h } screen box or false, for the first rows rows. column is the sidebar's box, which
+-- the layers take in only while hovered is true, when its buttons are wanted, or while there is no cell. The
+-- frame reaches GROUP_SPREAD_MARGIN past them. Runs each server tick, and as the hover changes, and writes only
+-- a layer that is out of place. It sizes nothing while a part's layout does not read, as that part could not be
+-- put back. With neither cells nor a column every layer, strip and button goes back to the layout the client
+-- gave it.
+function gameui.spreadGroupWindow(boxes, rows, column, hovered)
+  local x, y, width, height = around(boxes, rows, column, hovered)
+  groupHomes = groupHomes or width ~= nil and readGroupHomes() or nil
+  if groupHomes == nil then
+    return
+  end
+  local margin = interfaces.GROUP_SPREAD_MARGIN
+  for i, ids in ipairs(interfaces.GROUP_SPREAD) do
+    local c = component(ids[1], ids[2])
+    local home = groupHomes.layers[i]
+    if c ~= nil and home and width ~= nil then
+      local frame = i == 1
+      pcall(setBox, c, frame and x - margin or 0, frame and y - margin or 0, width + 2 * margin, height + 2 * margin)
+    elseif c ~= nil and home then
+      pcall(setLayout, c, home)
+    end
+  end
+  if width == nil then
+    for staticID, home in pairs(groupHomes.buttons) do
+      local c = component(interfaces.GROUP_WINDOW, staticID)
+      if c ~= nil and home then
+        pcall(setLayout, c, home)
+      end
+    end
+    groupHomes = nil
+  end
+end
+
+-- Puts the group window's static staticID on the screen box at, when its layout was read to put it back by.
+local function placeButton(staticID, at)
+  local c = component(interfaces.GROUP_WINDOW, staticID)
+  if c ~= nil and groupHomes.buttons[staticID] then
+    pcall(setScreenBox, c, at.x, at.y, at.w, at.h)
+  end
+end
+
+-- Moves the group window's button strips and buttons onto a src/sidebar column, only while the window is spread:
+-- each band's strip onto the band, and each tile's button onto the tile, so a click on the column lands on the
+-- game's own button. The icon strip keeps the width the client shows it at, with its right end on the band and
+-- the rest cut off by the strip that holds it, so the row the client puts the buttons back in lies outside the
+-- column. Runs each server tick and writes only a part that is out of place. spreadGroupWindow puts them back.
+function gameui.placeGroupButtons(column)
+  if groupHomes == nil then
+    return
+  end
+  local icons = interfaces.GROUP_ICON_STRIP
+  for _, band in ipairs(column.bands) do
+    if band.strip == icons.strip then
+      placeButton(icons.holder, band)
+      local c = component(interfaces.GROUP_WINDOW, icons.strip)
+      if c ~= nil and groupHomes.buttons[icons.strip] then
+        pcall(setBox, c, band.w - icons.width, 0, icons.width, band.h)
+      end
+    else
+      placeButton(band.strip, band)
+    end
+  end
+  for _, tile in ipairs(column.tiles) do
+    if tile.static ~= nil then
+      placeButton(tile.static, tile)
+    end
+  end
+end
+
+-- Where the client had each member row's click area that placeGroupRows moved, as { x, y, w, h } by row, false
+-- for a row left alone, and the highest row moved.
+local rowHomes = {}
+local rowsMoved = 0
+
+-- Moves the click area of each of the group window's first rows member rows onto boxes[row], a { x, y, w, h }
+-- screen box, so a click, right click or hover there lands on the game's own row. A row with no box, and every
+-- row when boxes is nil, goes back where the client had it. Runs each server tick: it reads nothing while no
+-- row is moved or wanted, and writes only a click area that is out of place.
+function gameui.placeGroupRows(boxes, rows)
+  if boxes == nil and rowsMoved == 0 then
+    return
+  end
+  local area = component(interfaces.GROUP_WINDOW, interfaces.GROUP_CLICK_AREA)
+  local at = area and read(area, "xyGlobal")
+  local left, top = at and read(at, "x"), at and read(at, "y")
+  local last = math.max(boxes and rows or 0, rowsMoved)
+  rowsMoved = 0
+  for row = 1, last do
+    local c = component(interfaces.GROUP_WINDOW, interfaces.GROUP_CLICK_AREA, 0, row - 1)
+    local box = left ~= nil and top ~= nil and boxes and boxes[row] or nil
+    local home = rowHomes[row]
+    if c ~= nil and box then
+      rowHomes[row] = home or { x = read(c, "x"), y = read(c, "y"), w = read(c, "width"), h = read(c, "height") }
+      rowsMoved = row
+      pcall(setBox, c, math.floor(box.x - left + 0.5), math.floor(box.y - top + 0.5), box.w, box.h)
+    elseif c ~= nil and home then
+      rowHomes[row] = false
+      pcall(setBox, c, home.x, home.y, home.w, home.h)
+    elseif home then
+      -- The row is unloaded: keep its home for a later tick.
+      rowsMoved = row
+    end
+  end
+end
+
 -- Runs on every rendered frame, putting back whatever the client rebuilt on a held interface.
 function gameui.onFrame()
   targetPanel.keep()
   keepBuffBarsHidden()
   castBar.keep()
+  groupWindow.keep()
+  groupFrame.keep()
   actionbars.keepFaded()
 end
 
@@ -229,6 +562,9 @@ function gameui.restore()
   targetPanel.hide(false)
   hideBuffBars(false)
   castBar.hide(false)
+  gameui.holdGroupWindow(false)
+  gameui.spreadGroupWindow(nil)
+  gameui.placeGroupRows(nil)
   actionbars.restore()
 end
 

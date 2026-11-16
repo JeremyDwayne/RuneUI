@@ -14,6 +14,10 @@ local MAIN_BAR = interfaces.MAIN_BAR
 local TARGET_PANEL = interfaces.TARGET_PANEL
 local ACTION_BARS = interfaces.ACTION_BARS
 local BUFF_BARS = interfaces.BUFF_BARS
+local GROUP_WINDOW = interfaces.GROUP_WINDOW
+local GROUP_LIST = interfaces.GROUP_LIST
+-- Member rows read from the group window, the most the party grid shows.
+local MAX_GROUP_ROWS = 30
 -- Empty slots in a row after which a buff bar holds no more icons.
 local EMPTY_RUN = 4
 -- Slots past the last filled one that a buff can fill at once, such as a potion's several effects.
@@ -154,6 +158,254 @@ function adapter.targetReads(effects)
     healthPercent = varValue("VarClient", "COMBATV2_TARGET_SIDE_PANEL_HEALTH"),
     debuffs = debuffs,
   }
+end
+
+-- Group -----------------------------------------------------------------------------------------------------
+
+local GROUP_CLOSED = { open = false }
+
+-- The sprite a sprite component shows, or nil when it is missing or shows none, which reads -1.
+local function spriteOf(c)
+  local sprite = c and read(c, "spriteID")
+  if sprite ~= nil and sprite >= 0 then
+    return sprite
+  end
+end
+
+-- The game's group window as src/party reads it: { open, title, rows }, with rows a list of
+-- { name, rank, lifepoints } in the window's order, up to MAX_GROUP_ROWS: rank is the row's rank sprite and
+-- lifepoints its "current/max" text. While the window is closed or unloaded its rows hold stale values, so
+-- this returns { open = false } and reads none of them.
+function adapter.groupReads()
+  local list = component(GROUP_WINDOW, GROUP_LIST)
+  if list == nil or read(list, "visibleGlobal") ~= true then
+    return GROUP_CLOSED
+  end
+  local rows = {}
+  for i = 1, MAX_GROUP_ROWS do
+    local first = (i - 1) * interfaces.GROUP_ROW_STRIDE
+    local name = label(GROUP_WINDOW, GROUP_LIST, 0, first + interfaces.GROUP_ROW_NAME)
+    if name == nil then
+      break
+    end
+    rows[i] = {
+      name = name,
+      rank = spriteOf(component(GROUP_WINDOW, GROUP_LIST, 0, first + interfaces.GROUP_ROW_RANK)),
+      lifepoints = label(GROUP_WINDOW, GROUP_LIST, 0, first + interfaces.GROUP_ROW_LIFEPOINTS),
+    }
+  end
+  return { open = true, title = label(GROUP_WINDOW, GROUP_LIST, 0, interfaces.GROUP_TITLE), rows = rows }
+end
+
+-- A component's screen box as x, y, w, h, or nil while it is not shown or has no size.
+local function box(c)
+  if c == nil or read(c, "visibleGlobal") ~= true then
+    return nil
+  end
+  local at = read(c, "xyGlobal")
+  local x, y, w, h = at and read(at, "x"), at and read(at, "y"), read(c, "width"), read(c, "height")
+  if x ~= nil and y ~= nil and w ~= nil and h ~= nil and w > 0 and h > 0 then
+    return x, y, w, h
+  end
+end
+
+-- Whether the group window sits in the window frame of its own, found by following its base's parents into
+-- the window frames. Docked into another window it reads false.
+function adapter.groupFramed()
+  local c = component(GROUP_WINDOW, interfaces.GROUP_BASE)
+  for _ = 1, 6 do
+    c = c and read(c, "parentStatic")
+    if c == nil then
+      return false
+    end
+    if read(c, "interfaceID") == interfaces.WINDOWS then
+      return read(c, "staticID") == interfaces.GROUP_FRAME.content
+    end
+  end
+  return false
+end
+
+-- The strip that holds each group window button, by the button's static id, false for one in neither strip. A
+-- button never changes strips, so each is found once.
+local buttonStrips = {}
+
+-- The click-stopping strip above the group window's static staticID, c, or nil for none.
+local function stripOf(staticID, c)
+  local strip = buttonStrips[staticID]
+  if strip == nil then
+    local parent = read(c, "parent")
+    if parent == nil then
+      return nil
+    end
+    strip = false
+    for _ = 1, 3 do
+      local above = parent and read(parent, "interfaceID") == GROUP_WINDOW and read(parent, "staticID")
+      for _, candidate in ipairs(interfaces.GROUP_CLICK_STRIPS) do
+        if above == candidate then
+          strip = candidate
+        end
+      end
+      parent = parent and read(parent, "parent")
+    end
+    buttonStrips[staticID] = strip
+  end
+  return strip or nil
+end
+
+-- Adds the group window's static staticID to buttons when the game shows it.
+local function addButton(buttons, staticID, sprite, text)
+  local c = component(GROUP_WINDOW, staticID)
+  if box(c) ~= nil then
+    buttons[#buttons + 1] = { static = staticID, sprite = sprite, text = text, strip = stripOf(staticID, c) }
+  end
+end
+
+-- The buttons and labels the group window shows, for src/sidebar's column, in the game's order. A button is
+-- { static, sprite, text, strip }: its static id, its icon or its text, and the click-stopping strip that
+-- holds it, nil for none. The group size is { text, plain = true }, a label with no button under it. The tabs
+-- that swap the member list for the banned list are left out, as the party grid shows members only.
+function adapter.groupButtons()
+  local buttons = {}
+  for _, button in ipairs(interfaces.GROUP_ICON_BUTTONS) do
+    addButton(buttons, button[1], spriteOf(component(GROUP_WINDOW, button[2])))
+  end
+  if box(component(GROUP_WINDOW, interfaces.GROUP_SIZE)) ~= nil then
+    buttons[#buttons + 1] = { text = label(GROUP_WINDOW, interfaces.GROUP_SIZE), plain = true }
+  end
+  local ready = interfaces.GROUP_READY
+  addButton(buttons, ready.layer, nil, label(GROUP_WINDOW, ready.text))
+  return buttons
+end
+
+-- The member row whose Set team entry an Event.MiniMenuEntryAdded payload carries, or nil for any other entry.
+function adapter.groupRowEntry(e)
+  local data = read(read(e, "entry"), "componentData")
+  if data == nil or read(data, "opIndex") ~= interfaces.GROUP_ROW_TEAM_OP then
+    return nil
+  end
+  local c = read(data, "component")
+  if read(c, "interfaceID") ~= GROUP_WINDOW or read(c, "staticID") ~= interfaces.GROUP_CLICK_AREA then
+    return nil
+  end
+  local dynamic = read(c, "dynamicID")
+  return dynamic and dynamic + 1
+end
+
+local function addEntry(menu, text, action, arg)
+  menu:Add(text, action, arg)
+end
+
+-- Adds an entry reading text to the right click menu, under the entry an Event.MiniMenuEntryAdded payload
+-- carries. Picking it runs action(arg).
+function adapter.addMenuEntry(e, text, action, arg)
+  local menu = read(e, "miniMenu")
+  if menu ~= nil then
+    pcall(addEntry, menu, text, action, arg)
+  end
+end
+
+local function allPlayers()
+  return PlayerList.All()
+end
+
+-- { entity, name, uid } for a PlayerEntity. name or uid is nil when it does not read.
+local function playerOf(entity)
+  return { entity = entity, name = read(entity, "displayName"), uid = read(entity, "uid") }
+end
+
+-- Every player in view as { entity, name, uid }, read once at load. Event.PlayerEntityAdded and
+-- PlayerEntityRemoved follow the changes.
+function adapter.nearbyPlayers()
+  local players = {}
+  local ok, entities = pcall(allPlayers)
+  if ok and type(entities) == "table" then
+    for i, entity in ipairs(entities) do
+      players[i] = playerOf(entity)
+    end
+  end
+  return players
+end
+
+-- The player in an Event.PlayerEntityAdded or PlayerEntityRemoved payload, as { entity, name, uid }.
+function adapter.entityPlayer(e)
+  return playerOf(e.playerEntity)
+end
+
+-- Nameplates ------------------------------------------------------------------------------------------------
+
+local function headOnScreen(entity)
+  local bounds = entity.aabb
+  local centre = bounds.centre
+  local at = ScreenConvert.Vector3ToScreen(Vector3.new(centre.x, bounds.maxY, centre.z))
+  return at.x, at.y
+end
+
+-- Where the top of a PlayerEntity's bounding box falls on screen, or nil once the entity is gone or the point
+-- cannot be placed. Runs for every player in view on every rendered frame while names are shown.
+function adapter.headPosition(entity)
+  local ok, x, y = pcall(headOnScreen, entity)
+  if ok then
+    return x, y
+  end
+end
+
+-- Whether a PlayerEntity is still in the world.
+function adapter.entityValid(entity)
+  return read(entity, "isValid") == true
+end
+
+local function enumValue(name, key)
+  return config.Enum[name]:GetOutputValue(key)
+end
+
+-- The setting that holds each chat's colour as a place in that chat's list of colours, and the game's list.
+local CHAT_COLOURS = {
+  friend = { "OPTION_PM", "PM_COLOURS" },
+  clan = { "OPTION_CLANCHATCOLOUR", "CLAN_COLOURS" },
+  friendsChat = { "OPTION_FRIENDCHATCOLOUR", "FRIEND_COLOURS" },
+  guest = { "OPTION_GUESTCHATCOLOUR", "GUEST_COLOURS" },
+}
+
+-- The colour the player gave private chat, their clan chat, friends chat and guest clan chat in the game's
+-- settings, as { friend, clan, friendsChat, guest }, each an rgb number or nil when it does not read.
+function adapter.chatColours()
+  local out = {}
+  for kind, setting in pairs(CHAT_COLOURS) do
+    local ok, rgb = pcall(enumValue, setting[2], adapter.playerVar(setting[1]))
+    if ok and math.type(rgb) == "integer" and rgb >= 0 and rgb <= 0xffffff then
+      out[kind] = rgb
+    end
+  end
+  return out
+end
+
+-- Adds the text of each of c's dynamic children to names, without its colour and icon tags.
+local function addNames(c, names)
+  c:IterateDynamicComponents(function(child)
+    local text = read(child, "content")
+    if type(text) == "string" then
+      text = text:gsub("<[^>]*>", "")
+      if text ~= "" then
+        names[#names + 1] = text
+      end
+    end
+    return false
+  end)
+end
+
+-- The names the game's own lists hold, as { friend, friendsChat, clan, guest }, each a list. A list the client
+-- has not loaded reads empty.
+function adapter.relationNames()
+  local out = {}
+  for _, list in ipairs(interfaces.RELATION_LISTS) do
+    local names = {}
+    local c = component(list.id, list.static)
+    if c ~= nil then
+      pcall(addNames, c, names)
+    end
+    out[list.kind] = names
+  end
+  return out
 end
 
 -- Buff bars -------------------------------------------------------------------------------------------------

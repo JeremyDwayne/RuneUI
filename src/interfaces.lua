@@ -67,6 +67,80 @@ interfaces.BUFF_BARS = {
   debuffs = { id = 291, first = 2, last = 51, lastStatic = 60 },
 }
 
+-- The group window. Its member list holds the title label, dynamic child 0, reading "<leader>'s group", then
+-- one row of GROUP_ROW_STRIDE dynamic children per member. A row's name label, rank sprite and lifepoints
+-- label, reading "current/max" without commas, sit at these dynamic ids in the first row. The window stays
+-- loaded while closed, with every component not visibleGlobal and its rows frozen.
+interfaces.GROUP_WINDOW = 1519
+interfaces.GROUP_LIST = 3
+interfaces.GROUP_TITLE = 0
+interfaces.GROUP_ROW_STRIDE = 23
+interfaces.GROUP_ROW_NAME = 1
+interfaces.GROUP_ROW_RANK = 15
+interfaces.GROUP_ROW_LIFEPOINTS = 23
+-- The group window's highest static ID, its base layer and the area its member list scrolls in.
+interfaces.GROUP_LAST_STATIC = 93
+interfaces.GROUP_BASE = 11
+interfaces.GROUP_LIST_AREA = 5
+-- The layer whose dynamic children are the member rows' click areas, the first row's being child 0.
+interfaces.GROUP_CLICK_AREA = 1
+-- The op of a member row's Set team entry, which every row's right click menu holds.
+interfaces.GROUP_ROW_TEAM_OP = 7
+-- The group window's buttons. Icon buttons are a 24px layer static holding an icon sprite static: set status,
+-- invite by name, loot share, leave group, invitation setting, start game, create group, want members and find
+-- content. The group size label and the Ready button's layer and text complete the set. The game shows only
+-- those that apply. The group and banned list tabs, statics 30 to 33, sit at the right end of strip 10.
+interfaces.GROUP_ICON_BUTTONS = {
+  { 20, 57 },
+  { 19, 51 },
+  { 27, 93 },
+  { 23, 35 },
+  { 21, 28 },
+  { 22, 34 },
+  { 24, 36 },
+  { 25, 37 },
+  { 26, 45 },
+}
+-- The three strips that hold those buttons, above and below the member list.
+interfaces.GROUP_BUTTON_STRIPS = { 0, 10, 18 }
+-- The two of them that stop a click, each around its own buttons. Strip 10 only holds strip 18.
+interfaces.GROUP_CLICK_STRIPS = { 0, 18 }
+-- The icon buttons' strip, and the strip that holds it and takes clicks only inside its own box. The client
+-- stops showing the icon strip when it is narrower than its row of buttons: at width it stays shown.
+interfaces.GROUP_ICON_STRIP = { strip = 18, holder = 10, width = 254 }
+-- The list's scrollbar on its right edge, and the tabs that swap the member list for the banned list, which the
+-- client places inside strip 10.
+interfaces.GROUP_HIDDEN = { 7, 30, 31, 32, 33 }
+interfaces.GROUP_SIZE = 29
+interfaces.GROUP_READY = { layer = 6, text = 44 }
+-- The window frame in WINDOWS that holds the group window while it has a window to itself: the frame's own
+-- static, the content static the group window's base sits in, its background, border and close button, and
+-- its last static.
+interfaces.GROUP_FRAME = { window = 523, background = 524, content = 525, border = 528, last = 532 }
+-- The frame's parts beside its content: its background, edit block, scrollbar, border, close button and tabs.
+interfaces.GROUP_FRAME_CHROME = { 524, 526, 527, 528, 529, 530, 531, 532 }
+-- How far past the party cells and the sidebar the window frame is sized.
+interfaces.GROUP_SPREAD_MARGIN = 24
+-- The layers above the member rows' click areas and the button strips, from the window frame down. A click
+-- area or a button takes clicks only inside every layer above it.
+interfaces.GROUP_SPREAD = {
+  { interfaces.WINDOWS, interfaces.GROUP_FRAME.window },
+  { interfaces.WINDOWS, interfaces.GROUP_FRAME.content },
+  { interfaces.GROUP_WINDOW, interfaces.GROUP_BASE },
+  { interfaces.GROUP_WINDOW, 9 },
+  { interfaces.GROUP_WINDOW, interfaces.GROUP_LIST_AREA },
+  { interfaces.GROUP_WINDOW, interfaces.GROUP_CLICK_AREA },
+}
+
+-- The game lists whose dynamic children hold player names, by the relation each gives a nameplate: the friends
+-- list, the friends chat's members, and the clan chat's members and its guests.
+interfaces.RELATION_LISTS = {
+  { kind = "friend", id = 550, static = 7 },
+  { kind = "friendsChat", id = 1427, static = 29 },
+  { kind = "clan", id = 1110, static = 83 },
+  { kind = "guest", id = 1110, static = 38 },
+}
+
 -- config.Inv.WORN, the worn-equipment inventory.
 interfaces.WORN_INV = 94
 

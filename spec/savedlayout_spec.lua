@@ -67,11 +67,13 @@ describe("savedlayout", function()
 
   it("raises the default HUD to keep the major group 31.5% of the window height above its bottom", function()
     for height, majorY in pairs({ [1041] = -328, [1440] = -454 }) do
-      local positions = savedlayout.load(fakeStore(), height).positions()
+      local positions = savedlayout.load(fakeStore(), height, 1710).positions()
       local shift = majorY - savedlayout.DEFAULT_POSITIONS.major.y
       assert.are.equal(majorY, positions.major.y)
       assert.are.equal(savedlayout.DEFAULT_POSITIONS.player.y + shift, positions.player.y)
       assert.are.equal(savedlayout.DEFAULT_POSITIONS.major.x, positions.major.x)
+      -- The sidebar starts on the window's left edge, 30% of the way down it.
+      assert.are.same({ x = -855, y = -math.floor(height * 0.7), anchorX = 0.5, anchorY = 1 }, positions.sidebar)
     end
   end)
 

@@ -98,6 +98,8 @@ local FIELDS = {
   hideCastBar = { true, isBoolean },
   -- Draws a draining bar under each aura icon.
   auraBars = { false, isBoolean },
+  -- Draws each player's name over their head.
+  nameplates = { false, isBoolean },
   font = { "museo", option(styling.FAMILIES) },
   textStep = { 0, range(savedappearance.TEXT_STEP_MIN, savedappearance.TEXT_STEP_MAX) },
   edge = { "shadow", option(styling.EDGES) },

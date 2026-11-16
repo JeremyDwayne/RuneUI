@@ -364,3 +364,253 @@ describe("adapter.itemName", function()
     assert.are.same({ "Elder overload salve (6)", nil }, { adapter.itemName(49039), adapter.itemName(1) })
   end)
 end)
+
+describe("adapter.groupReads", function()
+  -- Interface 1519 with its member list :3 holding the title :0 and each member's row of 23 dynamic children.
+  local function groupWindow(shown, title, members)
+    local children = { [0] = { content = title } }
+    for i, member in ipairs(members) do
+      local first = (i - 1) * 23
+      children[first + 1] = { content = member.name }
+      children[first + 15] = { spriteID = member.rank }
+      children[first + 23] = { content = member.lifepoints }
+    end
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function(_, interfaceID, staticID, _, dynamicID)
+          if interfaceID ~= 1519 or staticID ~= 3 then
+            return nil
+          end
+          if dynamicID == nil then
+            return { visibleGlobal = shown }
+          end
+          return children[dynamicID]
+        end,
+      },
+    }
+  end
+
+  it("reads the title and each member's row in order, stopping at the first row with no name", function()
+    groupWindow(true, "Oakhelm's group", {
+      { name = "Oakhelm", rank = 25847, lifepoints = "9400/15695" },
+      { name = "Mirelle", rank = -1, lifepoints = "0/12000" },
+    })
+    assert.are.same({
+      open = true,
+      title = "Oakhelm's group",
+      rows = {
+        { name = "Oakhelm", rank = 25847, lifepoints = "9400/15695" },
+        { name = "Mirelle", lifepoints = "0/12000" },
+      },
+    }, adapter.groupReads())
+  end)
+
+  it("reads an open window with no members as an empty list", function()
+    groupWindow(true, nil, {})
+    assert.are.same({ open = true, rows = {} }, adapter.groupReads())
+  end)
+
+  it("reads a closed or unloaded window as not open, leaving its stale rows unread", function()
+    groupWindow(false, "Oakhelm's group", { { name = "Oakhelm", rank = 25847, lifepoints = "9400/15695" } })
+    assert.are.same({ open = false }, adapter.groupReads())
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function() end,
+      },
+    }
+    assert.are.same({ open = false }, adapter.groupReads())
+  end)
+end)
+
+-- A shown component at screen x, y sized w by h, with other fields.
+local function at(x, y, w, h, fields)
+  local c = { visibleGlobal = true, xyGlobal = { x = x, y = y }, width = w, height = h }
+  for k, v in pairs(fields or {}) do
+    c[k] = v
+  end
+  return c
+end
+
+-- The group window in the window frame whose content static is content: its base, set status and hidden invite
+-- buttons, selected group tab, size label and Ready button, each shown or not.
+local function groupWindow(content, shown)
+  local frame = { interfaceID = 1477, staticID = content }
+  local statics = {
+    [11] = at(104, 220, 257, 231, { parentStatic = { interfaceID = 1519, staticID = 9, parentStatic = frame } }),
+    [20] = at(107, 223, 24, 24, { parent = { interfaceID = 1519, staticID = 18 } }),
+    [57] = { spriteID = 25853 },
+    [19] = { visibleGlobal = false, xyGlobal = { x = 134, y = 223 }, width = 24, height = 24 },
+    [51] = { spriteID = 25851 },
+    [31] = at(322, 227, 17, 17, { spriteID = 6028, parent = { interfaceID = 1519, staticID = 9 } }),
+    [29] = at(295, 223, 26, 24, { content = "2/50" }),
+    [6] = at(114, 453, 237, 27, { parent = { interfaceID = 1519, staticID = 0 } }),
+    [44] = { content = "Ready" },
+  }
+  if not shown then
+    for _, c in pairs(statics) do
+      c.visibleGlobal = false
+    end
+  end
+  _G.ui = {
+    Interfaces = {
+      GetComponent = function(_, interfaceID, staticID)
+        return interfaceID == 1519 and statics[staticID] or nil
+      end,
+    },
+  }
+end
+
+describe("adapter.groupButtons", function()
+  it("lists each shown button and label with the strip that holds it, and no list tab", function()
+    groupWindow(525, true)
+    assert.are.same({
+      { static = 20, sprite = 25853, strip = 18 },
+      { text = "2/50", plain = true },
+      { static = 6, text = "Ready", strip = 0 },
+    }, adapter.groupButtons())
+    groupWindow(525, false)
+    assert.are.same({}, adapter.groupButtons())
+  end)
+
+  it("says whether the window sits in a window frame of its own", function()
+    groupWindow(525, true)
+    assert.is_true(adapter.groupFramed())
+    groupWindow(493, true)
+    assert.is_false(adapter.groupFramed())
+  end)
+end)
+
+describe("adapter.nearbyPlayers", function()
+  it("lists every player in view with its name and uid, and gives a player entity event's player", function()
+    local oakhelm, unnamed = { displayName = "Oakhelm", uid = 7 }, { uid = 8 }
+    _G.PlayerList = {
+      All = function()
+        return { oakhelm, unnamed }
+      end,
+    }
+    assert.are.same(
+      { { entity = oakhelm, name = "Oakhelm", uid = 7 }, { entity = unnamed, uid = 8 } },
+      adapter.nearbyPlayers()
+    )
+    local brunt = { displayName = "Brunt", uid = 9 }
+    assert.are.same({ entity = brunt, name = "Brunt", uid = 9 }, adapter.entityPlayer({ playerEntity = brunt }))
+    _G.PlayerList = nil
+    assert.are.same({}, adapter.nearbyPlayers())
+  end)
+end)
+
+describe("adapter.headPosition", function()
+  it("gives the screen point of the top of a player's box, and nil for one that cannot be placed", function()
+    _G.Vector3 = {
+      new = function(x, y, z)
+        return { x = x, y = y, z = z }
+      end,
+    }
+    _G.ScreenConvert = {
+      Vector3ToScreen = function(point)
+        return point.z == 7 and { x = point.x, y = point.y } or nil
+      end,
+    }
+    local function standing(z)
+      return { aabb = { centre = { x = 640, z = z }, maxY = 300 } }
+    end
+    assert.are.same({ 640, 300 }, { adapter.headPosition(standing(7)) })
+    assert.is_nil(adapter.headPosition(standing(8)))
+    assert.is_nil(adapter.headPosition({}))
+  end)
+end)
+
+describe("adapter.chatColours", function()
+  it("reads each chat's colour from its setting's place in that chat's colours, or nil", function()
+    _G.var = {
+      VarPlayer = {
+        OPTION_PM = { value = 2 },
+        OPTION_CLANCHATCOLOUR = { value = 4 },
+        OPTION_FRIENDCHATCOLOUR = { value = 9 },
+      },
+    }
+    local function colours(list)
+      return {
+        GetOutputValue = function(_, key)
+          return list[key]
+        end,
+      }
+    end
+    _G.config = {
+      Enum = {
+        PM_COLOURS = colours({ [2] = 0x00ff00 }),
+        CLAN_COLOURS = colours({ [4] = 0x40e0d0 }),
+        FRIEND_COLOURS = colours({ [9] = -1 }),
+        GUEST_COLOURS = colours({}),
+      },
+    }
+    assert.are.same({ friend = 0x00ff00, clan = 0x40e0d0 }, adapter.chatColours())
+    assert.is_true(adapter.entityValid({ isValid = true }))
+    assert.is_false(adapter.entityValid({}))
+  end)
+end)
+
+describe("adapter.relationNames", function()
+  it("reads each game list's names without their tags, and an unloaded list as empty", function()
+    local function list(...)
+      local children = {}
+      for i, content in ipairs({ ... }) do
+        children[i] = { content = content }
+      end
+      return {
+        IterateDynamicComponents = function(_, fn)
+          for _, child in ipairs(children) do
+            fn(child)
+          end
+        end,
+      }
+    end
+    local lists = {
+      ["550:7"] = list("Oakhelm", "<img=3><col=ffffff>Iron Oak", ""),
+      ["1110:83"] = list("Brunt"),
+      ["1110:38"] = list("Ysolde"),
+    }
+    _G.ui = {
+      Interfaces = {
+        GetComponent = function(_, interfaceID, staticID)
+          return lists[interfaceID .. ":" .. staticID]
+        end,
+      },
+    }
+    assert.are.same({
+      friend = { "Oakhelm", "Iron Oak" },
+      friendsChat = {},
+      clan = { "Brunt" },
+      guest = { "Ysolde" },
+    }, adapter.relationNames())
+  end)
+end)
+
+describe("adapter.groupRowEntry", function()
+  -- A menu entry payload for op on the part with these ids.
+  local function entry(interfaceID, staticID, dynamicID, op)
+    local c = { interfaceID = interfaceID, staticID = staticID, dynamicID = dynamicID }
+    return { entry = { componentData = { opIndex = op, component = c } } }
+  end
+
+  it("gives the member row a Set team entry sits on, and nil for any other entry", function()
+    assert.are.equal(2, adapter.groupRowEntry(entry(1519, 1, 1, 7)))
+    assert.is_nil(adapter.groupRowEntry(entry(1519, 1, 1, 3)))
+    assert.is_nil(adapter.groupRowEntry(entry(1519, 18, 0, 7)))
+    assert.is_nil(adapter.groupRowEntry({ entry = {} }))
+    assert.is_nil(adapter.groupRowEntry({}))
+  end)
+
+  it("adds a menu entry that runs its action with its argument", function()
+    local added
+    local menu = {
+      Add = function(_, label, action, arg)
+        added = { label, action, arg }
+      end,
+    }
+    local action = function() end
+    adapter.addMenuEntry({ miniMenu = menu }, "Set role Oakhelm", action, 2)
+    assert.are.same({ "Set role Oakhelm", action, 2 }, added)
+    adapter.addMenuEntry({}, "Set role Oakhelm", action, 2)
+  end)
+end)

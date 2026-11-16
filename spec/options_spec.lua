@@ -132,6 +132,30 @@ describe("options", function()
     assert.are.same({ true, false, true, false }, seen)
   end)
 
+  it("leaves Esc to a popup above the window, then closes the window on the next", function()
+    local root = fake.component()
+    local popup = true
+    local window = options.create(root, {
+      saved = settings.load(fakeStore()),
+      tracker = cooldowns.tracker(),
+      elements = { player = view.playerFrame(root) },
+      view = view,
+      refresh = function() end,
+      configured = function() end,
+      escape = function()
+        local open = popup
+        popup = false
+        return open
+      end,
+    })
+    fake.fire("ContentLayerReady", { component = fake.component() })
+    pretty.button("Options")
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.is_true(window.configuring())
+    fake.fire("KeyDown", { gameKey = GameKey.ESCAPE })
+    assert.is_false(window.configuring())
+  end)
+
   it("switches out of combat fading and action bar fading from the ribbon, saving and redrawing", function()
     local root = fake.component()
     local saved = settings.load(fakeStore())
@@ -209,10 +233,18 @@ describe("options", function()
     for i, v in ipairs(tabs.values) do
       labels[i] = v.text
     end
-    assert.are.same({ "Appearance", "Cooldown manager", "Buffs", "Bars" }, labels)
+    assert.are.same({ "Appearance", "Cooldown manager", "Buffs", "Bars", "Party" }, labels)
     assert.are.equal(1, tabs:GetActiveIndex())
     assert.is_true(shows("Font"))
     assert.is_false(shows("New group"))
+  end)
+
+  it("opens on the page asked for", function()
+    local _, window = optionsOnRoot()
+    window.open("party")
+    assert.are.equal(5, pretty.find("Tabs"):GetActiveIndex())
+    assert.is_true(shows("Group sidebar"))
+    assert.is_false(shows("Font"))
   end)
 
   it("draws every page, popup and spare tile again when the window opens a second time", function()
@@ -220,7 +252,7 @@ describe("options", function()
     openPicker()
     pretty.button("Done")
     pretty.button("Options")
-    for _, page in ipairs({ "Appearance", "Cooldown manager", "Buffs", "Bars" }) do
+    for _, page in ipairs({ "Appearance", "Cooldown manager", "Buffs", "Bars", "Party" }) do
       pretty.fire(pretty.find("Tabs"), page)
     end
     pretty.fire(pretty.find("Tabs"), "Cooldown manager")
@@ -575,7 +607,7 @@ describe("options", function()
   it("destroys the window and its pages on closing, and an idle tick after reopening writes nothing", function()
     local root, _, hud = optionsOnRoot()
     pretty.button("Options")
-    for _, page in ipairs({ "Cooldown manager", "Buffs", "Bars" }) do
+    for _, page in ipairs({ "Cooldown manager", "Buffs", "Bars", "Party" }) do
       pretty.fire(pretty.find("Tabs"), page)
     end
     pretty.button("Done")

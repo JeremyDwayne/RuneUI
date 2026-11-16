@@ -1,7 +1,7 @@
--- RuneUI: player frame, target frame, resource bar, cast bar, cooldown groups and aura rows drawn over the
--- game. Each server tick reads the client through src/adapter and redraws from the src/frames, src/cooldowns,
--- src/channel and src/auras models. The cast bar and cooldown groups also redraw on the Logic tick after
--- their vars change, and count down on every Logic tick.
+-- RuneUI: player frame, target frame, resource bar, cast bar, cooldown groups, aura rows and party grid drawn
+-- over the game. Each server tick reads the client through src/adapter and redraws from the src/frames,
+-- src/cooldowns, src/channel, src/auras and src/party models. The cast bar and cooldown groups also redraw on
+-- the Logic tick after their vars change, and count down on every Logic tick.
 local adapter = require("src/adapter")
 local auralists = require("src/auralists")
 local autohide = require("src/autohide")
@@ -12,9 +12,13 @@ local cooldowns = require("src/cooldowns")
 local frames = require("src/frames")
 local gameui = require("src/gameui")
 local icons = require("src/icons")
+local nameplates = require("src/nameplates")
 local options = require("src/options")
+local party = require("src/party")
 local presets = require("src/presets")
 local settings = require("src/settings")
+local rolepicker = require("src/rolepicker")
+local sidebar = require("src/sidebar")
 local styling = require("src/style")
 local targeteffects = require("src/targeteffects")
 local view = require("src/view")
@@ -23,18 +27,21 @@ local view = require("src/view")
 -- goes on the plugin layer above them. Both span the whole window.
 local hud = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
 local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
-local saved = settings.load(adapter.store(), tonumber(hud.height))
+local saved = settings.load(adapter.store(), tonumber(hud.height), tonumber(hud.width))
 local auraNames = icons.index(catalog.names, {
   spriteName = adapter.spriteName,
   itemName = adapter.itemName,
   describe = adapter.structInfo,
 })
+-- Built first, so the names draw under the rest of the HUD.
+local names = nameplates.create(hud, { position = adapter.headPosition, valid = adapter.entityValid })
 local tooltip = view.tooltip(hud)
 local elements = {
   player = view.playerFrame(hud),
   target = view.targetFrame(hud),
   resource = view.resourceBar(hud),
   castbar = view.castBar(hud),
+  party = view.partyGrid(hud, tooltip),
 }
 -- Every cooldown group element, built-in then custom. A custom group not in use stays hidden.
 local GROUP_NAMES = view.GROUP_NAMES
@@ -45,25 +52,61 @@ for name, style in pairs(view.AURA_STYLES) do
   elements[name] = view.auraRow(hud, style, tooltip, auraNames.info)
 end
 -- The world map draws under the HUD's layer, so the HUD hides while it is open. Out of combat, the Appearance
--- page's setting fades or hides it.
+-- page's setting fades or hides it, but for the party grid and the group sidebar.
 view.holdable(elements)
+view.holdable({ elements.party }, true)
 local tracker = cooldowns.tracker()
 local channelTracker = channel.tracker()
 local auraTracker = auras.tracker()
 local effectsTracker = targeteffects.tracker()
+-- The group's roster and the players in view, which the party grid dims members out of and the nameplates
+-- name.
+local partyTracker = party.tracker()
+local function playerEntered(player)
+  partyTracker.near(player.name, true)
+  names.add(player)
+end
+for _, player in ipairs(adapter.nearbyPlayers()) do
+  playerEntered(player)
+end
+Event.PlayerEntityAdded.Subscribe("party", function(e)
+  playerEntered(adapter.entityPlayer(e))
+end)
+Event.PlayerEntityRemoved.Subscribe("party", function(e)
+  local player = adapter.entityPlayer(e)
+  -- A player who has left may no longer give a name, so the one they entered with is used. One who gives no
+  -- uid either is found as an entity that has gone.
+  local name = names.remove(player.uid)
+  if name ~= nil then
+    partyTracker.near(name, false)
+    return
+  end
+  local gone = names.prune()
+  for _, left in ipairs(gone) do
+    partyTracker.near(left, false)
+  end
+  if #gone == 0 then
+    partyTracker.near(player.name, false)
+  end
+end)
+-- Each rendered frame moves every shown name to its player's head, and reads nothing while names are off.
+Event.Draw.Subscribe("nameplates", names.frame)
 local optionsWindow
 -- Whether the world map is open, COMBATV2_PLAYER_IS_IN_COMBAT as last read, nil while unread, and whether the
 -- player has a target, which showHud draws the HUD from.
 local mapOpen = false
 local inCombat = nil
 local hasTarget = false
+-- Whether the player has opted into Wilderness PvP, where names stay off.
+local inPvp = false
 
--- Hides the HUD while the world map is open, and fades or hides it out of combat as src/autohide says. Writes
--- nothing while neither changes.
+-- Hides the HUD while the world map is open, and fades or hides it out of combat as src/autohide says, but for
+-- the party grid and the group sidebar, which only the world map hides. Writes nothing while neither changes.
 local function showHud()
   local hidden, alpha = autohide.state(saved.appearance(), inCombat, hasTarget, optionsWindow.configuring())
-  view.hold(mapOpen or hidden)
+  view.hold(mapOpen or hidden, mapOpen)
   view.fade(alpha)
+  names.setShown(saved.appearance().nameplates and not mapOpen and not inPvp)
 end
 tracker.seed(presets.INFO)
 tracker.seed(saved.known())
@@ -176,10 +219,58 @@ local function restyle()
   return view.setLook(elements, look)
 end
 
--- Redraws the player frame, target frame and resource bar from the client. Returns the target model and
--- whether an element's bounds changed.
+-- The player's own name and lifepoints as the party grid's model takes them, refilled each tick, and the
+-- group window as last read.
+local own = {}
+local groupReads = { open = false }
+-- Server ticks between reads of the game's friends, clan and chat lists, 30 s, and the ticks since the last.
+local RELATION_TICKS = 50
+local relationTicks = RELATION_TICKS
+local groupSidebar
+
+-- Redraws the party grid from the game's group window and the player's own lifepoints. Returns whether its
+-- bounds changed.
+local function updateParty(playerReads)
+  groupReads = adapter.groupReads()
+  partyTracker.read(groupReads)
+  own.name = playerReads.name
+  names.setSelf(own.name)
+  own.lifepoints = playerReads.lifepoints
+  own.max = frames.labelMax(playerReads.lifepointsLabel)
+  return elements.party.update(partyTracker.model(own, saved.partyTiers(), saved.roles(), saved.partyGrid()))
+end
+
+-- Stands the party grid and the sidebar in for the game's group window, while the setting is on and the window
+-- sits in a window frame of its own. The window is held transparent and passing clicks, with the layers above
+-- its rows sized round the party cells, so each member row's click area sits under that member's cell and the
+-- window covers no more of the screen than the cells span. Each button sits under the sidebar's tile for it,
+-- and the layers take the sidebar in only while the cursor is on it. The hold outlasts a closed window, so the
+-- window is never seen on opening. With the setting off or the world map open, everything goes back.
+local function updateSidebar()
+  local state = saved.sidebar()
+  local held = state.on and not mapOpen and adapter.groupFramed()
+  local open = held and groupReads.open
+  local rows = open and #groupReads.rows or 0
+  -- The window's button strips are hidden unless the sidebar draws its tiles over them.
+  local drawn = open and not state.collapsed and groupSidebar.canDraw()
+  gameui.holdGroupWindow(held, rows, not drawn, held)
+  local column, moved = groupSidebar.update(open, drawn and adapter.groupButtons() or nil)
+  if moved then
+    optionsWindow.placeAll()
+  end
+  local boxes = open and elements.party.rowBoxes() or nil
+  gameui.spreadGroupWindow(boxes, rows, column, groupSidebar.hovered)
+  if column ~= nil then
+    gameui.placeGroupButtons(column)
+  end
+  gameui.placeGroupRows(boxes, rows)
+end
+
+-- Redraws the player frame, target frame, party grid and resource bar from the client. Returns the target
+-- model and whether an element's bounds changed.
 local function updateFrames(appearance)
-  elements.player.update(frames.player(adapter.playerReads(), appearance.lifepoints))
+  local playerReads = adapter.playerReads()
+  elements.player.update(frames.player(playerReads, appearance.lifepoints))
   local targetReads = adapter.targetReads(effectsTracker.debuffs())
   local target = frames.target(targetReads, appearance.lifepoints)
   elements.target.update(target)
@@ -190,6 +281,9 @@ local function updateFrames(appearance)
   stacks = resource.byAbility
   local moved = elements.resource.update(resource)
   if elements.player.showSpenders(resource.spenders) then
+    moved = true
+  end
+  if updateParty(playerReads) then
     moved = true
   end
   return target, moved
@@ -238,8 +332,13 @@ local function refresh()
   if moved then
     optionsWindow.placeAll()
   end
-  optionsWindow.redrawBuffs()
+  updateSidebar()
+  optionsWindow.redrawPage()
 end
+
+-- The role picker, opened from a Set role entry under Set team in a member row's right click menu. It opens
+-- beside the member's party cell, or mid screen when they have none. Esc closes it before anything under it.
+local rolePicker = rolepicker.create(top, { saved = saved, bosses = require("src/bossroles"), refresh = refresh })
 
 optionsWindow = options.create(top, {
   saved = saved,
@@ -248,9 +347,67 @@ optionsWindow = options.create(top, {
   view = view,
   auraInfo = auraNames.info,
   describe = adapter.structInfo,
+  members = partyTracker.members,
   refresh = refresh,
   configured = showHud,
+  escape = function()
+    local open = rolePicker.isOpen()
+    rolePicker.close()
+    return open
+  end,
 })
+
+-- The sidebar draws over the game's own buttons, so it sits on the plugin layer, and is one of the elements so
+-- edit mode places it.
+groupSidebar = sidebar.create(top, {
+  saved = saved,
+  blocked = optionsWindow.configuring,
+  changed = refresh,
+  openRoles = function()
+    optionsWindow.open("party")
+  end,
+})
+elements.sidebar = groupSidebar
+view.holdable({ groupSidebar }, true)
+-- Each member's entry text, by name, kept so the menu's rebuilds allocate nothing.
+local roleLabels = {}
+local NO_ROWS = {}
+
+-- Opens the picker for the member called name, found by name as the group can change while the menu is open.
+local function pickRole(name)
+  local boxes = groupReads.open and elements.party.rowBoxes() or nil
+  local box = nil
+  for row, member in ipairs(boxes and groupReads.rows or NO_ROWS) do
+    if member.name == name then
+      box = boxes[row]
+    end
+  end
+  if box then
+    rolePicker.open(name, box.x + box.w + 4, box.y)
+  else
+    rolePicker.open(name, (tonumber(top.width) or 0) // 2, (tonumber(top.height) or 0) // 3)
+  end
+end
+
+-- The client builds the right click menu again on every rendered frame the mouse rests on something, so this
+-- runs for each entry each frame. It makes no client call while the group window is closed, and two reads for
+-- an entry that is not on an interface.
+Event.MiniMenuEntryAdded.Subscribe("runeuiRole", function(e)
+  if not groupReads.open then
+    return
+  end
+  local row = adapter.groupRowEntry(e)
+  local member = row and groupReads.rows[row]
+  if member == nil then
+    return
+  end
+  local label = roleLabels[member.name]
+  if label == nil then
+    label = "Set role " .. member.name
+    roleLabels[member.name] = label
+  end
+  adapter.addMenuEntry(e, label, pickRole, member.name)
+end)
 
 Event.ServerLogic.Subscribe("refresh", function()
   logicTicks = 0
@@ -259,6 +416,16 @@ Event.ServerLogic.Subscribe("refresh", function()
   channelTracker.read(adapter.iconStruct)
   -- The var sends no changes, so it is read each tick, and only while the Out of combat setting uses it.
   inCombat = autohide.reads(saved.appearance()) and adapter.playerVar("COMBATV2_PLAYER_IS_IN_COMBAT") or nil
+  -- The game's friends, clan and chat lists send no change, so they are read every RELATION_TICKS while names
+  -- are shown, and on the first tick after they are turned on.
+  local named = saved.appearance().nameplates
+  relationTicks = named and relationTicks + 1 or RELATION_TICKS
+  if relationTicks > RELATION_TICKS then
+    relationTicks = 0
+    names.setRelations(adapter.relationNames(), adapter.chatColours())
+  end
+  inPvp = named and adapter.playerVar("WILDY_PVP_OPTED_IN") == 1
+  rolePicker.tick()
   local learned = tracker.onTick(adapter.justUsed)
   if learned ~= nil then
     saved.learn(learned.key, learned.name, learned.icon)
@@ -275,8 +442,11 @@ end)
 refresh()
 
 function PluginShutdown()
+  rolePicker.close()
+  rolePicker.tick()
   gameui.restore()
   optionsWindow.shutdown()
+  names.destroy()
   for _, element in pairs(elements) do
     element.layer:Destroy()
   end

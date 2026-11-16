@@ -7,6 +7,7 @@ local castbar = require("src/castbar")
 local cooldowngroup = require("src/cooldowngroup")
 local draw = require("src/draw")
 local layout = require("src/layout")
+local partyframe = require("src/partyframe")
 local resourcebar = require("src/resourcebar")
 local savedgroups = require("src/savedgroups")
 local tooltip = require("src/tooltip")
@@ -21,6 +22,7 @@ view.resourceBar = resourcebar.create
 view.castBar = castbar.create
 view.cooldownGroup = cooldowngroup.create
 view.auraRow = aurarow.create
+view.partyGrid = partyframe.create
 view.AURA_STYLES = aurarow.STYLES
 
 -- at: { x, y, anchorX, anchorY }, with anchors as fractions of the game window.
@@ -38,27 +40,38 @@ for _, name in ipairs(savedgroups.CUSTOM_GROUPS) do
   GROUP_NAMES[#GROUP_NAMES + 1] = name
 end
 
+-- Turning the strip moves a bar anchored by its bounds by the strip's room, so a group on the other side has to
+-- be nearer by twice that before the strip turns to it. Arranging again then never turns it back.
+local STRIP_SWAY = 2 * resourcebar.STRIP_ROOM
+
 -- The side of the resource bar, "top" or "bottom", that faces the shown cooldown group nearest it at resolved
--- positions, or nil with no group shown. It measures from the bar itself, which turning the strip leaves still.
+-- positions, or nil with no group shown. With groups on both sides it keeps the side the strip is on unless
+-- the other side's nearest group is nearer by more than STRIP_SWAY.
 local function stripSide(elements, resolved)
   local bar = layout.rect(resolved.resource, elements.resource.bounds)
   local barMid = resolved.resource.y + elements.resource.middle
-  local nearest = nil
-  local side = nil
+  local top, bottom = nil, nil
   for _, name in ipairs(GROUP_NAMES) do
     local group = elements[name]
     if group ~= nil and group.inUse and group.bounds.w > 0 then
       local r = layout.rect(resolved[name], group.bounds)
       local dx = r.x + r.w / 2 - (bar.x + bar.w / 2)
       local dy = r.y + r.h / 2 - barMid
-      local distance = dx * dx + dy * dy
-      if nearest == nil or distance < nearest then
-        nearest = distance
-        side = dy < 0 and "top" or "bottom"
+      local distance = math.sqrt(dx * dx + dy * dy)
+      if dy < 0 then
+        top = math.min(top or distance, distance)
+      else
+        bottom = math.min(bottom or distance, distance)
       end
     end
   end
-  return side
+  if top == nil or bottom == nil then
+    return top and "top" or bottom and "bottom" or nil
+  end
+  if elements.resource.strip == "top" then
+    return bottom + STRIP_SWAY < top and "bottom" or "top"
+  end
+  return top + STRIP_SWAY < bottom and "top" or "bottom"
 end
 
 -- Places elements, by name, at positions resolved from src/layout anchors against their bounds, with the
@@ -81,14 +94,15 @@ function view.arrange(elements, positions, anchors)
 end
 
 -- Lets view.hold hide and view.fade fade every element, by name: the world map hides the HUD, and the Out of
--- combat setting fades or hides it.
-function view.holdable(elements)
+-- combat setting fades or hides it. Elements given as steady only the world map hides.
+function view.holdable(elements, steady)
   for _, element in pairs(elements) do
-    draw.holdable(element.layer)
+    draw.holdable(element.layer, steady)
   end
 end
 
--- Hides every view.holdable element while held is true, and shows each as it was once false.
+-- Hides every view.holdable element but the steady ones while held is true, and those too while all is true,
+-- and shows each as it was once false.
 view.hold = draw.hold
 
 -- Draws every view.holdable element at level, from 0 to 1, of its own opacity.

@@ -25,6 +25,8 @@ local shadeMark = hudparts.shadeMark
 local STRIP = 5
 local STRIP_GAP = 2
 local STRIP_ROOM = STRIP_GAP + STRIP + STRIP_GAP
+-- How far turning the strip to the other side moves a bar anchored by its bounds.
+resourcebar.STRIP_ROOM = STRIP_ROOM
 -- Room the adrenaline bar's layer keeps above its bar for spender rows and the strip.
 local BAR_Y = #frames.SPENDERS * SPENDER_STEP + STRIP_ROOM
 -- Fill fraction at which the centred percent label sits entirely on the fill.
@@ -33,7 +35,8 @@ local PERCENT_ON_FILL = 0.56
 -- A look.barWidth by look.barHeight adrenaline bar with its percent and a bar mark at each of its two markers,
 -- and spender rows above or below it as look.spenders picks. Its bounds span the bar, the rows it shows and the
 -- strip's room. update(model) takes a src/frames resource model and returns whether the bounds changed.
--- faceStrip(side) puts the strip on the bar's "top" or "bottom", and returns whether the bounds changed.
+-- faceStrip(side) puts the strip on the bar's "top" or "bottom", and returns whether the bounds changed; strip
+-- is the side it is on.
 -- setGlobal(since, remaining, length) shows the strip for a global cooldown with remaining of its length
 -- seconds left at the server tick since seconds ago, or hides it when remaining is nil, and step(since) fills
 -- it, returning at once while it is hidden. middle is the bar's vertical centre in its
@@ -52,7 +55,7 @@ function resourcebar.create(root)
   local strip = { stripTrack, stripFill }
   draw.hideAll(strip, true)
   local bounds = { x = 0, y = 0, w = 0, h = 0 }
-  local bar = { layer = layer, bounds = bounds }
+  local bar = { layer = layer, bounds = bounds, strip = "top" }
   -- The look shown, whether it wants dark text once the fill passes the label, the fill shown, the model shown,
   -- redrawn after a resize, the bar's height, the side the strip is on, and the global cooldown it shows as
   -- seconds left at the last server tick and its length, or nil.
@@ -164,6 +167,7 @@ function resourcebar.create(root)
       return false
     end
     stripSide = side
+    bar.strip = side
     placeStrip()
     return placeSpenders()
   end

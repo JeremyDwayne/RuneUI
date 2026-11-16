@@ -26,6 +26,9 @@ savedlayout.DEFAULT_POSITIONS = {
   playerDebuffs = { x = -393, y = -395, anchorX = 0.5, anchorY = 1 },
   upkeepBuffs = { x = -393, y = -308, anchorX = 0.5, anchorY = 1 },
   combatBuffs = { x = -192, y = -445, anchorX = 0.5, anchorY = 1 },
+  party = { x = -842, y = -362, anchorX = 0.5, anchorY = 1 },
+  -- The group sidebar, on the left edge of a 1710 by 1041 window and SIDEBAR_TOP of the way down it.
+  sidebar = { x = -855, y = -728, anchorX = 0.5, anchorY = 1 },
 }
 -- src/layout anchors matching DEFAULT_POSITIONS with full rows: everything hangs off the major group, so
 -- dragging it moves them all. Utility hangs under the cast bar, so spender rows below the adrenaline bar push it
@@ -45,10 +48,13 @@ savedlayout.DEFAULT_ANCHORS = {
   playerDebuffs = { target = "player", side = "top", align = "left", gap = 4, offset = 0 },
   upkeepBuffs = { target = "player", side = "bottom", align = "left", gap = 2, offset = 0 },
   combatBuffs = { target = "major", side = "top", align = "center", gap = 10, offset = 0 },
+  party = { target = "player", side = "left", align = "top", gap = 24, offset = 0 },
 }
 -- The default major group's top sits this fraction of the window height above its bottom, below the
 -- player's character, which the camera keeps near the middle of the window at any size.
 local MAJOR_HEIGHT = 0.315
+-- The default sidebar's top sits this fraction of the window height below its top.
+local SIDEBAR_TOP = 0.3
 local POSITION_FIELDS = { "x", "y", "anchorX", "anchorY" }
 
 -- A saved position with every field a number, as integers, or nil.
@@ -146,8 +152,9 @@ local function readPositions(saved)
 end
 
 -- DEFAULT_POSITIONS raised or lowered together so the major group sits MAJOR_HEIGHT of windowHeight above the
--- bottom. With no windowHeight they are DEFAULT_POSITIONS as written.
-local function defaultPositions(windowHeight)
+-- bottom, with the sidebar on the left edge of a window windowWidth wide. With no window size they are
+-- DEFAULT_POSITIONS as written.
+local function defaultPositions(windowHeight, windowWidth)
   if windowHeight == nil then
     return savedlayout.DEFAULT_POSITIONS
   end
@@ -156,13 +163,17 @@ local function defaultPositions(windowHeight)
   for name, pos in pairs(savedlayout.DEFAULT_POSITIONS) do
     out[name] = { x = pos.x, y = pos.y + shift, anchorX = pos.anchorX, anchorY = pos.anchorY }
   end
+  if windowWidth ~= nil then
+    out.sidebar.x = -(windowWidth // 2)
+    out.sidebar.y = -math.floor(windowHeight * (1 - SIDEBAR_TOP))
+  end
   return out
 end
 
--- Loads the layout from store, dropping malformed values. windowHeight, the game window's height in UI units,
--- places the default HUD; specs leave it out.
-function savedlayout.load(store, windowHeight)
-  local defaults = defaultPositions(windowHeight)
+-- Loads the layout from store, dropping malformed values. windowHeight and windowWidth, the game window's size
+-- in UI units, place the default HUD; specs leave them out.
+function savedlayout.load(store, windowHeight, windowWidth)
+  local defaults = defaultPositions(windowHeight, windowWidth)
   local positions = readPositions(store.get("layout"))
   local anchors = readAnchors(store.get("anchors"), positions)
   local savedEditMode = store.get("editMode")
