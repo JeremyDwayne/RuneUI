@@ -98,6 +98,33 @@ style.SPENDER_PLACES = {
   { id = "player", label = "Under player frame" },
 }
 
+-- Window frame and background tints in menu order. Game has no rgb: the frame keeps the game's own colours, and
+-- swatch is what its swatch draws in.
+style.WINDOW_FRAME_PRESETS = {
+  { id = "blue", label = "Blue", rgb = 0x3a8dde },
+  { id = "steel", label = "Steel", rgb = 0x8a96a3 },
+  { id = "gold", label = "Gold", rgb = 0xf2c66d },
+  { id = "charcoal", label = "Charcoal", rgb = 0x3a3a3a },
+  { id = "game", label = "Game", swatch = 0x8a7448 },
+}
+style.WINDOW_BACKGROUND_PRESETS = {
+  { id = "dark", label = "Dark", rgb = 0x404040 },
+  { id = "black", label = "Black", rgb = 0x1a1a1a },
+  { id = "navy", label = "Navy", rgb = 0x2b3a4f },
+  { id = "game", label = "Game", swatch = 0x3a2f1f },
+}
+-- The tint that leaves a game sprite as drawn.
+style.NO_TINT = 0xffffff
+
+-- A saved window tint, a preset id from presets or a hex number, as the rgb to write: NO_TINT for Game.
+function style.windowTint(presets, saved)
+  if type(saved) == "number" then
+    return saved
+  end
+  local preset = style.find(presets, saved)
+  return preset and preset.rgb or style.NO_TINT
+end
+
 style.BORDERS = {
   { id = "runeui", label = "RuneUI" },
   { id = "game", label = "Game frame" },

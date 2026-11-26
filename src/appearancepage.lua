@@ -1,7 +1,8 @@
--- The options window's Appearance and Bars pages. Each has a preview strip of HUD elements, drawn by src/view
--- from sample models over a Dark or Light backdrop, fixed above its settings: Text, Unit frames, Game
--- interfaces and Out of combat on Appearance, the adrenaline bar and the cast bar on Bars. Choices are the game's
--- radio groups, switches its check boxes and numbers steppers of game buttons. The settings scroll by pixels
+-- The options window's settings pages: Style and Bars, each with a preview strip of HUD elements, drawn by
+-- src/view from sample models over a Dark or Light backdrop, fixed above its settings: Text, Unit frames,
+-- Players and Out of combat on Style, the adrenaline bar and the cast bar on Bars. Windows, Action bars and
+-- Hidden interfaces are plain pages of the game interfaces RuneUI changes. Choices are the game's radio groups,
+-- switches its check boxes and numbers steppers of game buttons. The settings scroll by pixels
 -- inside a clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, a text field
 -- reaching past the layer's edge shows no text, and a click on a hit area of RuneUI's own lands only where its
 -- row shows. Every change saves, then redraws the preview and the HUD.
@@ -13,6 +14,8 @@ local frames = require("src/frames")
 local scrollbar = require("src/scrollbar")
 local savedappearance = require("src/savedappearance")
 local style = require("src/style")
+local windowframes = require("src/windowframes")
+local windowpicker = require("src/windowpicker")
 
 local appearancepage = {}
 
@@ -38,7 +41,7 @@ local OPTION_H = 28
 -- A check box's side.
 local CHECK = 24
 local COLUMNS_H = 30
--- The Bars page's action bar table: the Fade, Opacity and Show on hover columns' widths, right to left from
+-- The Action bars page's table: the Fade, Opacity and Show on hover columns' widths, right to left from
 -- the row's right edge, and the width each check box centres in.
 local HOVER_COL = 120
 local OPACITY_COL = 136
@@ -101,20 +104,35 @@ local TEXTURES = {
 local WIDTH_FROM = { { id = false, label = "Own width" }, { id = true, label = "Same as adrenaline" } }
 local MATCH_HUD = { id = "hud", label = "Match HUD" }
 local MATCH_W = 90
+-- The Windows page's Add window and Remove buttons, and its popup's size; the popup opens under the Overrides
+-- heading.
+local ADD_W = 120
+local ADD_H = 28
+local REMOVE_W = 90
+local PICKER_W = 360
+local PICKER_H = 330
+-- Every window frame by name.
+local FRAMES = {}
+for _, frame in ipairs(windowframes) do
+  FRAMES[frame.name] = frame
+end
 
--- A settings page on page, width by height. deps: { saved = src/settings, view = src/view, tooltip =
--- view.tooltip, auraInfo(sprite), tracker = src/cooldowns tracker for the equipped style, refresh() redrawing the
--- HUD }. define(b) builds the preview's elements on b.preview and the rows through b, and returns
--- drawPreview(look, appearance). b holds the scrolling rows, each a new row with a control at its right end: a
--- heading, a settingRow with a label alone, a choiceSetting, checkSetting or stepperSetting bound to an
--- appearance field, a stepperRow bound to value and save callbacks, a colour row and a columns row of headings;
--- and controls added to a row: checkSettingOn for a field, checkOn and stepperOn for callbacks. choose saves a
--- field, changed redraws after a save outside the appearance, and rowRight is the right edge controls end at.
--- Returns { open, choiceRow, checkRow, follow, cancel }: open redraws the page from settings,
--- choiceRow(parent, x, y, w, label, choices, field, optionW) builds a row of choices and checkRow(parent, x, y,
--- w, label, field) a row with a check box on another page, such as the Buffs page's Display tab, follow runs
--- every frame to move a held scrollbar thumb, and cancel ends one.
-local function settingsPage(page, width, height, deps, define)
+-- A settings page on page, width by height, with a preview strip above its rows unless plain is true. deps: { saved =
+-- src/settings, view = src/view, tooltip = view.tooltip, auraInfo(sprite), tracker = src/cooldowns tracker for the
+-- equipped style, refresh() redrawing the HUD }. define(b) builds the preview's elements on b.preview, nil on a plain
+-- page, and the rows through b, and returns drawPreview(look, appearance). b holds the scrolling rows, each a new row
+-- with a control at its right end: a heading, a settingRow with a label alone, a choiceSetting, checkSetting or
+-- stepperSetting bound to an appearance field, a stepperRow bound to value and save callbacks, a colour row and a
+-- columns row of headings; and controls added to a row: checkSettingOn for a field, checkOn and stepperOn for
+-- callbacks. choose saves a field, changed redraws after a save outside the appearance, and rowRight is the right edge
+-- controls end at. hideRow(row, hidden) takes a row out of the stack or puts it back, relayout stacks rows added after
+-- the page built, shows(row, y) says whether a click at y in row lands where it shows, top(row) is where row's top
+-- shows on the page, wheel(c) scrolls by the wheel over c, and popup(p) puts p, { close, isOpen, follow, cancel } built
+-- on b.layer, the page, under the page's Esc, frame and close. Returns { open, choiceRow, checkRow, follow, cancel,
+-- closePopup, popupOpen }: open redraws the page from settings, choiceRow(parent, x, y, w, label, choices, field,
+-- optionW) builds a row of choices and checkRow(parent, x, y, w, label, field) a row with a check box on another page,
+-- such as the Buffs page's Display tab, follow runs every frame to move a held scrollbar thumb, and cancel ends one.
+local function settingsPage(page, width, height, deps, define, plain)
   local saved = deps.saved
   local redraw
 
@@ -204,28 +222,34 @@ local function settingsPage(page, width, height, deps, define)
 
   -- Preview strip -----------------------------------------------------------------------------------------
 
-  local backdrop = hitArea(rect(page, COLOURS.panel, 0, 0, width, STRIP_H))
-  local preview = draw.new(ui.Layer, page)
-  preview:SetSize(width, STRIP_H)
-  rect(page, COLOURS.border, 0, STRIP_H, width, 1)
-  local backdropChoice = "dark"
-  local backdropRadio
+  -- Where the settings start: under the strip and its edge, or at the top of a plain page.
+  local viewY = plain and 0 or STRIP_H + 1
+  local preview = nil
+  local function showBackdrop() end
+  if not plain then
+    local backdrop = hitArea(rect(page, COLOURS.panel, 0, 0, width, STRIP_H))
+    preview = draw.new(ui.Layer, page)
+    preview:SetSize(width, STRIP_H)
+    rect(page, COLOURS.border, 0, STRIP_H, width, 1)
+    local backdropChoice = "dark"
+    local backdropRadio
 
-  local function showBackdrop()
-    set(backdrop, "rgb", style.find(BACKDROPS, backdropChoice).rgb)
-    backdropRadio.show(backdropChoice)
+    function showBackdrop()
+      set(backdrop, "rgb", style.find(BACKDROPS, backdropChoice).rgb)
+      backdropRadio.show(backdropChoice)
+    end
+
+    backdropRadio = controls.radio(page, width - 86, 8, 78, 52, BACKDROPS, 1, function(value)
+      backdropChoice = value
+      showBackdrop()
+    end)
   end
-
-  backdropRadio = controls.radio(page, width - 86, 8, 78, 52, BACKDROPS, 1, function(value)
-    backdropChoice = value
-    showBackdrop()
-  end)
 
   -- Scrolling settings ------------------------------------------------------------------------------------
 
-  local viewH = height - STRIP_H - 1
+  local viewH = height - viewY
   local viewport = draw.new(ui.Layer, page)
-  draw.pos(viewport, 0, STRIP_H + 1)
+  draw.pos(viewport, 0, viewY)
   draw.size(viewport, width, viewH)
   local viewportBg = hitArea(rect(viewport, COLOURS.panel, 0, 0, width, viewH))
   local content = draw.new(ui.Layer, viewport)
@@ -242,7 +266,7 @@ local function settingsPage(page, width, height, deps, define)
     scroll = bar.set(y, contentH)
     draw.pos(content, 0, -scroll)
     for _, row in ipairs(rows) do
-      set(row.layer, "hidden", row.y + row.h <= scroll or row.y >= scroll + viewH)
+      set(row.layer, "hidden", row.hidden or row.y + row.h <= scroll or row.y >= scroll + viewH)
       -- The client clips a text field's box to the layer but not its text.
       for _, f in ipairs(row.fields) do
         local top = row.y + f.y - scroll
@@ -262,14 +286,14 @@ local function settingsPage(page, width, height, deps, define)
     return row
   end
 
-  -- Stacks the rows at their heights, with END_SPACE below the last, and keeps the scroll in range.
+  -- Stacks the shown rows at their heights, with END_SPACE below the last, and keeps the scroll in range.
   local function relayout()
     local y = 0
     for _, row in ipairs(rows) do
       row.y = y
       draw.pos(row.layer, 0, y)
       draw.size(row.layer, width, row.h)
-      y = y + row.h
+      y = y + (row.hidden and 0 or row.h)
     end
     contentH = y + END_SPACE
     draw.size(content, width, contentH)
@@ -290,6 +314,7 @@ local function settingsPage(page, width, height, deps, define)
     set(t, "content", label)
     set(t, "rgb", COLOURS.accent)
     shade = false
+    return row
   end
 
   -- A settings row with its label, h tall or ROW_H; its background, row.bg, takes the wheel.
@@ -493,7 +518,9 @@ local function settingsPage(page, width, height, deps, define)
     }
   end
 
+  local popup = nil
   local drawPreview = define({
+    layer = page,
     preview = preview,
     rowRight = rowRight,
     heading = heading,
@@ -508,6 +535,20 @@ local function settingsPage(page, width, height, deps, define)
     columns = columns,
     colour = colourRow,
     choose = choose,
+    relayout = relayout,
+    shows = shows,
+    -- Where row's top shows on the page.
+    top = function(row)
+      return viewY + row.y - scroll
+    end,
+    wheel = wheel,
+    hideRow = function(row, hidden)
+      row.hidden = hidden
+      relayout()
+    end,
+    popup = function(p)
+      popup = p
+    end,
     -- Redraws the page and the HUD after a change saved outside the appearance, such as a marker.
     changed = function()
       redraw()
@@ -515,7 +556,7 @@ local function settingsPage(page, width, height, deps, define)
     end,
   })
 
-  bar.grip(page, width - scrollbar.WIDTH - 4, STRIP_H + 1)
+  bar.grip(page, width - scrollbar.WIDTH - 4, viewY)
   relayout()
 
   function redraw()
@@ -536,12 +577,30 @@ local function settingsPage(page, width, height, deps, define)
     end,
     choiceRow = choiceRow,
     checkRow = checkRow,
-    follow = bar.follow,
-    cancel = bar.cancel,
+    follow = function()
+      bar.follow()
+      if popup ~= nil then
+        popup.follow()
+      end
+    end,
+    cancel = function()
+      bar.cancel()
+      if popup ~= nil then
+        popup.cancel()
+      end
+    end,
+    closePopup = function()
+      if popup ~= nil then
+        popup.close()
+      end
+    end,
+    popupOpen = function()
+      return popup ~= nil and popup.isOpen()
+    end,
   }
 end
 
--- The Appearance page; see settingsPage.
+-- The Style page; see settingsPage.
 function appearancepage.create(page, width, height, deps)
   local view = deps.view
   return settingsPage(page, width, height, deps, function(b)
@@ -589,10 +648,6 @@ function appearancepage.create(page, width, height, deps)
     b.stepperSetting("Frame width", "frameWidth", savedappearance.FRAME_WIDTH.min, savedappearance.FRAME_WIDTH.max)
     b.stepperSetting("Frame height", "frameHeight", savedappearance.FRAME_HEIGHT.min, savedappearance.FRAME_HEIGHT.max)
 
-    b.heading("Game interfaces")
-    b.checkSetting("Hide default target panel", "hideTargetPanel")
-    b.checkSetting("Hide game cast bar", "hideCastBar")
-
     b.heading("Players")
     b.checkSetting("Names over players' heads", "nameplates")
 
@@ -621,10 +676,8 @@ function appearancepage.create(page, width, height, deps)
   end)
 end
 
--- The Bars page: the adrenaline bar's markers and size, where the spender rows sit, the cast bar's width,
--- height, colour, font and text size, a switch over every action bar's fading, and whether each game action bar
--- fades, to what opacity, and shows at full on hover, with the main bar's stats shown or hidden; see
--- settingsPage.
+-- The Bars page: the adrenaline bar's markers and size, where the spender rows sit, and the cast bar's width,
+-- height, colour, font and text size; see settingsPage.
 function appearancepage.bars(page, width, height, deps)
   local view = deps.view
   local saved = deps.saved
@@ -688,7 +741,22 @@ function appearancepage.bars(page, width, height, deps)
       MATCH_HUD.label
     )
 
-    b.heading("Action bars")
+    return function(look, appearance)
+      widthRow.fade(appearance.castMatchWidth)
+      size.fade(appearance.castTextSize == "hud")
+      view.setLook({ resource, cast }, look)
+      resource.update(frames.resource(SAMPLE_ADRENALINE, saved.markers()))
+      cast.update(SAMPLE_CAST)
+      draw.pos(resource.layer, PREVIEW_X, PREVIEW_Y - resource.bounds.y)
+      draw.pos(cast.layer, PREVIEW_X, PREVIEW_Y + resource.bounds.h + PREVIEW_GAP)
+    end
+  end)
+end
+
+-- The Action bars page: a switch over every action bar's fading, and whether each game action bar fades, to
+-- what opacity, and shows at full on hover; see settingsPage.
+function appearancepage.actionBars(page, width, height, deps)
+  return settingsPage(page, width, height, deps, function(b)
     b.checkSetting("Fade action bars", "fadeBars")
     local right = b.rowRight
     local hoverX = right - HOVER_COL
@@ -727,22 +795,115 @@ function appearancepage.bars(page, width, height, deps)
       "hoverAllBars"
     )
 
-    return function(look, appearance)
-      widthRow.fade(appearance.castMatchWidth)
-      size.fade(appearance.castTextSize == "hud")
+    return function(_, appearance)
       local barsOff = not appearance.fadeBars
       for bar, fade in ipairs(barFades) do
         fade(barsOff or not appearance["fadeBar" .. bar])
         fadeToggles[bar](barsOff)
       end
       hoverAll(barsOff)
-      view.setLook({ resource, cast }, look)
-      resource.update(frames.resource(SAMPLE_ADRENALINE, saved.markers()))
-      cast.update(SAMPLE_CAST)
-      draw.pos(resource.layer, PREVIEW_X, PREVIEW_Y - resource.bounds.y)
-      draw.pos(cast.layer, PREVIEW_X, PREVIEW_Y + resource.bounds.h + PREVIEW_GAP)
     end
-  end)
+  end, true)
+end
+
+-- The Hidden interfaces page: whether the game's target panel, cast bar and buff bars stay hidden while RuneUI
+-- draws its own; see settingsPage.
+function appearancepage.hidden(page, width, height, deps)
+  return settingsPage(page, width, height, deps, function(b)
+    b.checkSetting("Hide default target panel", "hideTargetPanel")
+    b.checkSetting("Hide game cast bar", "hideCastBar")
+    b.checkSetting("Hide game buff bars", "hideBuffBars")
+    return function() end
+  end, true)
+end
+
+-- The Windows page: the tint of every game window's frame and background, every window's background opacity,
+-- and the windows given their own, added from a src/windowpicker popup. deps.windows() is src/windowskin's
+-- windows(), read as the popup opens; see settingsPage.
+function appearancepage.windows(page, width, height, deps)
+  local saved = deps.saved
+  return settingsPage(page, width, height, deps, function(b)
+    b.heading("Window frames")
+    for _, row in ipairs({
+      { "Frame colour", "windowFrameColour", style.WINDOW_FRAME_PRESETS },
+      { "Background colour", "windowBackgroundColour", style.WINDOW_BACKGROUND_PRESETS },
+    }) do
+      local label, field, presets = row[1], row[2], row[3]
+      b.colour(label, field, presets, function(presetID)
+        local preset = style.find(presets, presetID)
+        return preset.rgb or preset.swatch
+      end, function()
+        return style.windowTint(presets, saved.appearance()[field])
+      end)
+    end
+
+    b.heading("Background opacity")
+    b.stepperSetting("All windows", "windowOpacity", 0, 100, savedappearance.OPACITY_STEP)
+
+    local head = b.heading("Overrides")
+    local addY = HEADING_H - ADD_H - 4
+    local picker
+    b.wheel(controls.button(head.layer, "Add window", b.rowRight - ADD_W, addY, ADD_W, ADD_H, "dark", function(_, cy)
+      if not b.shows(head, addY + cy) then
+        return
+      end
+      if picker.isOpen() then
+        picker.close()
+      else
+        picker.open(math.max(0, math.min(b.top(head) + HEADING_H, height - PICKER_H)))
+      end
+    end).bg)
+
+    -- Each window's row by name once it has had its own opacity: a stepper and a Remove button.
+    local rows = {}
+    local function showRow(frame, shown)
+      local row = rows[frame.name]
+      if row == nil and shown then
+        row = b.settingRow(frame.label)
+        local stepperX = b.rowRight - REMOVE_W - 12 - controls.STEPPER_W
+        b.stepperOn(row, stepperX, 0, 100, savedappearance.OPACITY_STEP, function(appearance)
+          return saved.windowOpacities()[frame.name] or appearance.windowOpacity
+        end, function(n)
+          saved.setWindowOpacity(frame.name, n)
+          b.changed()
+        end)
+        local removeY = (ROW_H - ADD_H) // 2
+        b.wheel(
+          controls.button(row.layer, "Remove", b.rowRight - REMOVE_W, removeY, REMOVE_W, ADD_H, "dark", function(_, cy)
+            if b.shows(row, removeY + cy) then
+              saved.setWindowOpacity(frame.name, nil)
+              showRow(frame, false)
+              b.changed()
+            end
+          end).bg
+        )
+        rows[frame.name] = row
+      end
+      if row ~= nil then
+        b.hideRow(row, not shown)
+      end
+    end
+    for _, frame in ipairs(windowframes) do
+      if saved.windowOpacities()[frame.name] ~= nil then
+        showRow(frame, true)
+      end
+    end
+
+    picker = windowpicker.create(b.layer, width - PICKER_W - 24, 0, PICKER_W, PICKER_H, {
+      windows = deps.windows,
+      picked = function(name)
+        return saved.windowOpacities()[name] ~= nil
+      end,
+      toggle = function(name, ticked)
+        local frame = FRAMES[name]
+        saved.setWindowOpacity(name, ticked and saved.appearance().windowOpacity or nil)
+        showRow(frame, ticked)
+        b.changed()
+      end,
+    })
+    b.popup(picker)
+    return function() end
+  end, true)
 end
 
 return appearancepage

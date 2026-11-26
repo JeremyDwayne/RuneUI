@@ -125,6 +125,11 @@ local FIELDS = {
   spenders = { "below", option(styling.SPENDER_PLACES) },
   castTextSize = { "hud", textSize },
   debuffEdge = { "orange", option(styling.DEBUFF_EDGES) },
+  -- The tints of every game window's frame and background.
+  windowFrameColour = { "blue", colour(styling.WINDOW_FRAME_PRESETS) },
+  windowBackgroundColour = { "dark", colour(styling.WINDOW_BACKGROUND_PRESETS) },
+  -- Every game window's background opacity in percent, unless src/savedwindows gives the window its own.
+  windowOpacity = { 100, isOpacity },
   hoverAllBars = { false, isBoolean },
   fadeBars = { true, isBoolean },
   outOfCombat = { "show", option(autohide.MODES) },

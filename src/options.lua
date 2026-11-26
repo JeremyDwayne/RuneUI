@@ -1,6 +1,7 @@
--- The options window and the src/ribbon panel that opens it: a PrettyUI window with a tab per page, the
--- src/appearancepage Appearance and Bars pages, the src/cooldownpage Cooldown manager, the src/buffspage Buffs
--- page, the src/partypage Party page, and a footer with Edit mode into src/editmode, Reset positions and Done.
+-- The options window and the src/ribbon panel that opens it: a PrettyUI window with a src/pagenav list of pages
+-- down its left side, the src/appearancepage Style and Bars pages, the src/cooldownpage Cooldown manager, the
+-- src/buffspage Buffs page, the src/partypage Party page, and a footer with Edit mode into src/editmode, Reset
+-- positions and Done.
 local appearancepage = require("src/appearancepage")
 local buffspage = require("src/buffspage")
 local catalog = require("src/catalog")
@@ -8,6 +9,7 @@ local controls = require("src/controls")
 local cooldownpage = require("src/cooldownpage")
 local draw = require("src/draw")
 local editmode = require("src/editmode")
+local pagenav = require("src/pagenav")
 local partypage = require("src/partypage")
 local ribbon = require("src/ribbon")
 local style = require("src/style")
@@ -19,34 +21,36 @@ local hitArea = draw.hitArea
 local on = draw.on
 local COLOURS = draw.WINDOW
 
-local WIDTH = 900
+-- The list of pages' width.
+local NAV_W = 184
+local WIDTH = 900 + NAV_W
 local HEIGHT = 680
--- The window's content sits inside its 8 px border under its 32 px title bar. Page tabs fill it above the
--- footer, and each page sits under the tabs' 42 px strip.
+-- The window's content sits inside its 8 px border under its 32 px title bar. The list of pages runs down its
+-- left above the footer, and each page fills the rest.
 local CONTENT_X = 8
 local CONTENT_Y = 32
 local CONTENT_W = WIDTH - 2 * CONTENT_X
 local CONTENT_H = HEIGHT - CONTENT_Y - CONTENT_X
 local FOOTER = 46
-local TAB_STRIP = 42
-local PAGE_X = CONTENT_X
-local PAGE_Y = CONTENT_Y + TAB_STRIP
-local PAGE_W = CONTENT_W
-local PAGE_H = CONTENT_H - FOOTER - TAB_STRIP
+local PAGE_X = CONTENT_X + NAV_W
+local PAGE_Y = CONTENT_Y
+local PAGE_W = CONTENT_W - NAV_W
+local PAGE_H = CONTENT_H - FOOTER
 -- Footer game buttons from the right with their widths, and the gap between them and at the window's edge.
 local FOOTER_BUTTONS = { { "Done", 90 }, { "Reset positions", 150 }, { "Edit mode", 110 } }
 local FOOTER_GAP = 12
 local BUTTON_H = 28
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
 -- view = src/view, auraInfo(sprite) naming an aura icon, describe(struct) reading a struct's description,
--- members = function returning the group's members as src/party's tracker lists them, refresh = function
+-- members = function returning the group's members as src/party's tracker lists them, windows = function
+-- returning the game windows the Windows page lists, each { name, label }, refresh = function
 -- redrawing the HUD, configured = function run as the window or edit mode opens or closes, escape = optional
 -- function run first on Esc, returning true when a popup above the window took the key }.
 -- Returns { placeAll, open, redrawPage, configuring, shutdown }; placeAll places the HUD and edit mode's overlays
 -- from the saved positions and anchors, open(pageID) opens the window on that page, redrawPage redraws the Buffs
 -- or Party page while it is shown, each server tick, and configuring says whether the window or edit mode is
 -- open. Every plugin on the plugin layer shares its 4096 dynamic ids, so the window builds as it opens, with the
--- Appearance page, each other page builds on the first visit to its tab, and closing destroys them all. A window
+-- Style page, each other page builds on the first visit to it, and closing destroys them all. A window
 -- whose build is refused logs and stays closed.
 function options.create(root, deps)
   local saved = deps.saved
@@ -62,9 +66,9 @@ function options.create(root, deps)
     showRibbon()
   end
 
-  -- The window, its page tabs, each page's layer by id and the Buffs tooltip while the window is open, nil
+  -- The window, its list's show(id), each page's layer by id and the Buffs tooltip while the window is open, nil
   -- otherwise, and each page's module by id once built in the window's life.
-  local window, pageTabs, pageLayers, buffsTooltip
+  local window, showNav, pageLayers, buffsTooltip
   local pages = {}
   local currentPage = nil
   local windowOpen = false
@@ -85,13 +89,14 @@ function options.create(root, deps)
     page.open()
   end
 
-  -- The pages in tab order. build(layer) builds one on its tab's layer, once per window, and show(page), when
-  -- given, redraws it as its tab is chosen. The Buffs page's Display tab takes rows from the Appearance page,
-  -- which builds as the window opens.
+  -- The pages. build(layer) builds one on its layer, once per window, and show(page), when given, redraws it as
+  -- it is chosen. A settings page is a src/appearancepage page, whose scrollbar drag cancel ends. The Buffs
+  -- page's Display tab takes rows from the Style page, which builds as the window opens.
   local PAGE_LIST = {
     {
       id = "appearance",
-      label = "Appearance",
+      label = "Style",
+      settings = true,
       build = function(layer)
         return appearancepage.create(layer, PAGE_W, PAGE_H, settingsDeps())
       end,
@@ -123,11 +128,10 @@ function options.create(root, deps)
         })
         local appearance = pages.appearance
         local display = page.display
-        appearance.checkRow(display, 24, 18, PAGE_W - 48, "Hide game buff bars", "hideBuffBars")
         local auraIcons = { { id = false, label = "Plain" }, { id = true, label = "With bars" } }
-        appearance.choiceRow(display, 24, 68, PAGE_W - 48, "Aura icons", auraIcons, "auraBars", 120)
-        appearance.choiceRow(display, 24, 118, PAGE_W - 48, "Debuff border", style.DEBUFF_EDGES, "debuffEdge", 96)
-        -- The Appearance page redrew its rows as the window opened, before these were built.
+        appearance.choiceRow(display, 24, 18, PAGE_W - 48, "Aura icons", auraIcons, "auraBars", 120)
+        appearance.choiceRow(display, 24, 68, PAGE_W - 48, "Debuff border", style.DEBUFF_EDGES, "debuffEdge", 96)
+        -- The Style page redrew its rows as the window opened, before these were built.
         appearance.open()
         return page
       end,
@@ -138,6 +142,7 @@ function options.create(root, deps)
     {
       id = "bars",
       label = "Bars",
+      settings = true,
       build = function(layer)
         return appearancepage.bars(layer, PAGE_W, PAGE_H, settingsDeps())
       end,
@@ -151,13 +156,53 @@ function options.create(root, deps)
       end,
       show = open,
     },
+    {
+      id = "windows",
+      label = "Windows",
+      settings = true,
+      build = function(layer)
+        local pageDeps = settingsDeps()
+        pageDeps.windows = deps.windows
+        return appearancepage.windows(layer, PAGE_W, PAGE_H, pageDeps)
+      end,
+      show = open,
+    },
+    {
+      id = "actionbars",
+      label = "Action bars",
+      settings = true,
+      build = function(layer)
+        return appearancepage.actionBars(layer, PAGE_W, PAGE_H, settingsDeps())
+      end,
+      show = open,
+    },
+    {
+      id = "hidden",
+      label = "Hidden interfaces",
+      settings = true,
+      build = function(layer)
+        return appearancepage.hidden(layer, PAGE_W, PAGE_H, settingsDeps())
+      end,
+      show = open,
+    },
   }
   local PAGES = {}
   for _, entry in ipairs(PAGE_LIST) do
     PAGES[entry.id] = entry
   end
+  -- The list of pages' groups, each { label, pages = { { id, label } } } in list order.
+  local NAV_GROUPS = {}
+  for i, group in ipairs({
+    { label = "RuneUI HUD", pages = { "appearance", "bars", "cooldowns", "buffs", "party" } },
+    { label = "Game interfaces", pages = { "windows", "actionbars", "hidden" } },
+  }) do
+    NAV_GROUPS[i] = { label = group.label, pages = {} }
+    for j, pageID in ipairs(group.pages) do
+      NAV_GROUPS[i].pages[j] = { id = pageID, label = PAGES[pageID].label }
+    end
+  end
 
-  -- Builds page pageID on its tab's layer unless it is built.
+  -- Builds page pageID on its layer unless it is built.
   local function buildPage(pageID)
     if pages[pageID] == nil then
       pages[pageID] = PAGES[pageID].build(pageLayers[pageID])
@@ -172,12 +217,20 @@ function options.create(root, deps)
     if pages.buffs ~= nil then
       pages.buffs.close()
     end
+    if pages.windows ~= nil then
+      pages.windows.closePopup()
+    end
   end
 
+  -- Shows page pageID, building it on its first visit, and hides the rest.
   local function showPage(pageID)
     buildPage(pageID)
     closePopups()
     currentPage = pageID
+    for id, layer in pairs(pageLayers) do
+      draw.set(layer, "hidden", id ~= pageID)
+    end
+    showNav(pageID)
     local show = PAGES[pageID].show
     if show ~= nil then
       show(pages[pageID])
@@ -244,7 +297,7 @@ function options.create(root, deps)
     if buffsTooltip ~= nil then
       buffsTooltip.destroy()
     end
-    window, pageTabs, pageLayers, buffsTooltip = nil, nil, nil, nil
+    window, showNav, pageLayers, buffsTooltip = nil, nil, nil, nil
     pages = {}
   end
 
@@ -254,9 +307,10 @@ function options.create(root, deps)
     if pages.cooldowns ~= nil then
       pages.cooldowns.close()
     end
-    pages.appearance.cancel()
-    if pages.bars ~= nil then
-      pages.bars.cancel()
+    for id, page in pairs(pages) do
+      if PAGES[id].settings then
+        page.cancel()
+      end
     end
     closePopups()
     forgetWindow()
@@ -286,7 +340,7 @@ function options.create(root, deps)
 
   -- Window --------------------------------------------------------------------------------------------
 
-  -- Builds the window, a layer per page tab, the footer and the Appearance page. PrettyUI builds the window
+  -- Builds the window, its list of pages, a layer per page, the footer and the Style page. PrettyUI builds the window
   -- open, and destroys it once closed.
   local function build()
     window = prettyui.Window.new(root, {
@@ -304,28 +358,18 @@ function options.create(root, deps)
       end,
     })
 
-    local tabValues = {}
-    for i, entry in ipairs(PAGE_LIST) do
-      tabValues[i] = { text = entry.label }
-    end
-    pageTabs = window:AddTabs(tabValues, {
-      x = 0,
-      y = 0,
-      width = CONTENT_W,
-      height = CONTENT_H - FOOTER,
-      scrollable = false,
-      onChange = function(_, index)
-        showPage(PAGE_LIST[index].id)
-      end,
-    })
+    local nav = draw.new(ui.Layer, window.content)
+    draw.size(nav, NAV_W, PAGE_H)
+    showNav = pagenav.create(nav, NAV_W, PAGE_H, NAV_GROUPS, showPage)
 
-    -- Each page is a layer on its tab's content, which the page's module draws on.
+    -- Each page is a layer beside the list, which the page's module draws on.
     pageLayers = {}
-    for i, entry in ipairs(PAGE_LIST) do
-      local page = draw.new(ui.Layer, pageTabs:GetPage(i).content)
-      page:SetSize(PAGE_W, PAGE_H)
-      -- A click on the page's background closes its popups.
-      if entry.id ~= "appearance" and entry.id ~= "bars" then
+    for _, entry in ipairs(PAGE_LIST) do
+      local page = draw.new(ui.Layer, window.content)
+      draw.pos(page, NAV_W, 0)
+      draw.size(page, PAGE_W, PAGE_H)
+      -- A click on the page's background closes its popups. A settings page's backdrop takes the wheel instead.
+      if not entry.settings then
         on(hitArea(rect(page, COLOURS.panel, 0, 0, PAGE_W, PAGE_H)), "ONCLICK", function()
           closePopups()
         end)
@@ -363,7 +407,7 @@ function options.create(root, deps)
     buildPage("appearance")
   end
 
-  -- Opens the window on the page whose id is pageID, or on Appearance.
+  -- Opens the window on the page whose id is pageID, or on Style.
   function openWindow(pageID)
     if window ~= nil then
       window:Show()
@@ -381,16 +425,7 @@ function options.create(root, deps)
     end
     windowOpen = true
     configured()
-    local index = 1
-    for i, page in ipairs(PAGE_LIST) do
-      if page.id == pageID then
-        index = i
-      end
-    end
-    if pageTabs:GetActiveIndex() ~= index then
-      pageTabs:SetActive(index, false)
-    end
-    showPage(PAGE_LIST[index].id)
+    showPage(PAGES[pageID] and pageID or "appearance")
   end
 
   -- Ticks ---------------------------------------------------------------------------------------------
@@ -412,7 +447,9 @@ function options.create(root, deps)
     elseif editing() then
       editMode.escape()
     elseif
-      (pages.cooldowns ~= nil and pages.cooldowns.popupOpen()) or (pages.buffs ~= nil and pages.buffs.popupOpen())
+      (pages.cooldowns ~= nil and pages.cooldowns.popupOpen())
+      or (pages.buffs ~= nil and pages.buffs.popupOpen())
+      or (pages.windows ~= nil and pages.windows.popupOpen())
     then
       closePopups()
     elseif windowOpen then

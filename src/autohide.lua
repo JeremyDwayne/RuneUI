@@ -1,4 +1,4 @@
--- Out of combat hiding: how the HUD shows from the Appearance page's Out of combat settings, whether the player
+-- Out of combat hiding: how the HUD shows from the Style page's Out of combat settings, whether the player
 -- is in combat or has a target, and whether the options window or edit mode is open. main.lua reads
 -- COMBATV2_PLAYER_IS_IN_COMBAT each server tick, since the var sends no changes, and applies the result through
 -- view.hold and view.fade. Pure.

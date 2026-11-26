@@ -22,6 +22,7 @@ local sidebar = require("src/sidebar")
 local styling = require("src/style")
 local targeteffects = require("src/targeteffects")
 local view = require("src/view")
+local windowskin = require("src/windowskin")
 
 -- Game interfaces such as the bank draw over the game area, so the HUD sits under them. The options window
 -- goes on the plugin layer above them. Both span the whole window.
@@ -320,7 +321,7 @@ end
 -- Redraws the whole HUD from the client, each server tick and after a settings change.
 local function refresh()
   local appearance = saved.appearance()
-  gameui.apply(appearance)
+  gameui.apply(appearance, saved.windowOpacities())
   local moved = restyle()
   local target, framesMoved = updateFrames(appearance)
   moved = moved or framesMoved
@@ -348,6 +349,7 @@ optionsWindow = options.create(top, {
   auraInfo = auraNames.info,
   describe = adapter.structInfo,
   members = partyTracker.members,
+  windows = windowskin.windows,
   refresh = refresh,
   configured = showHud,
   escape = function()

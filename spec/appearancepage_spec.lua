@@ -47,11 +47,11 @@ local function label(content)
   end)
 end
 
--- An open Bars page on a 698 by 562 page layer. Returns its settings.
-local function openBars()
+-- An open page built by build, Bars unless given, on a 698 by 562 page layer. Returns its settings.
+local function openBars(build)
   local root = fake.component()
   local saved = settings.load(fakeStore())
-  local page = appearancepage.bars(root, 698, 562, {
+  local page = (build or appearancepage.bars)(root, 698, 562, {
     saved = saved,
     view = view,
     tooltip = view.tooltip(root),
@@ -63,6 +63,30 @@ local function openBars()
   })
   page.open()
   return saved
+end
+
+-- An open Windows page on a 698 by 562 page layer, listing Public chat open and Clan chat closed. Returns its
+-- settings, a count of HUD refreshes and the page.
+local function openWindows()
+  local root = fake.component()
+  local saved = settings.load(fakeStore())
+  local refreshed = { count = 0 }
+  local page = appearancepage.windows(root, 698, 562, {
+    saved = saved,
+    view = view,
+    tracker = cooldowns.tracker(),
+    windows = function()
+      return {
+        open = { { name = "CHAT_WINDOW", label = "Public chat" } },
+        closed = { { name = "CHAT_WINDOW_4", label = "Clan chat" } },
+      }
+    end,
+    refresh = function()
+      refreshed.count = refreshed.count + 1
+    end,
+  })
+  page.open()
+  return saved, refreshed, page
 end
 
 -- The player colour's hex field, the first field showing a #RRGGBB code.
@@ -354,8 +378,7 @@ describe("appearance page", function()
   end)
 
   it("fades an action bar from its row, stepping its opacity by 5 and dimming it until the bar fades", function()
-    local saved = openBars()
-    wheel(1, 200)
+    local saved = openBars(appearancepage.actionBars)
     assert.is_true(fieldInRow("Main bar").alpha < 1)
     fake.tick(checkInRow("Main bar"))
     pressInRow("Main bar", "+")
@@ -370,12 +393,9 @@ describe("appearance page", function()
   end)
 
   it("turns every action bar's fading off from one switch, dimming each bar's own settings", function()
-    local saved = openBars()
-    wheel(1, 200)
+    local saved = openBars(appearancepage.actionBars)
     fake.tick(checkInRow("Main bar"))
     assert.is_false(fieldInRow("Main bar").alpha < 1)
-    -- Up 40 px, so the switch's row shows whole.
-    wheel(-1, 5)
     fake.press("Fade action bars")
     local a = saved.appearance()
     assert.are.same({ false, true }, { a.fadeBars, a.fadeBar1 })
@@ -384,9 +404,54 @@ describe("appearance page", function()
     assert.are.same({ true, false }, { saved.appearance().fadeBars, fieldInRow("Main bar").alpha < 1 })
   end)
 
+  it("hides the game's target panel, cast bar and buff bars from the Hidden interfaces page", function()
+    local saved = openBars(appearancepage.hidden)
+    fake.press("Hide default target panel")
+    fake.press("Hide game cast bar")
+    fake.press("Hide game buff bars")
+    local a = saved.appearance()
+    assert.are.same({ true, false, true }, { a.hideTargetPanel, a.hideCastBar, a.hideBuffBars })
+  end)
+
+  it("tints window frames and sets every window's opacity from the Windows page", function()
+    local saved, refreshed = openWindows()
+    fake.pressText("Steel")
+    pressInRow("All windows", "-")
+    local a = saved.appearance()
+    assert.are.same({ "steel", 95, 2 }, { a.windowFrameColour, a.windowOpacity, refreshed.count })
+  end)
+
+  it("gives a window its own opacity from the Add window popup and takes it away with Remove", function()
+    local saved, _, page = openWindows()
+    saved.setAppearance("windowOpacity", 60)
+    fake.press("Add window")
+    assert.are.same({ true, true }, { label("Open now") ~= nil, label("Clan chat") ~= nil })
+    -- Under the Overrides heading, which sits below the colour rows, the All windows row and two headings.
+    assert.is_true(label("Open now").parent.parent.parent.y > 200)
+    fake.press("Public chat")
+    assert.are.same({ CHAT_WINDOW = 60 }, saved.windowOpacities())
+    page.closePopup()
+    pressInRow("Public chat", "+")
+    assert.are.same({ CHAT_WINDOW = 65 }, saved.windowOpacities())
+    fake.press("Remove")
+    assert.are.same({ {}, nil }, { saved.windowOpacities(), label("Public chat") })
+  end)
+
+  it("lists only the windows matching the popup's search, and a steady frame writes nothing", function()
+    local _, _, page = openWindows()
+    fake.press("Add window")
+    local search = fake.find(function(_, d)
+      return d.emptyText == "Search windows"
+    end)
+    fake.hook(search, "ONCONTENTCHANGED", ui.InputFieldActionResult.CONTENT_CHANGE, "CLAN")
+    assert.are.same({ true, nil, nil }, { label("Clan chat") ~= nil, label("Public chat"), label("Open now") })
+    fake.writes = 0
+    page.follow()
+    assert.are.equal(0, fake.writes)
+  end)
+
   it("saves a typed opacity only on a step of 5, keeping what is typed until then", function()
-    local saved = openBars()
-    wheel(1, 200)
+    local saved = openBars(appearancepage.actionBars)
     local field = fieldInRow("Main bar")
     field.content = "3"
     fake.hook(field, "ONCONTENTCHANGED", ui.InputFieldActionResult.CONTENT_CHANGE, "3")
