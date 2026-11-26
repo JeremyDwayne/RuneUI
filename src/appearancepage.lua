@@ -14,6 +14,8 @@ local frames = require("src/frames")
 local scrollbar = require("src/scrollbar")
 local savedappearance = require("src/savedappearance")
 local style = require("src/style")
+local windowframes = require("src/windowframes")
+local windowpicker = require("src/windowpicker")
 
 local appearancepage = {}
 
@@ -102,6 +104,16 @@ local TEXTURES = {
 local WIDTH_FROM = { { id = false, label = "Own width" }, { id = true, label = "Same as adrenaline" } }
 local MATCH_HUD = { id = "hud", label = "Match HUD" }
 local MATCH_W = 90
+-- The Windows page's Add window and Remove buttons, and its popup's width.
+local ADD_W = 120
+local ADD_H = 28
+local REMOVE_W = 90
+local PICKER_W = 360
+-- Every window frame by name.
+local FRAMES = {}
+for _, frame in ipairs(windowframes) do
+  FRAMES[frame.name] = frame
+end
 
 -- A settings page on page, width by height, with a preview strip above its rows unless plain is true. deps:
 -- { saved = src/settings, view = src/view, tooltip = view.tooltip, auraInfo(sprite), tracker = src/cooldowns
@@ -112,10 +124,13 @@ local MATCH_W = 90
 -- appearance field, a stepperRow bound to value and save callbacks, a colour row and a columns row of headings;
 -- and controls added to a row: checkSettingOn for a field, checkOn and stepperOn for callbacks. choose saves a
 -- field, changed redraws after a save outside the appearance, and rowRight is the right edge controls end at.
--- Returns { open, choiceRow, checkRow, follow, cancel }: open redraws the page from settings,
--- choiceRow(parent, x, y, w, label, choices, field, optionW) builds a row of choices and checkRow(parent, x, y,
--- w, label, field) a row with a check box on another page, such as the Buffs page's Display tab, follow runs
--- every frame to move a held scrollbar thumb, and cancel ends one.
+-- hideRow(row, hidden) takes a row out of the stack or puts it back, relayout stacks rows added after the page
+-- built, shows(row, y) says whether a click at y in row lands where it shows, wheel(c) scrolls by the wheel over
+-- c, and popup(p) puts p, { close, isOpen, follow, cancel } built on b.layer, the page, under the page's Esc,
+-- frame and close. Returns { open, choiceRow, checkRow, follow, cancel, closePopup, popupOpen }: open redraws
+-- the page from settings, choiceRow(parent, x, y, w, label, choices, field, optionW) builds a row of choices and
+-- checkRow(parent, x, y, w, label, field) a row with a check box on another page, such as the Buffs page's
+-- Display tab, follow runs every frame to move a held scrollbar thumb, and cancel ends one.
 local function settingsPage(page, width, height, deps, define, plain)
   local saved = deps.saved
   local redraw
@@ -250,7 +265,7 @@ local function settingsPage(page, width, height, deps, define, plain)
     scroll = bar.set(y, contentH)
     draw.pos(content, 0, -scroll)
     for _, row in ipairs(rows) do
-      set(row.layer, "hidden", row.y + row.h <= scroll or row.y >= scroll + viewH)
+      set(row.layer, "hidden", row.hidden or row.y + row.h <= scroll or row.y >= scroll + viewH)
       -- The client clips a text field's box to the layer but not its text.
       for _, f in ipairs(row.fields) do
         local top = row.y + f.y - scroll
@@ -270,14 +285,14 @@ local function settingsPage(page, width, height, deps, define, plain)
     return row
   end
 
-  -- Stacks the rows at their heights, with END_SPACE below the last, and keeps the scroll in range.
+  -- Stacks the shown rows at their heights, with END_SPACE below the last, and keeps the scroll in range.
   local function relayout()
     local y = 0
     for _, row in ipairs(rows) do
       row.y = y
       draw.pos(row.layer, 0, y)
       draw.size(row.layer, width, row.h)
-      y = y + row.h
+      y = y + (row.hidden and 0 or row.h)
     end
     contentH = y + END_SPACE
     draw.size(content, width, contentH)
@@ -298,6 +313,7 @@ local function settingsPage(page, width, height, deps, define, plain)
     set(t, "content", label)
     set(t, "rgb", COLOURS.accent)
     shade = false
+    return row
   end
 
   -- A settings row with its label, h tall or ROW_H; its background, row.bg, takes the wheel.
@@ -501,7 +517,9 @@ local function settingsPage(page, width, height, deps, define, plain)
     }
   end
 
+  local popup = nil
   local drawPreview = define({
+    layer = page,
     preview = preview,
     rowRight = rowRight,
     heading = heading,
@@ -516,6 +534,16 @@ local function settingsPage(page, width, height, deps, define, plain)
     columns = columns,
     colour = colourRow,
     choose = choose,
+    relayout = relayout,
+    shows = shows,
+    wheel = wheel,
+    hideRow = function(row, hidden)
+      row.hidden = hidden
+      relayout()
+    end,
+    popup = function(p)
+      popup = p
+    end,
     -- Redraws the page and the HUD after a change saved outside the appearance, such as a marker.
     changed = function()
       redraw()
@@ -544,8 +572,26 @@ local function settingsPage(page, width, height, deps, define, plain)
     end,
     choiceRow = choiceRow,
     checkRow = checkRow,
-    follow = bar.follow,
-    cancel = bar.cancel,
+    follow = function()
+      bar.follow()
+      if popup ~= nil then
+        popup.follow()
+      end
+    end,
+    cancel = function()
+      bar.cancel()
+      if popup ~= nil then
+        popup.cancel()
+      end
+    end,
+    closePopup = function()
+      if popup ~= nil then
+        popup.close()
+      end
+    end,
+    popupOpen = function()
+      return popup ~= nil and popup.isOpen()
+    end,
   }
 end
 
@@ -766,9 +812,9 @@ function appearancepage.hidden(page, width, height, deps)
   end, true)
 end
 
--- The Windows page: the tint of every game window's frame and background, and each listed window's background
--- opacity. deps.windows() is src/windowskin's windows(), the open ones listed as the page builds; see
--- settingsPage.
+-- The Windows page: the tint of every game window's frame and background, every window's background opacity,
+-- and the windows given their own, added from a src/windowpicker popup. deps.windows() is src/windowskin's
+-- windows(), read as the popup opens; see settingsPage.
 function appearancepage.windows(page, width, height, deps)
   local saved = deps.saved
   return settingsPage(page, width, height, deps, function(b)
@@ -787,20 +833,70 @@ function appearancepage.windows(page, width, height, deps)
     end
 
     b.heading("Background opacity")
-    local windows = deps.windows().open
-    if #windows == 0 then
-      b.settingRow("No windows open")
-    end
-    for _, frame in ipairs(windows) do
-      b.stepperRow(frame.label, 0, 100, function()
-        return saved.windowOpacities()[frame.name] or 100
-      end, function(n)
-        if n ~= (saved.windowOpacities()[frame.name] or 100) then
+    b.stepperSetting("All windows", "windowOpacity", 0, 100, savedappearance.OPACITY_STEP)
+
+    local head = b.heading("Overrides")
+    local addY = HEADING_H - ADD_H - 4
+    local picker
+    b.wheel(controls.button(head.layer, "Add window", b.rowRight - ADD_W, addY, ADD_W, ADD_H, "dark", function(_, cy)
+      if not b.shows(head, addY + cy) then
+        return
+      end
+      if picker.isOpen() then
+        picker.close()
+      else
+        picker.open()
+      end
+    end).bg)
+
+    -- Each window's row by name once it has had its own opacity: a stepper and a Remove button.
+    local rows = {}
+    local function showRow(frame, shown)
+      local row = rows[frame.name]
+      if row == nil and shown then
+        row = b.settingRow(frame.label)
+        local stepperX = b.rowRight - REMOVE_W - 12 - controls.STEPPER_W
+        b.stepperOn(row, stepperX, 0, 100, savedappearance.OPACITY_STEP, function(appearance)
+          return saved.windowOpacities()[frame.name] or appearance.windowOpacity
+        end, function(n)
           saved.setWindowOpacity(frame.name, n)
           b.changed()
-        end
-      end, savedappearance.OPACITY_STEP)
+        end)
+        local removeY = (ROW_H - ADD_H) // 2
+        b.wheel(
+          controls.button(row.layer, "Remove", b.rowRight - REMOVE_W, removeY, REMOVE_W, ADD_H, "dark", function(_, cy)
+            if b.shows(row, removeY + cy) then
+              saved.setWindowOpacity(frame.name, nil)
+              showRow(frame, false)
+              b.changed()
+            end
+          end).bg
+        )
+        rows[frame.name] = row
+      end
+      if row ~= nil then
+        b.hideRow(row, not shown)
+      end
     end
+    for _, frame in ipairs(windowframes) do
+      if saved.windowOpacities()[frame.name] ~= nil then
+        showRow(frame, true)
+      end
+    end
+
+    picker = windowpicker.create(b.layer, width - PICKER_W - 24, 56, PICKER_W, height - 96, {
+      windows = deps.windows,
+      picked = function(name)
+        return saved.windowOpacities()[name] ~= nil
+      end,
+      toggle = function(name, ticked)
+        local frame = FRAMES[name]
+        saved.setWindowOpacity(name, ticked and saved.appearance().windowOpacity or nil)
+        showRow(frame, ticked)
+        b.changed()
+      end,
+    })
+    b.popup(picker)
     return function() end
   end, true)
 end

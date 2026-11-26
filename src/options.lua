@@ -217,6 +217,9 @@ function options.create(root, deps)
     if pages.buffs ~= nil then
       pages.buffs.close()
     end
+    if pages.windows ~= nil then
+      pages.windows.closePopup()
+    end
   end
 
   -- Shows page pageID, building it on its first visit, and hides the rest.
@@ -444,7 +447,9 @@ function options.create(root, deps)
     elseif editing() then
       editMode.escape()
     elseif
-      (pages.cooldowns ~= nil and pages.cooldowns.popupOpen()) or (pages.buffs ~= nil and pages.buffs.popupOpen())
+      (pages.cooldowns ~= nil and pages.cooldowns.popupOpen())
+      or (pages.buffs ~= nil and pages.buffs.popupOpen())
+      or (pages.windows ~= nil and pages.windows.popupOpen())
     then
       closePopups()
     elseif windowOpen then
