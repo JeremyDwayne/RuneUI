@@ -50,7 +50,7 @@ local function openWindow(mainhand, page)
   })
   fake.fire("ContentLayerReady", { component = fake.component() })
   pretty.button("Options")
-  pretty.fire(pretty.find("Tabs"), page or "Cooldown manager")
+  fake.press(page or "Cooldown manager")
   return saved
 end
 
@@ -221,20 +221,15 @@ describe("options", function()
     fake.fire("ContentLayerReady", { component = fake.component() })
     pretty.button("Options")
     assert.is_not_nil(pretty.find("Window"))
-    assert.is_not_nil(pretty.find("Tabs"))
   end)
 
-  it("lists Appearance first in the page tabs and opens on it", function()
+  it("lists the pages down the side under RuneUI HUD and opens on Style", function()
     openWindow(nil, "Bars")
     pretty.button("Done")
     pretty.button("Options")
-    local tabs = pretty.find("Tabs")
-    local labels = {}
-    for i, v in ipairs(tabs.values) do
-      labels[i] = v.text
+    for _, label in ipairs({ "RuneUI HUD", "Style", "Bars", "Cooldown manager", "Buffs", "Party" }) do
+      assert.is_true(shows(label))
     end
-    assert.are.same({ "Appearance", "Cooldown manager", "Buffs", "Bars", "Party" }, labels)
-    assert.are.equal(1, tabs:GetActiveIndex())
     assert.is_true(shows("Font"))
     assert.is_false(shows("New group"))
   end)
@@ -242,7 +237,6 @@ describe("options", function()
   it("opens on the page asked for", function()
     local _, window = optionsOnRoot()
     window.open("party")
-    assert.are.equal(5, pretty.find("Tabs"):GetActiveIndex())
     assert.is_true(shows("Group sidebar"))
     assert.is_false(shows("Font"))
   end)
@@ -252,12 +246,12 @@ describe("options", function()
     openPicker()
     pretty.button("Done")
     pretty.button("Options")
-    for _, page in ipairs({ "Appearance", "Cooldown manager", "Buffs", "Bars", "Party" }) do
-      pretty.fire(pretty.find("Tabs"), page)
+    for _, page in ipairs({ "Style", "Cooldown manager", "Buffs", "Bars", "Party" }) do
+      fake.press(page)
     end
-    pretty.fire(pretty.find("Tabs"), "Cooldown manager")
+    fake.press("Cooldown manager")
     openPicker()
-    pretty.fire(pretty.find("Tabs"), "Buffs")
+    fake.press("Buffs")
     assert.is_nil(fake.find(function(_, d)
       return d.undrawn
     end))
@@ -272,10 +266,10 @@ describe("options", function()
   end)
 
   it("shows the saved Display settings on the Buffs page's first visit", function()
-    local saved = openWindow(nil, "Appearance")
+    local saved = openWindow(nil, "Style")
     saved.setAppearance("debuffEdge", "white")
     saved.setAppearance("hideBuffBars", true)
-    pretty.fire(pretty.find("Tabs"), "Buffs")
+    fake.press("Buffs")
     fake.press("Display")
     local edges = fake.find(function(_, d)
       return d.entries ~= nil and d.entries[1].label == "Orange"
@@ -345,8 +339,8 @@ describe("options", function()
     assert.are.equal(300, saved.appearance().barWidth)
   end)
 
-  it("makes no writes on a steady tick with the Appearance or Bars page open", function()
-    for _, page in ipairs({ "Appearance", "Bars" }) do
+  it("makes no writes on a steady tick with the Style or Bars page open", function()
+    for _, page in ipairs({ "Style", "Bars" }) do
       pretty.reset()
       openWindow(nil, page)
       fake.writes = 0
@@ -510,7 +504,7 @@ describe("options", function()
     openWindow()
     openPicker()
     local background = fake.find(function(c, d)
-      return fake.hasHook(c, "ONCLICK") and d.width == 884 and d.height == 552
+      return fake.hasHook(c, "ONCLICK") and d.width == 884 and d.height == 594
     end)
     fake.hook(background, "ONCLICK")
     assert.is_false(shows("Wild Magic"))
@@ -608,7 +602,7 @@ describe("options", function()
     local root, _, hud = optionsOnRoot()
     pretty.button("Options")
     for _, page in ipairs({ "Cooldown manager", "Buffs", "Bars", "Party" }) do
-      pretty.fire(pretty.find("Tabs"), page)
+      fake.press(page)
     end
     pretty.button("Done")
     assert.are.equal(hud, fake.live(root))
@@ -620,15 +614,15 @@ describe("options", function()
     assert.are.equal(0, fake.writes)
   end)
 
-  it("builds Appearance as the window opens and each other page once, on the first visit to its tab", function()
+  it("builds Style as the window opens and each other page once, on its first visit", function()
     local root = optionsOnRoot()
     pretty.button("Options")
     local opened = fake.live(root)
-    pretty.fire(pretty.find("Tabs"), "Cooldown manager")
+    fake.press("Cooldown manager")
     local visited = fake.live(root)
     assert.is_true(visited > opened)
-    pretty.fire(pretty.find("Tabs"), "Appearance")
-    pretty.fire(pretty.find("Tabs"), "Cooldown manager")
+    fake.press("Style")
+    fake.press("Cooldown manager")
     assert.are.equal(visited, fake.live(root))
   end)
 
