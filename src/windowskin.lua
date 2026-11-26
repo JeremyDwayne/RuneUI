@@ -1,7 +1,8 @@
 -- Restyles the game's window frames, listed by src/windowframes: every sprite under each open window's frame
 -- background, border and tab strip in 1477 takes the appearance's frame or background colour. A window below 100
--- opacity, its own or else the appearance's windowOpacity, draws its background sprites at that share of their
--- own alpha and its tab strip halfway there, as the game's own chat transparency does. An alpha the game writes
+-- opacity, its own or else the appearance's windowOpacity, draws its background and tab strip sprites at that
+-- share of their own alpha and its tabs' backgrounds no lower than half, as the game's own chat transparency
+-- does; the tabs' icons and the border stay solid. An alpha the game writes
 -- over a faded sprite, such as for that setting, becomes the sprite's own. Locking or unlocking the
 -- interface replaces every frame's sprites with new ones in the game's look, and a handle kept from before goes
 -- on reading the old values, so every check looks a sprite up again. onFrame reads one restyled sprite and the
@@ -11,6 +12,8 @@
 -- Game for both colours with every window at 100, or restore on shutdown, writes the game's look back.
 -- Dynamic children of a frame static number fewer than this, so static * KEY + dynamic keys a sprite.
 local KEY = 4096
+-- A tab's background sprites, selected and not, the only sprites under a window's tabs static that fade.
+local TAB_SPRITES = { [18029] = true, [18030] = true }
 local interfaces = require("src/interfaces")
 local style = require("src/style")
 local windowframes = require("src/windowframes")
@@ -47,20 +50,21 @@ local watch = nil
 local tabbed = {}
 local tabbedCount = 0
 
--- What paintChild writes to one static's sprites: its rgb, and for a background or tab strip, fades, the static
--- and the share of each sprite's own alpha to draw at, nil to put each original back. Reused, so painting
--- allocates nothing per sprite.
+-- What paintChild writes to one static's sprites: its rgb, nil to leave the game's, and for a static that fades
+-- the static, the sprites that fade, nil for every one, and the share of each one's own alpha to draw at, nil to
+-- put each original back. Reused, so painting allocates nothing per sprite.
 local target = {}
 
 -- Writes target's look to child when it is a sprite, which reads a number spriteID, -1 while a lock blanks it.
 local function paintChild(_, child, _, dynamic)
-  if type(read(child, "spriteID")) ~= "number" then
+  local sprite = read(child, "spriteID")
+  if type(sprite) ~= "number" then
     return
   end
-  if read(child, "rgb") ~= target.rgb then
+  if target.rgb ~= nil and read(child, "rgb") ~= target.rgb then
     write(child, "rgb", target.rgb)
   end
-  if not target.fades or math.type(dynamic) ~= "integer" then
+  if not target.fades or math.type(dynamic) ~= "integer" or (target.sprites and not target.sprites[sprite]) then
     return
   end
   local key = target.static * KEY + dynamic
@@ -95,27 +99,34 @@ local function probeOf(staticID, rgb, faded)
   return found
 end
 
--- The share of its own alpha frame draws its background at, or nil for the game's own.
-local function alphaOf(frame)
+-- The opacity in percent frame draws its background at, or nil for the game's own.
+local function opacityOf(frame)
   local percent = not frame.held and (opacities[frame.name] or globalOpacity)
-  return percent and percent < 100 and percent / 100 or nil
+  return percent and percent < 100 and percent or nil
+end
+
+-- Paints the sprites of staticID, one of frame's statics, in rgb, fading those in sprites, or all when nil, to
+-- share.
+local function paintStatic(staticID, rgb, fades, sprites, share)
+  local c = component(WINDOWS, staticID)
+  if c ~= nil then
+    target.rgb, target.static, target.fades, target.sprites, target.alpha = rgb, staticID, fades, sprites, share
+    interfaces.eachChild(c, "", paintChild)
+  end
 end
 
 -- Restyles every sprite of frame and returns its probe: a background sprite while the background is tinted or
 -- faded, a border sprite while only the frame is tinted, and false for a frame left in the game's look, since a
 -- part in the game's look reads the same before and after a lock.
 local function paint(frame)
-  local alpha = alphaOf(frame)
-  for _, staticID in ipairs({ frame.background, frame.border, frame.tabs }) do
-    local c = component(WINDOWS, staticID)
-    if c ~= nil then
-      local background = staticID == frame.background
-      target.rgb = background and backgroundTint or frameTint
-      target.static = staticID
-      target.fades = staticID ~= frame.border
-      target.alpha = alpha and (background and alpha or (1 + alpha) / 2)
-      interfaces.eachChild(c, "", paintChild)
-    end
+  local percent = opacityOf(frame)
+  local alpha = percent and percent / 100
+  paintStatic(frame.background, backgroundTint, true, nil, alpha)
+  paintStatic(frame.border, frameTint, false)
+  if frame.tabs ~= nil then
+    paintStatic(frame.tabs, frameTint, true, nil, alpha)
+    -- The game's own curve: a tab fades half again as fast as the background, and no lower than half.
+    paintStatic(frame.tabs + 1, nil, true, TAB_SPRITES, percent and math.max(50, (3 * percent - 100) / 2) / 100)
   end
   painted[frame.name] = frame
   if backgroundTint ~= NO_TINT or alpha ~= nil then

@@ -1,11 +1,12 @@
 _G.log = function() end
 
 -- Interface 1477 as the client builds it for three windows from src/windowframes: the backpack, open, with
--- sprites under its background :104, border :108 and tab strip :110 plus a label under the border, the minimap,
+-- sprites under its background :104, border :108 and tab strip :110 plus a label under the border, and its tabs
+-- :111, a selected and an unselected tab's background with an icon between them, the minimap,
 -- closed until open() shows it, and the main action bar's window, open. Every write and component lookup counts.
 -- lock() replaces every frame sprite with a new one in the game's look, as locking the interface does.
 local FRAMES = {
-  { window = 103, statics = { 104, 108, 110 } },
+  { window = 103, statics = { 104, 108, 110, 111 } },
   { window = 94, statics = { 95, 100 } },
   { window = 69, statics = { 70, 71 } },
 }
@@ -22,6 +23,13 @@ local function loadWindows()
     })
   end
   local function children(staticID)
+    if staticID == 111 then
+      return {
+        proxy({ categoryID = 0, dynamicID = 0, spriteID = 18029, rgb = 0xffffff, alpha = 1 }),
+        proxy({ categoryID = 0, dynamicID = 1, spriteID = 18772, rgb = 0xffffff, alpha = 1 }),
+        proxy({ categoryID = 0, dynamicID = 2, spriteID = 18030, rgb = 0xffffff, alpha = 1 }),
+      }
+    end
     local list = {}
     for i = 0, 2 do
       list[#list + 1] =
@@ -94,6 +102,7 @@ describe("windowskin", function()
     assert.are.same({ DARK, DARK, DARK }, stub.rgbs(104))
     assert.are.same({ BLUE, BLUE, BLUE, WHITE }, stub.rgbs(108))
     assert.are.same({ BLUE, BLUE, BLUE }, stub.rgbs(110))
+    assert.are.same({ WHITE, WHITE, WHITE }, stub.rgbs(111))
     assert.are.same({ WHITE, WHITE, WHITE }, stub.rgbs(100))
   end)
 
@@ -242,13 +251,20 @@ describe("windowskin", function()
     assert.are.same({ true, nil, nil }, { closed.WORN_WINDOW, closed.ACTION_WINDOW, closed.INVENTORY_WINDOW })
   end)
 
-  it("fades every window's background to the global opacity and its tab strip halfway there", function()
+  it("fades every window's background and tab strip to the global opacity, and its tabs no lower than half", function()
     local stub, windowskin = loadWindows()
-    windowskin.apply({ windowFrameColour = "blue", windowBackgroundColour = "dark", windowOpacity = 40 })
+    local look = { windowFrameColour = "blue", windowBackgroundColour = "dark", windowOpacity = 40 }
+    windowskin.apply(look)
     assert.are.same({ 0.4, 0.4, 0.4 }, stub.rgbs(104, "alpha"))
-    assert.are.same({ 0.7, 0.7, 0.7 }, stub.rgbs(110, "alpha"))
+    assert.are.same({ 0.4, 0.4, 0.4 }, stub.rgbs(110, "alpha"))
+    assert.are.same({ 0.5, 1, 0.5 }, stub.rgbs(111, "alpha"))
     assert.are.same({ 1, 1, 1 }, stub.rgbs(108, "alpha"))
     assert.are.same({ 1, 1, 1 }, stub.rgbs(70, "alpha"))
+    look.windowOpacity = 80
+    windowskin.apply(look)
+    assert.are.same({ 0.7, 1, 0.7 }, stub.rgbs(111, "alpha"))
+    windowskin.restore()
+    assert.are.same({ 1, 1, 1 }, stub.rgbs(111, "alpha"))
   end)
 
   it("lets a window's own opacity win over the global one, at 100 too", function()
