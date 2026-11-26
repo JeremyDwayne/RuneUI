@@ -426,6 +426,8 @@ describe("appearance page", function()
     saved.setAppearance("windowOpacity", 60)
     fake.press("Add window")
     assert.are.same({ true, true }, { label("Open now") ~= nil, label("Clan chat") ~= nil })
+    -- Under the Overrides heading, which sits below the colour rows, the All windows row and two headings.
+    assert.is_true(label("Open now").parent.parent.parent.y > 200)
     fake.press("Public chat")
     assert.are.same({ CHAT_WINDOW = 60 }, saved.windowOpacities())
     page.closePopup()

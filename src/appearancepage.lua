@@ -104,33 +104,34 @@ local TEXTURES = {
 local WIDTH_FROM = { { id = false, label = "Own width" }, { id = true, label = "Same as adrenaline" } }
 local MATCH_HUD = { id = "hud", label = "Match HUD" }
 local MATCH_W = 90
--- The Windows page's Add window and Remove buttons, and its popup's width.
+-- The Windows page's Add window and Remove buttons, and its popup's size; the popup opens under the Overrides
+-- heading.
 local ADD_W = 120
 local ADD_H = 28
 local REMOVE_W = 90
 local PICKER_W = 360
+local PICKER_H = 330
 -- Every window frame by name.
 local FRAMES = {}
 for _, frame in ipairs(windowframes) do
   FRAMES[frame.name] = frame
 end
 
--- A settings page on page, width by height, with a preview strip above its rows unless plain is true. deps:
--- { saved = src/settings, view = src/view, tooltip = view.tooltip, auraInfo(sprite), tracker = src/cooldowns
--- tracker for the equipped style, refresh() redrawing the HUD }. define(b) builds the preview's elements on
--- b.preview, nil on a plain page, and the rows through b, and returns
--- drawPreview(look, appearance). b holds the scrolling rows, each a new row with a control at its right end: a
--- heading, a settingRow with a label alone, a choiceSetting, checkSetting or stepperSetting bound to an
--- appearance field, a stepperRow bound to value and save callbacks, a colour row and a columns row of headings;
--- and controls added to a row: checkSettingOn for a field, checkOn and stepperOn for callbacks. choose saves a
--- field, changed redraws after a save outside the appearance, and rowRight is the right edge controls end at.
--- hideRow(row, hidden) takes a row out of the stack or puts it back, relayout stacks rows added after the page
--- built, shows(row, y) says whether a click at y in row lands where it shows, wheel(c) scrolls by the wheel over
--- c, and popup(p) puts p, { close, isOpen, follow, cancel } built on b.layer, the page, under the page's Esc,
--- frame and close. Returns { open, choiceRow, checkRow, follow, cancel, closePopup, popupOpen }: open redraws
--- the page from settings, choiceRow(parent, x, y, w, label, choices, field, optionW) builds a row of choices and
--- checkRow(parent, x, y, w, label, field) a row with a check box on another page, such as the Buffs page's
--- Display tab, follow runs every frame to move a held scrollbar thumb, and cancel ends one.
+-- A settings page on page, width by height, with a preview strip above its rows unless plain is true. deps: { saved =
+-- src/settings, view = src/view, tooltip = view.tooltip, auraInfo(sprite), tracker = src/cooldowns tracker for the
+-- equipped style, refresh() redrawing the HUD }. define(b) builds the preview's elements on b.preview, nil on a plain
+-- page, and the rows through b, and returns drawPreview(look, appearance). b holds the scrolling rows, each a new row
+-- with a control at its right end: a heading, a settingRow with a label alone, a choiceSetting, checkSetting or
+-- stepperSetting bound to an appearance field, a stepperRow bound to value and save callbacks, a colour row and a
+-- columns row of headings; and controls added to a row: checkSettingOn for a field, checkOn and stepperOn for
+-- callbacks. choose saves a field, changed redraws after a save outside the appearance, and rowRight is the right edge
+-- controls end at. hideRow(row, hidden) takes a row out of the stack or puts it back, relayout stacks rows added after
+-- the page built, shows(row, y) says whether a click at y in row lands where it shows, top(row) is where row's top
+-- shows on the page, wheel(c) scrolls by the wheel over c, and popup(p) puts p, { close, isOpen, follow, cancel } built
+-- on b.layer, the page, under the page's Esc, frame and close. Returns { open, choiceRow, checkRow, follow, cancel,
+-- closePopup, popupOpen }: open redraws the page from settings, choiceRow(parent, x, y, w, label, choices, field,
+-- optionW) builds a row of choices and checkRow(parent, x, y, w, label, field) a row with a check box on another page,
+-- such as the Buffs page's Display tab, follow runs every frame to move a held scrollbar thumb, and cancel ends one.
 local function settingsPage(page, width, height, deps, define, plain)
   local saved = deps.saved
   local redraw
@@ -536,6 +537,10 @@ local function settingsPage(page, width, height, deps, define, plain)
     choose = choose,
     relayout = relayout,
     shows = shows,
+    -- Where row's top shows on the page.
+    top = function(row)
+      return viewY + row.y - scroll
+    end,
     wheel = wheel,
     hideRow = function(row, hidden)
       row.hidden = hidden
@@ -845,7 +850,7 @@ function appearancepage.windows(page, width, height, deps)
       if picker.isOpen() then
         picker.close()
       else
-        picker.open()
+        picker.open(math.max(0, math.min(b.top(head) + HEADING_H, height - PICKER_H)))
       end
     end).bg)
 
@@ -884,7 +889,7 @@ function appearancepage.windows(page, width, height, deps)
       end
     end
 
-    picker = windowpicker.create(b.layer, width - PICKER_W - 24, 56, PICKER_W, height - 96, {
+    picker = windowpicker.create(b.layer, width - PICKER_W - 24, 0, PICKER_W, PICKER_H, {
       windows = deps.windows,
       picked = function(name)
         return saved.windowOpacities()[name] ~= nil

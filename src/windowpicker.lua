@@ -24,8 +24,8 @@ local BAR_SPACE = scrollbar.WIDTH + 4
 
 -- A w by h popup at x, y on parent, hidden until opened. deps: { windows() returning src/windowskin's windows(),
 -- picked(name) saying whether the window has its own opacity, toggle(name, on) giving it one or taking it away }.
--- Returns { open, close, isOpen, follow, cancel }: follow runs every frame to move a held scrollbar thumb, and
--- cancel ends that drag.
+-- Returns { open(top), close, isOpen, follow, cancel }: open shows it with its top at top on parent, follow runs
+-- every frame to move a held scrollbar thumb, and cancel ends that drag.
 function windowpicker.create(parent, x, y, w, h, deps)
   local layer = draw.new(ui.Layer, parent)
   draw.pos(layer, x, y)
@@ -161,7 +161,8 @@ function windowpicker.create(parent, x, y, w, h, deps)
   end
 
   return {
-    open = function()
+    open = function(top)
+      draw.pos(layer, x, top)
       shown = true
       if query ~= "" then
         query = ""
