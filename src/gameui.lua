@@ -1,10 +1,12 @@
 -- Hides and restores the game's own interfaces: the target panel, buff bars and cast bar held transparent
--- while RuneUI replaces them, the group window while the party grid and the sidebar stand in for it, and the
--- action bars faded through src/actionbars. The client rebuilds parts of each between server ticks, so onFrame
--- reads a few watched components each rendered frame and writes them back, and nothing while no interface is
--- held. Every change has a restore path: apply with the option off, or restore on shutdown.
+-- while RuneUI replaces them, the group window while the party grid and the sidebar stand in for it, the action
+-- bars faded through src/actionbars, and every window frame tinted through src/windowskin. The client rebuilds
+-- parts of each between server ticks, so onFrame reads a few watched components each rendered frame and writes
+-- them back, and nothing while no interface is held. Every change has a restore path: apply with the option
+-- off, or restore on shutdown.
 local actionbars = require("src/actionbars")
 local interfaces = require("src/interfaces")
+local windowskin = require("src/windowskin")
 
 local gameui = {}
 
@@ -267,6 +269,7 @@ function gameui.apply(appearance)
   hideBuffBars(appearance.hideBuffBars)
   castBar.hide(appearance.hideCastBar)
   actionbars.fade(appearance)
+  windowskin.apply(appearance)
 end
 
 -- The parts whose clickthrough the click pass wrote, as true by key: "frame", a strip's static id, or minus a
@@ -555,6 +558,7 @@ function gameui.onFrame()
   groupWindow.keep()
   groupFrame.keep()
   actionbars.keepFaded()
+  windowskin.onFrame()
 end
 
 -- Puts every game interface back as the client drew it, on shutdown.
@@ -566,6 +570,7 @@ function gameui.restore()
   gameui.spreadGroupWindow(nil)
   gameui.placeGroupRows(nil)
   actionbars.restore()
+  windowskin.restore()
 end
 
 return gameui

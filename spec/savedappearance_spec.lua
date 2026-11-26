@@ -82,6 +82,8 @@ describe("savedappearance", function()
       targetDebuffsIcon = 26,
       targetDebuffsText = "hud",
       debuffEdge = "orange",
+      windowFrameColour = "blue",
+      windowBackgroundColour = "dark",
       outOfCombat = "show",
       outOfCombatOpacity = 30,
       showWithTarget = true,
@@ -110,6 +112,8 @@ describe("savedappearance", function()
       outOfCombat = "fade",
       outOfCombatOpacity = 55,
       showWithTarget = false,
+      windowFrameColour = 0x654321,
+      windowBackgroundColour = "game",
     }
     for field, value in pairs(chosen) do
       s.setAppearance(field, value)
@@ -133,9 +137,12 @@ describe("savedappearance", function()
         lifepoints = "all",
         frameWidth = 175,
         frameHeight = 100,
+        windowFrameColour = "runeui",
+        windowBackgroundColour = -1,
       },
     }))
     local a = s.appearance()
+    assert.are.same({ "blue", "dark" }, { a.windowFrameColour, a.windowBackgroundColour })
     assert.are.same({ "museo", 0, "shadow", "auto", "runeui", "runeui", "runeui", "short", 250, 55 }, {
       a.font,
       a.textStep,
