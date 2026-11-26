@@ -89,11 +89,13 @@ function options.create(root, deps)
   end
 
   -- The pages. build(layer) builds one on its layer, once per window, and show(page), when given, redraws it as
-  -- it is chosen. The Buffs page's Display tab takes rows from the Style page, which builds as the window opens.
+  -- it is chosen. A settings page is a src/appearancepage page, whose scrollbar drag cancel ends. The Buffs
+  -- page's Display tab takes rows from the Style page, which builds as the window opens.
   local PAGE_LIST = {
     {
       id = "appearance",
       label = "Style",
+      settings = true,
       build = function(layer)
         return appearancepage.create(layer, PAGE_W, PAGE_H, settingsDeps())
       end,
@@ -125,11 +127,10 @@ function options.create(root, deps)
         })
         local appearance = pages.appearance
         local display = page.display
-        appearance.checkRow(display, 24, 18, PAGE_W - 48, "Hide game buff bars", "hideBuffBars")
         local auraIcons = { { id = false, label = "Plain" }, { id = true, label = "With bars" } }
-        appearance.choiceRow(display, 24, 68, PAGE_W - 48, "Aura icons", auraIcons, "auraBars", 120)
-        appearance.choiceRow(display, 24, 118, PAGE_W - 48, "Debuff border", style.DEBUFF_EDGES, "debuffEdge", 96)
-        -- The Appearance page redrew its rows as the window opened, before these were built.
+        appearance.choiceRow(display, 24, 18, PAGE_W - 48, "Aura icons", auraIcons, "auraBars", 120)
+        appearance.choiceRow(display, 24, 68, PAGE_W - 48, "Debuff border", style.DEBUFF_EDGES, "debuffEdge", 96)
+        -- The Style page redrew its rows as the window opened, before these were built.
         appearance.open()
         return page
       end,
@@ -140,6 +141,7 @@ function options.create(root, deps)
     {
       id = "bars",
       label = "Bars",
+      settings = true,
       build = function(layer)
         return appearancepage.bars(layer, PAGE_W, PAGE_H, settingsDeps())
       end,
@@ -153,6 +155,24 @@ function options.create(root, deps)
       end,
       show = open,
     },
+    {
+      id = "actionbars",
+      label = "Action bars",
+      settings = true,
+      build = function(layer)
+        return appearancepage.actionBars(layer, PAGE_W, PAGE_H, settingsDeps())
+      end,
+      show = open,
+    },
+    {
+      id = "hidden",
+      label = "Hidden interfaces",
+      settings = true,
+      build = function(layer)
+        return appearancepage.hidden(layer, PAGE_W, PAGE_H, settingsDeps())
+      end,
+      show = open,
+    },
   }
   local PAGES = {}
   for _, entry in ipairs(PAGE_LIST) do
@@ -162,6 +182,7 @@ function options.create(root, deps)
   local NAV_GROUPS = {}
   for i, group in ipairs({
     { label = "RuneUI HUD", pages = { "appearance", "bars", "cooldowns", "buffs", "party" } },
+    { label = "Game interfaces", pages = { "actionbars", "hidden" } },
   }) do
     NAV_GROUPS[i] = { label = group.label, pages = {} }
     for j, pageID in ipairs(group.pages) do
@@ -271,9 +292,10 @@ function options.create(root, deps)
     if pages.cooldowns ~= nil then
       pages.cooldowns.close()
     end
-    pages.appearance.cancel()
-    if pages.bars ~= nil then
-      pages.bars.cancel()
+    for id, page in pairs(pages) do
+      if PAGES[id].settings then
+        page.cancel()
+      end
     end
     closePopups()
     forgetWindow()
@@ -303,7 +325,7 @@ function options.create(root, deps)
 
   -- Window --------------------------------------------------------------------------------------------
 
-  -- Builds the window, a layer per page tab, the footer and the Appearance page. PrettyUI builds the window
+  -- Builds the window, its list of pages, a layer per page, the footer and the Style page. PrettyUI builds the window
   -- open, and destroys it once closed.
   local function build()
     window = prettyui.Window.new(root, {
@@ -331,8 +353,8 @@ function options.create(root, deps)
       local page = draw.new(ui.Layer, window.content)
       draw.pos(page, NAV_W, 0)
       draw.size(page, PAGE_W, PAGE_H)
-      -- A click on the page's background closes its popups.
-      if entry.id ~= "appearance" and entry.id ~= "bars" then
+      -- A click on the page's background closes its popups. A settings page's backdrop takes the wheel instead.
+      if not entry.settings then
         on(hitArea(rect(page, COLOURS.panel, 0, 0, PAGE_W, PAGE_H)), "ONCLICK", function()
           closePopups()
         end)

@@ -223,11 +223,21 @@ describe("options", function()
     assert.is_not_nil(pretty.find("Window"))
   end)
 
-  it("lists the pages down the side under RuneUI HUD and opens on Style", function()
+  it("lists the pages down the side in their two groups and opens on Style", function()
     openWindow(nil, "Bars")
     pretty.button("Done")
     pretty.button("Options")
-    for _, label in ipairs({ "RuneUI HUD", "Style", "Bars", "Cooldown manager", "Buffs", "Party" }) do
+    for _, label in ipairs({
+      "RuneUI HUD",
+      "Style",
+      "Bars",
+      "Cooldown manager",
+      "Buffs",
+      "Party",
+      "Game interfaces",
+      "Action bars",
+      "Hidden interfaces",
+    }) do
       assert.is_true(shows(label))
     end
     assert.is_true(shows("Font"))
@@ -268,17 +278,12 @@ describe("options", function()
   it("shows the saved Display settings on the Buffs page's first visit", function()
     local saved = openWindow(nil, "Style")
     saved.setAppearance("debuffEdge", "white")
-    saved.setAppearance("hideBuffBars", true)
     fake.press("Buffs")
     fake.press("Display")
     local edges = fake.find(function(_, d)
       return d.entries ~= nil and d.entries[1].label == "Orange"
     end)
     assert.are.equal("White", fake.chosen(edges) or "none")
-    local hide = fake.find(function(_, d)
-      return d.check
-    end)
-    assert.is_true(hide.value)
   end)
 
   it("saves a page change when the closed ribbon's checkboxes no longer take writes", function()
@@ -339,8 +344,8 @@ describe("options", function()
     assert.are.equal(300, saved.appearance().barWidth)
   end)
 
-  it("makes no writes on a steady tick with the Style or Bars page open", function()
-    for _, page in ipairs({ "Style", "Bars" }) do
+  it("makes no writes on a steady tick with a settings page open", function()
+    for _, page in ipairs({ "Style", "Bars", "Action bars", "Hidden interfaces" }) do
       pretty.reset()
       openWindow(nil, page)
       fake.writes = 0

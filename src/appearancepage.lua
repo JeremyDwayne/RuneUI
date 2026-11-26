@@ -1,7 +1,8 @@
--- The options window's Appearance and Bars pages. Each has a preview strip of HUD elements, drawn by src/view
--- from sample models over a Dark or Light backdrop, fixed above its settings: Text, Unit frames, Game
--- interfaces and Out of combat on Appearance, the adrenaline bar and the cast bar on Bars. Choices are the game's
--- radio groups, switches its check boxes and numbers steppers of game buttons. The settings scroll by pixels
+-- The options window's settings pages: Style and Bars, each with a preview strip of HUD elements, drawn by
+-- src/view from sample models over a Dark or Light backdrop, fixed above its settings: Text, Unit frames,
+-- Players and Out of combat on Style, the adrenaline bar and the cast bar on Bars. Action bars and Hidden
+-- interfaces are plain pages of the game interfaces RuneUI changes. Choices are the game's radio groups,
+-- switches its check boxes and numbers steppers of game buttons. The settings scroll by pixels
 -- inside a clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, a text field
 -- reaching past the layer's edge shows no text, and a click on a hit area of RuneUI's own lands only where its
 -- row shows. Every change saves, then redraws the preview and the HUD.
@@ -38,7 +39,7 @@ local OPTION_H = 28
 -- A check box's side.
 local CHECK = 24
 local COLUMNS_H = 30
--- The Bars page's action bar table: the Fade, Opacity and Show on hover columns' widths, right to left from
+-- The Action bars page's table: the Fade, Opacity and Show on hover columns' widths, right to left from
 -- the row's right edge, and the width each check box centres in.
 local HOVER_COL = 120
 local OPACITY_COL = 136
@@ -102,9 +103,10 @@ local WIDTH_FROM = { { id = false, label = "Own width" }, { id = true, label = "
 local MATCH_HUD = { id = "hud", label = "Match HUD" }
 local MATCH_W = 90
 
--- A settings page on page, width by height. deps: { saved = src/settings, view = src/view, tooltip =
--- view.tooltip, auraInfo(sprite), tracker = src/cooldowns tracker for the equipped style, refresh() redrawing the
--- HUD }. define(b) builds the preview's elements on b.preview and the rows through b, and returns
+-- A settings page on page, width by height, with a preview strip above its rows unless plain is true. deps:
+-- { saved = src/settings, view = src/view, tooltip = view.tooltip, auraInfo(sprite), tracker = src/cooldowns
+-- tracker for the equipped style, refresh() redrawing the HUD }. define(b) builds the preview's elements on
+-- b.preview, nil on a plain page, and the rows through b, and returns
 -- drawPreview(look, appearance). b holds the scrolling rows, each a new row with a control at its right end: a
 -- heading, a settingRow with a label alone, a choiceSetting, checkSetting or stepperSetting bound to an
 -- appearance field, a stepperRow bound to value and save callbacks, a colour row and a columns row of headings;
@@ -114,7 +116,7 @@ local MATCH_W = 90
 -- choiceRow(parent, x, y, w, label, choices, field, optionW) builds a row of choices and checkRow(parent, x, y,
 -- w, label, field) a row with a check box on another page, such as the Buffs page's Display tab, follow runs
 -- every frame to move a held scrollbar thumb, and cancel ends one.
-local function settingsPage(page, width, height, deps, define)
+local function settingsPage(page, width, height, deps, define, plain)
   local saved = deps.saved
   local redraw
 
@@ -204,28 +206,34 @@ local function settingsPage(page, width, height, deps, define)
 
   -- Preview strip -----------------------------------------------------------------------------------------
 
-  local backdrop = hitArea(rect(page, COLOURS.panel, 0, 0, width, STRIP_H))
-  local preview = draw.new(ui.Layer, page)
-  preview:SetSize(width, STRIP_H)
-  rect(page, COLOURS.border, 0, STRIP_H, width, 1)
-  local backdropChoice = "dark"
-  local backdropRadio
+  -- Where the settings start: under the strip and its edge, or at the top of a plain page.
+  local viewY = plain and 0 or STRIP_H + 1
+  local preview = nil
+  local function showBackdrop() end
+  if not plain then
+    local backdrop = hitArea(rect(page, COLOURS.panel, 0, 0, width, STRIP_H))
+    preview = draw.new(ui.Layer, page)
+    preview:SetSize(width, STRIP_H)
+    rect(page, COLOURS.border, 0, STRIP_H, width, 1)
+    local backdropChoice = "dark"
+    local backdropRadio
 
-  local function showBackdrop()
-    set(backdrop, "rgb", style.find(BACKDROPS, backdropChoice).rgb)
-    backdropRadio.show(backdropChoice)
+    function showBackdrop()
+      set(backdrop, "rgb", style.find(BACKDROPS, backdropChoice).rgb)
+      backdropRadio.show(backdropChoice)
+    end
+
+    backdropRadio = controls.radio(page, width - 86, 8, 78, 52, BACKDROPS, 1, function(value)
+      backdropChoice = value
+      showBackdrop()
+    end)
   end
-
-  backdropRadio = controls.radio(page, width - 86, 8, 78, 52, BACKDROPS, 1, function(value)
-    backdropChoice = value
-    showBackdrop()
-  end)
 
   -- Scrolling settings ------------------------------------------------------------------------------------
 
-  local viewH = height - STRIP_H - 1
+  local viewH = height - viewY
   local viewport = draw.new(ui.Layer, page)
-  draw.pos(viewport, 0, STRIP_H + 1)
+  draw.pos(viewport, 0, viewY)
   draw.size(viewport, width, viewH)
   local viewportBg = hitArea(rect(viewport, COLOURS.panel, 0, 0, width, viewH))
   local content = draw.new(ui.Layer, viewport)
@@ -515,7 +523,7 @@ local function settingsPage(page, width, height, deps, define)
     end,
   })
 
-  bar.grip(page, width - scrollbar.WIDTH - 4, STRIP_H + 1)
+  bar.grip(page, width - scrollbar.WIDTH - 4, viewY)
   relayout()
 
   function redraw()
@@ -541,7 +549,7 @@ local function settingsPage(page, width, height, deps, define)
   }
 end
 
--- The Appearance page; see settingsPage.
+-- The Style page; see settingsPage.
 function appearancepage.create(page, width, height, deps)
   local view = deps.view
   return settingsPage(page, width, height, deps, function(b)
@@ -589,10 +597,6 @@ function appearancepage.create(page, width, height, deps)
     b.stepperSetting("Frame width", "frameWidth", savedappearance.FRAME_WIDTH.min, savedappearance.FRAME_WIDTH.max)
     b.stepperSetting("Frame height", "frameHeight", savedappearance.FRAME_HEIGHT.min, savedappearance.FRAME_HEIGHT.max)
 
-    b.heading("Game interfaces")
-    b.checkSetting("Hide default target panel", "hideTargetPanel")
-    b.checkSetting("Hide game cast bar", "hideCastBar")
-
     b.heading("Players")
     b.checkSetting("Names over players' heads", "nameplates")
 
@@ -621,10 +625,8 @@ function appearancepage.create(page, width, height, deps)
   end)
 end
 
--- The Bars page: the adrenaline bar's markers and size, where the spender rows sit, the cast bar's width,
--- height, colour, font and text size, a switch over every action bar's fading, and whether each game action bar
--- fades, to what opacity, and shows at full on hover, with the main bar's stats shown or hidden; see
--- settingsPage.
+-- The Bars page: the adrenaline bar's markers and size, where the spender rows sit, and the cast bar's width,
+-- height, colour, font and text size; see settingsPage.
 function appearancepage.bars(page, width, height, deps)
   local view = deps.view
   local saved = deps.saved
@@ -688,7 +690,22 @@ function appearancepage.bars(page, width, height, deps)
       MATCH_HUD.label
     )
 
-    b.heading("Action bars")
+    return function(look, appearance)
+      widthRow.fade(appearance.castMatchWidth)
+      size.fade(appearance.castTextSize == "hud")
+      view.setLook({ resource, cast }, look)
+      resource.update(frames.resource(SAMPLE_ADRENALINE, saved.markers()))
+      cast.update(SAMPLE_CAST)
+      draw.pos(resource.layer, PREVIEW_X, PREVIEW_Y - resource.bounds.y)
+      draw.pos(cast.layer, PREVIEW_X, PREVIEW_Y + resource.bounds.h + PREVIEW_GAP)
+    end
+  end)
+end
+
+-- The Action bars page: a switch over every action bar's fading, and whether each game action bar fades, to
+-- what opacity, and shows at full on hover; see settingsPage.
+function appearancepage.actionBars(page, width, height, deps)
+  return settingsPage(page, width, height, deps, function(b)
     b.checkSetting("Fade action bars", "fadeBars")
     local right = b.rowRight
     local hoverX = right - HOVER_COL
@@ -727,22 +744,26 @@ function appearancepage.bars(page, width, height, deps)
       "hoverAllBars"
     )
 
-    return function(look, appearance)
-      widthRow.fade(appearance.castMatchWidth)
-      size.fade(appearance.castTextSize == "hud")
+    return function(_, appearance)
       local barsOff = not appearance.fadeBars
       for bar, fade in ipairs(barFades) do
         fade(barsOff or not appearance["fadeBar" .. bar])
         fadeToggles[bar](barsOff)
       end
       hoverAll(barsOff)
-      view.setLook({ resource, cast }, look)
-      resource.update(frames.resource(SAMPLE_ADRENALINE, saved.markers()))
-      cast.update(SAMPLE_CAST)
-      draw.pos(resource.layer, PREVIEW_X, PREVIEW_Y - resource.bounds.y)
-      draw.pos(cast.layer, PREVIEW_X, PREVIEW_Y + resource.bounds.h + PREVIEW_GAP)
     end
-  end)
+  end, true)
+end
+
+-- The Hidden interfaces page: whether the game's target panel, cast bar and buff bars stay hidden while RuneUI
+-- draws its own; see settingsPage.
+function appearancepage.hidden(page, width, height, deps)
+  return settingsPage(page, width, height, deps, function(b)
+    b.checkSetting("Hide default target panel", "hideTargetPanel")
+    b.checkSetting("Hide game cast bar", "hideCastBar")
+    b.checkSetting("Hide game buff bars", "hideBuffBars")
+    return function() end
+  end, true)
 end
 
 return appearancepage

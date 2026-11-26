@@ -47,11 +47,11 @@ local function label(content)
   end)
 end
 
--- An open Bars page on a 698 by 562 page layer. Returns its settings.
-local function openBars()
+-- An open page built by build, Bars unless given, on a 698 by 562 page layer. Returns its settings.
+local function openBars(build)
   local root = fake.component()
   local saved = settings.load(fakeStore())
-  local page = appearancepage.bars(root, 698, 562, {
+  local page = (build or appearancepage.bars)(root, 698, 562, {
     saved = saved,
     view = view,
     tooltip = view.tooltip(root),
@@ -354,8 +354,7 @@ describe("appearance page", function()
   end)
 
   it("fades an action bar from its row, stepping its opacity by 5 and dimming it until the bar fades", function()
-    local saved = openBars()
-    wheel(1, 200)
+    local saved = openBars(appearancepage.actionBars)
     assert.is_true(fieldInRow("Main bar").alpha < 1)
     fake.tick(checkInRow("Main bar"))
     pressInRow("Main bar", "+")
@@ -370,12 +369,9 @@ describe("appearance page", function()
   end)
 
   it("turns every action bar's fading off from one switch, dimming each bar's own settings", function()
-    local saved = openBars()
-    wheel(1, 200)
+    local saved = openBars(appearancepage.actionBars)
     fake.tick(checkInRow("Main bar"))
     assert.is_false(fieldInRow("Main bar").alpha < 1)
-    -- Up 40 px, so the switch's row shows whole.
-    wheel(-1, 5)
     fake.press("Fade action bars")
     local a = saved.appearance()
     assert.are.same({ false, true }, { a.fadeBars, a.fadeBar1 })
@@ -384,9 +380,17 @@ describe("appearance page", function()
     assert.are.same({ true, false }, { saved.appearance().fadeBars, fieldInRow("Main bar").alpha < 1 })
   end)
 
+  it("hides the game's target panel, cast bar and buff bars from the Hidden interfaces page", function()
+    local saved = openBars(appearancepage.hidden)
+    fake.press("Hide default target panel")
+    fake.press("Hide game cast bar")
+    fake.press("Hide game buff bars")
+    local a = saved.appearance()
+    assert.are.same({ true, false, true }, { a.hideTargetPanel, a.hideCastBar, a.hideBuffBars })
+  end)
+
   it("saves a typed opacity only on a step of 5, keeping what is typed until then", function()
-    local saved = openBars()
-    wheel(1, 200)
+    local saved = openBars(appearancepage.actionBars)
     local field = fieldInRow("Main bar")
     field.content = "3"
     fake.hook(field, "ONCONTENTCHANGED", ui.InputFieldActionResult.CONTENT_CHANGE, "3")
