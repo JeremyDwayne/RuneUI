@@ -183,4 +183,13 @@ describe("windowskin", function()
     windowskin.apply(SKIN, {})
     assert.are.equal(0, stub.writes)
   end)
+
+  it("lists the open windows and those with a saved opacity, leaving out held frames", function()
+    local _, windowskin = loadWindows()
+    local names = {}
+    for i, frame in ipairs(windowskin.listed({ CHAT_WINDOW = 40 })) do
+      names[i] = frame.name
+    end
+    assert.are.same({ "INVENTORY_WINDOW", "CHAT_WINDOW" }, names)
+  end)
 end)

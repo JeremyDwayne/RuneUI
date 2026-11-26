@@ -389,6 +389,32 @@ describe("appearance page", function()
     assert.are.same({ true, false, true }, { a.hideTargetPanel, a.hideCastBar, a.hideBuffBars })
   end)
 
+  it("tints window frames from the Windows page and steps a listed window's opacity by 5", function()
+    local root = fake.component()
+    local saved = settings.load(fakeStore())
+    local refreshed = 0
+    appearancepage
+      .windows(root, 698, 562, {
+        saved = saved,
+        view = view,
+        tracker = cooldowns.tracker(),
+        windows = function()
+          return { { name = "CHAT_WINDOW", label = "Chat" } }
+        end,
+        refresh = function()
+          refreshed = refreshed + 1
+        end,
+      })
+      .open()
+    fake.pressText("Steel")
+    assert.are.equal("steel", saved.appearance().windowFrameColour)
+    pressInRow("Chat", "-")
+    pressInRow("Chat", "-")
+    assert.are.same({ CHAT_WINDOW = 90 }, saved.windowOpacities())
+    assert.are.equal("90", fieldInRow("Chat").content)
+    assert.are.equal(3, refreshed)
+  end)
+
   it("saves a typed opacity only on a step of 5, keeping what is typed until then", function()
     local saved = openBars(appearancepage.actionBars)
     local field = fieldInRow("Main bar")

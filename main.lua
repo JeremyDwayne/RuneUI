@@ -22,6 +22,7 @@ local sidebar = require("src/sidebar")
 local styling = require("src/style")
 local targeteffects = require("src/targeteffects")
 local view = require("src/view")
+local windowskin = require("src/windowskin")
 
 -- Game interfaces such as the bank draw over the game area, so the HUD sits under them. The options window
 -- goes on the plugin layer above them. Both span the whole window.
@@ -348,6 +349,9 @@ optionsWindow = options.create(top, {
   auraInfo = auraNames.info,
   describe = adapter.structInfo,
   members = partyTracker.members,
+  windows = function()
+    return windowskin.listed(saved.windowOpacities())
+  end,
   refresh = refresh,
   configured = showHud,
   escape = function()

@@ -181,6 +181,19 @@ function windowskin.onFrame()
   end
 end
 
+-- The frames the Windows page lists, in src/windowframes order: each one whose alpha RuneUI does not hold
+-- elsewhere and whose window is open, or whose opacity saved, { [name] = percent }, holds.
+function windowskin.listed(saved)
+  local out = {}
+  for _, frame in ipairs(windowframes) do
+    local open = saved[frame.name] ~= nil or read(component(WINDOWS, frame.window), "visibleGlobal") == true
+    if open and not frame.held then
+      out[#out + 1] = frame
+    end
+  end
+  return out
+end
+
 -- Writes the game's look back to every frame restyled, on shutdown.
 function windowskin.restore()
   windowskin.apply({}, {})

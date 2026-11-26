@@ -1,7 +1,7 @@
 -- The options window's settings pages: Style and Bars, each with a preview strip of HUD elements, drawn by
 -- src/view from sample models over a Dark or Light backdrop, fixed above its settings: Text, Unit frames,
--- Players and Out of combat on Style, the adrenaline bar and the cast bar on Bars. Action bars and Hidden
--- interfaces are plain pages of the game interfaces RuneUI changes. Choices are the game's radio groups,
+-- Players and Out of combat on Style, the adrenaline bar and the cast bar on Bars. Windows, Action bars and
+-- Hidden interfaces are plain pages of the game interfaces RuneUI changes. Choices are the game's radio groups,
 -- switches its check boxes and numbers steppers of game buttons. The settings scroll by pixels
 -- inside a clipping layer, moved by the wheel and a scrollbar. Rows wholly out of view hide, a text field
 -- reaching past the layer's edge shows no text, and a click on a hit area of RuneUI's own lands only where its
@@ -762,6 +762,45 @@ function appearancepage.hidden(page, width, height, deps)
     b.checkSetting("Hide default target panel", "hideTargetPanel")
     b.checkSetting("Hide game cast bar", "hideCastBar")
     b.checkSetting("Hide game buff bars", "hideBuffBars")
+    return function() end
+  end, true)
+end
+
+-- The Windows page: the tint of every game window's frame and background, and each listed window's background
+-- opacity. deps.windows() gives the windows to list, each { name, label }, read as the page builds; see
+-- settingsPage.
+function appearancepage.windows(page, width, height, deps)
+  local saved = deps.saved
+  return settingsPage(page, width, height, deps, function(b)
+    b.heading("Window frames")
+    for _, row in ipairs({
+      { "Frame colour", "windowFrameColour", style.WINDOW_FRAME_PRESETS },
+      { "Background colour", "windowBackgroundColour", style.WINDOW_BACKGROUND_PRESETS },
+    }) do
+      local label, field, presets = row[1], row[2], row[3]
+      b.colour(label, field, presets, function(presetID)
+        local preset = style.find(presets, presetID)
+        return preset.rgb or preset.swatch
+      end, function()
+        return style.windowTint(presets, saved.appearance()[field])
+      end)
+    end
+
+    b.heading("Background opacity")
+    local windows = deps.windows()
+    if #windows == 0 then
+      b.settingRow("No windows open")
+    end
+    for _, frame in ipairs(windows) do
+      b.stepperRow(frame.label, 0, 100, function()
+        return saved.windowOpacities()[frame.name] or 100
+      end, function(n)
+        if n ~= (saved.windowOpacities()[frame.name] or 100) then
+          saved.setWindowOpacity(frame.name, n)
+          b.changed()
+        end
+      end, savedappearance.OPACITY_STEP)
+    end
     return function() end
   end, true)
 end

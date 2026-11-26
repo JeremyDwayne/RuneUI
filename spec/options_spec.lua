@@ -45,6 +45,9 @@ local function openWindow(mainhand, page)
     tracker = tracker,
     elements = elements,
     view = view,
+    windows = function()
+      return { { name = "CHAT_WINDOW", label = "Chat" } }
+    end,
     refresh = function() end,
     configured = function() end,
   })
@@ -65,6 +68,9 @@ local function optionsOnRoot()
     tracker = cooldowns.tracker(),
     elements = elements,
     view = view,
+    windows = function()
+      return { { name = "CHAT_WINDOW", label = "Chat" } }
+    end,
     refresh = function() end,
     configured = function() end,
   })
@@ -235,6 +241,7 @@ describe("options", function()
       "Buffs",
       "Party",
       "Game interfaces",
+      "Windows",
       "Action bars",
       "Hidden interfaces",
     }) do
@@ -345,7 +352,7 @@ describe("options", function()
   end)
 
   it("makes no writes on a steady tick with a settings page open", function()
-    for _, page in ipairs({ "Style", "Bars", "Action bars", "Hidden interfaces" }) do
+    for _, page in ipairs({ "Style", "Bars", "Windows", "Action bars", "Hidden interfaces" }) do
       pretty.reset()
       openWindow(nil, page)
       fake.writes = 0

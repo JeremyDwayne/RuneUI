@@ -42,7 +42,8 @@ local FOOTER_GAP = 12
 local BUTTON_H = 28
 -- deps: { saved = src/settings, tracker = src/cooldowns tracker, elements = src/view elements by name,
 -- view = src/view, auraInfo(sprite) naming an aura icon, describe(struct) reading a struct's description,
--- members = function returning the group's members as src/party's tracker lists them, refresh = function
+-- members = function returning the group's members as src/party's tracker lists them, windows = function
+-- returning the game windows the Windows page lists, each { name, label }, refresh = function
 -- redrawing the HUD, configured = function run as the window or edit mode opens or closes, escape = optional
 -- function run first on Esc, returning true when a popup above the window took the key }.
 -- Returns { placeAll, open, redrawPage, configuring, shutdown }; placeAll places the HUD and edit mode's overlays
@@ -156,6 +157,17 @@ function options.create(root, deps)
       show = open,
     },
     {
+      id = "windows",
+      label = "Windows",
+      settings = true,
+      build = function(layer)
+        local pageDeps = settingsDeps()
+        pageDeps.windows = deps.windows
+        return appearancepage.windows(layer, PAGE_W, PAGE_H, pageDeps)
+      end,
+      show = open,
+    },
+    {
       id = "actionbars",
       label = "Action bars",
       settings = true,
@@ -182,7 +194,7 @@ function options.create(root, deps)
   local NAV_GROUPS = {}
   for i, group in ipairs({
     { label = "RuneUI HUD", pages = { "appearance", "bars", "cooldowns", "buffs", "party" } },
-    { label = "Game interfaces", pages = { "actionbars", "hidden" } },
+    { label = "Game interfaces", pages = { "windows", "actionbars", "hidden" } },
   }) do
     NAV_GROUPS[i] = { label = group.label, pages = {} }
     for j, pageID in ipairs(group.pages) do
