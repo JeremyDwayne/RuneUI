@@ -263,13 +263,14 @@ local function hideBuffBars(hidden)
   end
 end
 
--- Runs each server tick with the appearance settings, hiding or showing each game interface as they say.
-function gameui.apply(appearance)
+-- Runs each server tick with the appearance settings, hiding or showing each game interface as they say, and
+-- each window's opacity, { [name] = percent } for the windows below 100.
+function gameui.apply(appearance, windowOpacities)
   targetPanel.hide(appearance.hideTargetPanel)
   hideBuffBars(appearance.hideBuffBars)
   castBar.hide(appearance.hideCastBar)
   actionbars.fade(appearance)
-  windowskin.apply(appearance)
+  windowskin.apply(appearance, windowOpacities)
 end
 
 -- The parts whose clickthrough the click pass wrote, as true by key: "frame", a strip's static id, or minus a

@@ -320,7 +320,7 @@ end
 -- Redraws the whole HUD from the client, each server tick and after a settings change.
 local function refresh()
   local appearance = saved.appearance()
-  gameui.apply(appearance)
+  gameui.apply(appearance, saved.windowOpacities())
   local moved = restyle()
   local target, framesMoved = updateFrames(appearance)
   moved = moved or framesMoved

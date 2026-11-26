@@ -1,12 +1,13 @@
 _G.log = function() end
 
--- Interface 1477 as the client builds it for two windows from src/windowframes: the backpack, open, with sprites
--- under its background :104, border :108 and tab strip :110 plus a label under the border, and the minimap,
--- closed until open() shows it. Every rgb write and component lookup counts. lock() replaces every frame sprite
--- with a new untinted one, as locking the interface does.
+-- Interface 1477 as the client builds it for three windows from src/windowframes: the backpack, open, with
+-- sprites under its background :104, border :108 and tab strip :110 plus a label under the border, the minimap,
+-- closed until open() shows it, and the main action bar's window, open. Every write and component lookup counts.
+-- lock() replaces every frame sprite with a new one in the game's look, as locking the interface does.
 local FRAMES = {
   { window = 103, statics = { 104, 108, 110 } },
   { window = 94, statics = { 95, 100 } },
+  { window = 69, statics = { 70, 71 } },
 }
 
 local function loadWindows()
@@ -23,7 +24,8 @@ local function loadWindows()
   local function children(staticID)
     local list = {}
     for i = 0, 2 do
-      list[#list + 1] = proxy({ categoryID = 0, dynamicID = i, spriteID = i == 1 and -1 or 18000 + i, rgb = 0xffffff })
+      list[#list + 1] =
+        proxy({ categoryID = 0, dynamicID = i, spriteID = i == 1 and -1 or 18000 + i, rgb = 0xffffff, alpha = 1 })
     end
     if staticID == 108 then
       list[#list + 1] = proxy({ categoryID = 0, dynamicID = 3, rgb = 0xffffff })
@@ -38,7 +40,7 @@ local function loadWindows()
     end
   end
   for _, frame in ipairs(FRAMES) do
-    stub.windows[frame.window] = { visibleGlobal = frame.window == 103 }
+    stub.windows[frame.window] = { visibleGlobal = frame.window ~= 94 }
     for _, staticID in ipairs(frame.statics) do
       local data = { children = children(staticID) }
       function data.IterateDynamicComponents(_, fn)
@@ -52,11 +54,11 @@ local function loadWindows()
   function stub.open()
     stub.windows[94].visibleGlobal = true
   end
-  -- Every sprite's rgb under staticID, in order.
-  function stub.rgbs(staticID)
+  -- Every child's field, rgb unless given, under staticID, in order.
+  function stub.rgbs(staticID, field)
     local out = {}
     for _, child in ipairs(stub.statics[staticID].children) do
-      out[#out + 1] = child.rgb
+      out[#out + 1] = child[field or "rgb"]
     end
     return out
   end
@@ -151,5 +153,34 @@ describe("windowskin", function()
     stub.lookups = 0
     windowskin.onFrame()
     assert.are.equal(0, stub.lookups)
+  end)
+
+  it("fades a window's background sprites to its opacity, leaving its border and held frames at full", function()
+    local stub, windowskin = loadWindows()
+    windowskin.apply(SKIN, { INVENTORY_WINDOW = 40, ACTION_WINDOW = 40 })
+    assert.are.same({ 0.4, 0.4, 0.4 }, stub.rgbs(104, "alpha"))
+    assert.are.same({ 1, 1, 1 }, stub.rgbs(108, "alpha"))
+    assert.are.same({ 1, 1, 1 }, stub.rgbs(70, "alpha"))
+  end)
+
+  it("fades the background sprites a lock replaced, with both colours at Game", function()
+    local stub, windowskin = loadWindows()
+    local game = { windowFrameColour = "game", windowBackgroundColour = "game" }
+    windowskin.apply(game, { INVENTORY_WINDOW = 40 })
+    stub.lock()
+    windowskin.onFrame()
+    assert.are.same({ 0.4, 0.4, 0.4 }, stub.rgbs(104, "alpha"))
+    assert.are.same({ WHITE, WHITE, WHITE }, stub.rgbs(104))
+  end)
+
+  it("puts each background sprite's own alpha back once its window is at 100 again", function()
+    local stub, windowskin = loadWindows()
+    stub.statics[104].children[1].alpha = 0.8
+    windowskin.apply(SKIN, { INVENTORY_WINDOW = 40 })
+    windowskin.apply(SKIN, {})
+    assert.are.same({ 0.8, 1, 1 }, stub.rgbs(104, "alpha"))
+    stub.writes = 0
+    windowskin.apply(SKIN, {})
+    assert.are.equal(0, stub.writes)
   end)
 end)

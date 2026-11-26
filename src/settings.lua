@@ -1,12 +1,14 @@
 -- Everything RuneUI saves, loaded as one table: the HUD layout from src/savedlayout, cooldown groups and
 -- learned abilities from src/savedgroups, the appearance and adrenaline markers from src/savedappearance, aura
--- rows, tracking and order from src/savedauras, and party roles and tiers from src/savedparty. Pure: reads and
--- writes go through a store with get(key) and set(key, table), so specs use a fake.
+-- rows, tracking and order from src/savedauras, party roles and tiers from src/savedparty, and window opacities
+-- from src/savedwindows. Pure: reads and writes go through a store with get(key) and set(key, table), so specs
+-- use a fake.
 local savedappearance = require("src/savedappearance")
 local savedauras = require("src/savedauras")
 local savedgroups = require("src/savedgroups")
 local savedlayout = require("src/savedlayout")
 local savedparty = require("src/savedparty")
+local savedwindows = require("src/savedwindows")
 
 local settings = {}
 
@@ -21,6 +23,7 @@ function settings.load(store, windowHeight, windowWidth)
     savedappearance.load(store),
     savedauras.load(store),
     savedparty.load(store),
+    savedwindows.load(store),
   }
   for _, part in ipairs(parts) do
     for name, fn in pairs(part) do
