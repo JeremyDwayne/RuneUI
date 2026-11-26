@@ -267,6 +267,14 @@ describe("windowskin", function()
     assert.are.same({ 1, 1, 1 }, stub.rgbs(111, "alpha"))
   end)
 
+  it("restores a faded tab whose sprite the client swapped, as for a hover", function()
+    local stub, windowskin = loadWindows()
+    windowskin.apply({ windowFrameColour = "blue", windowBackgroundColour = "dark", windowOpacity = 40 })
+    stub.statics[111].children[3].spriteID = 18031
+    windowskin.restore()
+    assert.are.same({ 1, 1, 1 }, stub.rgbs(111, "alpha"))
+  end)
+
   it("lets a window's own opacity win over the global one, at 100 too", function()
     local stub, windowskin = loadWindows()
     stub.open()

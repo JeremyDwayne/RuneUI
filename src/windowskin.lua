@@ -64,10 +64,14 @@ local function paintChild(_, child, _, dynamic)
   if target.rgb ~= nil and read(child, "rgb") ~= target.rgb then
     write(child, "rgb", target.rgb)
   end
-  if not target.fades or math.type(dynamic) ~= "integer" or (target.sprites and not target.sprites[sprite]) then
+  if not target.fades or math.type(dynamic) ~= "integer" then
     return
   end
+  -- Only the listed sprites fade, but a restore puts back every one faded, whatever sprite it shows now.
   local key = target.static * KEY + dynamic
+  if target.sprites and not target.sprites[sprite] and (target.alpha ~= nil or originals[key] == nil) then
+    return
+  end
   local alpha = read(child, "alpha")
   local original, mine = originals[key], written[key]
   -- A sprite faded for the first time, or one the game wrote its own alpha on since, holds its own alpha now.
