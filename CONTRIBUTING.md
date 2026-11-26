@@ -38,7 +38,7 @@ A bug fix starts with a spec that fails without it.
 
 ## How the code fits together
 
-- One module reads the game client and two write to its interfaces. Everything else sees plain tables, so it runs in specs without the game.
+- One module reads the game client and three write to its interfaces. Everything else sees plain tables, so it runs in specs without the game.
 - Trackers turn var changes and tick reads into display models. Saved settings load through a small store, which specs replace with a fake.
 - Each HUD element, options page and popup is its own module. All of them draw through one set of primitives that skip unchanged writes.
 - The catalog of every buff and debuff is plain data kept by hand, one row per line, which StyLua leaves alone.

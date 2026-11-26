@@ -1,9 +1,10 @@
 -- Restyles the game's window frames, listed by src/windowframes: every sprite under each open window's frame
 -- background, border and tab strip in 1477 takes the appearance's frame or background colour, and a window with
--- an opacity below 100 draws its background sprites at it. Locking or unlocking the interface replaces every
--- frame's sprites with new ones in the game's look, and a handle kept from before goes on reading the old
--- values, so every check looks a sprite up again. onFrame reads one restyled sprite each rendered frame and
--- restyles every open frame once it reads otherwise; a window that opens is restyled on the next server tick.
+-- an opacity below 100 draws its background sprites at that share of their own alpha. Locking or unlocking the
+-- interface replaces every frame's sprites with new ones in the game's look, and a handle kept from before goes
+-- on reading the old values, so every check looks a sprite up again. onFrame reads one restyled sprite each
+-- rendered frame and restyles every open frame once it reads otherwise; a window that opens is restyled on the
+-- next server tick.
 -- Game for both colours with every window at 100, or restore on shutdown, writes the game's look back.
 local interfaces = require("src/interfaces")
 local style = require("src/style")
@@ -28,13 +29,15 @@ local painted = {}
 -- Each background sprite's alpha before RuneUI faded it, by "name:category:dynamic".
 local originals = {}
 -- Each open frame's probe by name: { static, category, dynamic, rgb, alpha }, a sprite whose look says whether the
--- frame is still restyled, or false for a frame with no sprite. nil until the frame is painted.
+-- frame is still restyled, or false for a frame left in the game's look. nil until the frame is painted, and
+-- while the client has built no sprite under it, so the next tick tries again.
 local probes = {}
 -- The probe of the first open frame that has one, which onFrame reads; nil while nothing is restyled.
 local watch = nil
 
--- What paintChild writes to one static's sprites: its rgb, and for a background the frame's name and alpha,
--- nil to put each original back. Reused, so painting allocates nothing per sprite.
+-- What paintChild writes to one static's sprites: its rgb, and for a background the frame's name and the share
+-- of each sprite's own alpha to draw at, nil to put each original back. Reused, so painting allocates nothing
+-- per sprite.
 local target = {}
 
 -- Writes target's look to child when it is a sprite, which reads a number spriteID, -1 while a lock blanks it.
@@ -50,29 +53,33 @@ local function paintChild(_, child, category, dynamic)
   end
   local key = target.name .. ":" .. tostring(category) .. ":" .. tostring(dynamic)
   local alpha = read(child, "alpha")
-  local want = target.alpha or originals[key]
-  if target.alpha ~= nil and originals[key] == nil then
-    originals[key] = alpha or 1
+  local original = originals[key]
+  if target.alpha ~= nil and original == nil then
+    original = alpha or 1
+    originals[key] = original
   elseif target.alpha == nil then
     originals[key] = nil
   end
+  local want = original and original * (target.alpha or 1)
   if want ~= nil and (alpha == nil or math.abs(alpha - want) > EPSILON) then
     write(child, "alpha", want)
   end
 end
 
--- The first sprite child of staticID as a probe expecting rgb and alpha, or false.
-local function probeOf(staticID, rgb, alpha)
-  local found = false
+-- The first sprite child of staticID as a probe expecting rgb, and when faded the alpha it reads as just
+-- painted, or nil while staticID has no sprite.
+local function probeOf(staticID, rgb, faded)
+  local found = nil
   interfaces.eachChild(component(WINDOWS, staticID), "", function(_, child, category, dynamic)
-    if not found and type(read(child, "spriteID")) == "number" then
+    if found == nil and type(read(child, "spriteID")) == "number" then
+      local alpha = faded and read(child, "alpha") or nil
       found = { static = staticID, category = category, dynamic = dynamic, rgb = rgb, alpha = alpha }
     end
   end)
   return found
 end
 
--- The opacity frame draws its background at, as an alpha, or nil for the game's own.
+-- The share of its own alpha frame draws its background at, or nil for the game's own.
 local function alphaOf(frame)
   local percent = not frame.held and opacities[frame.name]
   return percent and percent / 100 or nil
@@ -95,7 +102,7 @@ local function paint(frame)
   end
   painted[frame.name] = frame
   if backgroundTint ~= NO_TINT or alpha ~= nil then
-    return probeOf(frame.background, backgroundTint, alpha)
+    return probeOf(frame.background, backgroundTint, alpha ~= nil)
   end
   return frameTint ~= NO_TINT and probeOf(frame.border, frameTint)
 end
@@ -163,10 +170,12 @@ function windowskin.apply(appearance, saved)
       paint(f)
     end
     probes = {}
+    watch = nil
+    if frameTint == NO_TINT and backgroundTint == NO_TINT and next(opacities) == nil then
+      painted = {}
+    end
   end
   if frameTint == NO_TINT and backgroundTint == NO_TINT and next(opacities) == nil then
-    painted = {}
-    watch = nil
     return
   end
   paintOpen()

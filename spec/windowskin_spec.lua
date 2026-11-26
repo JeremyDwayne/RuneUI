@@ -184,6 +184,28 @@ describe("windowskin", function()
     assert.are.equal(0, stub.writes)
   end)
 
+  it("fades each background sprite from its own alpha, leaving a hidden one hidden", function()
+    local stub, windowskin = loadWindows()
+    stub.statics[104].children[1].alpha = 0.5
+    stub.statics[104].children[3].alpha = 0
+    windowskin.apply(SKIN, { INVENTORY_WINDOW = 80 })
+    assert.are.same({ 0.4, 0.8, 0 }, stub.rgbs(104, "alpha"))
+    stub.writes = 0
+    windowskin.onFrame()
+    windowskin.apply(SKIN, { INVENTORY_WINDOW = 80 })
+    assert.are.equal(0, stub.writes)
+  end)
+
+  it("tints a frame on a later tick when the client had built no sprite under it", function()
+    local stub, windowskin = loadWindows()
+    local built = stub.statics[104].children
+    stub.statics[104].children = {}
+    windowskin.apply(SKIN)
+    stub.statics[104].children = built
+    windowskin.apply(SKIN)
+    assert.are.same({ DARK, DARK, DARK }, stub.rgbs(104))
+  end)
+
   it("lists the open windows and those with a saved opacity, leaving out held frames", function()
     local _, windowskin = loadWindows()
     local names = {}
