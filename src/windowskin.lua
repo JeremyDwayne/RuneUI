@@ -2,9 +2,10 @@
 -- background, border and tab strip in 1477 takes the appearance's frame or background colour, and a window with
 -- an opacity below 100 draws its background sprites at that share of their own alpha. Locking or unlocking the
 -- interface replaces every frame's sprites with new ones in the game's look, and a handle kept from before goes
--- on reading the old values, so every check looks a sprite up again. onFrame reads one restyled sprite each
--- rendered frame and restyles every open frame once it reads otherwise; a window that opens is restyled on the
--- next server tick.
+-- on reading the old values, so every check looks a sprite up again. onFrame reads one restyled sprite and the
+-- window layer of each open window with tabs each rendered frame, and restyles every open frame once the sprite
+-- reads otherwise or one of those windows hides: a tab switch shows the next window on that same frame, with
+-- some of its sprites new. A window that opens otherwise is restyled on the next server tick.
 -- Game for both colours with every window at 100, or restore on shutdown, writes the game's look back.
 local interfaces = require("src/interfaces")
 local style = require("src/style")
@@ -34,6 +35,10 @@ local originals = {}
 local probes = {}
 -- The probe of the first open frame that has one, which onFrame reads; nil while nothing is restyled.
 local watch = nil
+-- The open frames with tabs as paintOpen last found them, the first tabbedCount of them, whose windows onFrame
+-- reads. Reused, so a tick allocates nothing.
+local tabbed = {}
+local tabbedCount = 0
 
 -- What paintChild writes to one static's sprites: its rgb, and for a background the frame's name and the share
 -- of each sprite's own alpha to draw at, nil to put each original back. Reused, so painting allocates nothing
@@ -120,10 +125,11 @@ local function stale(probe)
   return alpha ~= nil and math.abs(alpha - probe.alpha) > EPSILON
 end
 
--- Paints every open frame not painted since it opened, or whose probe reads otherwise, and watches the first
--- probe. Reads each frame's window layer, about 90 lookups.
+-- Paints every open frame not painted since it opened, or whose probe reads otherwise, watches the first
+-- probe and lists the open frames with tabs. Reads each frame's window layer, about 90 lookups.
 local function paintOpen()
   watch = nil
+  tabbedCount = 0
   for _, frame in ipairs(windowframes) do
     if read(component(WINDOWS, frame.window), "visibleGlobal") == true then
       local probe = probes[frame.name]
@@ -132,10 +138,24 @@ local function paintOpen()
         probes[frame.name] = probe
       end
       watch = watch or probe or nil
+      if frame.tabs ~= nil then
+        tabbedCount = tabbedCount + 1
+        tabbed[tabbedCount] = frame
+      end
     else
       probes[frame.name] = nil
     end
   end
+end
+
+-- Whether an open window with tabs has hidden since paintOpen listed it.
+local function tabHidden()
+  for i = 1, tabbedCount do
+    if read(component(WINDOWS, tabbed[i].window), "visibleGlobal") ~= true then
+      return true
+    end
+  end
+  return false
 end
 
 -- Whether saved, { [name] = percent }, differs from the opacities in use.
@@ -171,6 +191,7 @@ function windowskin.apply(appearance, saved)
     end
     probes = {}
     watch = nil
+    tabbedCount = 0
     if frameTint == NO_TINT and backgroundTint == NO_TINT and next(opacities) == nil then
       painted = {}
     end
@@ -181,11 +202,11 @@ function windowskin.apply(appearance, saved)
   paintOpen()
 end
 
--- Runs on every rendered frame: one lookup and two reads while a frame is restyled, and nothing otherwise.
--- Locking the interface replaces every frame's sprites at once, so one probe reading otherwise repaints every
--- open frame.
+-- Runs on every rendered frame: one lookup and two reads for the probe while a frame is restyled, one of each per
+-- open window with tabs while anything is, and nothing otherwise. Locking the interface replaces every frame's
+-- sprites at once, so one probe reading otherwise repaints every open frame.
 function windowskin.onFrame()
-  if watch ~= nil and stale(watch) then
+  if (watch ~= nil and stale(watch)) or tabHidden() then
     paintOpen()
   end
 end

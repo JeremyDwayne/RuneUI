@@ -113,7 +113,27 @@ describe("windowskin", function()
     assert.are.same({ BLUE, BLUE, BLUE, WHITE }, stub.rgbs(108))
     stub.writes, stub.lookups = 0, 0
     windowskin.onFrame()
-    assert.are.same({ 0, 1 }, { stub.writes, stub.lookups })
+    -- The probe sprite and the backpack's window layer, the one open window with tabs.
+    assert.are.same({ 0, 2 }, { stub.writes, stub.lookups })
+  end)
+
+  it("fades the window a tab switch shows with both colours at Game", function()
+    local stub, windowskin = loadWindows()
+    windowskin.apply({ windowFrameColour = "game", windowBackgroundColour = "game" }, { MINIMAP_WINDOW = 40 })
+    stub.windows[103].visibleGlobal = false
+    stub.open()
+    windowskin.onFrame()
+    assert.are.same({ 0.4, 0.4, 0.4 }, stub.rgbs(95, "alpha"))
+  end)
+
+  it("tints the window a tab switch shows on the rendered frame it hides the last one", function()
+    local stub, windowskin = loadWindows()
+    windowskin.apply(SKIN)
+    stub.windows[103].visibleGlobal = false
+    stub.open()
+    windowskin.onFrame()
+    assert.are.same({ BLUE, BLUE, BLUE }, stub.rgbs(100))
+    assert.are.same({ DARK, DARK, DARK }, stub.rgbs(95))
   end)
 
   it("tints a window that opens on the next server tick", function()
