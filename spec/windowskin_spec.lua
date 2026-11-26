@@ -226,12 +226,49 @@ describe("windowskin", function()
     assert.are.same({ DARK, DARK, DARK }, stub.rgbs(104))
   end)
 
-  it("lists the open windows and those with a saved opacity, leaving out held frames", function()
-    local _, windowskin = loadWindows()
-    local names = {}
-    for i, frame in ipairs(windowskin.listed({ CHAT_WINDOW = 40 })) do
-      names[i] = frame.name
+  it("splits the windows the Windows page lists into open and closed, leaving out held frames", function()
+    local stub, windowskin = loadWindows()
+    stub.open()
+    local split = windowskin.windows()
+    local function names(frames)
+      local out = {}
+      for _, frame in ipairs(frames) do
+        out[frame.name] = true
+      end
+      return out
     end
-    assert.are.same({ "INVENTORY_WINDOW", "CHAT_WINDOW" }, names)
+    assert.are.same({ MINIMAP_WINDOW = true, INVENTORY_WINDOW = true }, names(split.open))
+    local closed = names(split.closed)
+    assert.are.same({ true, nil, nil }, { closed.WORN_WINDOW, closed.ACTION_WINDOW, closed.INVENTORY_WINDOW })
+  end)
+
+  it("fades every window's background to the global opacity and its tab strip halfway there", function()
+    local stub, windowskin = loadWindows()
+    windowskin.apply({ windowFrameColour = "blue", windowBackgroundColour = "dark", windowOpacity = 40 })
+    assert.are.same({ 0.4, 0.4, 0.4 }, stub.rgbs(104, "alpha"))
+    assert.are.same({ 0.7, 0.7, 0.7 }, stub.rgbs(110, "alpha"))
+    assert.are.same({ 1, 1, 1 }, stub.rgbs(108, "alpha"))
+    assert.are.same({ 1, 1, 1 }, stub.rgbs(70, "alpha"))
+  end)
+
+  it("lets a window's own opacity win over the global one, at 100 too", function()
+    local stub, windowskin = loadWindows()
+    stub.open()
+    windowskin.apply(
+      { windowFrameColour = "blue", windowBackgroundColour = "dark", windowOpacity = 40 },
+      { INVENTORY_WINDOW = 100, MINIMAP_WINDOW = 20 }
+    )
+    assert.are.same({ 1, 1, 1 }, stub.rgbs(104, "alpha"))
+    assert.are.same({ 0.2, 0.2, 0.2 }, stub.rgbs(95, "alpha"))
+  end)
+
+  it("takes an alpha the game writes over a fade as the sprite's own on the next tick", function()
+    local stub, windowskin = loadWindows()
+    windowskin.apply(SKIN, { INVENTORY_WINDOW = 50 })
+    stub.statics[104].children[1].alpha = 0.6
+    windowskin.apply(SKIN, { INVENTORY_WINDOW = 50 })
+    assert.are.equal(0.3, stub.statics[104].children[1].alpha)
+    windowskin.apply(SKIN, {})
+    assert.are.same({ 0.6, 1, 1 }, stub.rgbs(104, "alpha"))
   end)
 end)

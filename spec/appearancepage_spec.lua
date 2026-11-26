@@ -399,7 +399,7 @@ describe("appearance page", function()
         view = view,
         tracker = cooldowns.tracker(),
         windows = function()
-          return { { name = "CHAT_WINDOW", label = "Chat" } }
+          return { open = { { name = "CHAT_WINDOW", label = "Chat" } }, closed = {} }
         end,
         refresh = function()
           refreshed = refreshed + 1

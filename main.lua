@@ -349,9 +349,7 @@ optionsWindow = options.create(top, {
   auraInfo = auraNames.info,
   describe = adapter.structInfo,
   members = partyTracker.members,
-  windows = function()
-    return windowskin.listed(saved.windowOpacities())
-  end,
+  windows = windowskin.windows,
   refresh = refresh,
   configured = showHud,
   escape = function()

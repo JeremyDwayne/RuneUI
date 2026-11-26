@@ -767,7 +767,7 @@ function appearancepage.hidden(page, width, height, deps)
 end
 
 -- The Windows page: the tint of every game window's frame and background, and each listed window's background
--- opacity. deps.windows() gives the windows to list, each { name, label }, read as the page builds; see
+-- opacity. deps.windows() is src/windowskin's windows(), the open ones listed as the page builds; see
 -- settingsPage.
 function appearancepage.windows(page, width, height, deps)
   local saved = deps.saved
@@ -787,7 +787,7 @@ function appearancepage.windows(page, width, height, deps)
     end
 
     b.heading("Background opacity")
-    local windows = deps.windows()
+    local windows = deps.windows().open
     if #windows == 0 then
       b.settingRow("No windows open")
     end

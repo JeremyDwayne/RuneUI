@@ -46,7 +46,7 @@ local function openWindow(mainhand, page)
     elements = elements,
     view = view,
     windows = function()
-      return { { name = "CHAT_WINDOW", label = "Chat" } }
+      return { open = { { name = "CHAT_WINDOW", label = "Chat" } }, closed = {} }
     end,
     refresh = function() end,
     configured = function() end,
@@ -69,7 +69,7 @@ local function optionsOnRoot()
     elements = elements,
     view = view,
     windows = function()
-      return { { name = "CHAT_WINDOW", label = "Chat" } }
+      return { open = { { name = "CHAT_WINDOW", label = "Chat" } }, closed = {} }
     end,
     refresh = function() end,
     configured = function() end,
